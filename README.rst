@@ -1,12 +1,17 @@
-Legacy Survey Large Galaxy Atlas
-================================
+Stellar Mass Content of Dark Matter Halos in Legacy Survey Imaging
+==================================================================
 
-The Legacy Survey Large Galaxy Atlas (LSLGA) delivers multicolor images and
-model fits for a diameter-limited sample of "large" galaxies in `Legacy Survey`_
-imaging, which consists of deep *grz* optical imaging and unWISE *W1* and *W2*
-mid-infrared imaging.
+The `Legacy Survey`_ is delivering deep *grz* optical imaging and unWISE *W1* and *W2*
+mid-infrared imaging of over 14,000 sq. deg of the extragalactic sky.
+
+This repository contains code and papers for a multi-pronged analysis of the
+group- and cluster-scale dark matter halos identified in Legacy Survey imaging,
+particularly the stellar mass content of the central galaxies.  
+
+We generously acknowledge partial funding support for this work by the National
+Science Foundation grant AST-1616414.
 
 .. image:: https://img.shields.io/badge/PDF-latest-orange.svg?style=flat
-    :target: https://github.com/moustakas/LSLGA/blob/master-pdf/paper/ms.pdf
+    :target: https://github.com/moustakas/legacyhalos/blob/master-pdf/paper/ms.pdf
 
 .. _`Legacy Survey`: http://legacysurvey.org
