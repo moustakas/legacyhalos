@@ -10,13 +10,13 @@ with open('LICENSE') as f:
 
 setup(
     name='LSLGA',
-    url='https://github.com/moustakas/LSLGA',
+    url='https://github.com/moustakas/legacyhalos',
     version='untagged',
     author='John Moustakas',
     author_email='jmoustakas@siena.edu',
     #packages=[],
     license=license,
-    description='Legacy Survey Large Galaxy Atlas',
+    description='Study of baryons and dark matter halos in Legacy Survey imaging.',
     long_description=readme,
     #package_data={},
     #scripts=,
