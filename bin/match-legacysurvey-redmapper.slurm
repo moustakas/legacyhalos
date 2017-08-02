@@ -4,7 +4,7 @@
 #SBATCH -L cscratch1,project
 #SBATCH -C haswell
 #SBATCH -t 00:30:00
-#SBATCH -o match-legacysurvey-redmapper.%j
+#SBATCH -o match-legacysurvey-dr3-redmapper-v6.3.1.%j
 #SBATCH --profile=all
 
 # Submit with sbatch match-legacysurvey-redmapper.slurm
@@ -21,7 +21,7 @@ export LEGACYPIPE_DIR=$CSCRATCH/legacypipe
 export PATH=$LEGACYPIPE_DIR/bin:${PATH}
 export PYTHONPATH=$LEGACYPIPE_DIR/py:${PYTHONPATH}
 
-drversion=dr3.1
+drversion=dr3
 rmversion=v6.3.1
 
 # generate filelist (faster than iterating in python)
