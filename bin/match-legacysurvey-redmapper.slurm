@@ -22,23 +22,23 @@ export PATH=$LEGACYPIPE_DIR/bin:${PATH}
 export PYTHONPATH=$LEGACYPIPE_DIR/py:${PYTHONPATH}
 
 drversion=dr3
+sweepversion=3.1
 rmversion=v6.3.1
 
 # generate filelist (faster than iterating in python)
 ROOT=/project/projectdirs/cosmo/data/legacysurvey/$drversion
 TRACTOR=$ROOT/tractor
-
 FILELIST=$CSCRATCH/redmapper/$rmversion/legacysurvey-$drversion-filelist
-find $ROOT/tractor -name 'tractor-*.fits' > $FILELIST
+find -L $ROOT/tractor -name 'tractor-*.fits' > $FILELIST
 
 # match to the centrals
 infile=$CSCRATCH/redmapper/$rmversion/dr8_run_redmapper_${rmversion}_lgt5_catalog.fit
 outfile=$CSCRATCH/redmapper/$rmversion/legacysurvey-$drversion-redmapper-${rmversion}.fits
 time srun -u --cpu_bind=no -N 1 python-mpi $LEGACYPIPE_DIR/bin/match-external-catalog.py -v \
---numproc 64 -I -f fits -F $FILELIST $infile $TRACTOR $outfile
+--numproc 64 --tolerance 1.0 -I -f fits -F $FILELIST $infile $TRACTOR $outfile
 
 # match to the satellites
 infile=$CSCRATCH/redmapper/$rmversion/dr8_run_redmapper_${rmversion}_lgt5_catalog_members.fit
 outfile=$CSCRATCH/redmapper/$rmversion/legacysurvey-$drversion-redmapper-${rmversion}-members.fits
 time srun -u --cpu_bind=no -N 1 python-mpi $LEGACYPIPE_DIR/bin/match-external-catalog.py -v \
---numproc 64 -I -f fits -F $FILELIST $infile $TRACTOR $outfile
+--numproc 64 --tolerance 1.0 -I -f fits -F $FILELIST $infile $TRACTOR $outfile
