@@ -23,11 +23,8 @@ Analysis
 * ...
 
 
-.. _`redMaPPer CasJobs`:
-https://github.com/moustakas/legacyhalos/blob/master/nb/redmapper-casjobs.ipynb 
+.. _`redMaPPer CasJobs`: https://github.com/moustakas/legacyhalos/blob/master/nb/redmapper-casjobs.ipynb 
 
-.. _`Match LegacySurvey-redMapper`:
-https://github.com/moustakas/legacyhalos/blob/master/nb/match-legacysurvey-redmapper.ipynb
+.. _`Match LegacySurvey-redMapper`: https://github.com/moustakas/legacyhalos/blob/master/nb/match-legacysurvey-redmapper.ipynb
 
-.. _`Build a Parent Sample`:
-https://github.com/moustakas/legacyhalos/blob/master/nb/legacysurvey-redmapper-parent.ipynb
+.. _`Build a Parent Sample`: https://github.com/moustakas/legacyhalos/blob/master/nb/legacysurvey-redmapper-parent.ipynb
