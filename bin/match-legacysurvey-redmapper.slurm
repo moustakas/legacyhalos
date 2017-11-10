@@ -18,6 +18,6 @@ export PYTHONPATH=$LEGACYPIPE_DIR/py:${PYTHONPATH}
 
 time srun -u --cpu_bind=no -N 1 python-mpi $LEGACYPIPE_DIR/bin/match-external-catalog.py -v --numproc 24 \
     -f fits -F $TRACTOR_FILELIST \
-    ${RMOUTDIR}/redmapper-${RMVERSION}-sdssWISEphot.fits \
+    ${RMOUTDIR}/redmapper-${RMVERSION}-lgt5-sdssWISEphot.fits \
     $TRACTOR_INDIR \
-    ${RMOUTDIR}/legacysurvey-${DR}-redmapper-${RMVERSION}.fits
+    ${RMOUTDIR}/legacysurvey-${DR}-redmapper-${RMVERSION}-lgt5.fits

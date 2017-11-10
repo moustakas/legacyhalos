@@ -17,14 +17,18 @@ Preparatory Work
 
 * `match-legacysurvey-redmapper.ipynb`_ -- This notebook documents how we match
   the updated *redmapper-v6.3.1-sdssWISEphot.fits* catalog to the Legacy Survey
-  DR5 photometric (Tractor) catalogs at NERSC.  
+  DR5 photometric (Tractor) catalogs at NERSC.  The output matched Tractor
+  catalog is called *legacysurvey-dr5-redmapper-v6.3.1.fits*. 
 
 Analysis
 --------
-* `legacysurvey-redmapper-parent.ipynb`_ -- Build a parent sample of central
-  galaxies (as defined by being in the redMaPPer/v6.3.1 catalog) with full-depth
+* `legacyhalos-parent.ipynb`_ -- Build a parent sample of central galaxies (as
+  defined by being in the redMaPPer/v6.3.1 centrals catalog) with full-depth
   Legacy Survey grzW1W2 imaging as part of the fifth data release (DR5).  We
   also identify the subset of the sample with UPenn-PhotDec photometry.
+
+* `legacyhalos-parent-qaplots.ipynb`_ -- Generate QAplots from the legacyhalos
+  parent catalogs. 
 
 Obsolete
 --------
@@ -38,6 +42,9 @@ Obsolete
 
 .. _`match-legacysurvey-redmapper.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/match-legacysurvey-redmapper.ipynb
 
-.. _`legacysurvey-redmapper-parent.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/legacysurvey-redmapper-parent.ipynb
+.. _`legacyhalos-parent.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/legacyhalos-parent.ipynb
+
+.. _`legacyhalos-parent-qaplots.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/legacyhalos-parent-qaplots.ipynb
+
 
 .. _`match-upenn-redmapper.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/match-upenn-redmapper.ipynb
