@@ -30,11 +30,6 @@ Analysis
 * `legacyhalos-parent-qaplots.ipynb`_ -- Generate QAplots from the legacyhalos
   parent catalogs. 
 
-Obsolete
---------
-* `match-upenn-redmapper.ipynb`_ -- The code in this notebook is slated to be
-  incorporated into the `legacysurvey-redmapper-parent.ipynb`_ notebook.
-
 
 .. _`SDSS/CasJobs`: http://skyserver.sdss.org/CasJobs
 
@@ -45,6 +40,3 @@ Obsolete
 .. _`legacyhalos-parent.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/legacyhalos-parent.ipynb
 
 .. _`legacyhalos-parent-qaplots.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/legacyhalos-parent-qaplots.ipynb
-
-
-.. _`match-upenn-redmapper.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/match-upenn-redmapper.ipynb
