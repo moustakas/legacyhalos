@@ -1,0 +1,169 @@
+#!/usr/bin/env python
+
+"""MPI wrapper on legacyhalos_coadds.
+"""
+
+# Parse args first to enable --help on login nodes where MPI crashes...
+from __future__ import absolute_import, division, print_function
+
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-n', '--nproc', type=int, help="""number of concurrent
+processes to use [{}]""".format(nproc), default=nproc)
+parser.add_argument('--ngal', help='Number of galaxies per process', type=int, default=1)
+parser.add_argument('-v','--verbose', action='store_true', help='Enable verbose output.')
+parser.add_argument('--no-check-env', action='store_true', help='Do not check NERSC environment variables')
+
+args = parser.parse_args()
+
+#...then initialize MPI ASAP before proceeding with other imports. 
+from mpi4py import MPI
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
+
+import os, sys
+import numpy as np
+from legacyhalos.legacyhalos_coadds import legacyhalos_coadds
+
+#- NERSC environment check
+if 'NERSC_HOST' in os.environ and not args.no_check_env:
+    ok = True
+    if os.getenv('OMP_NUM_THREADS') not in ('1', '2'):
+        ok = False
+        if rank == 0:
+            log.error('You likely want $OMP_NUM_THREADS=1 at NERSC')
+    if os.getenv('MPICH_GNI_FORK_MODE') != 'FULLCOPY':
+        ok = False
+        if rank == 0:
+            log.error('You likely want $MPICH_GNI_FORK_MODE=FULLCOPY at NERSC')
+    if os.getenv('KMP_AFFINITY') != 'disabled':
+        ok = False
+        if rank == 0:
+            log.error('You likely want $KMP_AFFINITY=disabled at NERSC')
+    if not ok:
+        if rank == 0:
+            log.error('Either fix env or rerun with --no-check-env; exiting...')
+        sys.exit(1)
+
+# Do some initial work on the rank0 node.
+if rank == 0:
+
+    def coadds_radius(redcat, pixscale=0.262, factor=1.5, rmin=50, rmax=500, verbose=False):
+    
+        """Get the desired radius of each cluster in pixels using the R_LAMBDA, which is
+        the richness radius in h^-1 Mpc.  Convert this "richness radius" in h^-1 Mpc
+        and convert it to pixels using a standard cosmology, times a fudge factor
+        (currently 1.5).
+    
+        Note that we assume the DECam pixel scale of 0.262 arcsec/pix!
+     
+        Finally, we bound the radius to the interval [50, 500] pixels.
+    
+        """
+        from astropy.cosmology import WMAP9 as cosmo
+        
+        if verbose:
+            print('NB: Assuming DECam data with pixel scale = {:.3f} arcsec/pix'.format(pixscale))
+        radius = redcat.r_lambda * 1e3 * cosmo.h # cluster radius in kpc
+        rad_arcsec = [factor * pixscale * rad * cosmo.arcsec_per_kpc_proper(cat.z).value for 
+                      rad, cat in zip(radius, redcat)]
+        rad = np.array(rad_arcsec).astype('int16')
+        
+        rad[rad < rmin] = rmin
+        rad[rad > rmax] = rmax
+    
+        return rad
+
+    from legacypipe.survey import LegacySurveyData
+    from astrometry.util.fits import fits_table
+    from astrometry.util.multiproc import multiproc
+
+    mp = multiproc()
+
+    # Paths and filenames.
+    legacyhalos_dir = os.path.join( os.getenv('SCRATCH'), 'legacyhalos' )
+    parentfile = os.path.join(legacyhalos_dir, 'legacyhalos-upenn-parent.fits')
+
+    coaddsdir = os.path.join(legacyhalos_dir, 'coadds')
+    if not os.path.isdir(coaddsdir):
+        os.makedirs(coaddsdir, exist_ok=True)
+
+    # Read the data.
+    bcgphot = fits_table(parentfile, ext='LSPHOT')
+    redcat = fits_table(parentfile, ext='REDMAPPER')
+    print('Read {} galaxies from {}'.format(len(bcgphot), parentfile))
+
+    dr5_dir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo', 'data', 'legacysurvey', 'dr5')
+    survey = LegacySurveyData(cache_dir=dr5_dir)
+
+    # Figure out how many more BCGs we need to analyze by looking for the
+    # residual jpg image (which gets created last in
+    # legacyhalos_coadds.build_coadds.
+    keep = list()
+    for ii, bcg in enumerate(bcgphot):
+        residfile = os.path.join(coaddsdir, '{:05d}'.format(bcg.objid),
+                                 '{:05d}-resid.jpg'.format(bcg.objid))
+        if not os.path.exists(residfile):
+            keep.append(ii)
+    if len(keep) == 0:
+        print('All {} BCGs are done!'.format(len(bcgphot)))
+        sys.exit(1)
+    else:
+        print('{}/{} BCGs left to analyze.'.format(len(keep), len(bcgphot)))
+
+    bcgphot = bcgphot[keep]
+    redcat = redcat[keep]
+
+    # Pre-create all the output directories.
+    for bcg in bcgphot:
+        bcgdir = os.path.join(coaddsdir, '{:05d}'.format(bcg.objid))
+        if not os.path.isdir(bcgdir):
+            os.makedirs(bcgdir, exist_ok=True)
+
+    # Compute the cutout radius for the remaining BCGs.
+    radius = coadds_radius(redcat)
+
+# Broadcast the LegacySurveyData() and multiproc() object to all ranks.
+comm.barrier()
+survey = comm.bcast(survey, root=0)
+mp = comm.bcast(mp, root=0)
+
+# Split the sample into groups to assign to each rank.
+indx = np.linspace(0, len(bcgphot), size+1, dtype=int)
+rankbcgphot = bcgphot[indx[rank]:indx[rank+1]]
+rankradius = radius[indx[rank]:indx[rank+1]]
+
+print('Rank {} is working on {} BCGs {}'.format(rank,
+                                                iedges[rank+1]-iedges[rank],
+                                                rankbcgphot.objid)
+                                                )
+sys.stdout.flush()
+comm.barrier()
+
+# Have each rank process one BCG at a time.
+if len(rankbcgphot) > 0:
+    n = args.ngal
+    for ii in range(0, len(rankbcgphot), n):
+        logfile = os.path.join(coaddsdir, '{:05d}', '{:05d}.log'.format(
+            rankbcgphot[ii].objid, rankbcgphot[ii].objid))
+        print(logfile)
+        #log.info('Logging pixels {} to {}'.format(rankpix[i:i+n], logfile))
+        t0 = time.time()
+        try:
+            with stdouterr_redirected(to=logfile):
+                legacyhalos_coadds(survey, rankbcgphot, rankradius,
+                                   coaddsdir, nproc=args.nproc,
+                                   verbose=args.verbose)
+            runtime = (time.time()-t0) / 60
+    
+            print('Building coadds took {:.1f} minutes'.format(runtime))
+            #log.info('Building coadds took {:.1f} minutes'.format(runtime))
+        except Exception as err:
+            runtime = (time.time()-t0) / 60
+                
+            import traceback
+            msg = traceback.format_exc()
+            sys.stdout.flush()
+            sys.stderr.flush()
