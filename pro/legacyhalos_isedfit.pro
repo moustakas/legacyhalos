@@ -23,6 +23,7 @@
 ;   isedfit
 ;   kcorrect
 ;   qaplot_sed
+;   gather_results
 ;   clobber
 ;
 ; OUTPUTS:
@@ -56,7 +57,7 @@ end
 pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
   sdssphot_dr14=sdssphot_dr14, sdssphot_upenn=sdssphot_upenn, write_paramfile=write_paramfile, $
   build_grids=build_grids, model_photometry=model_photometry, isedfit=isedfit, $
-  kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, $
+  kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, gather_results=gather_results, $
   clobber=clobber
 
 ;   echo "legacyhalos_isedfit, /lsphot_dr5, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > lsphot-dr5.log 2>&1 &
@@ -65,7 +66,8 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
     legacyhalos_dir = getenv('LEGACYHALOS_DIR')
 
     if keyword_set(lsphot_dr5) eq 0 and keyword_set(lsphot_custom) eq 0 and $
-      keyword_set(sdssphot_dr14) eq 0 and keyword_set(sdssphot_upenn) eq 0 then begin
+      keyword_set(sdssphot_dr14) eq 0 and keyword_set(sdssphot_upenn) eq 0 and $
+      keyword_set(gather_results) eq 0 then begin
        splog, 'Choose one of /LSPHOT_DR5, /LSPHOT_CUSTOM, /SDSSPHOT_DR14, or /SDSSPHOT_UPENN'
        return       
     endif
@@ -88,9 +90,34 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        prefix = 'sdssphot'
        outprefix = 'sdssphot_upenn'
     endif
+
+    isedfit_rootdir = getenv('IM_ARCHIVE_DIR')+'/projects/legacyhalos/'
     
-    isedfit_dir = getenv('IM_ARCHIVE_DIR')+'/projects/legacyhalos/isedfit_'+prefix+'/'
-    montegrids_dir = getenv('IM_ARCHIVE_DIR')+'/projects/legacyhalos/montegrids_'+prefix+'/'
+; --------------------------------------------------
+; gather the results and write out the final stellar mass catalog; also consider
+; writing out all the spectra...
+    if keyword_set(gather_results) then begin
+       lsphot = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
+         'lsphot_dr5_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+       sdssphot = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
+         'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+
+       outfile = legacyhalos_dir+'/legacyhalos-parent-isedfit.fits'
+       mwrfits, lsphot, outfile, /create
+       mwrfits, sdssphot, outfile
+
+       hdr = headfits(outfile,ext=1)
+       sxaddpar, hdr, 'EXTNAME', 'LSPHOT'
+       modfits, outfile, 0, hdr, exten_no=1
+
+       hdr = headfits(outfile,ext=2)
+       sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT'
+       modfits, outfile, 0, hdr, exten_no=2
+       return
+    endif
+
+    isedfit_dir = isedfit_rootdir+'isedfit_'+prefix+'/'
+    montegrids_dir = isedfit_rootdir+'montegrids_'+prefix+'/'
     isedfit_paramfile = isedfit_dir+prefix+'_paramfile.par'
 
     spawn, ['mkdir -p '+isedfit_dir], /sh
@@ -140,6 +167,9 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        snr = maggies*sqrt(ivarmaggies)
        ww = where(abs(snr[3,*]) gt 1e3) & ivarmaggies[3,ww] = 0
        ww = where(abs(snr[4,*]) gt 1e3) & ivarmaggies[4,ww] = 0
+
+; add minimum uncertainties to grzW1W2
+       k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.02,0.02]
     endif
     
 ; custom LegacySurvey (grz) + unWISE W1 & W2    
@@ -167,15 +197,16 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        glactc, rm.ra, rm.dec, 2000.0, gl, gb, 1, /deg
        ebv = rebin(reform(dust_getval(gl,gb,/interp,/noloop),1,ngal),2,ngal)
        coeff = rebin(reform([0.184,0.113],2,1),2,ngal) ; Galactic extinction coefficients from http://legacysurvey.org/dr5/catalogs
-       
-       factor = 1D-9 * 10^(0.4*coeff*ebv)*10^(-0.4*vega2ab) ; * 1D-9; * 1D-9
+
+       factor = 1D-9 * 10^(0.4*coeff*ebv)*10^(-0.4*vega2ab)
        wmaggies = float(cat.wise_nanomaggies * factor)
        wivarmaggies = float(cat.wise_nanomaggies_ivar / factor^2)
        
        maggies = [smaggies, wmaggies]
        ivarmaggies = [sivarmaggies, wivarmaggies]
        
-;      print, -2.5*alog10(maggies[*,0:10])
+; add minimum uncertainties to ugrizW1W2
+       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.02,0.02]
     endif
 
 ; UPenn-PhotDec gri SDSS photometry
@@ -211,10 +242,10 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
     endif
 
 ;   splog, 'HACK!!'
-;   index = lindgen(100)
+;   index = lindgen(50)
+;   outprefix = 'test'
 ;   jj = mrdfits('lsphot_dr5_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
 ;   index = where(jj.mstar lt 0)
-;   outprefix = 'test'
 
 ; --------------------------------------------------
 ; build the Monte Carlo grids    
@@ -257,5 +288,6 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
          clobber=clobber, index=these, /xlog
     endif
 
+    
 return
 end
