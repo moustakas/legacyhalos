@@ -21,7 +21,10 @@ Please note:
 # Parse args first to enable --help on login nodes where MPI crashes
 from __future__ import absolute_import, division, print_function
 
-def coadds_stage_tims(bcg, radius=100):
+import os
+import numpy as np
+
+def coadds_stage_tims(bcg, survey=None, radius=100):
     """Initialize the first step of the pipeline, returning
     a dictionary with the following keys:
     
@@ -35,10 +38,10 @@ def coadds_stage_tims(bcg, radius=100):
     
     bbox = [bcg.bx-radius, bcg.bx+radius, bcg.by-radius, bcg.by+radius]
     P = stage_tims(brickname=bcg.brickname, survey=survey, target_extent=bbox,
-                   pixPsf=True, hybridPsf=True, depth_cut=False, mp=mp)
+                   pixPsf=True, hybridPsf=True, depth_cut=False)#, mp=mp)
     return P
 
-def read_tractor(bcg, targetwcs, verbose=False):
+def read_tractor(bcg, targetwcs, survey=None, verbose=False):
     """Read the full Tractor catalog for a given brick 
     and remove the BCG.
     
@@ -64,7 +67,7 @@ def read_tractor(bcg, targetwcs, verbose=False):
         
     return cat
 
-def build_model_image(cat, tims, verbose=False):
+def build_model_image(cat, tims, survey=None, verbose=False):
     """Generate a model image by rendering each source.
     
     """
@@ -86,7 +89,7 @@ def build_model_image(cat, tims, verbose=False):
     return mods
 
 def tractor_coadds(bcg, targetwcs, tims, mods, version_header,
-                   verbose=verbose, bands=['g','r','z']):
+                   survey=None, verbose=False, bands=['g','r','z']):
     """Generate individual-band FITS and color coadds for each central using
     Tractor.
 
@@ -97,7 +100,7 @@ def tractor_coadds(bcg, targetwcs, tims, mods, version_header,
     
     if verbose:
         print('Producing coadds...')
-    C = make_coadds(tims, bands, targetwcs, mods=mods, mp=mp,
+    C = make_coadds(tims, bands, targetwcs, mods=mods, #mp=mp,
                     callback=write_coadd_images,
                     callback_args=(survey, bcg.brickname, version_header, 
                                    tims, targetwcs)
@@ -134,14 +137,15 @@ def legacyhalos_coadds(survey, bcgphot, radius, coaddsdir, nproc=1, verbose=True
         survey.output_dir = os.path.join(coaddsdir, '{:05d}'.format(bcgphot[ii].objid))
 
         # Step 1 - Set up the first stage of the pipeline.
-        P = coadds_stage_tims(bcgphot[ii], radius=radius[ii])
-    
+        P = coadds_stage_tims(bcgphot[ii], survey=survey, radius=radius[ii])
+
+        import pdb ; pdb.set_trace()
         # Step 2 - Read the Tractor catalog for this brick and remove the central.
-        cat = read_tractor(bcgphot[ii], P['targetwcs'], verbose=verbose)
+        cat = read_tractor(bcgphot[ii], P['targetwcs'], survey=survey, verbose=verbose)
            
         # Step 3 - Render the model images without the central.
-        mods = build_model_image(cat, tims=P['tims'], verbose=verbose)
+        mods = build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
 
         # Step 4 - Generate and write out the coadds.
         tractor_coadds(bcgphot[ii], P['targetwcs'], P['tims'], mods,
-                       P['version_header'], verbose=verbose)
+                       P['version_header'], survey=survey, verbose=verbose)
