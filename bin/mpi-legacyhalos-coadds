@@ -79,9 +79,6 @@ if rank == 0:
     from legacypipe.survey import LegacySurveyData
     from astrometry.util.fits import fits_table
     
-    #from astrometry.util.multiproc import multiproc
-    #mp = multiproc(nthreads=args.nproc)
-
     # Paths and filenames.
     legacyhalos_dir = os.path.join( os.getenv('SCRATCH'), 'legacyhalos' )
     parentfile = os.path.join(legacyhalos_dir, 'legacyhalos-upenn-parent.fits')
@@ -93,9 +90,9 @@ if rank == 0:
     # Read the data.
     bcgphot = fits_table(parentfile, ext='LSPHOT')
     redcat = fits_table(parentfile, ext='REDMAPPER')
-    print('Hack -- 5 galaxies!')
-    bcgphot = bcgphot[:5]
-    redcat = redcat[:5]
+    print('Hack -- 20 galaxies!')
+    bcgphot = bcgphot[:20]
+    redcat = redcat[:20]
     print('Read {} galaxies from {}'.format(len(bcgphot), parentfile))
 
     dr5_dir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo', 'data', 'legacysurvey', 'dr5')
@@ -130,7 +127,7 @@ if rank == 0:
 
 # Broadcast the LegacySurveyData() and multiproc() object to all ranks.
 comm.barrier()
-survey = comm.bcast(survey, root=0)
+#survey = comm.bcast(survey, root=0)
 #mp = comm.bcast(mp, root=0)
 
 # Split the sample into groups to assign to each rank.
