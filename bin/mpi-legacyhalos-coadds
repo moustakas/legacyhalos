@@ -1,169 +1,307 @@
 #!/usr/bin/env python
 
-"""MPI wrapper on legacyhalos_coadds.
+"""
+MPI wrapper for legacyhalos_coadds.
 """
 
-# Parse args first to enable --help on login nodes where MPI crashes...
 from __future__ import absolute_import, division, print_function
 
+import os, sys, glob, time, subprocess
 import argparse
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-n', '--nproc', default=1, type=int, help='number of concurrent processes to use')
-parser.add_argument('--ngal', help='Number of galaxies per process', type=int, default=1)
-parser.add_argument('-v','--verbose', action='store_true', help='Enable verbose output.')
-parser.add_argument('--no-check-env', action='store_true', help='Do not check NERSC environment variables')
-
-args = parser.parse_args()
-
-#...then initialize MPI ASAP before proceeding with other imports. 
-from mpi4py import MPI
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-size = comm.Get_size()
-
-import os, sys
-import time
 import numpy as np
-from legacyhalos.legacyhalos_coadds import legacyhalos_coadds
 
-#- NERSC environment check
-if 'NERSC_HOST' in os.environ and not args.no_check_env:
-    ok = True
-    if os.getenv('OMP_NUM_THREADS') not in ('1', '2'):
-        ok = False
-        if rank == 0:
-            print('You likely want $OMP_NUM_THREADS=1 at NERSC')
-    if os.getenv('MPICH_GNI_FORK_MODE') != 'FULLCOPY':
-        ok = False
-        if rank == 0:
-            print('You likely want $MPICH_GNI_FORK_MODE=FULLCOPY at NERSC')
-    if os.getenv('KMP_AFFINITY') != 'disabled':
-        ok = False
-        if rank == 0:
-            print('You likely want $KMP_AFFINITY=disabled at NERSC')
-    if not ok:
-        if rank == 0:
-            print('Either fix env or rerun with --no-check-env; exiting...')
-        sys.exit(1)
-
-# Do some initial work on the rank0 node.
-if rank == 0:
-
-    def coadds_radius(redcat, pixscale=0.262, factor=1.5, rmin=50, rmax=500, verbose=False):
-    
-        """Get the desired radius of each cluster in pixels using the R_LAMBDA, which is
-        the richness radius in h^-1 Mpc.  Convert this "richness radius" in h^-1 Mpc
-        and convert it to pixels using a standard cosmology, times a fudge factor
-        (currently 1.5).
-    
-        Note that we assume the DECam pixel scale of 0.262 arcsec/pix!
-     
-        Finally, we bound the radius to the interval [50, 500] pixels.
-    
-        """
-        from astropy.cosmology import WMAP9 as cosmo
-        
-        if verbose:
-            print('NB: Assuming DECam data with pixel scale = {:.3f} arcsec/pix'.format(pixscale))
-        radius = redcat.r_lambda * 1e3 * cosmo.h # cluster radius in kpc
-        rad_arcsec = [factor * pixscale * rad * cosmo.arcsec_per_kpc_proper(cat.z).value for 
-                      rad, cat in zip(radius, redcat)]
-        rad = np.array(rad_arcsec).astype('int16')
-        
-        rad[rad < rmin] = rmin
-        rad[rad > rmax] = rmax
-    
-        return rad
-
+def init_survey():
+    """Instantiate the LegacySurveyData object."""
     from legacypipe.survey import LegacySurveyData
-    from astrometry.util.fits import fits_table
-    
-    # Paths and filenames.
-    legacyhalos_dir = os.path.join( os.getenv('SCRATCH'), 'legacyhalos' )
-    parentfile = os.path.join(legacyhalos_dir, 'legacyhalos-upenn-parent.fits')
-
-    coaddsdir = os.path.join(legacyhalos_dir, 'coadds')
-    if not os.path.isdir(coaddsdir):
-        os.makedirs(coaddsdir, exist_ok=True)
-
-    # Read the data.
-    bcgphot = fits_table(parentfile, ext='LSPHOT')
-    redcat = fits_table(parentfile, ext='REDMAPPER')
-    print('Hack -- 20 galaxies!')
-    bcgphot = bcgphot[:20]
-    redcat = redcat[:20]
-    print('Read {} galaxies from {}'.format(len(bcgphot), parentfile))
 
     dr5_dir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo', 'data', 'legacysurvey', 'dr5')
-    survey = LegacySurveyData(cache_dir=dr5_dir)
+    return LegacySurveyData(cache_dir=dr5_dir)
 
-    # Figure out how many more BCGs we need to analyze by looking for the
-    # residual jpg image (which gets created last in
-    # legacyhalos_coadds.build_coadds.
-    keep = list()
-    for ii, bcg in enumerate(bcgphot):
-        residfile = os.path.join(coaddsdir, '{:05d}'.format(bcg.objid),
-                                 '{:05d}-resid.jpg'.format(bcg.objid))
-        if not os.path.exists(residfile):
-            keep.append(ii)
-    if len(keep) == 0:
-        print('All {} BCGs are done!'.format(len(bcgphot)))
-        sys.exit(1)
-    else:
-        print('{}/{} BCGs left to analyze.'.format(len(keep), len(bcgphot)))
+def sample_left_todo(sample, outdir=None):
+    '''Figure out which BCGs are left to analyze by looking for the residual jpg
+    image (which gets created last in legacyhalos_coadds.build_coadds.
 
-    bcgphot = bcgphot[keep]
-    redcat = redcat[keep]
-
-    # Pre-create all the output directories.
-    for bcg in bcgphot:
-        bcgdir = os.path.join(coaddsdir, '{:05d}'.format(bcg.objid))
-        if not os.path.isdir(bcgdir):
-            os.makedirs(bcgdir, exist_ok=True)
-
-    # Compute the cutout radius for the remaining BCGs.
-    radius = coadds_radius(redcat)
-
-# Broadcast the LegacySurveyData() and multiproc() object to all ranks.
-comm.barrier()
-#survey = comm.bcast(survey, root=0)
-#mp = comm.bcast(mp, root=0)
-
-# Split the sample into groups to assign to each rank.
-indx = np.linspace(0, len(bcgphot), size+1, dtype=int)
-rankbcgphot = bcgphot[indx[rank]:indx[rank+1]]
-rankradius = radius[indx[rank]:indx[rank+1]]
-
-print('Rank {} is working on {} BCGs {}'.format(rank,
-                                                indx[rank+1]-indx[rank],
-                                                rankbcgphot.objid)
-                                                )
-sys.stdout.flush()
-comm.barrier()
-
-# Have each rank process one BCG at a time.
-if len(rankbcgphot) > 0:
-    n = args.ngal
-    for ii in range(0, len(rankbcgphot), n):
-        strid = '{:05d}'.format(rankbcgphot[ii].objid)
-        logfile = os.path.join(coaddsdir, strid, '{}.log'.format(strid))
-        print(logfile)
-        #log.info('Logging pixels {} to {}'.format(rankpix[i:i+n], logfile))
-        t0 = time.time()
-        try:
-            #with stdouterr_redirected(to=logfile):
-            legacyhalos_coadds(survey, rankbcgphot, rankradius, coaddsdir,
-                               nproc=args.nproc, verbose=args.verbose)
-            runtime = (time.time()-t0) / 60
+    '''
+    ngal = len(sample)
+    indices = np.arange(ngal)
     
-            print('Building coadds took {:.1f} minutes'.format(runtime))
-            #log.info('Building coadds took {:.1f} minutes'.format(runtime))
-        except Exception as err:
-            print(err)
+    todo = np.ones(ngal, dtype=bool)
+    
+    for ii, objid in enumerate(sample.objid):
+        strid = '{:05d}'.format(objid)
+        residfile = os.path.join(outdir, strid, '{}-resid.jpg'.format(strid))
+        if os.path.exists(residfile):
+            todo[ii] = False
+
+    return indices[todo]
+
+def coadds_radius(redcat, pixscale=0.262, factor=1.5, rmin=50, rmax=500, verbose=False):
+
+    """Get the desired radius of each cluster in pixels using the R_LAMBDA, which is
+    the richness radius in h^-1 Mpc.  Convert this "richness radius" in h^-1 Mpc
+    and convert it to pixels using a standard cosmology, times a fudge factor
+    (currently 1.5).
+
+    Note that we assume the DECam pixel scale of 0.262 arcsec/pix!
+
+    Finally, bound the radius to the interval [50, 500] pixels.
+
+    """
+    from astropy.cosmology import WMAP9 as cosmo
+
+    if verbose:
+        print('NB: Assuming DECam data with pixel scale = {:.3f} arcsec/pix'.format(pixscale))
+    radius = redcat.r_lambda * 1e3 * cosmo.h # cluster radius in kpc
+    rad_arcsec = [factor * pixscale * rad * cosmo.arcsec_per_kpc_proper(cat.z).value for 
+                  rad, cat in zip(radius, redcat)]
+    rad = np.array(rad_arcsec).astype('int16')
+
+    rad[rad < rmin] = rmin
+    rad[rad > rmax] = rmax
+
+    return rad
+
+def group_sample_todo(indices, comm=None):
+    '''
+    Group how the sample is split among ranks to balance runtimes. 
+    
+    Returns (groups, grouptimes):
+      * groups: list of lists of indices to specfiles
+      * grouptimes: list of expected runtimes for that group
+    '''
+    if comm is None:
+        rank, size = 0, 1
+    else:
+        rank, size = comm.rank, comm.size
+
+    ngal = len(indices)
+    groups = np.array_split(np.arange(ngal), size)
+
+    #nperrank = ngal // size
+    #print(nperrank)
+    #runtimes = 30*60 + 0*nperrank # seconds
+
+    # Fixed run-time per group -- hack!
+    grouptimes = np.repeat(25 * 60, len(groups)) # seconds
+
+    return groups, grouptimes
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--legacyhalos_dir', type=str, default=None, help='Base directory for the legacyhalos project')
+    parser.add_argument('-n', '--ncpu', type=int, help='number of multiprocessing processes per MPI rank.')
+    parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
+    parser.add_argument('--dryrun', action='store_true', help='Generate but do not run commands')
+    parser.add_argument('--maxnodes', type=int, default=256, help='maximum number of nodes to use')
+    parser.add_argument('--plan', action='store_true', help='plan how many nodes to use and the sample distribution')
+    #parser.add_argument('--ngal', help='Number of galaxies per process', type=int, default=1)
+    parser.add_argument('-v','--verbose', action='store_true', help='Enable verbose output.')
+
+    args = parser.parse_args()
+
+    if args.mpi:
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+    else:
+        comm = None
+        rank = 0
+
+    # Read the sample to see how many more galaxies we need to process.
+    if rank == 0:
+        from astrometry.util.fits import fits_table
+        
+        if args.legacyhalos_dir is None and not 'LEGACYHALOS_DIR' in os.environ:
+            print('I/O directory --legacyhalos_dir (or LEGACYHALOS_DIR environment) is required!')
+            sys.exit(1)
+        if args.legacyhalos_dir is None and 'LEGACYHALOS_DIR' in os.environ:
+            args.legacyhalos_dir = os.getenv('LEGACYHALOS_DIR')
+
+        outdir = os.path.join(args.legacyhalos_dir, 'coadds')
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir, exist_ok=True)
+            
+        parentfile = os.path.join(args.legacyhalos_dir, 'legacyhalos-upenn-parent.fits')
+        sample = fits_table(parentfile, ext='LSPHOT')
+        redcat = fits_table(parentfile, ext='REDMAPPER')
+        print('HACK -- 10 galaxies!')
+        sample = sample[1000:1020]
+        
+        print('Read {} galaxies from {}'.format(len(sample), parentfile))
+
+    # Make a plan or do the deed!
+    if args.plan:
+        plan(args, sample, comm=comm, outdir=outdir)
+    else:
+        run_legacyhalos_coadds(args, sample, comm=comm, outdir=outdir)
+
+
+def plan(args, sample, comm=None, outdir=None):
+    """Make a plan."""
+
+    t0 = time.time()
+    if comm is None:
+        rank, size = 0, 1
+    else:
+        rank, size = comm.rank, comm.size
+
+    if rank == 0:
+        indices = sample_left_todo(sample, outdir=outdir)
+    else:
+        indices = None
+
+    if comm is not None:
+        indices = comm.bcast(indices, root=0)
+
+    if len(indices) == 0:
+        if rank == 0:
+            print('All galaxies have been processed!')
+        return list(), list(), list()
+
+    # Divide the remaining sample among the ranks.    
+    groups, grouptimes = group_sample_todo(indices, comm=comm)
+
+    plantime = time.time() - t0
+    if plantime + np.max(grouptimes) <= (25*60):
+        queue = 'debug'
+    else:
+        queue = 'regular'
+
+    numnodes = len(groups)
+
+    if os.getenv('NERSC_HOST') == 'cori':
+        maxproc = 64
+    elif os.getenv('NERSC_HOST') == 'edison':
+        maxproc = 48
+    else:
+        maxproc = 4
+
+    if args.ncpu is None:
+        args.ncpu = maxproc // 2
+
+    ##- scale longer if purposefullying using fewer cores (e.g. for memory)
+    #if args.ncpu < maxproc // 2:
+    #    scale = (maxproc // 2) / args.ncpu
+    #    grouptimes *= scale
+    #
+    jobtime = int(1.15 * (plantime + np.max(grouptimes)))
+    jobhours = jobtime // 3600
+    jobminutes = (jobtime - jobhours*3600) // 60
+    jobseconds = jobtime - jobhours*3600 - jobminutes*60
+
+    if rank == 0:
+        print('#!/bin/bash')
+        print('#SBATCH -N {}'.format(numnodes))
+        print('#SBATCH -p {}'.format(queue))
+        print('#SBATCH -J legacyhalos-coadds')
+        if os.getenv('NERSC_HOST') == 'cori':
+            print('#SBATCH -C haswell')
+        print('#SBATCH -t {:02d}:{:02d}:{:02d}'.format(jobhours, jobminutes, jobseconds))
+        print()
+        print('# {} galaxies'.format(len(indices)))
+        ### print('# plan time {:.1f} minutes'.format(plantime / 60))
+        print('# Using {} nodes in {} queue'.format(numnodes, queue))
+        print('# expected rank runtimes ({:.1f}, {:.1f}, {:.1f}) min/mid/max minutes'.format(
+            np.min(grouptimes)/60, np.median(grouptimes)/60, np.max(grouptimes)/60
+        ))
+        print()
+        print('nodes=$SLURM_JOB_NUM_NODES')
+        print('srun -N $nodes -n $nodes -c {} {} --mpi --ncpu {}'.format(
+            maxproc, os.path.abspath(__file__), args.ncpu,
+        ))
+
+    return indices, groups, grouptimes
+
+def run_legacyhalos_coadds(args, sample, comm=None, outdir=None):
+    """Generate the coadds."""
+    from legacyhalos.legacyhalos_coadds import legacyhalos_coadds
+
+    if comm is None:
+        rank, size = 0, 1
+    else:
+        rank, size = comm.rank, comm.size
+
+    args.maxnodes = min(args.maxnodes, size)
+
+    t0 = time.time()
+    if rank == 0:
+        print('Starting at {}'.format(time.asctime()))
+
+    indices, groups, grouptimes = plan(args, sample, comm=comm, outdir=outdir)
+    if rank == 0:
+        print('Planning took {:.1f} sec'.format(time.time() - t0))
+        
+    if len(groups) == 0:
+        return
+
+    sys.stdout.flush()
+    if comm is not None:
+        groups = comm.bcast(groups, root=0)
+        indices = comm.bcast(indices, root=0)
+
+    assert len(groups) == size
+    assert len(np.concatenate(groups)) == len(indices)
+
+    # Initialize and then broadcast the LegacySurveyData() object to all ranks.
+    if rank == 0:
+        survey = init_survey()
+        
+    if comm is not None:
+        survey = comm.bcast(survey, root=0)
+
+    for ii in groups[rank]:
+        strid = '{:05d}'.format(sample[ii].objid)
+        objoutdir = os.path.join(outdir, '{}'.format(strid))
+        if not os.path.isdir(objoutdir):
+            os.makedirs(objoutdir, exist_ok=True)
+
+        logfile = os.path.join(objoutdir, '{}.log'.format(strid))
+        
+        print('---- rank {} objid {} {}'.format(rank, strid, time.asctime()))
+        sys.stdout.flush()
+
+        print('COMPUTE THE RADIUS!!!')
+        radius = 100
+
+        #if args.ncpu is not None:
+        #    cmd += ' --ncpu {}'.format(args.ncpu)
+
+        #print('Rank {} RUNNING {}'.format(rank, cmd))
+        print('LOGGING to {}'.format(logfile))
+        sys.stdout.flush()
+
+        if args.dryrun:
+            continue
+    
+        try:
+            t0 = time.time()
+            with open(logfile, 'a') as log:
+                #sys.stdout = log
+                #sys.stderr = log
+                err = legacyhalos_coadds(survey, sample[ii], radius, outdir,
+                                         ncpu=args.ncpu, verbose=args.verbose)
+            
             runtime = (time.time()-t0) / 60
-                
+            print('SUCCESS: objid {} coadds on rank {} took {:.1f} minutes'.format(strid, rank, runtime))
+
+        except:
+            print('FAILED: objid {} coadds on rank {} raised an exception'.format(strid, rank))
             import traceback
-            msg = traceback.format_exc()
-            sys.stdout.flush()
-            sys.stderr.flush()
+            traceback.print_exc()
+
+    print('---- rank {} is done'.format(rank))
+    sys.stdout.flush()
+
+    if comm is not None:
+        comm.barrier()
+
+    #if rank == 0:
+    #    for outfile in zbfiles:
+    #        if not os.path.exists(outfile):
+    #            print('ERROR missing {}'.format(outfile))
+
+        print('All done at {}'.format(time.asctime()))
+
+if __name__ == '__main__':
+    main()

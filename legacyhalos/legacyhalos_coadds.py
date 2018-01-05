@@ -133,25 +133,29 @@ def tractor_coadds(bcg, targetwcs, tims, mods, version_header, survey=None,
         imsave_jpeg(outfn, rgb, origin='lower', **kwa)
         del rgb
 
-def legacyhalos_coadds(survey, bcgphot, radius, coaddsdir, nproc=1, verbose=True):
+def legacyhalos_coadds(survey, bcgphot, radius, outdir, ncpu=1, verbose=True):
     """Generate the coadds for a list of BCGs.""" 
 
     from astrometry.util.multiproc import multiproc
-    mp = multiproc(nthreads=nproc)
+    mp = multiproc(nthreads=ncpu)
 
-    for ii in range(len(bcgphot)):
-        survey.output_dir = os.path.join(coaddsdir, '{:05d}'.format(bcgphot[ii].objid))
+    objoutdir = os.path.join(outdir, '{:05d}'.format(bcgphot.objid))
+    if not os.path.isdir(objoutdir):
+        os.makedirs(objoutdir, exist_ok=True)
 
-        # Step 1 - Set up the first stage of the pipeline.
-        P = coadds_stage_tims(bcgphot[ii], survey=survey, mp=mp, radius=radius[ii])
+    survey.output_dir = objoutdir
 
-        # Step 2 - Read the Tractor catalog for this brick and remove the central.
-        cat = read_tractor(bcgphot[ii], P['targetwcs'], survey=survey, mp=mp, verbose=verbose)
-           
-        # Step 3 - Render the model images without the central.
-        mods = build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
+    # Step 1 - Set up the first stage of the pipeline.
+    P = coadds_stage_tims(bcgphot, survey=survey, mp=mp, radius=radius)
 
-        # Step 4 - Generate and write out the coadds.
-        tractor_coadds(bcgphot[ii], P['targetwcs'], P['tims'], mods,
-                       P['version_header'], survey=survey, mp=mp,
-                       verbose=verbose)
+    # Step 2 - Read the Tractor catalog for this brick and remove the central.
+    cat = read_tractor(bcgphot, P['targetwcs'], survey=survey, mp=mp, verbose=verbose)
+
+    # Step 3 - Render the model images without the central.
+    mods = build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
+
+    # Step 4 - Generate and write out the coadds.
+    tractor_coadds(bcgphot, P['targetwcs'], P['tims'], mods, P['version_header'],
+                   survey=survey, mp=mp, verbose=verbose)
+
+    return 1 # success!
