@@ -1,31 +1,49 @@
-#!/usr/bin/env python
+"""
+legacyhalos.coadds
+==================
 
-"""Generate LegacySurvey (*grzW1W2*) coadds of all the central galaxies (and
-their surrounding groups and clusters) in the legacyhalos parent sample
-(legacyhalos-upenn-parent.fits).
+Code to generate grzW1W2 coadds.
 
-Please note:
-
-  * We assume that the $LEGACYHALOS_DIR directory exists (in $CSCRATCH) with all
-    the latest parent catalogs.
-
-  * We do not yet build unWISE coadds.
-
-  * We assume the DECam pixel scale (since we use just DR5 data).
-
-  * The code will not handle clusters that span one or more bricks -- a ToDo
-    would be to define custom bricks and generate custom Tractor catalogs.
+Note:
+ * We do not yet build unWISE coadds.
+ * The code currently only supports DR5 data (e.g., we assume the DECam pixel
+   scale).
+ * The code will not handle central galaxies that span more than one brick.  We
+   should define custom bricks and generate custom Tractor catalogs, which would
+   also remove much of the DR5 dependency.
 
 """
-
-# Parse args first to enable --help on login nodes where MPI crashes
 from __future__ import absolute_import, division, print_function
 
 import os
-import shutil
-import numpy as np
 
-def coadds_stage_tims(bcg, survey=None, mp=None, radius=100):
+def _cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
+    """Get a cutout radius of 100 kpc [in pixels] at the redshift of the cluster.
+
+    """
+    from astropy.cosmology import WMAP9 as cosmo
+    return np.rint(radius_kpc * cosmo.arcsec_per_kpc_proper(redshift).value / pixscale)
+
+def _cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
+                           rmin=50, rmax=500, bound=False):
+    """Get a cutout radius which depends on the richness radius (in h^-1 Mpc)
+    R_LAMBDA of each cluster (times an optional fudge factor).
+
+    Optionally bound the radius to (rmin, rmax).
+
+    """
+    from astropy.cosmology import WMAP9 as cosmo
+
+    radius_kpc = cluster_radius * 1e3 * cosmo.h # cluster radius in kpc
+    radius = np.rint(factor * radius_kpc * cosmo.arcsec_per_kpc_proper(redshift).value / pixscale)
+
+    if bound:
+        radius[radius < rmin] = rmin
+        radius[radius > rmax] = rmax
+
+    return radius
+
+def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100):
     """Initialize the first step of the pipeline, returning
     a dictionary with the following keys:
     
@@ -37,22 +55,23 @@ def coadds_stage_tims(bcg, survey=None, mp=None, radius=100):
     """
     from legacypipe.runbrick import stage_tims
 
-    bbox = [bcg.bx-radius, bcg.bx+radius, bcg.by-radius, bcg.by+radius]
-    P = stage_tims(brickname=bcg.brickname, survey=survey, target_extent=bbox,
+    bbox = [galaxycat.bx-radius, galaxycat.bx+radius, galaxycat.by-radius, galaxycat.by+radius]
+    P = stage_tims(brickname=galaxycat.brickname, survey=survey, target_extent=bbox,
                    pixPsf=True, hybridPsf=True, depth_cut=False, mp=mp)
     return P
 
-def read_tractor(bcg, targetwcs, survey=None, mp=None, verbose=False):
+def _read_tractor(galaxycat, targetwcs, survey=None, mp=None, verbose=False):
     """Read the full Tractor catalog for a given brick 
     and remove the BCG.
     
     """
+    import numpy as np
     from astrometry.util.fits import fits_table
 
     H, W = targetwcs.shape
 
     # Read the full Tractor catalog.
-    fn = survey.find_file('tractor', brick=bcg.brickname)
+    fn = survey.find_file('tractor', brick=galaxycat.brickname)
     cat = fits_table(fn)
     if verbose:
         print('Read {} sources from {}'.format(len(cat), fn))
@@ -64,13 +83,13 @@ def read_tractor(bcg, targetwcs, survey=None, mp=None, verbose=False):
         print('Cut to {} sources within our box.'.format(len(cat)))
     
     # Remove the central galaxy.
-    cat.cut(np.flatnonzero(cat.objid != bcg.objid))
+    cat.cut(np.flatnonzero(cat.objid != galaxycat.objid))
     if verbose:
-        print('Removed central galaxy with objid = {}'.format(bcg.objid))
+        print('Removed central galaxy with objid = {}'.format(galaxycat.objid))
         
     return cat
 
-def build_model_image(cat, tims, survey=None, verbose=False):
+def _build_model_image(cat, tims, survey=None, verbose=False):
     """Generate a model image by rendering each source.
     
     """
@@ -91,12 +110,14 @@ def build_model_image(cat, tims, survey=None, verbose=False):
 
     return mods
 
-def tractor_coadds(bcg, targetwcs, tims, mods, version_header, survey=None,
+def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, survey=None,
                    mp=None, verbose=False, bands=['g','r','z']):
     """Generate individual-band FITS and color coadds for each central using
     Tractor.
 
     """
+    import shutil
+    
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.runbrick import rgbkwargs, rgbkwargs_resid
     from legacypipe.survey import get_rgb, imsave_jpeg
@@ -105,17 +126,17 @@ def tractor_coadds(bcg, targetwcs, tims, mods, version_header, survey=None,
         print('Producing coadds...')
     C = make_coadds(tims, bands, targetwcs, mods=mods, mp=mp,
                     callback=write_coadd_images,
-                    callback_args=(survey, bcg.brickname, version_header, 
+                    callback_args=(survey, galaxycat.brickname, version_header, 
                                    tims, targetwcs)
                     )
     
     # Move (rename) the coadds into the desired output directory.
     for suffix in ('chi2', 'image', 'invvar', 'model'):
         for band in bands:
-            oldfile = os.path.join(survey.output_dir, 'coadd', bcg.brickname[:3], 
-                                   bcg.brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
-                    bcg.brickname, suffix, band))
-            newfile = os.path.join(survey.output_dir, '{:05d}-{}-{}.fits.fz'.format(bcg.objid, suffix, band))
+            oldfile = os.path.join(survey.output_dir, 'coadd', galaxycat.brickname[:3], 
+                                   galaxycat.brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
+                    galaxycat.brickname, suffix, band))
+            newfile = os.path.join(survey.output_dir, '{:05d}-{}-{}.fits.fz'.format(galaxycat.objid, suffix, band))
             shutil.move(oldfile, newfile)
     shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
     
@@ -127,35 +148,45 @@ def tractor_coadds(bcg, targetwcs, tims, mods, version_header, survey=None,
     for name, ims, rgbkw in coadd_list:
         rgb = get_rgb(ims, bands, **rgbkw)
         kwa = {}
-        outfn = os.path.join(survey.output_dir, '{:05d}-{}.jpg'.format(bcg.objid, name))
+        outfn = os.path.join(survey.output_dir, '{:05d}-{}.jpg'.format(galaxycat.objid, name))
         if verbose:
             print('Writing {}'.format(outfn))
         imsave_jpeg(outfn, rgb, origin='lower', **kwa)
         del rgb
 
-def legacyhalos_coadds(survey, bcgphot, radius, outdir, ncpu=1, verbose=True):
-    """Generate the coadds for a list of BCGs.""" 
+def legacyhalos_coadds(galaxycat, survey, outdir, ncpu=1, pixscale=0.262,
+                       cluster_radius=False, verbose=False):
+    """Top-level wrapper script to generate coadds for a single galaxy.
 
+    """ 
     from astrometry.util.multiproc import multiproc
     mp = multiproc(nthreads=ncpu)
 
-    objoutdir = os.path.join(outdir, '{:05d}'.format(bcgphot.objid))
+    objoutdir = os.path.join(outdir, '{:05d}'.format(galaxycat.objid))
     if not os.path.isdir(objoutdir):
         os.makedirs(objoutdir, exist_ok=True)
 
     survey.output_dir = objoutdir
 
+    # Step 0 - Get the cutout radius.
+    if cluster_radius:
+        radius = _cutout_radius_cluster(redshift=galaxycat.z, pixscale=pixscale,
+                                        cluster_radius=galaxycat.r_lambda)
+    else:
+        radius = _cutout_radius_100kpc(redshift=galaxycat.z, pixscale=pixscale)
+        
     # Step 1 - Set up the first stage of the pipeline.
-    P = coadds_stage_tims(bcgphot, survey=survey, mp=mp, radius=radius)
+    P = _coadds_stage_tims(galaxycat, survey=survey, mp=mp, radius=radius)
 
     # Step 2 - Read the Tractor catalog for this brick and remove the central.
-    cat = read_tractor(bcgphot, P['targetwcs'], survey=survey, mp=mp, verbose=verbose)
+    cat = _read_tractor(galaxycat, P['targetwcs'], survey=survey, mp=mp,
+                        verbose=verbose)
 
     # Step 3 - Render the model images without the central.
-    mods = build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
+    mods = _build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
 
     # Step 4 - Generate and write out the coadds.
-    tractor_coadds(bcgphot, P['targetwcs'], P['tims'], mods, P['version_header'],
-                   survey=survey, mp=mp, verbose=verbose)
+    _tractor_coadds(galaxycat, P['targetwcs'], P['tims'], mods, P['version_header'],
+                    survey=survey, mp=mp, verbose=verbose)
 
     return 1 # success!
