@@ -17,6 +17,7 @@
 ;   lsphot_custom
 ;   sdssphot_dr14
 ;   sdssphot_upenn
+;   redmapper_upenn
 ;   write_paramfile
 ;   build_grids
 ;   model_photometry
@@ -55,10 +56,10 @@ return, ver
 end    
 
 pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
-  sdssphot_dr14=sdssphot_dr14, sdssphot_upenn=sdssphot_upenn, write_paramfile=write_paramfile, $
-  build_grids=build_grids, model_photometry=model_photometry, isedfit=isedfit, $
-  kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, gather_results=gather_results, $
-  clobber=clobber
+  sdssphot_dr14=sdssphot_dr14, sdssphot_upenn=sdssphot_upenn, redmapper_upenn=redmapper_upenn, $
+  write_paramfile=write_paramfile, build_grids=build_grids, model_photometry=model_photometry, $
+  isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, $
+  gather_results=gather_results, clobber=clobber
 
 ;   echo "legacyhalos_isedfit, /lsphot_dr5, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > lsphot-dr5.log 2>&1 &
 ;   echo "legacyhalos_isedfit, /sdssphot_dr14, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > sdssphot-dr14.log 2>&1 &
@@ -67,8 +68,8 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
 
     if keyword_set(lsphot_dr5) eq 0 and keyword_set(lsphot_custom) eq 0 and $
       keyword_set(sdssphot_dr14) eq 0 and keyword_set(sdssphot_upenn) eq 0 and $
-      keyword_set(gather_results) eq 0 then begin
-       splog, 'Choose one of /LSPHOT_DR5, /LSPHOT_CUSTOM, /SDSSPHOT_DR14, or /SDSSPHOT_UPENN'
+      keyword_set(redmapper_upenn) eq 0 and keyword_set(gather_results) eq 0 then begin
+       splog, 'Choose one of /LSPHOT_DR5, /LSPHOT_CUSTOM, /SDSSPHOT_DR14, /SDSSPHOT_UPENN, or /REDMAPPER_UPENN'
        return       
     endif
     
@@ -90,6 +91,10 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        prefix = 'sdssphot'
        outprefix = 'sdssphot_upenn'
     endif
+    if keyword_set(redmapper_upenn) then begin
+       prefix = 'sdssphot'
+       outprefix = 'redmapper_upenn'
+    endif
 
     isedfit_rootdir = getenv('IM_ARCHIVE_DIR')+'/projects/legacyhalos/'
     
@@ -99,20 +104,53 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
     if keyword_set(gather_results) then begin
        lsphot = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
          'lsphot_dr5_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+       lsphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
+         'lsphot_dr5_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
+
        sdssphot = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
          'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+       sdssphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
+         'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
 
        outfile = legacyhalos_dir+'/legacyhalos-parent-isedfit.fits'
        mwrfits, lsphot, outfile, /create
        mwrfits, sdssphot, outfile
+       mwrfits, lsphot_kcorr, outfile
+       mwrfits, sdssphot_kcorr, outfile
 
        hdr = headfits(outfile,ext=1)
-       sxaddpar, hdr, 'EXTNAME', 'LSPHOT'
+       sxaddpar, hdr, 'EXTNAME', 'LSPHOT-ISEDFIT'
        modfits, outfile, 0, hdr, exten_no=1
 
        hdr = headfits(outfile,ext=2)
-       sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT'
+       sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-ISEDFIT'
        modfits, outfile, 0, hdr, exten_no=2
+
+       hdr = headfits(outfile,ext=3)
+       sxaddpar, hdr, 'EXTNAME', 'LSPHOT-KCORR'
+       modfits, outfile, 0, hdr, exten_no=3
+       
+       hdr = headfits(outfile,ext=4)
+       sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-KCORR'
+       modfits, outfile, 0, hdr, exten_no=4
+
+       upenn = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
+         'redmapper_upenn_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+       upenn_kcorr = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
+         'redmapper_upenn_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
+       
+       outfile = legacyhalos_dir+'/redmapper-upenn-isedfit.fits'
+       mwrfits, upenn, outfile, /create
+       mwrfits, upenn_kcorr, outfile
+
+       hdr = headfits(outfile,ext=1)
+       sxaddpar, hdr, 'EXTNAME', 'UPENN-ISEDFIT'
+       modfits, outfile, 0, hdr, exten_no=1
+
+       hdr = headfits(outfile,ext=2)
+       sxaddpar, hdr, 'EXTNAME', 'UPENN-KCORR'
+       modfits, outfile, 0, hdr, exten_no=2
+       
        return
     endif
 
@@ -123,13 +161,14 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
     spawn, ['mkdir -p '+isedfit_dir], /sh
     spawn, ['mkdir -p '+montegrids_dir], /sh
 
+; --------------------------------------------------
 ; define the filters and the redshift ranges
     if keyword_set(lsphot_dr5) or keyword_set(lsphot_custom) then begin
        filterlist = [legacysurvey_filterlist(), wise_filterlist(/short)]
        zminmax = [0.05,0.6]
        nzz = 61
     endif
-    if keyword_set(sdssphot_dr14) then begin
+    if keyword_set(sdssphot_dr14) or keyword_set(redmapper_upenn) then begin
        filterlist = [sdss_filterlist(), wise_filterlist(/short)]
        zminmax = [0.05,0.6]
        nzz = 61
@@ -139,7 +178,11 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        zminmax = [0.05,0.4]
        nzz = 41
     endif
+
+    absmag_filterlist = [sdss_filterlist(), legacysurvey_filterlist()]
+    band_shift = 0.1
     
+; --------------------------------------------------
 ; DR5 LegacySurvey (grz) + unWISE W1 & W2    
     if keyword_set(lsphot_dr5) then begin
        rm = mrdfits(legacyhalos_dir+'/legacyhalos-parent.fits', 'REDMAPPER')
@@ -172,12 +215,14 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.02,0.02]
     endif
     
+; --------------------------------------------------
 ; custom LegacySurvey (grz) + unWISE W1 & W2    
     if keyword_set(lsphot_custom) then begin
        splog, 'Not yet available!'
        stop
     endif
 
+; --------------------------------------------------
 ; SDSS ugriz + forced WISE photometry from Lang & Schlegel    
     if keyword_set(sdssphot_dr14) then begin
        rm = mrdfits(legacyhalos_dir+'/legacyhalos-parent.fits', 'REDMAPPER')
@@ -209,10 +254,33 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.02,0.02]
     endif
 
+; --------------------------------------------------
+; SDSS ugriz
+    if keyword_set(redmapper_upenn) then begin
+       rm = mrdfits(legacyhalos_dir+'/redmapper-upenn.fits', 'REDMAPPER')
+       cat = mrdfits(legacyhalos_dir+'/redmapper-upenn.fits', 'SDSSPHOT')
+       ngal = n_elements(cat)
+
+       ra = rm.ra
+       dec = rm.dec
+       zobj = rm.z
+       
+       ratio = cat.cmodelmaggies[2,*]/cat.modelmaggies[2,*]
+       factor = 1D-9 * rebin(ratio, 5, ngal) * 10D^(0.4*cat.extinction)
+       smaggies = cat.modelmaggies * factor
+       sivarmaggies = cat.modelmaggies_ivar / factor^2
+
+       maggies = [smaggies, fltarr(2,ngal)]
+       ivarmaggies = [sivarmaggies, fltarr(2,ngal)]
+       
+       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.0,0.0]
+    endif
+
+; --------------------------------------------------
 ; UPenn-PhotDec gri SDSS photometry
     if keyword_set(sdssphot_upenn) then begin
-       rm = mrdfits(legacyhalos_dir+'/legacyhalos-upenn-parent.fits', 'REDMAPPER')
-       cat = mrdfits(legacyhalos_dir+'/legacyhalos-upenn-parent.fits', 'UPENN')
+       rm = mrdfits(legacyhalos_dir+'/legacyhalos-parent-upenn.fits', 'REDMAPPER')
+       cat = mrdfits(legacyhalos_dir+'/legacyhalos-parent-upenn.fits', 'UPENN')
        ngal = n_elements(cat)
 
        ra = rm.ra
@@ -275,7 +343,7 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
     if keyword_set(kcorrect) then begin
        isedfit_kcorrect, isedfit_paramfile, isedfit_dir=isedfit_dir, $
          montegrids_dir=montegrids_dir, thissfhgrid=thissfhgrid, $
-         absmag_filterlist=legacysurvey_filterlist(), band_shift=0.0, $
+         absmag_filterlist=absmag_filterlist, band_shift=band_shift, $
          clobber=clobber, index=index, outprefix=outprefix
     endif 
 
