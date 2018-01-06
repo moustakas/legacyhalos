@@ -11,7 +11,7 @@ import os
 import numpy as np
 from glob import glob
 
-def get_objid(cat):
+def get_objid(cat, analysis_dir=None):
     """Build a unique object ID based on the redmapper mem_match_id.
 
     Args:
@@ -19,12 +19,14 @@ def get_objid(cat):
 
     """
     ngal = len(cat)
-    lsdir = legacyhalos_dir()
+
+    if analysis_dir is None:
+        analysis_dir = os.path.join(legacyhalos_dir(), 'analysis')
 
     objid, objdir = list(), list()
     for ii, memid in enumerate(np.atleast_1d(cat.mem_match_id)):
         objid.append('{:07d}'.format(memid))
-        objdir.append(os.path.join(lsdir, 'analysis', objid[ii]))
+        objdir.append(os.path.join(analysis_dir, objid[ii]))
         if not os.path.isdir(objdir[ii]):
             os.makedirs(objdir[ii], exist_ok=True)
     objid = np.array(objid)
@@ -47,6 +49,13 @@ def analysis_dir():
     if not os.path.isdir(adir):
         os.makedirs(adir, exist_ok=True)
     return adir
+
+def html_dir():
+    htmldir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo',
+                           'www', 'temp', 'ioannis', 'html')
+    if not os.path.isdir(htmldir):
+        os.makedirs(htmldir, exist_ok=True)
+    return htmldir
 
 def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     """Read the various catalogs.

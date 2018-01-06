@@ -6,11 +6,10 @@ import argparse
 from legacyhalos.html import make_html
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--legacyhalos_dir', type=str, default=None, help='Base directory for the legacyhalos project')
-parser.add_argument('--htmldir', type=str, default='.', help='Output HTML directory (e.g. /project/projectdirs/desi/www/users/USERNAME/ will appear at http://portal.nersc.gov/project/desi/users/USERNAME)')
+parser.add_argument('--htmldir', type=str, default=None, help='Output HTML directory (e.g. /project/projectdirs/desi/www/users/USERNAME/ will appear at http://portal.nersc.gov/project/desi/users/USERNAME)')
 
 args = parser.parse_args()
 
-make_html(legacyhalos_dir=args.legacyhalos_dir, htmldir=args.htmldir)
+make_html(htmldir=args.htmldir)
 print('HTML pages written to {}'.format(args.htmldir))
 

@@ -2,7 +2,7 @@ from __future__ import (absolute_import, division)
 
 import os
 
-def make_plots(sample, legacyhalos_dir=None, htmldir='.'):
+def make_plots(sample, analysis_dir=None, htmldir='.'):
     """Make DESI targeting QA plots given a passed set of targets
 
     Parameters
@@ -34,21 +34,21 @@ def make_plots(sample, legacyhalos_dir=None, htmldir='.'):
 
     """
     import subprocess
+    from legacyhalos.io import get_objid
 
-    coaddsdir = os.path.join(legacyhalos_dir, 'coadds')
-    
-    for obj in sample:
-        strid = '{:05d}'.format(obj.objid)
-        objdir = os.path.join(coaddsdir, '{}'.format(strid))
-        htmlobjdir = os.path.join(htmldir, '{}'.format(strid))
+    objid, objdir = get_objid(sample, analysis_dir=analysis_dir)
+
+    for objid1, objdir1 in zip(objid, objdir):
+        htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
 
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
         
-        montagefile = os.path.join(htmlobjdir, '{}-coadd-montage.png'.format(strid))
+        montagefile = os.path.join(htmlobjdir, '{}-coadd-montage.png'.format(objid1))
 
         cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-        cmd = cmd+' '.join([os.path.join(objdir, '{}-{}.jpg'.format(strid, suffix)) for suffix in ('image', 'model', 'resid')])
+        cmd = cmd+' '.join([os.path.join(objdir1, '{}-{}.jpg'.format(objid1, suffix)) for
+                            suffix in ('image', 'model', 'resid')])
         cmd = cmd+' {}'.format(montagefile)
         print(cmd)
 
@@ -92,7 +92,7 @@ def _javastring():
 
     return js
         
-def make_html(legacyhalos_dir=None, makeplots=True, htmldir='.'):
+def make_html(analysis_dir=None, htmldir=None, makeplots=True):
     """Create a directory containing a webpage structure in which to embed QA plots
 
     Parameters
@@ -115,18 +115,22 @@ def make_html(legacyhalos_dir=None, makeplots=True, htmldir='.'):
     the file of HEALPixels that overlap the DESI footprint
 
     """
-    from astrometry.util.fits import fits_table
-    
-    if legacyhalos_dir is None and not 'LEGACYHALOS_DIR' in os.environ:
-        print('I/O directory --legacyhalos_dir (or LEGACYHALOS_DIR environment) is required!')
-        sys.exit(1)
-    if legacyhalos_dir is None and 'LEGACYHALOS_DIR' in os.environ:
-        legacyhalos_dir = os.getenv('LEGACYHALOS_DIR')
+    import legacyhalos.io
 
-    parentfile = os.path.join(legacyhalos_dir, 'legacyhalos-upenn-parent.fits')
-    sample = fits_table(parentfile, ext='LSPHOT')
-    print('HACK -- 10 galaxies!')
-    sample = sample[1000:1010]
+    if htmldir is None:
+        htmldir = legacyhalos.io.html_dir()
+
+    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
+                                         columns=('ra', 'dec', 'bx', 'by', 'brickname', 'objid'))
+    rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
+                                     columns=('mem_match_id', 'z', 'r_lambda'))
+    sample.add_columns_from(rm)
+
+    print('Hack -- 5 galaxies!')
+    sample = sample[1050:1055]
+    print('Read {} galaxies.'.format(len(sample)))
+
+    objid, objdir = legacyhalos.io.get_objid(sample)
 
     if not os.path.exists(htmldir):
         os.makedirs(htmldir)
@@ -141,9 +145,8 @@ def make_html(legacyhalos_dir=None, makeplots=True, htmldir='.'):
 
         html.write('<b><i>Jump to an object:</i></b>\n')
         html.write('<ul>\n')
-        for objid in sample.objid:
-            strid = '{:05d}'.format(objid)
-            html.write('<li><A HREF="{:}.html">{:}</A>\n'.format(strid, strid))
+        for objid1 in objid:
+            html.write('<li><A HREF="{:}.html">{:}</A>\n'.format(objid1, objid1))
         html.write('</ul>\n')
 
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
@@ -151,18 +154,16 @@ def make_html(legacyhalos_dir=None, makeplots=True, htmldir='.'):
         html.close()
 
     # Make a separate page for each object.
-    for obj in sample:
-        strid = '{:05d}'.format(obj.objid)
-
-        htmlfile = os.path.join(htmldir, '{}.html'.format(strid))
+    for gal, objid1, objdir1 in zip(sample, objid, objdir):
+        htmlfile = os.path.join(htmldir, '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
-            html.write('<h1>BCG {}</h1>\n'.format(strid))
+            html.write('<h1>BCG {}</h1>\n'.format(objid1))
 
             html.write('<h2>Coadds</h2>\n')
             html.write('<table COLS=2 WIDTH="100%">\n')
             html.write('<tr>\n')
-            html.write('<td WIDTH="50%" align=left><A HREF="{}/{}-coadd-montage.png"><img SRC="{}/{}-coadd-montage.png" height=300 width=900></A></left></td>\n'.format(strid, strid, strid, strid))
+            html.write('<td WIDTH="50%" align=left><A HREF="{}/{}-coadd-montage.png"><img SRC="{}/{}-coadd-montage.png" height=300 width=900></A></left></td>\n'.format(objid1, objid1, objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
 
@@ -171,4 +172,4 @@ def make_html(legacyhalos_dir=None, makeplots=True, htmldir='.'):
             html.close()
 
     if makeplots:
-        make_plots(sample, legacyhalos_dir=legacyhalos_dir, htmldir=htmldir)
+        make_plots(sample, analysis_dir=analysis_dir, htmldir=htmldir)
