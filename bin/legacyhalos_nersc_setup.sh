@@ -3,6 +3,11 @@
 # Set up the software environment we need in order to run legacyhalos scripts at
 # NERSC.
 
+# conda create --prefix $CSCRATCH/conda-envs/legacyhalos --file $DESICONDA/pkg_list.txt
+# source activate $CSCRATCH/conda-envs/legacyhalos
+# conda install astropy
+# conda install photutils -c astropy
+
 dr=dr5-new
 #desiconda_version=20180103-1.2.3-img
 desiconda_version=20170818-1.1.12-img
