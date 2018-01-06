@@ -31,7 +31,7 @@ def _missing(sample, comm=None, filetype='coadds'):
         rank, size = comm.rank, comm.size
 
     if filetype == 'coadds':
-        filesuffix = '-resid.jpg'
+        filesuffix = 'resid.jpg'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -47,12 +47,12 @@ def _missing(sample, comm=None, filetype='coadds'):
         if os.path.exists(residfile):
             todo[ii] = False
 
-    indices[todo]
-
-    if len(indices) == 0:
+    if np.sum(todo) == 0:
         if rank == 0:
             print('All galaxies of filetype {} have been processed!'.format(filetype))
         return list()
+    else:
+        indices[todo]
 
     groups = np.array_split(indices, size)
 
@@ -96,7 +96,6 @@ def main():
         import legacyhalos.io
         from astrometry.util.fits import merge_tables
 
-        outdir = legacyhalos.io.analysis_dir()
         sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
                                              columns=('ra', 'dec', 'bx', 'by', 'brickname', 'objid'))
         rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
@@ -107,9 +106,102 @@ def main():
         sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
 
-        legacyhalos_coadds(sample, args, comm=comm, outdir=outdir)
+        if False:
+            # Build the coadds
+            legacyhalos_coadds(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose)
 
-def legacyhalos_coadds(sample, args, comm=None, outdir=None):
+        # Do ellipse fitting
+        legacyhalos_ellipse(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose)
+
+def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False):
+    """Do ellipse-fitting.
+
+    """
+    import fitsio
+    from legacyhalos.io import get_objid
+    from legacyhalos.coadds import legacyhalos_coadds
+
+    if comm is None:
+        rank, size = 0, 1
+    else:
+        rank, size = comm.rank, comm.size
+
+    import matplotlib.pyplot as plt
+    from photutils.isophote import EllipseGeometry, Ellipse
+    from photutils import EllipticalAperture
+
+    objid, objdir = get_objid(sample)
+    
+    for objid1, objdir1 in zip(objid, objdir):
+
+        data = fitsio.read(os.path.join(objdir1, '{}-image-r.fits.fz'.format(objid1)))
+        model = fitsio.read(os.path.join(objdir1, '{}-model-r.fits.fz'.format(objid1)))
+        resid = data - model
+        nx, ny = resid.shape
+        
+        resid = resid[(nx//2-50):(nx//2+50), (ny//2-50):(ny//2+50)]
+        nx, ny = resid.shape
+        print(nx, ny)
+
+        geometry = EllipseGeometry(x0=nx/2, y0=ny/2, sma=nx*0.05,
+                                   eps=0.5, pa=np.radians(130))
+
+        aper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
+                                  geometry.sma*(1 - geometry.eps), geometry.pa)
+        plt.imshow(resid, origin='lower')
+        aper.plot(color='white')
+        plt.show()
+        
+        # Fit the image
+        ellipse = Ellipse(resid, geometry)
+        
+        isolist = ellipse.fit_image()
+        print(isolist.to_table())
+
+
+        plt.figure(figsize=(8, 4))
+
+        plt.scatter(isolist.sma**0.25, 22.5-2.5*np.log10(isolist.intens))
+        plt.xlabel('sma**1/4')
+        plt.ylabel('Magnitude')
+        plt.gca().invert_yaxis()
+
+        plt.show()
+
+
+        # Make a plot!
+        plt.figure(figsize=(8, 8))
+        plt.subplots_adjust(hspace=0.35, wspace=0.35)
+
+        plt.subplot(2, 2, 1)
+        plt.errorbar(isolist.sma, isolist.eps, yerr=isolist.ellip_err,
+                     fmt='o', markersize=4)
+        plt.xlabel('Semimajor Axis Length (pix)')
+        plt.ylabel('Ellipticity')
+
+        plt.subplot(2, 2, 2)
+        plt.errorbar(isolist.sma, isolist.pa/np.pi*180.,
+                     yerr=isolist.pa_err/np.pi* 80., fmt='o', markersize=4)
+        plt.xlabel('Semimajor Axis Length (pix)')
+        plt.ylabel('PA (deg)')
+
+        plt.subplot(2, 2, 3)
+        plt.errorbar(isolist.sma, isolist.x0, yerr=isolist.x0_err, fmt='o',
+                     markersize=4)
+        plt.xlabel('Semimajor Axis Length (pix)')
+        plt.ylabel('x0')
+
+        plt.subplot(2, 2, 4)
+        plt.errorbar(isolist.sma, isolist.y0, yerr=isolist.y0_err, fmt='o',
+                     markersize=4)
+        plt.xlabel('Semimajor Axis Length (pix)')
+        plt.ylabel('y0')
+
+        plt.show()
+        
+        import pdb ; pdb.set_trace()
+        
+def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False):
     """Generate the coadds.
 
     """
@@ -160,7 +252,7 @@ def legacyhalos_coadds(sample, args, comm=None, outdir=None):
                 #sys.stdout = log
                 #sys.stderr = log
                 err = legacyhalos_coadds(sample[ii], survey=survey, objid=objid, objdir=objdir,
-                                         ncpu=args.ncpu, pixscale=PIXSCALE, verbose=args.verbose)
+                                         ncpu=ncpu, pixscale=PIXSCALE, verbose=verbose)
             
             runtime = (time.time()-t0) / 60
             print('SUCCESS: objid {} coadds on rank {} took {:.1f} minutes'.format(objid, rank, runtime))
