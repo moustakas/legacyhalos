@@ -16,13 +16,16 @@ Note:
 from __future__ import absolute_import, division, print_function
 
 import os
+import numpy as np
 
 def _cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
     """Get a cutout radius of 100 kpc [in pixels] at the redshift of the cluster.
 
     """
     from astropy.cosmology import WMAP9 as cosmo
-    return np.rint(radius_kpc * cosmo.arcsec_per_kpc_proper(redshift).value / pixscale)
+    arcsec_per_kpc = cosmo.arcsec_per_kpc_proper(redshift).value
+    radius = np.rint(radius_kpc * arcsec_per_kpc / pixscale).astype(int)
+    return radius
 
 def _cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
                            rmin=50, rmax=500, bound=False):
@@ -65,7 +68,6 @@ def _read_tractor(galaxycat, targetwcs, survey=None, mp=None, verbose=False):
     and remove the BCG.
     
     """
-    import numpy as np
     from astrometry.util.fits import fits_table
 
     H, W = targetwcs.shape
@@ -110,8 +112,8 @@ def _build_model_image(cat, tims, survey=None, verbose=False):
 
     return mods
 
-def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, survey=None,
-                   mp=None, verbose=False, bands=['g','r','z']):
+def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None,
+                    survey=None, mp=None, verbose=False, bands=['g','r','z']):
     """Generate individual-band FITS and color coadds for each central using
     Tractor.
 
@@ -121,7 +123,7 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, survey=Non
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.runbrick import rgbkwargs, rgbkwargs_resid
     from legacypipe.survey import get_rgb, imsave_jpeg
-    
+
     if verbose:
         print('Producing coadds...')
     C = make_coadds(tims, bands, targetwcs, mods=mods, mp=mp,
@@ -136,7 +138,7 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, survey=Non
             oldfile = os.path.join(survey.output_dir, 'coadd', galaxycat.brickname[:3], 
                                    galaxycat.brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
                     galaxycat.brickname, suffix, band))
-            newfile = os.path.join(survey.output_dir, '{:05d}-{}-{}.fits.fz'.format(galaxycat.objid, suffix, band))
+            newfile = os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, suffix, band))
             shutil.move(oldfile, newfile)
     shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
     
@@ -148,25 +150,25 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, survey=Non
     for name, ims, rgbkw in coadd_list:
         rgb = get_rgb(ims, bands, **rgbkw)
         kwa = {}
-        outfn = os.path.join(survey.output_dir, '{:05d}-{}.jpg'.format(galaxycat.objid, name))
+        outfn = os.path.join(survey.output_dir, '{}-{}.jpg'.format(objid, name))
         if verbose:
             print('Writing {}'.format(outfn))
         imsave_jpeg(outfn, rgb, origin='lower', **kwa)
         del rgb
 
-def legacyhalos_coadds(galaxycat, survey, outdir, ncpu=1, pixscale=0.262,
-                       cluster_radius=False, verbose=False):
+def legacyhalos_coadds(galaxycat, survey=None, objid=None, objdir=None,
+                       ncpu=1, pixscale=0.262, cluster_radius=False,
+                       verbose=False):
     """Top-level wrapper script to generate coadds for a single galaxy.
 
     """ 
     from astrometry.util.multiproc import multiproc
     mp = multiproc(nthreads=ncpu)
 
-    objoutdir = os.path.join(outdir, '{:05d}'.format(galaxycat.objid))
-    if not os.path.isdir(objoutdir):
-        os.makedirs(objoutdir, exist_ok=True)
+    if objid is None and objdir is None:
+        objid, objdir = get_objid(galaxycat)
 
-    survey.output_dir = objoutdir
+    survey.output_dir = objdir
 
     # Step 0 - Get the cutout radius.
     if cluster_radius:
@@ -174,7 +176,7 @@ def legacyhalos_coadds(galaxycat, survey, outdir, ncpu=1, pixscale=0.262,
                                         cluster_radius=galaxycat.r_lambda)
     else:
         radius = _cutout_radius_100kpc(redshift=galaxycat.z, pixscale=pixscale)
-        
+
     # Step 1 - Set up the first stage of the pipeline.
     P = _coadds_stage_tims(galaxycat, survey=survey, mp=mp, radius=radius)
 
@@ -187,6 +189,6 @@ def legacyhalos_coadds(galaxycat, survey, outdir, ncpu=1, pixscale=0.262,
 
     # Step 4 - Generate and write out the coadds.
     _tractor_coadds(galaxycat, P['targetwcs'], P['tims'], mods, P['version_header'],
-                    survey=survey, mp=mp, verbose=verbose)
+                    objid=objid, survey=survey, mp=mp, verbose=verbose)
 
     return 1 # success!

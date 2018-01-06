@@ -11,6 +11,8 @@ import argparse
 
 import numpy as np
 
+PIXSCALE = 0.262
+
 def init_survey():
     """Instantiate the LegacySurveyData object."""
     from legacypipe.survey import LegacySurveyData
@@ -100,89 +102,12 @@ def main():
         rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
                                          columns=('mem_match_id', 'z', 'r_lambda'))
         sample.add_columns_from(rm)
-        #sample.new_columns = T1.c1 + T.c4
 
-        print('Hack -- 10 galaxies!')
-        sample = sample[1050:1060]
+        print('Hack -- 5 galaxies!')
+        sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
 
         legacyhalos_coadds(sample, args, comm=comm, outdir=outdir)
-
-def plan(args, sample, comm=None, outdir=None):
-    """Make a plan."""
-
-    t0 = time.time()
-    if comm is None:
-        rank, size = 0, 1
-    else:
-        rank, size = comm.rank, comm.size
-
-    if rank == 0:
-        indices = sample_left_todo(sample, outdir=outdir)
-    else:
-        indices = None
-
-    if comm is not None:
-        indices = comm.bcast(indices, root=0)
-
-    if len(indices) == 0:
-        if rank == 0:
-            print('All galaxies have been processed!')
-        return list(), list(), list()
-
-    # Divide the remaining sample among the ranks.    
-    groups, grouptimes = group_sample_todo(indices, comm=comm)
-
-    plantime = time.time() - t0
-    if plantime + np.max(grouptimes) <= (25*60):
-        queue = 'debug'
-    else:
-        queue = 'regular'
-
-    numnodes = len(groups)
-
-    if os.getenv('NERSC_HOST') == 'cori':
-        maxproc = 64
-    elif os.getenv('NERSC_HOST') == 'edison':
-        maxproc = 48
-    else:
-        maxproc = 4
-
-    if args.ncpu is None:
-        args.ncpu = maxproc // 2
-
-    ##- scale longer if purposefullying using fewer cores (e.g. for memory)
-    #if args.ncpu < maxproc // 2:
-    #    scale = (maxproc // 2) / args.ncpu
-    #    grouptimes *= scale
-    #
-    jobtime = int(1.15 * (plantime + np.max(grouptimes)))
-    jobhours = jobtime // 3600
-    jobminutes = (jobtime - jobhours*3600) // 60
-    jobseconds = jobtime - jobhours*3600 - jobminutes*60
-
-    if rank == 0:
-        print('#!/bin/bash')
-        print('#SBATCH -N {}'.format(numnodes))
-        print('#SBATCH -p {}'.format(queue))
-        print('#SBATCH -J legacyhalos-coadds')
-        if os.getenv('NERSC_HOST') == 'cori':
-            print('#SBATCH -C haswell')
-        print('#SBATCH -t {:02d}:{:02d}:{:02d}'.format(jobhours, jobminutes, jobseconds))
-        print()
-        print('# {} galaxies'.format(len(indices)))
-        ### print('# plan time {:.1f} minutes'.format(plantime / 60))
-        print('# Using {} nodes in {} queue'.format(numnodes, queue))
-        print('# expected rank runtimes ({:.1f}, {:.1f}, {:.1f}) min/mid/max minutes'.format(
-            np.min(grouptimes)/60, np.median(grouptimes)/60, np.max(grouptimes)/60
-        ))
-        print()
-        print('nodes=$SLURM_JOB_NUM_NODES')
-        print('srun -N $nodes -n $nodes -c {} {} --mpi --ncpu {}'.format(
-            maxproc, os.path.abspath(__file__), args.ncpu,
-        ))
-
-    return indices, groups, grouptimes
 
 def legacyhalos_coadds(sample, args, comm=None, outdir=None):
     """Generate the coadds.
@@ -219,7 +144,6 @@ def legacyhalos_coadds(sample, args, comm=None, outdir=None):
         sample = comm.bcast(sample, root=0)
 
     # Loop on the remaining objects.
-    #for (ii, objid, objdir) in groups[rank]:
     for ii in groups[rank]:
 
         objid, objdir = get_objid(sample[ii])
@@ -230,21 +154,19 @@ def legacyhalos_coadds(sample, args, comm=None, outdir=None):
         print('---- rank {} objid {} {}'.format(rank, objid, time.asctime()))
         sys.stdout.flush()
 
-        import pdb ; pdb.set_trace()
-
         try:
             t0 = time.time()
             with open(logfile, 'a') as log:
                 #sys.stdout = log
                 #sys.stderr = log
-                err = legacyhalos_coadds(survey, sample[ii], radius, outdir,
-                                         ncpu=args.ncpu, verbose=args.verbose)
+                err = legacyhalos_coadds(sample[ii], survey=survey, objid=objid, objdir=objdir,
+                                         ncpu=args.ncpu, pixscale=PIXSCALE, verbose=args.verbose)
             
             runtime = (time.time()-t0) / 60
-            print('SUCCESS: objid {} coadds on rank {} took {:.1f} minutes'.format(strid, rank, runtime))
+            print('SUCCESS: objid {} coadds on rank {} took {:.1f} minutes'.format(objid, rank, runtime))
 
         except:
-            print('FAILED: objid {} coadds on rank {} raised an exception'.format(strid, rank))
+            print('FAILED: objid {} coadds on rank {} raised an exception'.format(objid, rank))
             import traceback
             traceback.print_exc()
 

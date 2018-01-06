@@ -18,14 +18,23 @@ def get_objid(cat):
       cat - must be a redmapper catalog or a catalog that has MEM_MATCH_ID.
 
     """
+    ngal = len(cat)
     lsdir = legacyhalos_dir()
 
     objid, objdir = list(), list()
     for ii, memid in enumerate(np.atleast_1d(cat.mem_match_id)):
         objid.append('{:07d}'.format(memid))
         objdir.append(os.path.join(lsdir, 'analysis', objid[ii]))
-    
-    return np.array(objid), np.array(objdir)
+        if not os.path.isdir(objdir[ii]):
+            os.makedirs(objdir[ii], exist_ok=True)
+    objid = np.array(objid)
+    objdir = np.array(objdir)
+
+    if ngal == 1:
+        objid = objid[0]
+        objdir = objdir[0]
+            
+    return objid, objdir
 
 def legacyhalos_dir():
     if 'LEGACYHALOS_DIR' not in os.environ:
