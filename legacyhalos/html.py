@@ -1,8 +1,75 @@
 from __future__ import (absolute_import, division)
 
-import os
+import os, subprocess
 
-def make_plots(sample, analysis_dir=None, htmldir='.'):
+def _qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False):
+    """Montage the coadds into a nice QAplot."""
+
+    montagefile = os.path.join(htmlobjdir, '{}-coadd-montage.png'.format(objid))
+
+    if not os.path.isfile(montagefile) or clobber:
+        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
+        cmd = cmd+' '.join([os.path.join(objdir, '{}-{}.jpg'.format(objid, suffix)) for
+                            suffix in ('image', 'model', 'resid')])
+        cmd = cmd+' {}'.format(montagefile)
+        print('Writing {}'.format(montagefile))
+
+        err = subprocess.call(cmd.split())
+
+def _qa_ellipse_results(objid, objdir, htmlobjdir, clobber=False):
+    """Generate QAplots from the ellipse-fitting."""
+
+    montagefile = os.path.join(htmlobjdir, '{}-coadd-montage.png'.format(objid))
+
+    plt.figure(figsize=(8, 4))
+
+    plt.scatter(isolist.sma**0.25, 22.5-2.5*np.log10(isolist.intens))
+    plt.xlabel('sma**1/4')
+    plt.ylabel('Magnitude')
+    plt.gca().invert_yaxis()
+    #plt.show()
+
+    fig, ax1 = plt.subplots()
+    ax1.imshow(resid, origin='lower')
+    smas = np.linspace(1, 100, 10)
+    for sma in smas:
+        iso = isolist.get_closest(sma)
+        x, y, = iso.sampled_coordinates()
+        print(x, y)
+        ax1.plot(x, y, color='white')
+    plt.show()
+
+    plt.figure(figsize=(8, 8))
+    plt.subplots_adjust(hspace=0.35, wspace=0.35)
+
+    plt.subplot(2, 2, 1)
+    plt.errorbar(isolist.sma, isolist.eps, yerr=isolist.ellip_err,
+                 fmt='o', markersize=4)
+    plt.xlabel('Semimajor Axis Length (pix)')
+    plt.ylabel('Ellipticity')
+
+    plt.subplot(2, 2, 2)
+    plt.errorbar(isolist.sma, isolist.pa/np.pi*180.,
+                 yerr=isolist.pa_err/np.pi* 80., fmt='o', markersize=4)
+    plt.xlabel('Semimajor Axis Length (pix)')
+    plt.ylabel('PA (deg)')
+
+    plt.subplot(2, 2, 3)
+    plt.errorbar(isolist.sma, isolist.x0, yerr=isolist.x0_err, fmt='o',
+                 markersize=4)
+    plt.xlabel('Semimajor Axis Length (pix)')
+    plt.ylabel('x0')
+
+    plt.subplot(2, 2, 4)
+    plt.errorbar(isolist.sma, isolist.y0, yerr=isolist.y0_err, fmt='o',
+                 markersize=4)
+    plt.xlabel('Semimajor Axis Length (pix)')
+    plt.ylabel('y0')
+
+    plt.show()
+
+        
+def make_plots(sample, analysis_dir=None, htmldir='.', clobber=False):
     """Make DESI targeting QA plots given a passed set of targets
 
     Parameters
@@ -33,27 +100,27 @@ def make_plots(sample, analysis_dir=None, htmldir='.'):
     that overlap the DESI footprint
 
     """
-    import subprocess
     from legacyhalos.io import get_objid
 
     objid, objdir = get_objid(sample, analysis_dir=analysis_dir)
 
     for objid1, objdir1 in zip(objid, objdir):
-        htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
 
+        htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
+        
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
+
+        # Build the montage coadds.
+        _qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
+
+        # Build the ellipse QAplots.
+        #_qa_ellipse_results(objid1, htmlobjdir, clobber=clobber)
+
+        # Build the surface brightness profile fitting results.
+        #_qa_sbprofile_results(objid1, htmlobjdir, clobber=clobber)
         
-        montagefile = os.path.join(htmlobjdir, '{}-coadd-montage.png'.format(objid1))
-
-        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-        cmd = cmd+' '.join([os.path.join(objdir1, '{}-{}.jpg'.format(objid1, suffix)) for
-                            suffix in ('image', 'model', 'resid')])
-        cmd = cmd+' {}'.format(montagefile)
-        print(cmd)
-
-        err = subprocess.call(cmd.split())
-
+        
 def _javastring():
     """Return a string that embeds a date in a webpage."""
     import textwrap
@@ -92,7 +159,7 @@ def _javastring():
 
     return js
         
-def make_html(analysis_dir=None, htmldir=None, makeplots=True):
+def make_html(analysis_dir=None, htmldir=None, makeplots=True, clobber=False):
     """Create a directory containing a webpage structure in which to embed QA plots
 
     Parameters
@@ -158,7 +225,7 @@ def make_html(analysis_dir=None, htmldir=None, makeplots=True):
         htmlfile = os.path.join(htmldir, '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
-            html.write('<h1>BCG {}</h1>\n'.format(objid1))
+            html.write('<h1>Central Galaxy {}</h1>\n'.format(objid1))
 
             html.write('<h2>Coadds</h2>\n')
             html.write('<table COLS=2 WIDTH="100%">\n')
@@ -172,4 +239,4 @@ def make_html(analysis_dir=None, htmldir=None, makeplots=True):
             html.close()
 
     if makeplots:
-        make_plots(sample, analysis_dir=analysis_dir, htmldir=htmldir)
+        make_plots(sample, analysis_dir=analysis_dir, htmldir=htmldir, clobber=clobber)

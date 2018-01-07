@@ -32,6 +32,8 @@ def _missing(sample, comm=None, filetype='coadds'):
 
     if filetype == 'coadds':
         filesuffix = 'resid.jpg'
+    elif filetype == 'ellipse':
+        filesuffix = 'ellipse.fits'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -59,10 +61,12 @@ def _missing(sample, comm=None, filetype='coadds'):
     return groups
 
 def missing_coadds(sample, comm=None):
-    '''Find the galaxies that do not yet have coadds
-
-    '''
+    '''Find the galaxies that do not yet have coadds.'''
     return _missing(sample, comm=None, filetype='coadds')
+
+def missing_ellipse(sample, comm=None):
+    '''Find the galaxies that do not yet have ellipse fits.'''
+    return _missing(sample, comm=None, filetype='ellipse')
 
 def main():
     parser = argparse.ArgumentParser()
@@ -96,14 +100,19 @@ def main():
         import legacyhalos.io
         from astrometry.util.fits import merge_tables
 
-        sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
-                                             columns=('ra', 'dec', 'bx', 'by', 'brickname', 'objid'))
+        cols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
+                'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
+                'shapedev_r', 'shapedev_e1', 'shapedev_e2')
+        sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=cols)
+        
         rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
                                          columns=('mem_match_id', 'z', 'r_lambda'))
         sample.add_columns_from(rm)
 
-        print('Hack -- 5 galaxies!')
-        sample = sample[1050:1055]
+        print('Hack -- 2 galaxies!')
+        sample = sample[1051:1052]
+        #print('Hack -- 5 galaxies!')
+        #sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
 
         if False:
@@ -119,87 +128,73 @@ def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False):
     """
     import fitsio
     from legacyhalos.io import get_objid
-    from legacyhalos.coadds import legacyhalos_coadds
+    from legacyhalos.ellipse import legacyhalos_ellipse
 
     if comm is None:
         rank, size = 0, 1
     else:
         rank, size = comm.rank, comm.size
 
-    import matplotlib.pyplot as plt
-    from photutils.isophote import EllipseGeometry, Ellipse
-    from photutils import EllipticalAperture
+    # Determine how many more ellipse fits we need to make and chunk them.
+    t0 = time.time()
+    if rank == 0:
+        print('Starting at {}'.format(time.asctime()))
 
-    objid, objdir = get_objid(sample)
-    
-    for objid1, objdir1 in zip(objid, objdir):
+    groups = missing_ellipse(sample, comm=comm)
+    if len(groups) == 0:
+        return
 
-        data = fitsio.read(os.path.join(objdir1, '{}-image-r.fits.fz'.format(objid1)))
-        model = fitsio.read(os.path.join(objdir1, '{}-model-r.fits.fz'.format(objid1)))
-        resid = data - model
-        nx, ny = resid.shape
+    #sys.stdout.flush()
+    #if comm is not None:
+    #    indices = comm.bcast(indices, root=0)
+
+    # Initialize and then broadcast the LegacySurveyData() object to all ranks.
+    if rank == 0:
+        survey = init_survey()
         
-        resid = resid[(nx//2-50):(nx//2+50), (ny//2-50):(ny//2+50)]
-        nx, ny = resid.shape
-        print(nx, ny)
+    if comm is not None:
+        groups = comm.bcast(groups, root=0)
+        sample = comm.bcast(sample, root=0)
 
-        geometry = EllipseGeometry(x0=nx/2, y0=ny/2, sma=nx*0.05,
-                                   eps=0.5, pa=np.radians(130))
+    # Loop on the remaining objects.
+    for ii in groups[rank]:
 
-        aper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
-                                  geometry.sma*(1 - geometry.eps), geometry.pa)
-        plt.imshow(resid, origin='lower')
-        aper.plot(color='white')
-        plt.show()
-        
-        # Fit the image
-        ellipse = Ellipse(resid, geometry)
-        
-        isolist = ellipse.fit_image()
-        print(isolist.to_table())
+        objid, objdir = get_objid(sample[ii])
 
+        logfile = os.path.join(objdir, '{}-ellipse.log'.format(objid))
+        print('Logging to {}'.format(logfile))
 
-        plt.figure(figsize=(8, 4))
+        print('---- rank {} objid {} {}'.format(rank, objid, time.asctime()))
+        sys.stdout.flush()
 
-        plt.scatter(isolist.sma**0.25, 22.5-2.5*np.log10(isolist.intens))
-        plt.xlabel('sma**1/4')
-        plt.ylabel('Magnitude')
-        plt.gca().invert_yaxis()
+        try:
+            t0 = time.time()
+            with open(logfile, 'a') as log:
+                #sys.stdout = log
+                #sys.stderr = log
+                err = legacyhalos_ellipse(sample[ii], objid=objid, objdir=objdir, ncpu=ncpu,
+                                          pixscale=PIXSCALE, verbose=verbose)
+            
+            runtime = (time.time()-t0) / 60
+            print('SUCCESS: objid {} on rank {} took {:.1f} minutes'.format(objid, rank, runtime))
 
-        plt.show()
+        except:
+            print('FAILED: objid {} on rank {} raised an exception'.format(objid, rank))
+            import traceback
+            traceback.print_exc()
 
+    print('---- rank {} is done'.format(rank))
+    sys.stdout.flush()
 
-        # Make a plot!
-        plt.figure(figsize=(8, 8))
-        plt.subplots_adjust(hspace=0.35, wspace=0.35)
+    if comm is not None:
+        comm.barrier()
 
-        plt.subplot(2, 2, 1)
-        plt.errorbar(isolist.sma, isolist.eps, yerr=isolist.ellip_err,
-                     fmt='o', markersize=4)
-        plt.xlabel('Semimajor Axis Length (pix)')
-        plt.ylabel('Ellipticity')
+    #if rank == 0:
+    #    for outfile in zbfiles:
+    #        if not os.path.exists(outfile):
+    #            print('ERROR missing {}'.format(outfile))
 
-        plt.subplot(2, 2, 2)
-        plt.errorbar(isolist.sma, isolist.pa/np.pi*180.,
-                     yerr=isolist.pa_err/np.pi* 80., fmt='o', markersize=4)
-        plt.xlabel('Semimajor Axis Length (pix)')
-        plt.ylabel('PA (deg)')
-
-        plt.subplot(2, 2, 3)
-        plt.errorbar(isolist.sma, isolist.x0, yerr=isolist.x0_err, fmt='o',
-                     markersize=4)
-        plt.xlabel('Semimajor Axis Length (pix)')
-        plt.ylabel('x0')
-
-        plt.subplot(2, 2, 4)
-        plt.errorbar(isolist.sma, isolist.y0, yerr=isolist.y0_err, fmt='o',
-                     markersize=4)
-        plt.xlabel('Semimajor Axis Length (pix)')
-        plt.ylabel('y0')
-
-        plt.show()
-        
-        import pdb ; pdb.set_trace()
+        print('All done at {}'.format(time.asctime()))
         
 def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False):
     """Generate the coadds.
@@ -241,7 +236,7 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False):
         objid, objdir = get_objid(sample[ii])
 
         logfile = os.path.join(objdir, '{}-coadds.log'.format(objid))
-        print('LOGGING to {}'.format(logfile))
+        print('Logging to {}'.format(logfile))
 
         print('---- rank {} objid {} {}'.format(rank, objid, time.asctime()))
         sys.stdout.flush()
@@ -255,10 +250,10 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False):
                                          ncpu=ncpu, pixscale=PIXSCALE, verbose=verbose)
             
             runtime = (time.time()-t0) / 60
-            print('SUCCESS: objid {} coadds on rank {} took {:.1f} minutes'.format(objid, rank, runtime))
+            print('SUCCESS: objid {} on rank {} took {:.1f} minutes'.format(objid, rank, runtime))
 
         except:
-            print('FAILED: objid {} coadds on rank {} raised an exception'.format(objid, rank))
+            print('FAILED: objid {} on rank {} raised an exception'.format(objid, rank))
             import traceback
             traceback.print_exc()
 
