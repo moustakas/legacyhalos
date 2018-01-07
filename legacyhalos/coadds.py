@@ -24,7 +24,7 @@ def _cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
     """
     from astropy.cosmology import WMAP9 as cosmo
     arcsec_per_kpc = cosmo.arcsec_per_kpc_proper(redshift).value
-    radius = np.rint(radius_kpc * arcsec_per_kpc / pixscale).astype(int)
+    radius = np.rint(radius_kpc * arcsec_per_kpc / pixscale).astype(int) # [pixels]
     return radius
 
 def _cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,

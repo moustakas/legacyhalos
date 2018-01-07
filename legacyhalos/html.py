@@ -1,8 +1,12 @@
 from __future__ import (absolute_import, division)
 
 import os, subprocess
+import numpy as np
 
-def _qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False):
+import seaborn as sns
+sns.set(style='ticks', font_scale=1.2, palette='Set2')
+
+def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False):
     """Montage the coadds into a nice QAplot."""
 
     montagefile = os.path.join(htmlobjdir, '{}-coadd-montage.png'.format(objid))
@@ -16,60 +20,44 @@ def _qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False):
 
         err = subprocess.call(cmd.split())
 
-def _qa_ellipse_results(objid, objdir, htmlobjdir, clobber=False):
-    """Generate QAplots from the ellipse-fitting."""
+def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
+                       band=('g', 'r', 'z'), pixscale=0.262, clobber=False):
+    """Generate QAplots from the ellipse-fitting.
 
-    montagefile = os.path.join(htmlobjdir, '{}-coadd-montage.png'.format(objid))
+    """
+    from legacyhalos.io import read_isophotfit
+    from legacyhalos.ellipse import (read_multiband, display_multiband,
+                                     display_isophotfit, display_sbprofile)
 
-    plt.figure(figsize=(8, 4))
+    isophotfit = read_isophotfit(objid, objdir, band=band)
+    if len(isophotfit[refband]) > 0:
 
-    plt.scatter(isolist.sma**0.25, 22.5-2.5*np.log10(isolist.intens))
-    plt.xlabel('sma**1/4')
-    plt.ylabel('Magnitude')
-    plt.gca().invert_yaxis()
-    #plt.show()
+        # Toss out bad fits.
+        #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
+        indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
 
-    fig, ax1 = plt.subplots()
-    ax1.imshow(resid, origin='lower')
-    smas = np.linspace(1, 100, 10)
-    for sma in smas:
-        iso = isolist.get_closest(sma)
-        x, y, = iso.sampled_coordinates()
-        print(x, y)
-        ax1.plot(x, y, color='white')
-    plt.show()
+        multibandfile = os.path.join(htmlobjdir, '{}-ellipse-multiband.png'.format(objid))
+        if not os.path.isfile(multibandfile) or clobber:
+            data = read_multiband(objid, objdir, band=band)
+            print('Writing {}'.format(multibandfile))
+            display_multiband(data, isophotfit=isophotfit, band=band,
+                              indx=indx, png=multibandfile)
 
-    plt.figure(figsize=(8, 8))
-    plt.subplots_adjust(hspace=0.35, wspace=0.35)
+        isophotfile = os.path.join(htmlobjdir, '{}-ellipse-isophotfit.png'.format(objid))
+        if not os.path.isfile(isophotfile) or clobber:
+            # Just display the reference band.
+            print('Writing {}'.format(isophotfile))
+            display_isophotfit(isophotfit, band=refband, redshift=redshift,
+                               indx=indx, pixscale=pixscale, png=isophotfile)
 
-    plt.subplot(2, 2, 1)
-    plt.errorbar(isolist.sma, isolist.eps, yerr=isolist.ellip_err,
-                 fmt='o', markersize=4)
-    plt.xlabel('Semimajor Axis Length (pix)')
-    plt.ylabel('Ellipticity')
-
-    plt.subplot(2, 2, 2)
-    plt.errorbar(isolist.sma, isolist.pa/np.pi*180.,
-                 yerr=isolist.pa_err/np.pi* 80., fmt='o', markersize=4)
-    plt.xlabel('Semimajor Axis Length (pix)')
-    plt.ylabel('PA (deg)')
-
-    plt.subplot(2, 2, 3)
-    plt.errorbar(isolist.sma, isolist.x0, yerr=isolist.x0_err, fmt='o',
-                 markersize=4)
-    plt.xlabel('Semimajor Axis Length (pix)')
-    plt.ylabel('x0')
-
-    plt.subplot(2, 2, 4)
-    plt.errorbar(isolist.sma, isolist.y0, yerr=isolist.y0_err, fmt='o',
-                 markersize=4)
-    plt.xlabel('Semimajor Axis Length (pix)')
-    plt.ylabel('y0')
-
-    plt.show()
-
+        sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
+        if not os.path.isfile(sbprofilefile) or clobber:
+            print('Writing {}'.format(sbprofilefile))
+            display_sbprofile(isophotfit, band=band, redshift=redshift,
+                               indx=indx, pixscale=pixscale, png=sbprofilefile)
         
-def make_plots(sample, analysis_dir=None, htmldir='.', clobber=False):
+def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
+               band=('g', 'r', 'z'), clobber=False):
     """Make DESI targeting QA plots given a passed set of targets
 
     Parameters
@@ -94,17 +82,14 @@ def make_plots(sample, analysis_dir=None, htmldir='.', clobber=False):
     Nothing
         But a set of .png plots for target QA are written to qadir
 
-    Notes
-    -----
-    The ``DESIMODEL`` environment variable must be set to find the file of HEALPixels 
-    that overlap the DESI footprint
-
     """
     from legacyhalos.io import get_objid
 
     objid, objdir = get_objid(sample, analysis_dir=analysis_dir)
 
-    for objid1, objdir1 in zip(objid, objdir):
+    for objid1, objdir1, redshift in zip(np.atleast_1d(objid),
+                                         np.atleast_1d(objdir),
+                                         sample.z):
 
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
         
@@ -112,15 +97,13 @@ def make_plots(sample, analysis_dir=None, htmldir='.', clobber=False):
             os.makedirs(htmlobjdir, exist_ok=True)
 
         # Build the montage coadds.
-        _qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
+        qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
 
         # Build the ellipse QAplots.
-        #_qa_ellipse_results(objid1, htmlobjdir, clobber=clobber)
+        qa_ellipse_results(objid1, objdir1, htmlobjdir, redshift=redshift,
+                           refband='r', band=band, clobber=clobber)
+        
 
-        # Build the surface brightness profile fitting results.
-        #_qa_sbprofile_results(objid1, htmlobjdir, clobber=clobber)
-        
-        
 def _javastring():
     """Return a string that embeds a date in a webpage."""
     import textwrap
@@ -146,20 +129,14 @@ def _javastring():
     var fyear = dateObj.getYear()
     if (fyear < 2000)
     fyear = fyear + 1900
-    if (date == 1 || date == 21 || date == 31)
-    document.write(" " + lmonth + " " + date + "st, " + fyear)
-    else if (date == 2 || date == 22)
-    document.write(" " + lmonth + " " + date + "nd, " + fyear)
-    else if (date == 3 || date == 23)
-    document.write(" " + lmonth + " " + date + "rd, " + fyear)
-    else
-    document.write(" " + lmonth + " " + date + "th, " + fyear)
+    document.write(" " + lmonth + " " + date + fyear)
     </SCRIPT>
     """)
 
     return js
         
-def make_html(analysis_dir=None, htmldir=None, makeplots=True, clobber=False):
+def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r', 
+              makeplots=True, clobber=False):
     """Create a directory containing a webpage structure in which to embed QA plots
 
     Parameters
@@ -186,6 +163,7 @@ def make_html(analysis_dir=None, htmldir=None, makeplots=True, clobber=False):
 
     if htmldir is None:
         htmldir = legacyhalos.io.html_dir()
+    print(htmldir)
 
     sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
                                          columns=('ra', 'dec', 'bx', 'by', 'brickname', 'objid'))
@@ -194,6 +172,7 @@ def make_html(analysis_dir=None, htmldir=None, makeplots=True, clobber=False):
     sample.add_columns_from(rm)
 
     print('Hack -- 5 galaxies!')
+    #sample = sample[1051:1052]
     sample = sample[1050:1055]
     print('Read {} galaxies.'.format(len(sample)))
 
@@ -212,7 +191,7 @@ def make_html(analysis_dir=None, htmldir=None, makeplots=True, clobber=False):
 
         html.write('<b><i>Jump to an object:</i></b>\n')
         html.write('<ul>\n')
-        for objid1 in objid:
+        for objid1 in np.atleast_1d(objid):
             html.write('<li><A HREF="{:}.html">{:}</A>\n'.format(objid1, objid1))
         html.write('</ul>\n')
 
@@ -221,22 +200,41 @@ def make_html(analysis_dir=None, htmldir=None, makeplots=True, clobber=False):
         html.close()
 
     # Make a separate page for each object.
-    for gal, objid1, objdir1 in zip(sample, objid, objdir):
+    for gal, objid1, objdir1 in zip(sample, np.atleast_1d(objid), np.atleast_1d(objdir)):
         htmlfile = os.path.join(htmldir, '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
             html.write('<h1>Central Galaxy {}</h1>\n'.format(objid1))
-
+            
             html.write('<h2>Coadds</h2>\n')
-            html.write('<table COLS=2 WIDTH="100%">\n')
+            html.write('<table cols=1 width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td WIDTH="50%" align=left><A HREF="{}/{}-coadd-montage.png"><img SRC="{}/{}-coadd-montage.png" height=300 width=900></A></left></td>\n'.format(objid1, objid1, objid1, objid1))
+            html.write('<td width="100%" align=left><a href="{}/{}-coadd-montage.png"><img src="{}/{}-coadd-montage.png" height=300 width=900></a></left></td>\n'.format(objid1, objid1, objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
+            html.write('<br />\n')
+            
+            html.write('<h2>Ellipse Fitting Results</h2>\n')
+            html.write('<table cols=1 width="90%">\n')
+            html.write('<tr>\n')
+            html.write('<td width="100%" align=left><a href="{}/{}-ellipse-multiband.png"><img src="{}/{}-ellipse-multiband.png" height=300 width=900></a></left></td>\n'.format(objid1, objid1, objid1, objid1))
+            html.write('</tr>\n')
+            
+            html.write('<tr>\n')
+            html.write('<td width="100%" align=left><a href="{}/{}-ellipse-isophotfit.png"><img src="{}/{}-ellipse-isophotfit.png"></a></left></td>\n'.format(objid1, objid1, objid1, objid1))
+            html.write('</tr>\n')
+            
+            html.write('<tr>\n')
+            html.write('<td width="100%" align=left><a href="{}/{}-ellipse-sbprofile.png"><img src="{}/{}-ellipse-sbprofile.png"></a></left></td>\n'.format(objid1, objid1, objid1, objid1))
+            html.write('</tr>\n')
+            
+            html.write('</table>\n')
+            html.write('<br />\n')
 
-            html.write('<b><i>Last updated {}</b></i>\n'.format(js))
+            html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
             html.write('</html></body>\n')
             html.close()
 
     if makeplots:
-        make_plots(sample, analysis_dir=analysis_dir, htmldir=htmldir, clobber=clobber)
+        make_plots(sample, analysis_dir=analysis_dir, htmldir=htmldir, refband=refband,
+                   band=band, clobber=clobber)

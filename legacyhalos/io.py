@@ -8,6 +8,7 @@ Code to read and write the various legacyhalos files.
 from __future__ import absolute_import, division, print_function
 
 import os
+import pickle
 import numpy as np
 from glob import glob
 
@@ -56,6 +57,28 @@ def html_dir():
     if not os.path.isdir(htmldir):
         os.makedirs(htmldir, exist_ok=True)
     return htmldir
+
+def write_isophotfit(objid, objdir, isophotfit, band='r', verbose=False):
+    """Write an photutils.isophote.isophote.IsophoteList object (see, e.g.,
+    ellipse.fit_multiband).
+
+    """
+    isofitfile = os.path.join(objdir, '{}-isophotfit-{}.p'.format(objid, band))
+    if verbose:
+        print('Writing {}'.format(isofitfile))
+    with open(isofitfile, 'wb') as iso:
+        pickle.dump(isophotfit, iso)
+
+def read_isophotfit(objid, objdir, band):
+    """Read the output of write_isophotfit."""
+
+    isophotfitall = dict()
+    for filt in band:
+        isofitfile = os.path.join(objdir, '{}-isophotfit-{}.p'.format(objid, filt))
+        with open(isofitfile, 'rb') as iso:
+            isophotfitall[filt] = pickle.load(iso)
+
+    return isophotfitall
 
 def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     """Read the various catalogs.
