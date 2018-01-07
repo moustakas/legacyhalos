@@ -72,6 +72,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ncpu', type=int, help='number of multiprocessing processes per MPI rank.')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
+    parser.add_argument('--coadds', action='store_true', help='Build the coadds')
+    parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
 
     args = parser.parse_args()
@@ -109,18 +111,16 @@ def main():
                                          columns=('mem_match_id', 'z', 'r_lambda'))
         sample.add_columns_from(rm)
 
-        #print('Hack -- 2 galaxies!')
-        #sample = sample[1051:1052]
-        print('Hack -- 5 galaxies!')
-        sample = sample[1050:1055]
+        print('Hack -- first 50 galaxies!')
+        #sample = sample[:50]
+        #sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
 
-        if False:
-            # Build the coadds
+        if args.coadds: # Build the coadds
             legacyhalos_coadds(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose)
 
-        # Do ellipse fitting
-        legacyhalos_ellipse(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose)
+        if args.ellipse: # Do ellipse fitting
+            legacyhalos_ellipse(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose)
 
 def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False):
     """Do ellipse-fitting.

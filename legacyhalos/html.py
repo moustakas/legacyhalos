@@ -192,7 +192,8 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         html.write('<b><i>Jump to an object:</i></b>\n')
         html.write('<ul>\n')
         for objid1 in np.atleast_1d(objid):
-            html.write('<li><A HREF="{:}.html">{:}</A>\n'.format(objid1, objid1))
+            htmlfile = os.path.join(htmldir, '{}'.format(objid1), '{}.html'.format(objid1))
+            html.write('<li><a href="{}">{}</a>\n'.format(htmlfile, htmlfile))
         html.write('</ul>\n')
 
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
@@ -201,7 +202,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
 
     # Make a separate page for each object.
     for gal, objid1, objdir1 in zip(sample, np.atleast_1d(objid), np.atleast_1d(objdir)):
-        htmlfile = os.path.join(htmldir, '{}.html'.format(objid1))
+        htmlfile = os.path.join(htmldir, '{}'.format(objid1), '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
             html.write('<h1>Central Galaxy {}</h1>\n'.format(objid1))
