@@ -21,7 +21,8 @@ from photutils import EllipticalAperture
 
 PIXSCALE = 0.262
 
-def _initial_ellipse(cat, pixscale=PIXSCALE, shape=(100, 100), verbose=False):
+def _initial_ellipse(cat, pixscale=PIXSCALE, data=None, refband='r',
+                     verbose=False, use_tractor=False):
     """Initialize an Ellipse object by converting the Tractor ellipticity
     measurements to eccentricity and position angle.  See
     http://legacysurvey.org/dr5/catalogs and
@@ -29,20 +30,31 @@ def _initial_ellipse(cat, pixscale=PIXSCALE, shape=(100, 100), verbose=False):
     more details.
 
     """
-    nx, ny = shape
+    nx, ny = data[refband].shape
 
     galtype = cat.type.strip().upper()
     if galtype == 'DEV':
         sma = cat.shapedev_r / pixscale # [pixels]
-        epsilon = np.sqrt(cat.shapedev_e1**2 + cat.shapedev_e2**2)
-        pa = 0.5 * np.arctan(cat.shapedev_e2 / cat.shapedev_e1)
     else:
         sma = cat.shapeexp_r / pixscale # [pixels]
-        epsilon = np.sqrt(cat.shapeexp_e1**2 + cat.shapeexp_e2**2)
-        pa = 0.5 * np.arctan(cat.shapeexp_e2 / cat.shapeexp_e1)
 
-    ba = (1 - np.abs(epsilon)) / (1 + np.abs(epsilon))
-    eps = 1 - ba
+    if sma == 0:
+        sma = 10
+        
+    if use_tractor:
+        if galtype == 'DEV':
+            epsilon = np.sqrt(cat.shapedev_e1**2 + cat.shapedev_e2**2)
+            pa = 0.5 * np.arctan(cat.shapedev_e2 / cat.shapedev_e1)
+        else:
+            epsilon = np.sqrt(cat.shapeexp_e1**2 + cat.shapeexp_e2**2)
+            pa = 0.5 * np.arctan(cat.shapeexp_e2 / cat.shapeexp_e1)
+            
+        ba = (1 - np.abs(epsilon)) / (1 + np.abs(epsilon))
+        eps = 1 - ba
+    else:
+        from mge.find_galaxy import find_galaxy
+        ff = find_galaxy(data[refband], plot=False, quiet=not verbose)
+        eps, pa = ff.eps, np.radians(ff.theta)
 
     if verbose:
         print('Type={}, sma={:.2f}, eps={:.2f}, pa={:.2f} (initial)'.format(
@@ -145,7 +157,8 @@ def display_isophotfit(isophotfit, band=('g', 'r', 'z'), redshift=None,
     fig.subplots_adjust(hspace=0.05, wspace=0.05, bottom=0.15, right=0.85, left=0.15)
 
     if png:
-        plt.savefig(png)
+        fig.savefig(png)
+        plt.close(fig)
     else:
         plt.show()
         
@@ -219,7 +232,8 @@ def display_sbprofile(isophotfit, band=('g', 'r', 'z'), redshift=None,
     fig.subplots_adjust(hspace=0.0)
 
     if png:
-        plt.savefig(png)
+        fig.savefig(png)
+        plt.close(fig)
     else:
         plt.show()
         
@@ -232,8 +246,8 @@ def display_multiband(data, band=('g', 'r', 'z'), ellaper=None, isophotfit=None,
     from astropy.visualization import ImageNormalize
 
     nband = len(data.keys())
-    
-    if indx is None:
+
+    if isophotfit is not None and indx is None:
         indx = np.ones(len(isophotfit[band[0]]))
         
     fig, ax = plt.subplots(1, 3, figsize=(3 * nband, 3))
@@ -265,7 +279,8 @@ def display_multiband(data, band=('g', 'r', 'z'), ellaper=None, isophotfit=None,
 
     fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.01, right=0.99)
     if png:
-        plt.savefig(png)
+        fig.savefig(png)
+        plt.close(fig)
     else:
         plt.show()
 
@@ -287,8 +302,10 @@ def fit_multiband(objid, objdir, data, geometry, band=('g', 'r', 'z'), refband='
         print('Ellipse-fitting the {}-band image.'.format(refband))
     t0 = time.time()
     ellipse = Ellipse(data[refband], geometry)
+    #isophotfit = ellipse.fit_image(minsma=0.5, maxsma=nx/2, integrmode=integrmode,
+    #                               sclip=sclip, nclip=nclip)
     isophotfit = ellipse.fit_image(minsma=0.5, maxsma=nx/2, integrmode=integrmode,
-                                   sclip=sclip, nclip=nclip)
+                                   sclip=sclip, nclip=0)
     if verbose:
         print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
 
@@ -345,7 +362,7 @@ def legacyhalos_ellipse(galaxycat, objid=None, objdir=None, ncpu=1,
     data = read_multiband(objid, objdir, band=band)
 
     geometry, ellaper = _initial_ellipse(galaxycat, pixscale=pixscale, verbose=verbose,
-                                         shape=data[refband].shape)
+                                         data=data, refband=refband)
     if debug:
         display_multiband(data, ellaper=ellaper, band=band)
 

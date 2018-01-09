@@ -74,9 +74,16 @@ def read_isophotfit(objid, objdir, band):
 
     isophotfitall = dict()
     for filt in band:
+        isophotfitall[filt] = []
+    
+    for filt in band:
         isofitfile = os.path.join(objdir, '{}-isophotfit-{}.p'.format(objid, filt))
-        with open(isofitfile, 'rb') as iso:
-            isophotfitall[filt] = pickle.load(iso)
+        try:
+            with open(isofitfile, 'rb') as iso:
+                isophotfitall[filt] = pickle.load(iso)
+        except:
+            #raise IOError
+            print('File {} not found!'.format(isofitfile))
 
     return isophotfitall
 
@@ -94,9 +101,6 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
         suffix = '-isedfit'
     elif upenn:
         suffix = '-upenn'
-    else:
-        print('Unrecognized suffix!')
-        raise ValueError
 
     lsdir = legacyhalos_dir()
     catfile = os.path.join(lsdir, 'legacyhalos-parent{}.fits'.format(suffix))

@@ -20,6 +20,11 @@ def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False):
 
         err = subprocess.call(cmd.split())
 
+    else:
+        err = 0
+
+    return err
+
 def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
                        band=('g', 'r', 'z'), pixscale=0.262, clobber=False):
     """Generate QAplots from the ellipse-fitting.
@@ -97,12 +102,12 @@ def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
             os.makedirs(htmlobjdir, exist_ok=True)
 
         # Build the montage coadds.
-        qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
+        err = qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
 
-        # Build the ellipse QAplots.
-        qa_ellipse_results(objid1, objdir1, htmlobjdir, redshift=redshift,
-                           refband='r', band=band, clobber=clobber)
-        
+        if err == 0:
+            # Build the ellipse QAplots.
+            qa_ellipse_results(objid1, objdir1, htmlobjdir, redshift=redshift,
+                               refband='r', band=band, clobber=clobber)
 
 def _javastring():
     """Return a string that embeds a date in a webpage."""
@@ -129,7 +134,7 @@ def _javastring():
     var fyear = dateObj.getYear()
     if (fyear < 2000)
     fyear = fyear + 1900
-    document.write(" " + lmonth + " " + date + fyear)
+    document.write(" " + fyear + " " + lmonth + " " + date)
     </SCRIPT>
     """)
 
@@ -163,7 +168,6 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
 
     if htmldir is None:
         htmldir = legacyhalos.io.html_dir()
-    print(htmldir)
 
     sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
                                          columns=('ra', 'dec', 'bx', 'by', 'brickname', 'objid'))
@@ -171,9 +175,9 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
                                      columns=('mem_match_id', 'z', 'r_lambda'))
     sample.add_columns_from(rm)
 
-    print('Hack -- 5 galaxies!')
-    #sample = sample[1051:1052]
-    sample = sample[1050:1055]
+    print('Hack -- first 50 galaxies!')
+    sample = sample[:50]
+    #sample = sample[1050:1055]
     print('Read {} galaxies.'.format(len(sample)))
 
     objid, objdir = legacyhalos.io.get_objid(sample)
@@ -192,8 +196,8 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         html.write('<b><i>Jump to an object:</i></b>\n')
         html.write('<ul>\n')
         for objid1 in np.atleast_1d(objid):
-            htmlfile = os.path.join(htmldir, '{}'.format(objid1), '{}.html'.format(objid1))
-            html.write('<li><a href="{}">{}</a>\n'.format(htmlfile, htmlfile))
+            htmlfile = os.path.join('{}'.format(objid1), '{}.html'.format(objid1))
+            html.write('<li><a href="{}">{}</a>\n'.format(htmlfile, objid1))
         html.write('</ul>\n')
 
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
@@ -202,7 +206,10 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
 
     # Make a separate page for each object.
     for gal, objid1, objdir1 in zip(sample, np.atleast_1d(objid), np.atleast_1d(objdir)):
-        htmlfile = os.path.join(htmldir, '{}'.format(objid1), '{}.html'.format(objid1))
+        htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
+        if not os.path.exists(htmlobjdir):
+            os.makedirs(htmlobjdir)
+        htmlfile = os.path.join(htmlobjdir, '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
             html.write('<h1>Central Galaxy {}</h1>\n'.format(objid1))
@@ -210,7 +217,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<h2>Coadds</h2>\n')
             html.write('<table cols=1 width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td width="100%" align=left><a href="{}/{}-coadd-montage.png"><img src="{}/{}-coadd-montage.png" height=300 width=900></a></left></td>\n'.format(objid1, objid1, objid1, objid1))
+            html.write('<td width="100%" align=left><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" height=300 width=900></a></left></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
             html.write('<br />\n')
@@ -218,15 +225,15 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<h2>Ellipse Fitting Results</h2>\n')
             html.write('<table cols=1 width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td width="100%" align=left><a href="{}/{}-ellipse-multiband.png"><img src="{}/{}-ellipse-multiband.png" height=300 width=900></a></left></td>\n'.format(objid1, objid1, objid1, objid1))
+            html.write('<td width="100%" align=left><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height=300 width=900></a></left></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             
             html.write('<tr>\n')
-            html.write('<td width="100%" align=left><a href="{}/{}-ellipse-isophotfit.png"><img src="{}/{}-ellipse-isophotfit.png"></a></left></td>\n'.format(objid1, objid1, objid1, objid1))
+            html.write('<td width="100%" align=left><a href="{}-ellipse-isophotfit.png"><img src="{}-ellipse-isophotfit.png"></a></left></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             
             html.write('<tr>\n')
-            html.write('<td width="100%" align=left><a href="{}/{}-ellipse-sbprofile.png"><img src="{}/{}-ellipse-sbprofile.png"></a></left></td>\n'.format(objid1, objid1, objid1, objid1))
+            html.write('<td width="100%" align=left><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png"></a></left></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             
             html.write('</table>\n')

@@ -74,6 +74,7 @@ def main():
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
     parser.add_argument('--coadds', action='store_true', help='Build the coadds')
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting')
+    parser.add_argument('--debug', action='store_true', help='Build some debugging plots.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
 
     args = parser.parse_args()
@@ -112,7 +113,8 @@ def main():
         sample.add_columns_from(rm)
 
         print('Hack -- first 50 galaxies!')
-        #sample = sample[:50]
+        #sample = sample[41:42]
+        sample = sample[:50]
         #sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
 
@@ -120,15 +122,16 @@ def main():
             legacyhalos_coadds(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose)
 
         if args.ellipse: # Do ellipse fitting
-            legacyhalos_ellipse(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose)
+            legacyhalos_ellipse(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose,
+                                debug=args.debug)
 
-def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False):
+def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False, debug=False):
     """Do ellipse-fitting.
 
     """
     import fitsio
     from legacyhalos.io import get_objid
-    from legacyhalos.ellipse import legacyhalos_ellipse
+    import legacyhalos.ellipse
 
     if comm is None:
         rank, size = 0, 1
@@ -172,8 +175,10 @@ def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False):
             with open(logfile, 'a') as log:
                 #sys.stdout = log
                 #sys.stderr = log
-                err = legacyhalos_ellipse(sample[ii], objid=objid, objdir=objdir, ncpu=ncpu,
-                                          pixscale=PIXSCALE, verbose=verbose)
+                err = legacyhalos.ellipse.legacyhalos_ellipse(sample[ii], objid=objid,
+                                                              objdir=objdir, ncpu=ncpu,
+                                                              pixscale=PIXSCALE, debug=debug,
+                                                              verbose=verbose)
             
             runtime = (time.time()-t0) / 60
             print('SUCCESS: objid {} on rank {} took {:.1f} minutes'.format(objid, rank, runtime))
@@ -201,7 +206,7 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False):
 
     """
     from legacyhalos.io import get_objid
-    from legacyhalos.coadds import legacyhalos_coadds
+    import legacyhalos.coadds
 
     if comm is None:
         rank, size = 0, 1
@@ -246,8 +251,10 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False):
             with open(logfile, 'a') as log:
                 #sys.stdout = log
                 #sys.stderr = log
-                err = legacyhalos_coadds(sample[ii], survey=survey, objid=objid, objdir=objdir,
-                                         ncpu=ncpu, pixscale=PIXSCALE, verbose=verbose)
+                err = legacyhalos.coadds.legacyhalos_coadds(sample[ii], survey=survey,
+                                                            objid=objid, objdir=objdir,
+                                                            ncpu=ncpu, pixscale=PIXSCALE,
+                                                            verbose=verbose)
             
             runtime = (time.time()-t0) / 60
             print('SUCCESS: objid {} on rank {} took {:.1f} minutes'.format(objid, rank, runtime))
