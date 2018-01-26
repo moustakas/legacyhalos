@@ -59,7 +59,7 @@ def html_dir():
     return htmldir
 
 def write_isophotfit(objid, objdir, isophotfit, band='r', verbose=False):
-    """Write an photutils.isophote.isophote.IsophoteList object (see, e.g.,
+    """Pickle an photutils.isophote.isophote.IsophoteList object (see, e.g.,
     ellipse.fit_multiband).
 
     """
@@ -68,6 +68,17 @@ def write_isophotfit(objid, objdir, isophotfit, band='r', verbose=False):
         print('Writing {}'.format(isofitfile))
     with open(isofitfile, 'wb') as iso:
         pickle.dump(isophotfit, iso)
+
+def write_mgefit(objid, objdir, mgefit, band='r', verbose=False):
+    """Pickle an XXXXX object (see, e.g., ellipse.mgefit_multiband).
+
+    """
+    mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
+    #mgefitfile = os.path.join(objdir, '{}-mgefit-{}.p'.format(objid, band))
+    if verbose:
+        print('Writing {}'.format(mgefitfile))
+    with open(mgefitfile, 'wb') as mge:
+        pickle.dump(mgefit, mge)
 
 def read_isophotfit(objid, objdir, band):
     """Read the output of write_isophotfit."""

@@ -61,6 +61,42 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
             display_sbprofile(isophotfit, band=band, redshift=redshift,
                                indx=indx, pixscale=pixscale, png=sbprofilefile)
         
+def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
+                   band=('g', 'r', 'z'), pixscale=0.262, clobber=False):
+    """Generate QAplots from the MGE fitting.
+
+    """
+    from legacyhalos.io import read_isophotfit
+    from legacyhalos.ellipse import (read_multiband, display_multiband,
+                                     display_isophotfit, display_sbprofile)
+
+    isophotfit = read_isophotfit(objid, objdir, band=band)
+    if len(isophotfit[refband]) > 0:
+
+        # Toss out bad fits.
+        #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
+        indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
+
+        multibandfile = os.path.join(htmlobjdir, '{}-ellipse-multiband.png'.format(objid))
+        if not os.path.isfile(multibandfile) or clobber:
+            data = read_multiband(objid, objdir, band=band)
+            print('Writing {}'.format(multibandfile))
+            display_multiband(data, isophotfit=isophotfit, band=band,
+                              indx=indx, png=multibandfile)
+
+        isophotfile = os.path.join(htmlobjdir, '{}-ellipse-isophotfit.png'.format(objid))
+        if not os.path.isfile(isophotfile) or clobber:
+            # Just display the reference band.
+            print('Writing {}'.format(isophotfile))
+            display_isophotfit(isophotfit, band=refband, redshift=redshift,
+                               indx=indx, pixscale=pixscale, png=isophotfile)
+
+        sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
+        if not os.path.isfile(sbprofilefile) or clobber:
+            print('Writing {}'.format(sbprofilefile))
+            display_sbprofile(isophotfit, band=band, redshift=redshift,
+                               indx=indx, pixscale=pixscale, png=sbprofilefile)
+        
 def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False):
     """Make DESI targeting QA plots given a passed set of targets
@@ -102,12 +138,16 @@ def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
             os.makedirs(htmlobjdir, exist_ok=True)
 
         # Build the montage coadds.
-        err = qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
+        print('HACK!!!')
+        #err = qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
 
-        if err == 0:
+        #if err == 0:
             # Build the ellipse QAplots.
-            qa_ellipse_results(objid1, objdir1, htmlobjdir, redshift=redshift,
-                               refband='r', band=band, clobber=clobber)
+        #qa_ellipse_results(objid1, objdir1, htmlobjdir, redshift=redshift,
+        #                   refband='r', band=band, clobber=clobber)
+        
+        qa_mge_results(objid1, objdir1, htmlobjdir, redshift=redshift,
+                       refband='r', band=band, clobber=clobber)
 
 def _javastring():
     """Return a string that embeds a date in a webpage."""
@@ -209,6 +249,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
         if not os.path.exists(htmlobjdir):
             os.makedirs(htmlobjdir)
+            
         htmlfile = os.path.join(htmlobjdir, '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
@@ -217,7 +258,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<h2>Coadds</h2>\n')
             html.write('<table cols=1 width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td width="100%" align=left><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" height=300 width=900></a></left></td>\n'.format(objid1, objid1))
+            html.write('<td width="100%" align=center><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
             html.write('<br />\n')
@@ -225,15 +266,15 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<h2>Ellipse Fitting Results</h2>\n')
             html.write('<table cols=1 width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td width="100%" align=left><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height=300 width=900></a></left></td>\n'.format(objid1, objid1))
+            html.write('<td width="100%" align="center"><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             
             html.write('<tr>\n')
-            html.write('<td width="100%" align=left><a href="{}-ellipse-isophotfit.png"><img src="{}-ellipse-isophotfit.png"></a></left></td>\n'.format(objid1, objid1))
+            html.write('<td width="100%" align="center"><a href="{}-ellipse-isophotfit.png"><img src="{}-ellipse-isophotfit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             
             html.write('<tr>\n')
-            html.write('<td width="100%" align=left><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png"></a></left></td>\n'.format(objid1, objid1))
+            html.write('<td width="100%" align="center"><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             
             html.write('</table>\n')
