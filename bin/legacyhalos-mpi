@@ -114,7 +114,7 @@ def main():
 
         print('Hack -- first 50 galaxies!')
         #sample = sample[41:42]
-        sample = sample[:50]
+        sample = sample[:2]
         #sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
 
