@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-"""
-MPI wrapper for legacyhalos_coadds.
+"""MPI wrapper for the various computationally intensive legacyhalos analysis
+steps.
+
 """
 
 from __future__ import absolute_import, division, print_function
@@ -179,7 +180,7 @@ def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False, debug=False):
                                                               objdir=objdir, ncpu=ncpu,
                                                               pixscale=PIXSCALE, debug=debug,
                                                               verbose=verbose)
-            
+                
             runtime = (time.time()-t0) / 60
             print('SUCCESS: objid {} on rank {} took {:.1f} minutes'.format(objid, rank, runtime))
 
