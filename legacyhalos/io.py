@@ -98,6 +98,20 @@ def read_isophotfit(objid, objdir, band):
 
     return isophotfitall
 
+def read_mgefit(objid, objdir):
+    """Read the output of write_mgefit."""
+
+    mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
+    try:
+        with open(mgefitfile, 'rb') as mge:
+            mgefit = pickle.load(mge)
+    except:
+        #raise IOError
+        print('File {} not found!'.format(mgefitfile))
+        mgefit = dict()
+
+    return mgefit
+
 def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     """Read the various catalogs.
 
