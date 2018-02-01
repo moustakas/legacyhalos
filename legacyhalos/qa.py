@@ -12,8 +12,99 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-def display_isophotfit(isophotfit, band=('g', 'r', 'z'), redshift=None,
-                       pixscale=0.262, indx=None, png=None):
+import seaborn as sns
+sns.set(context='talk', style='ticks')#, palette='Set1')
+
+def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
+                      mgefit=None, ellipsefit=None, indx=None, magrange=10,
+                      inchperband=3, contours=False, png=None):
+    """Display the multi-band images and, optionally, the isophotal fits based on
+    either MGE and/or Ellipse.
+
+    """
+    from astropy.visualization import ZScaleInterval as Interval
+    from astropy.visualization import AsinhStretch as Stretch
+    from astropy.visualization import ImageNormalize
+    
+    nband = len(band)
+
+    fig, ax = plt.subplots(1, 3, figsize=(inchperband*nband, nband))
+    for filt, ax1 in zip(band, ax):
+
+        img = data['{}_masked'.format(filt)]
+        #img = data[filt]
+
+        norm = ImageNormalize(img, interval=Interval(contrast=0.95),
+                              stretch=Stretch(a=0.95))
+
+        im = ax1.imshow(img, origin='lower', norm=norm, cmap='viridis')
+        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
+                 ha='center', va='center', color='k', fontsize=14)
+
+        if mgefit:
+            from mge.mge_print_contours import _multi_gauss, _gauss2d_mge
+
+            sigmapsf = np.atleast_1d(0)
+            normpsf = np.atleast_1d(1)
+            _magrange = 10**(-0.4*np.arange(0, magrange, 1)[::-1]) # 0.5 mag/arcsec^2 steps
+            #_magrange = 10**(-0.4*np.arange(0, magrange, 0.5)[::-1]) # 0.5 mag/arcsec^2 steps
+
+            model = _multi_gauss(mgefit[filt].sol, img, sigmapsf, normpsf,
+                                 mgefit[filt].xmed, mgefit[filt].ymed,
+                                 mgefit[filt].pa)
+            
+            peak = data[filt][mgefit[filt].xpeak, mgefit[filt].ypeak]
+            levels = peak * _magrange
+            s = img.shape
+            extent = [0, s[1], 0, s[0]]
+
+            ax1.contour(model, levels, colors='k', linestyles='solid', extent=extent,
+                        alpha=0.5, lw=1)
+
+        if geometry:
+            from photutils import EllipticalAperture
+            
+            ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
+                                         geometry.sma*(1 - geometry.eps), geometry.pa)
+            ellaper.plot(color='k', lw=1, ax=ax1)
+
+        if ellipsefit:
+            if len(ellipsefit[filt]) > 0:
+                if indx is None:
+                    indx = np.ones(len(ellipsefit[filt]), dtype=bool)
+
+                nfit = len(indx) # len(ellipsefit[filt])
+                nplot = np.rint(1*nfit).astype('int')
+                
+                smas = np.linspace(0, ellipsefit[filt].sma[indx].max(), nplot)
+                for sma in smas:
+                    efit = ellipsefit[filt].get_closest(sma)
+                    x, y, = efit.sampled_coordinates()
+                    ax1.plot(x, y, color='k', alpha=0.75)
+            else:
+                from photutils import EllipticalAperture
+                geometry = ellipsefit['{}_geometry'.format(refband)]
+                ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
+                                             geometry.sma*(1 - geometry.eps), geometry.pa)
+                ellaper.plot(color='k', lw=1, ax=ax1)
+
+        ax1.get_xaxis().set_visible(False)
+        ax1.get_yaxis().set_visible(False)
+        ax1.axis('off')
+        ax1.set_adjustable('box-forced')
+        ax1.autoscale(False)
+
+    fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.02, right=0.98)
+    if png:
+        print('Writing {}'.format(png))
+        fig.savefig(png, bbox_inches='tight', pad_inches=0)
+        #import pdb ; pdb.set_trace()
+        #plt.close(fig)
+    else:
+        plt.show()
+
+def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=None,
+                       pixscale=0.262, xlog=False, indx=None, png=None):
     """Display the isophote fitting results."""
 
     from matplotlib.ticker import FormatStrFormatter
@@ -27,47 +118,44 @@ def display_isophotfit(isophotfit, band=('g', 'r', 'z'), redshift=None,
         smaunit = 'pixels'
 
     if indx is None:
-        indx = np.ones(len(isophotfit[band[0]]))
+        indx = np.ones(len(ellipsefit[refband]), dtype=bool)
 
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(8, 5), sharex=True)
     for filt in band:
-        ax1.errorbar(isophotfit[filt].sma[indx] * smascale, isophotfit[filt].eps[indx],
-                     isophotfit[filt].ellip_err[indx], fmt='o',
+        ax1.errorbar(ellipsefit[filt].sma[indx] * smascale, ellipsefit[filt].eps[indx],
+                     ellipsefit[filt].ellip_err[indx], fmt='o',
                      markersize=4)#, color=color[filt])
         #ax1.set_ylim(0, 0.5)
         
-        ax2.errorbar(isophotfit[filt].sma[indx] * smascale, np.degrees(isophotfit[filt].pa[indx]),
-                     np.degrees(isophotfit[filt].pa_err[indx]), fmt='o',
+        ax2.errorbar(ellipsefit[filt].sma[indx] * smascale, np.degrees(ellipsefit[filt].pa[indx]),
+                     np.degrees(ellipsefit[filt].pa_err[indx]), fmt='o',
                      markersize=4)#, color=color[filt])
         ax2.yaxis.tick_right()
         ax2.yaxis.set_label_position('right')
         #ax2.set_ylim(0, 180)
 
-        ax3.errorbar(isophotfit[filt].sma[indx] * smascale, isophotfit[filt].x0[indx],
-                     isophotfit[filt].x0_err[indx], fmt='o',
+        ax3.errorbar(ellipsefit[filt].sma[indx] * smascale, ellipsefit[filt].x0[indx],
+                     ellipsefit[filt].x0_err[indx], fmt='o',
                      markersize=4)#, color=color[filt])
         ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
         
-        ax4.errorbar(isophotfit[filt].sma[indx] * smascale, isophotfit[filt].y0[indx],
-                     isophotfit[filt].y0_err[indx], fmt='o',
+        ax4.errorbar(ellipsefit[filt].sma[indx] * smascale, ellipsefit[filt].y0[indx],
+                     ellipsefit[filt].y0_err[indx], fmt='o',
                      markersize=4)#, color=color[filt])
         ax4.yaxis.tick_right()
         ax4.yaxis.set_label_position('right')
         ax4.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
         
     ax1.set_ylabel('Ellipticity')
-    #ax1.set_xscale('log')
-    
     ax2.set_ylabel('Position Angle (deg)')
-    #ax2.set_xscale('log')
-
     ax3.set_xlabel('Semimajor Axis ({})'.format(smaunit))
     ax3.set_ylabel(r'$x_{0}$')
-    #ax3.set_xscale('log')
-
     ax4.set_xlabel('Semimajor Axis ({})'.format(smaunit))
     ax4.set_ylabel(r'$y_{0}$')
-    #ax4.set_xscale('log')
+    
+    if xlog:
+        for xx in (ax1, ax2, ax3, ax4):
+            xx.set_xscale('log')
 
     fig.subplots_adjust(hspace=0.05, wspace=0.05, bottom=0.15, right=0.85, left=0.15)
 
@@ -78,8 +166,9 @@ def display_isophotfit(isophotfit, band=('g', 'r', 'z'), redshift=None,
     else:
         plt.show()
         
-def display_ellipse_sbprofile(isophotfit, band=('g', 'r', 'z'), redshift=None,
-                              indx=None, pixscale=0.262, minerr=0.02, png=None):
+def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
+                              redshift=None, indx=None, pixscale=0.262,
+                              minerr=0.02, png=None):
     """Display the multi-band surface brightness profile."""
 
     colors = iter(sns.color_palette())
@@ -93,18 +182,18 @@ def display_ellipse_sbprofile(isophotfit, band=('g', 'r', 'z'), redshift=None,
         smaunit = 'pixels'
 
     if indx is None:
-        indx = np.ones(len(isophotfit[band[0]]))
+        indx = np.ones(len(ellipsefit[refband]), dtype=bool)
         
-    def _sbprofile(isophotfit, indx, smascale):
+    def _sbprofile(ellipsefit, indx, smascale):
         """Convert fluxes to magnitudes and colors."""
         sbprofile = dict()
-        sbprofile['sma'] = isophotfit['r'].sma[indx] * smascale
+        sbprofile['sma'] = ellipsefit['r'].sma[indx] * smascale
         
         with np.errstate(invalid='ignore'):
             for filt in band:
-                sbprofile[filt] = 22.5 - 2.5 * np.log10(isophotfit[filt].intens[indx])
-                sbprofile['{}_err'.format(filt)] = isophotfit[filt].int_err[indx] / \
-                  isophotfit[filt].intens[indx] / np.log(10)
+                sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
+                sbprofile['{}_err'.format(filt)] = ellipsefit[filt].int_err[indx] / \
+                  ellipsefit[filt].intens[indx] / np.log(10)
 
                 # Just for the plot use a minimum uncertainty
                 sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
@@ -120,7 +209,7 @@ def display_ellipse_sbprofile(isophotfit, band=('g', 'r', 'z'), redshift=None,
 
         return sbprofile
 
-    sbprofile = _sbprofile(isophotfit, indx, smascale)
+    sbprofile = _sbprofile(ellipsefit, indx, smascale)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
     for filt in band:
@@ -243,93 +332,3 @@ def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', redshift=No
     else:
         plt.show()
         
-def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
-                      mgefit=None, ellipsefit=None, indx=None, magrange=10,
-                      contours=False, png=None):
-    """Display the multi-band images and, optionally, the isophotal fits based on
-    either MGE and/or Ellipse.
-
-    """
-    from astropy.visualization import ZScaleInterval as Interval
-    from astropy.visualization import AsinhStretch as Stretch
-    from astropy.visualization import ImageNormalize
-    
-    nband = len(band)
-
-    fig, ax = plt.subplots(1, 3, figsize=(2*nband, 3))
-    for filt, ax1 in zip(band, ax):
-
-        img = data['{}_masked'.format(filt)]
-        #img = data[filt]
-
-        norm = ImageNormalize(img, interval=Interval(contrast=0.95),
-                              stretch=Stretch(a=0.95))
-
-        im = ax1.imshow(img, origin='lower', norm=norm, cmap='Blues')
-        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
-                 ha='center', va='center', color='k', fontsize=14)
-
-        if mgefit:
-            from mge.mge_print_contours import _multi_gauss, _gauss2d_mge
-
-            sigmapsf = np.atleast_1d(0)
-            normpsf = np.atleast_1d(1)
-            _magrange = 10**(-0.4*np.arange(0, magrange, 1)[::-1]) # 0.5 mag/arcsec^2 steps
-            #_magrange = 10**(-0.4*np.arange(0, magrange, 0.5)[::-1]) # 0.5 mag/arcsec^2 steps
-
-            model = _multi_gauss(mgefit[filt].sol, img, sigmapsf, normpsf,
-                                 mgefit[filt].xmed, mgefit[filt].ymed,
-                                 mgefit[filt].pa)
-            
-            peak = data[filt][mgefit[filt].xpeak, mgefit[filt].ypeak]
-            levels = peak * _magrange
-            s = img.shape
-            extent = [0, s[1], 0, s[0]]
-
-            ax1.contour(model, levels, colors='k', linestyles='solid', extent=extent,
-                        alpha=0.5, lw=1)
-
-        if geometry:
-            from photutils import EllipticalAperture
-            
-            ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
-                                         geometry.sma*(1 - geometry.eps), geometry.pa)
-            ellaper.plot(color='k', lw=1, ax=ax1)
-
-        if ellipsefit:
-
-            if len(ellipsefit[filt]) > 0:
-
-                if indx is not None:
-                    indx = np.ones(len(ellipsefit[filt]), dtype=bool)
-
-                nfit = len(indx) # len(ellipsefit[filt])
-                nplot = np.rint(0.1*nfit).astype('int')
-                
-                smas = np.linspace(0, ellipsefit[filt].sma[indx].max(), nplot)
-                for sma in smas:
-                    efit = ellipsefit[filt].get_closest(sma)
-                    x, y, = efit.sampled_coordinates()
-                    ax1.plot(x, y, color='k', alpha=0.9)
-            else:
-                from photutils import EllipticalAperture
-                geometry = ellipsefit['{}_geometry'.format(refband)]
-                ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
-                                             geometry.sma*(1 - geometry.eps), geometry.pa)
-                ellaper.plot(color='k', lw=1, ax=ax1)
-
-        ax1.get_xaxis().set_visible(False)
-        ax1.get_yaxis().set_visible(False)
-        ax1.axis('off')
-        ax1.set_adjustable('box-forced')
-        ax1.autoscale(False)
-
-    fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.02, right=0.98)
-    if png:
-        print('Writing {}'.format(png))
-        fig.savefig(png, bbox_inches='tight', pad_inches=0)
-        #import pdb ; pdb.set_trace()
-        #plt.close(fig)
-    else:
-        plt.show()
-

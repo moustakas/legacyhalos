@@ -14,9 +14,6 @@ import matplotlib.pyplot as plt
 
 import legacyhalos.io
 
-import seaborn as sns
-sns.set(context='talk', style='ticks')#, palette='Set1')
-    
 PIXSCALE = 0.262
 
 def _initial_ellipse(cat, pixscale=PIXSCALE, data=None, refband='r',
@@ -64,7 +61,8 @@ def _initial_ellipse(cat, pixscale=PIXSCALE, data=None, refband='r',
     return geometry, ellaper
 
 def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refband='r',
-                         integrmode='bilinear', sclip=5, nclip=3, step=0.1, verbose=False):
+                         integrmode='bilinear', sclip=3.0, nclip=3, step=0.2, fflag=0.5,
+                         nowrite=False, verbose=False):
     """Ellipse-fit the multiband data.
 
     See
@@ -73,33 +71,37 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     """
     from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                     Isophote, IsophoteList)
+    from photutils.isophote.sample import CentralEllipseSample
+    from photutils.isophote.fitter import CentralEllipseFitter
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
     # x-axis, while .pa in MGE measured counter-clockwise from the y-axis.
     if verbose:
         print('Initializing an Ellipse object in the reference {}-band image.'.format(refband))
-    geometry = EllipseGeometry(x0=mgefit[refband].xmed, y0=mgefit[refband].ymed,
-                               sma=0.5*mgefit[refband].majoraxis, eps=mgefit[refband].eps,
-                               pa=np.radians(-mgefit[refband].theta))
+    geometry = EllipseGeometry(x0=mgefit['xmed'], y0=mgefit['ymed'], eps=mgefit['eps'],
+                               #sma=0.5*mgefit['majoraxis'], 
+                               sma=5,
+                               pa=np.radians(mgefit['pa']-90))
     
     #print('QA for debugging.')
     #display_multiband(data, geometry=geometry, band=band, mgefit=mgefit)
 
     ellipsefit = dict()
-    ellipsefit['{}_geometry'.format(refband)] = geometry
+    ellipsefit['geometry'] = geometry
 
     # Fit in the reference band...
     if verbose:
         print('Ellipse-fitting the reference {}-band image.'.format(refband))
+        
     t0 = time.time()
-
     img = data['{}_masked'.format(refband)]
     ellipse = Ellipse(img, geometry)
-    ellipsefit[refband] = ellipse.fit_image(minsma=0.0, maxsma=None, integrmode=integrmode,
-                                            sclip=sclip, nclip=nclip, step=step, linear=True)
-    import pdb ; pdb.set_trace()
-
+    isophot = ellipse.fit_image(minsma=0.0, maxsma=2*mgefit['majoraxis'],
+                                integrmode=integrmode, sclip=sclip,
+                                nclip=nclip, step=step, fflag=fflag)
+    ellipsefit[refband] = isophot
+    
     if verbose:
         print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
 
@@ -112,10 +114,10 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
         if filt == refband: # we did it already!
             continue
 
-        # Loop on the reference band isophotes.
+        # Loop on the reference band isophotes but skip the first isophote,
+        # which is a CentralEllipseSample object (see below).
         isobandfit = []
-        for iso in ellipsefit[refband]:
-
+        for iso in isophot[1:]:
             g = iso.sample.geometry # fixed geometry
 
             # Use the same integration mode and clipping parameters.
@@ -127,6 +129,17 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
             # Create an Isophote instance with the sample.
             isobandfit.append(Isophote(sample, 0, True, 0))
 
+        # Central pixel
+        g = EllipseGeometry(geometry.x0, geometry.y0, 0.0, 0.0, 0.0)
+
+        # Use the same integration mode and clipping parameters.
+        img = data['{}_masked'.format(filt)]
+        sample = CentralEllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
+                                      sclip=sclip, nclip=nclip)
+        cen = CentralEllipseFitter(sample).fit()
+        isobandfit.append(cen)
+        isobandfit.sort()
+
         # Build the IsophoteList instance with the result.
         ellipsefit[filt] = IsophoteList(isobandfit)
         if verbose:
@@ -136,12 +149,14 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
         print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
 
     # Write out
-    legacyhalos.io.write_ellipsefit(objid, objdir, ellipsefit, verbose=verbose)
+    if not nowrite:
+        legacyhalos.io.write_ellipsefit(objid, objdir, ellipsefit, verbose=verbose)
 
     return ellipsefit
 
 def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
-                     pixscale=0.262, debug=False, verbose=False):
+                     pixscale=0.262, debug=False, nowrite=False, nofit=False,
+                     verbose=False):
     """MGE-fit the multiband data.
 
     See http://www-astro.physics.ox.ac.uk/~mxc/software/#mge
@@ -150,7 +165,7 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
     from mge.find_galaxy import find_galaxy
     from mge.sectors_photometry import sectors_photometry
     from mge.mge_fit_sectors import mge_fit_sectors as fit_sectors
-    from mge.mge_print_contours import mge_print_contours as print_contours
+    #from mge.mge_print_contours import mge_print_contours as print_contours
 
     # Get the geometry of the galaxy in the reference band.
     if verbose:
@@ -159,53 +174,41 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
     galaxy = find_galaxy(data[refband], nblob=1, plot=debug, quiet=not verbose)
     if debug:
         plt.show()
-
-    t0 = time.time()
     
     mgefit = dict()
-    for filt in band:
+    for key in ('eps', 'majoraxis', 'pa', 'theta',
+                'xmed', 'ymed', 'xpeak', 'ypeak'):
+        mgefit[key] = getattr(galaxy, key)
+
+    if not nofit:
+        t0 = time.time()
+        for filt in band:
+            if verbose:
+                print('Running MGE on the {}-band image.'.format(filt))
+
+            mgephot = sectors_photometry(data[filt], galaxy.eps, galaxy.theta, galaxy.xpeak,
+                                         galaxy.ypeak, n_sectors=11, minlevel=0, plot=debug,
+                                         mask=data['{}_mask'.format(filt)])
+            if debug:
+                plt.show()
+
+            mgefit[filt] = fit_sectors(mgephot.radius, mgephot.angle, mgephot.counts,
+                                       galaxy.eps, ngauss=None, negative=False,
+                                       sigmaPSF=0, normPSF=1, scale=pixscale,
+                                       quiet=not debug, outer_slope=4, bulge_disk=False,
+                                       plot=debug)
+            if debug:
+                plt.show()
+
+            #_ = print_contours(data[refband], galaxy.pa, galaxy.xpeak, galaxy.ypeak, pp.sol, 
+            #                   binning=2, normpsf=1, magrange=6, mask=None, 
+            #                   scale=pixscale, sigmapsf=0)
 
         if verbose:
-            print('Running MGE on the {}-band image.'.format(filt))
-
-        mgephot = sectors_photometry(data[filt], galaxy.eps, galaxy.theta, galaxy.xpeak,
-                                     galaxy.ypeak, n_sectors=11, minlevel=0, plot=debug,
-                                     mask=data['{}_mask'.format(filt)])
-        if debug:
-            plt.show()
-
-        _mgefit = fit_sectors(mgephot.radius, mgephot.angle, mgephot.counts, galaxy.eps,
-                              ngauss=None, negative=False, sigmaPSF=0, normPSF=1,
-                              scale=pixscale, quiet=not debug, outer_slope=4,
-                              bulge_disk=False, plot=debug)
-        _mgefit.eps = galaxy.eps
-        _mgefit.majoraxis = galaxy.majoraxis # major axis length in pixels
-        _mgefit.pa = galaxy.pa
-        _mgefit.theta = galaxy.theta
-        _mgefit.xmed = galaxy.xmed
-        _mgefit.xpeak = galaxy.xpeak
-        _mgefit.ymed = galaxy.ymed
-        _mgefit.ypeak = galaxy.ypeak
+            print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
         
-        mgefit[filt] = _mgefit
-
-        if debug:
-            plt.show()
-
-        #plt.clf()
-        #plt.scatter(phot.radius, 22.5-2.5*np.log10(phot.counts), s=20)
-        ##plt.scatter(phot2.radius, 22.5-2.5*np.log10(phot2.counts), s=20)
-        #plt.ylim(34, 20)
-        #plt.show()        
-
-        #_ = print_contours(data[refband], galaxy.pa, galaxy.xpeak, galaxy.ypeak, pp.sol, 
-        #                   binning=2, normpsf=1, magrange=6, mask=None, 
-        #                   scale=pixscale, sigmapsf=0)
-
-    legacyhalos.io.write_mgefit(objid, objdir, mgefit, band=refband, verbose=verbose)
-
-    if verbose:
-        print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
+    if not nowrite:
+        legacyhalos.io.write_mgefit(objid, objdir, mgefit, band=refband, verbose=verbose)
 
     return mgefit
     
