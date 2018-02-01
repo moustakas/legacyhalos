@@ -128,3 +128,34 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     cat = fits_table(catfile, ext=extname, columns=columns)
 
     return cat
+
+def read_multiband(objid, objdir, band=('g', 'r', 'z')):
+    """Read the multi-band images, construct the residual image, and then create a
+    masked array from the corresponding inverse variances image.
+
+    """
+    import fitsio
+    from scipy.ndimage.morphology import binary_dilation
+
+    data = dict()
+    for filt in band:
+
+        image = fitsio.read(os.path.join(objdir, '{}-image-{}.fits.fz'.format(objid, filt)))
+        model = fitsio.read(os.path.join(objdir, '{}-model-{}.fits.fz'.format(objid, filt)))
+        invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))
+
+        # Mask pixels with ivar<=0. Also build an object mask from the model
+        # image, to handle systematic residuals.
+        sig1 = 1.0 / np.sqrt(np.median(invvar[invvar > 0]))
+
+        mask = (invvar <= 0)*1 # 1=bad, 0=good
+        mask = np.logical_or( mask, ( model > (2 * sig1) )*1 )
+        mask = binary_dilation(mask, iterations=5) * 1
+
+        data[filt] = image - model
+        data['{}_mask'.format(filt)] = mask == 0 # 1->bad
+        data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)]) # 0->bad
+        ma.set_fill_value(data['{}_masked'.format(filt)], 0)
+
+    return data
+

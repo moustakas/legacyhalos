@@ -13,6 +13,8 @@ import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
 
+import legacyhalos.io
+
 import seaborn as sns
 sns.set(context='talk', style='ticks')#, palette='Set1')
     
@@ -61,36 +63,6 @@ def _initial_ellipse(cat, pixscale=PIXSCALE, data=None, refband='r',
     ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
                                  geometry.sma*(1 - geometry.eps), geometry.pa)
     return geometry, ellaper
-
-def read_multiband(objid, objdir, band=('g', 'r', 'z')):
-    """Read the multi-band images, construct the residual image, and then create a
-    masked array from the corresponding inverse variances image.
-
-    """
-    import fitsio
-    from scipy.ndimage.morphology import binary_dilation
-
-    data = dict()
-    for filt in band:
-
-        image = fitsio.read(os.path.join(objdir, '{}-image-{}.fits.fz'.format(objid, filt)))
-        model = fitsio.read(os.path.join(objdir, '{}-model-{}.fits.fz'.format(objid, filt)))
-        invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))
-
-        # Mask pixels with ivar<=0. Also build an object mask from the model
-        # image, to handle systematic residuals.
-        sig1 = 1.0 / np.sqrt(np.median(invvar[invvar > 0]))
-
-        mask = (invvar <= 0)*1 # 1=bad, 0=good
-        mask = np.logical_or( mask, ( model > (2 * sig1) )*1 )
-        mask = binary_dilation(mask, iterations=5) * 1
-
-        data[filt] = image - model
-        data['{}_mask'.format(filt)] = mask == 0 # 1->bad
-        data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)]) # 0->bad
-        ma.set_fill_value(data['{}_masked'.format(filt)], 0)
-
-    return data
 
 def display_isophotfit(isophotfit, band=('g', 'r', 'z'), redshift=None,
                        pixscale=0.262, indx=None, png=None):
@@ -423,7 +395,6 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     """
     from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                     Isophote, IsophoteList)
-    from legacyhalos.io import write_ellipsefit
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
@@ -446,10 +417,10 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     t0 = time.time()
 
     img = data['{}_masked'.format(refband)]
-    ellipse = Ellipse(ma.getdata(img), geometry)
+    ellipse = Ellipse(img, geometry)
     ellipsefit[refband] = ellipse.fit_image(minsma=0.0, maxsma=None, integrmode=integrmode,
                                             sclip=sclip, nclip=nclip, step=step, linear=True)
-    #import pdb ; pdb.set_trace()
+    import pdb ; pdb.set_trace()
 
     if verbose:
         print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
@@ -487,7 +458,7 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
         print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
 
     # Write out
-    write_ellipsefit(objid, objdir, ellipsefit, verbose=verbose)
+    legacyhalos.io.write_ellipsefit(objid, objdir, ellipsefit, verbose=verbose)
 
     return ellipsefit
 
@@ -503,8 +474,6 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
     from mge.mge_fit_sectors import mge_fit_sectors as fit_sectors
     from mge.mge_print_contours import mge_print_contours as print_contours
 
-    from legacyhalos.io import write_mgefit
-    
     # Get the geometry of the galaxy in the reference band.
     if verbose:
         print('Finding the galaxy in the reference {}-band image.'.format(refband))
@@ -555,7 +524,7 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
         #                   binning=2, normpsf=1, magrange=6, mask=None, 
         #                   scale=pixscale, sigmapsf=0)
 
-    write_mgefit(objid, objdir, mgefit, band=refband, verbose=verbose)
+    legacyhalos.io.write_mgefit(objid, objdir, mgefit, band=refband, verbose=verbose)
 
     if verbose:
         print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
@@ -574,7 +543,7 @@ def legacyhalos_ellipse(galaxycat, objid=None, objdir=None, ncpu=1,
         objid, objdir = get_objid(galaxycat)
 
     # Read the data.  
-    data = read_multiband(objid, objdir, band=band)
+    data = legacyhalos.io.read_multiband(objid, objdir, band=band)
 
     # Find the galaxy and perform MGE fitting
     mgefit = mgefit_multiband(objid, objdir, data, band=band, refband=refband,
