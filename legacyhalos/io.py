@@ -10,6 +10,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import pickle
 import numpy as np
+import numpy.ma as ma
 from glob import glob
 
 def get_objid(cat, analysis_dir=None):

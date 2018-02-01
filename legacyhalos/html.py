@@ -30,9 +30,8 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
     """Generate QAplots from the ellipse-fitting.
 
     """
-    from legacyhalos.io import read_ellipsefit
-    from legacyhalos.ellipse import (read_multiband, display_multiband,
-                                     display_ellipse_sbprofile)
+    from legacyhalos.io import read_multiband, read_ellipsefit
+    from legacyhalos.qa import display_multiband, display_ellipse_sbprofile
 
     ellipsefit = read_ellipsefit(objid, objdir)
 
@@ -65,10 +64,9 @@ def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
     """Generate QAplots from the MGE fitting.
 
     """
-    from legacyhalos.io import read_mgefit
-    from legacyhalos.ellipse import (display_mge_sbprofile, read_multiband,
-                                     display_multiband)
-
+    from legacyhalos.io import read_mgefit, read_multiband
+    from legacyhalos.qa import display_mge_sbprofile, display_multiband
+    
     mgefit = read_mgefit(objid, objdir)
 
     if len(mgefit) > 0:
