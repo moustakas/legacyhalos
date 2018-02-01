@@ -87,7 +87,8 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z')):
 
         data[filt] = image - model
         data['{}_mask'.format(filt)] = mask == 0 # 1->bad
-        data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)])
+        data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)]) # 0->bad
+        ma.set_fill_value(data['{}_masked'.format(filt)], 0)
 
     return data
 
@@ -107,8 +108,6 @@ def display_isophotfit(isophotfit, band=('g', 'r', 'z'), redshift=None,
 
     if indx is None:
         indx = np.ones(len(isophotfit[band[0]]))
-
-    #color = dict(g = 'blue', r = 'green', z = 'red')
 
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(8, 5), sharex=True)
     for filt in band:
@@ -153,6 +152,7 @@ def display_isophotfit(isophotfit, band=('g', 'r', 'z'), redshift=None,
     fig.subplots_adjust(hspace=0.05, wspace=0.05, bottom=0.15, right=0.85, left=0.15)
 
     if png:
+        print('Writing {}'.format(png))
         fig.savefig(png)
         plt.close(fig)
     else:
@@ -228,6 +228,7 @@ def display_ellipse_sbprofile(isophotfit, band=('g', 'r', 'z'), redshift=None,
     fig.subplots_adjust(hspace=0.0)
 
     if png:
+        print('Writing {}'.format(png))
         fig.savefig(png)
         plt.close(fig)
     else:
@@ -322,9 +323,9 @@ def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', redshift=No
     else:
         plt.show()
         
-def display_multiband(data, band=('g', 'r', 'z'), geometry=None, mgefit=None,
-                      isophotfit=None, indx=None, magrange=10, contours=False,
-                      png=None):
+def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
+                      mgefit=None, ellipsefit=None, indx=None, magrange=10,
+                      contours=False, png=None):
     """Display the multi-band images and, optionally, the isophotal fits based on
     either MGE and/or Ellipse.
 
@@ -335,18 +336,18 @@ def display_multiband(data, band=('g', 'r', 'z'), geometry=None, mgefit=None,
     
     nband = len(band)
 
-    fig, ax = plt.subplots(1, 3, figsize=(3 * nband, 3))
+    fig, ax = plt.subplots(1, 3, figsize=(2*nband, 3))
     for filt, ax1 in zip(band, ax):
 
         img = data['{}_masked'.format(filt)]
         #img = data[filt]
 
-        norm = ImageNormalize(img, interval=Interval(contrast=0.8),
-                              stretch=Stretch(a=0.99))
+        norm = ImageNormalize(img, interval=Interval(contrast=0.95),
+                              stretch=Stretch(a=0.95))
 
-        im = ax1.imshow(img, origin='lower', norm=norm, cmap='Blues_r')
+        im = ax1.imshow(img, origin='lower', norm=norm, cmap='Blues')
         plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
-                 ha='center', va='center', color='k', fontsize=18)
+                 ha='center', va='center', color='k', fontsize=14)
 
         if mgefit:
             from mge.mge_print_contours import _multi_gauss, _gauss2d_mge
@@ -365,39 +366,55 @@ def display_multiband(data, band=('g', 'r', 'z'), geometry=None, mgefit=None,
             s = img.shape
             extent = [0, s[1], 0, s[0]]
 
-            ax1.contour(model, levels, colors='r', linestyles='solid', extent=extent, alpha=0.4)
+            ax1.contour(model, levels, colors='k', linestyles='solid', extent=extent,
+                        alpha=0.5, lw=1)
 
         if geometry:
             from photutils import EllipticalAperture
             
             ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
                                          geometry.sma*(1 - geometry.eps), geometry.pa)
-            ellaper.plot(color='k', lw=2, ax=ax1)
+            ellaper.plot(color='k', lw=1, ax=ax1)
 
-        if isophotfit:
-            if indx is not None:
-                indx = np.ones(len(isophotfit[band[0]]))
+        if ellipsefit:
 
-            nfit = len(indx) # len(isophotfit[filt])
-            nplot = np.rint(0.1*nfit).astype('int')
-            smas = np.linspace(0, isophotfit[filt].sma[indx].max(), nplot)
-            for sma in smas:
-                iso = isophotfit[filt].get_closest(sma)
-                x, y, = iso.sampled_coordinates()
-                ax1.plot(x, y, color='k')
+            if len(ellipsefit[filt]) > 0:
+
+                if indx is not None:
+                    indx = np.ones(len(ellipsefit[filt]), dtype=bool)
+
+                nfit = len(indx) # len(ellipsefit[filt])
+                nplot = np.rint(0.1*nfit).astype('int')
                 
+                smas = np.linspace(0, ellipsefit[filt].sma[indx].max(), nplot)
+                for sma in smas:
+                    efit = ellipsefit[filt].get_closest(sma)
+                    x, y, = efit.sampled_coordinates()
+                    ax1.plot(x, y, color='k', alpha=0.9)
+            else:
+                from photutils import EllipticalAperture
+                geometry = ellipsefit['{}_geometry'.format(refband)]
+                ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
+                                             geometry.sma*(1 - geometry.eps), geometry.pa)
+                ellaper.plot(color='k', lw=1, ax=ax1)
+
+        ax1.get_xaxis().set_visible(False)
+        ax1.get_yaxis().set_visible(False)
         ax1.axis('off')
         ax1.set_adjustable('box-forced')
+        ax1.autoscale(False)
 
-    fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.01, right=0.99)
+    fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.02, right=0.98)
     if png:
-        fig.savefig(png)
+        print('Writing {}'.format(png))
+        fig.savefig(png, bbox_inches='tight', pad_inches=0)
+        #import pdb ; pdb.set_trace()
         #plt.close(fig)
     else:
         plt.show()
 
 def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refband='r',
-                         integrmode='bilinear', sclip=3, nclip=2, verbose=False):
+                         integrmode='bilinear', sclip=5, nclip=3, step=0.1, verbose=False):
     """Ellipse-fit the multiband data.
 
     See
@@ -406,73 +423,55 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     """
     from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                     Isophote, IsophoteList)
-    from legacyhalos.io import write_isophotfit
+    from legacyhalos.io import write_ellipsefit
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
     # x-axis, while .pa in MGE measured counter-clockwise from the y-axis.
     if verbose:
         print('Initializing an Ellipse object in the reference {}-band image.'.format(refband))
-    geometry = EllipseGeometry(x0=mgefit[refband].xpeak, y0=mgefit[refband].ypeak,
+    geometry = EllipseGeometry(x0=mgefit[refband].xmed, y0=mgefit[refband].ymed,
                                sma=0.5*mgefit[refband].majoraxis, eps=mgefit[refband].eps,
-                               pa=np.radians(-mgefit[refband].theta), astep=1)
+                               pa=np.radians(-mgefit[refband].theta))
     
-    print('QA for debugging.')
-    display_multiband(data, geometry=geometry, band=band)
+    #print('QA for debugging.')
+    #display_multiband(data, geometry=geometry, band=band, mgefit=mgefit)
+
+    ellipsefit = dict()
+    ellipsefit['{}_geometry'.format(refband)] = geometry
 
     # Fit in the reference band...
     if verbose:
         print('Ellipse-fitting the reference {}-band image.'.format(refband))
     t0 = time.time()
 
-    ellipse = Ellipse(data['{}_masked'.format(refband)], geometry)
+    img = data['{}_masked'.format(refband)]
+    ellipse = Ellipse(ma.getdata(img), geometry)
+    ellipsefit[refband] = ellipse.fit_image(minsma=0.0, maxsma=None, integrmode=integrmode,
+                                            sclip=sclip, nclip=nclip, step=step, linear=True)
+    #import pdb ; pdb.set_trace()
 
-    isophotfit = ellipse.fit_image(minsma=0.0, maxsma=None, integrmode=integrmode,
-                                   sclip=sclip, nclip=nclip)
-    
     if verbose:
         print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
 
-
-    import pdb ; pdb.set_trace()
-
-    nx, ny = data[refband].shape
-
-    # Fit in the reference band to get the geometry.
-    if verbose:
-        print('Ellipse-fitting the reference {}-band image.'.format(refband))
-    t0 = time.time()
-    ellipse = Ellipse(data[refband], geometry)
-    #isophotfit = ellipse.fit_image(minsma=0.5, maxsma=nx/2, integrmode=integrmode,
-    #                               sclip=sclip, nclip=nclip)
-    isophotfit = ellipse.fit_image(minsma=0.5, maxsma=nx/2, integrmode=integrmode,
-                                   sclip=sclip, nclip=0)
-    if verbose:
-        print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
-
-    write_isophotfit(objid, objdir, isophotfit, band=refband, verbose=verbose)
-
-    # Now fit the other two bands.
-    isophotfitall = dict()
-    isophotfitall[refband] = isophotfit
-
+    tall = time.time()
     for filt in band:
+        t0 = time.time()
+        if verbose:
+            print('Ellipse-fitting {}-band image.'.format(filt))
+
         if filt == refband: # we did it already!
             continue
 
-        if verbose:
-            print('Ellipse-fitting the {}-band image.'.format(filt))
-        t0 = time.time()
-        
-        isobandfit = []
-
         # Loop on the reference band isophotes.
-        for iso in isophotfit:
+        isobandfit = []
+        for iso in ellipsefit[refband]:
 
             g = iso.sample.geometry # fixed geometry
 
             # Use the same integration mode and clipping parameters.
-            sample = EllipseSample(data[filt], g.sma, geometry=g, integrmode=integrmode,
+            img = data['{}_masked'.format(filt)]
+            sample = EllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
                                    sclip=sclip, nclip=nclip)
             sample.update()
 
@@ -480,15 +479,18 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
             isobandfit.append(Isophote(sample, 0, True, 0))
 
         # Build the IsophoteList instance with the result.
-        isophotfitall[filt] = IsophoteList(isobandfit)
+        ellipsefit[filt] = IsophoteList(isobandfit)
         if verbose:
             print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
-            
-        write_isophotfit(objid, objdir, isophotfitall[filt],
-                         band=filt, verbose=verbose)
 
-    return isophotfitall
-    
+    if verbose:
+        print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
+
+    # Write out
+    write_ellipsefit(objid, objdir, ellipsefit, verbose=verbose)
+
+    return ellipsefit
+
 def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
                      pixscale=0.262, debug=False, verbose=False):
     """MGE-fit the multiband data.
@@ -503,8 +505,6 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
 
     from legacyhalos.io import write_mgefit
     
-    nx, ny = data[refband].shape
-
     # Get the geometry of the galaxy in the reference band.
     if verbose:
         print('Finding the galaxy in the reference {}-band image.'.format(refband))
@@ -573,27 +573,15 @@ def legacyhalos_ellipse(galaxycat, objid=None, objdir=None, ncpu=1,
     if objid is None and objdir is None:
         objid, objdir = get_objid(galaxycat)
 
-    # Step 1 - Read the data.  
+    # Read the data.  
     data = read_multiband(objid, objdir, band=band)
 
+    # Find the galaxy and perform MGE fitting
     mgefit = mgefit_multiband(objid, objdir, data, band=band, refband=refband,
                               pixscale=pixscale, verbose=verbose, debug=debug)
 
-    isophotfit = ellipsefit_multiband(objid, objdir, data, mgefit, band=band,
+    # Do ellipse-fitting
+    ellipsefit = ellipsefit_multiband(objid, objdir, data, mgefit, band=band,
                                       refband=refband, verbose=verbose)
-
-    #if photutils:
-    #    # Initialize an Ellipse object based on the Tractor fitting results.
-    #    geometry, ellaper = _initial_ellipse(galaxycat, pixscale=pixscale, verbose=verbose,
-    #                                     data=data, refband=refband)
-    #    if debug:
-    #        display_multiband(data, ellaper=ellaper, band=band)
-    #
-    #    # Do ellipse-fitting on the multiband data.
-    #    isophotfit = ellipsefit_multiband(objid, objdir, data, geometry, band=band,
-    #                                      refband=refband, verbose=verbose)
-    #    if debug:
-    #        display_multiband(data, isophotfit=isophotfit, band=band)
-    #else:
 
     return 1 # success!

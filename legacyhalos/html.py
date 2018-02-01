@@ -30,36 +30,35 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
     """Generate QAplots from the ellipse-fitting.
 
     """
-    from legacyhalos.io import read_isophotfit
+    from legacyhalos.io import read_ellipsefit
     from legacyhalos.ellipse import (read_multiband, display_multiband,
-                                     display_isophotfit, display_ellipse_sbprofile)
+                                     display_ellipse_sbprofile)
 
-    isophotfit = read_isophotfit(objid, objdir, band=band)
-    if len(isophotfit[refband]) > 0:
+    ellipsefit = read_ellipsefit(objid, objdir)
+
+    if len(ellipsefit) > 0:
 
         # Toss out bad fits.
+        indx = None
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
-        indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
+        #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
 
         multibandfile = os.path.join(htmlobjdir, '{}-ellipse-multiband.png'.format(objid))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(objid, objdir, band=band)
-            print('Writing {}'.format(multibandfile))
-            display_multiband(data, isophotfit=isophotfit, band=band,
+            display_multiband(data, ellipsefit=ellipsefit, band=band, refband=refband,
                               indx=indx, png=multibandfile)
 
-        isophotfile = os.path.join(htmlobjdir, '{}-ellipse-isophotfit.png'.format(objid))
-        if not os.path.isfile(isophotfile) or clobber:
-            # Just display the reference band.
-            print('Writing {}'.format(isophotfile))
-            display_isophotfit(isophotfit, band=refband, redshift=redshift,
-                               indx=indx, pixscale=pixscale, png=isophotfile)
-
-        sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
-        if not os.path.isfile(sbprofilefile) or clobber:
-            print('Writing {}'.format(sbprofilefile))
-            display_ellipse_sbprofile(isophotfit, band=band, redshift=redshift,
-                                      indx=indx, pixscale=pixscale, png=sbprofilefile)
+        #isophotfile = os.path.join(htmlobjdir, '{}-ellipse-isophotfit.png'.format(objid))
+        #if not os.path.isfile(isophotfile) or clobber:
+        #    # Just display the reference band.
+        #    display_isophotfit(isophotfit, band=refband, redshift=redshift,
+        #                       indx=indx, pixscale=pixscale, png=isophotfile)
+        #
+        #sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
+        #if not os.path.isfile(sbprofilefile) or clobber:
+        #    display_ellipse_sbprofile(isophotfit, band=band, redshift=redshift,
+        #                              indx=indx, pixscale=pixscale, png=sbprofilefile)
         
 def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
                    band=('g', 'r', 'z'), pixscale=0.262, clobber=False):
@@ -80,20 +79,17 @@ def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
         multibandfile = os.path.join(htmlobjdir, '{}-mge-multiband.png'.format(objid))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(objid, objdir, band=band)
-            print('Writing {}'.format(multibandfile))
-            display_multiband(data, mgefit=mgefit, band=band, png=multibandfile,
-                              contours=True)
+            display_multiband(data, mgefit=mgefit, band=band, refband=refband,
+                              png=multibandfile, contours=True)
         
         #isophotfile = os.path.join(htmlobjdir, '{}-mge-mgefit.png'.format(objid))
         #if not os.path.isfile(isophotfile) or clobber:
         #    # Just display the reference band.
-        #    print('Writing {}'.format(isophotfile))
         #    display_mgefit(mgefit, band=refband, redshift=redshift,
         #                       indx=indx, pixscale=pixscale, png=isophotfile)
 
         sbprofilefile = os.path.join(htmlobjdir, '{}-mge-sbprofile.png'.format(objid))
         if not os.path.isfile(sbprofilefile) or clobber:
-            print('Writing {}'.format(sbprofilefile))
             display_mge_sbprofile(mgefit, band=band, refband=refband, redshift=redshift,
                                   pixscale=pixscale, png=sbprofilefile)
         
@@ -138,16 +134,17 @@ def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
             os.makedirs(htmlobjdir, exist_ok=True)
 
         # Build the montage coadds.
-        print('HACK!!!  do not remake the coadds!')
-        #err = qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
+        #print('HACK!!!  do not remake the coadds!')
+        err = qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
 
         #if err == 0:
             # Build the ellipse QAplots.
-        #qa_ellipse_results(objid1, objdir1, htmlobjdir, redshift=redshift,
-        #                   refband='r', band=band, clobber=clobber)
-        
         qa_mge_results(objid1, objdir1, htmlobjdir, redshift=redshift,
                        refband='r', band=band, clobber=clobber)
+
+        qa_ellipse_results(objid1, objdir1, htmlobjdir, redshift=redshift,
+                           refband='r', band=band, clobber=clobber)
+
 
 def _javastring():
     """Return a string that embeds a date in a webpage."""
@@ -215,9 +212,8 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
                                      columns=('mem_match_id', 'z', 'r_lambda'))
     sample.add_columns_from(rm)
 
-    print('Hack -- first 5 galaxies!')
-    sample = sample[:5]
-    #sample = sample[1050:1055]
+    sample = sample[40:50]
+    #sample = sample[0:4]
     print('Read {} galaxies.'.format(len(sample)))
 
     objid, objdir = legacyhalos.io.get_objid(sample)
@@ -243,17 +239,28 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
         html.write('</html></body>\n')
         html.close()
+    
+    iterobjid = iter(objid)
+    nextobjid = next(iterobjid) # move by one
 
     # Make a separate page for each object.
     for gal, objid1, objdir1 in zip(sample, np.atleast_1d(objid), np.atleast_1d(objdir)):
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
         if not os.path.exists(htmlobjdir):
             os.makedirs(htmlobjdir)
-            
+
+        try:
+            nextobjid = next(iterobjid)
+        except:
+            nextobjid = objid[0] # wrap around
+        nexthtmlobjdir = os.path.join('../', '{}'.format(nextobjid), '{}.html'.format(nextobjid))
+
         htmlfile = os.path.join(htmlobjdir, '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
             html.write('<h1>Central Galaxy {}</h1>\n'.format(objid1))
+            #html.write('<br />\n')
+            html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlobjdir, nextobjid))
             
             html.write('<h2>Coadds</h2>\n')
             html.write('<table cols=1 width="90%">\n')
@@ -261,29 +268,28 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<td width="100%" align=center><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
-            html.write('<br />\n')
+            #html.write('<br />\n')
             
-            html.write('<h2>MGE Fitting Results</h2>\n')
-
+            html.write('<h2>MGE</h2>\n')
             html.write('<table cols=1 width="90%">\n')
-            
             html.write('<tr>\n')
             html.write('<td width="100%" align="center"><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('</tr>\n')
+            html.write('</table>\n')
+            
+            html.write('<h2>Ellipse</h2>\n')
+            html.write('<table cols=1 width="90%">\n')
+            html.write('<tr>\n')
+            html.write('<td width="100%" align="center"><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('<tr>\n')
             html.write('<td align="left"><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" height="auto" width="75%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
-
             html.write('</table>\n')
             html.write('<br />\n')
-
+            
             if False:
-                #html.write('<h2>Ellipse Fitting Results</h2>\n')
                 html.write('<table cols=1 width="90%">\n')
-                html.write('<tr>\n')
-                html.write('<td width="100%" align="center"><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
-                html.write('</tr>\n')
-
                 html.write('<tr>\n')
                 html.write('<td width="30%" align="center"><a href="{}-ellipse-isophotfit.png"><img src="{}-ellipse-isophotfit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
                 html.write('</tr>\n')

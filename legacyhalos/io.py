@@ -58,45 +58,40 @@ def html_dir():
         os.makedirs(htmldir, exist_ok=True)
     return htmldir
 
-def write_isophotfit(objid, objdir, isophotfit, band='r', verbose=False):
-    """Pickle an photutils.isophote.isophote.IsophoteList object (see, e.g.,
-    ellipse.fit_multiband).
+def write_ellipsefit(objid, objdir, ellipsefit, verbose=False):
+    """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
+    e.g., ellipse.fit_multiband).
 
     """
-    isofitfile = os.path.join(objdir, '{}-isophotfit-{}.p'.format(objid, band))
+    ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
     if verbose:
-        print('Writing {}'.format(isofitfile))
-    with open(isofitfile, 'wb') as iso:
-        pickle.dump(isophotfit, iso)
+        print('Writing {}'.format(ellipsefitfile))
+    with open(ellipsefitfile, 'wb') as ell:
+        pickle.dump(ellipsefit, ell)
+
+def read_ellipsefit(objid, objdir):
+    """Read the output of write_ellipsefit."""
+
+    ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
+    try:
+        with open(ellipsefitfile, 'rb') as ell:
+            ellipsefit = pickle.load(ell)
+    except:
+        #raise IOError
+        print('File {} not found!'.format(ellipsefitfile))
+        ellipsefit = dict()
+
+    return ellipsefit
 
 def write_mgefit(objid, objdir, mgefit, band='r', verbose=False):
     """Pickle an XXXXX object (see, e.g., ellipse.mgefit_multiband).
 
     """
     mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
-    #mgefitfile = os.path.join(objdir, '{}-mgefit-{}.p'.format(objid, band))
     if verbose:
         print('Writing {}'.format(mgefitfile))
     with open(mgefitfile, 'wb') as mge:
         pickle.dump(mgefit, mge)
-
-def read_isophotfit(objid, objdir, band):
-    """Read the output of write_isophotfit."""
-
-    isophotfitall = dict()
-    for filt in band:
-        isophotfitall[filt] = []
-    
-    for filt in band:
-        isofitfile = os.path.join(objdir, '{}-isophotfit-{}.p'.format(objid, filt))
-        try:
-            with open(isofitfile, 'rb') as iso:
-                isophotfitall[filt] = pickle.load(iso)
-        except:
-            #raise IOError
-            print('File {} not found!'.format(isofitfile))
-
-    return isophotfitall
 
 def read_mgefit(objid, objdir):
     """Read the output of write_mgefit."""

@@ -113,9 +113,8 @@ def main():
                                          columns=('mem_match_id', 'z', 'r_lambda'))
         sample.add_columns_from(rm)
 
-        print('Hack -- first 50 galaxies!')
         #sample = sample[41:42]
-        sample = sample[1:2]
+        sample = sample[40:50]
         #sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
 
