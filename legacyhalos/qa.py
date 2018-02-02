@@ -13,7 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import seaborn as sns
-sns.set(context='talk', style='ticks')#, palette='Set1')
+sns.set(style='ticks', font_scale=1.4, palette='Set1')
 
 def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
                       mgefit=None, ellipsefit=None, indx=None, magrange=10,
@@ -104,10 +104,10 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
         plt.show()
 
 def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=None,
-                       pixscale=0.262, xlog=False, indx=None, png=None):
+                       pixscale=0.262, xlog=False, png=None):
     """Display the isophote fitting results."""
 
-    from matplotlib.ticker import FormatStrFormatter
+    from matplotlib.ticker import FormatStrFormatter, ScalarFormatter
 
     if redshift:
         from astropy.cosmology import WMAP9 as cosmo
@@ -117,33 +117,67 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
         smascale = 1.0
         smaunit = 'pixels'
 
-    if indx is None:
-        indx = np.ones(len(ellipsefit[refband]), dtype=bool)
+    colors = iter(sns.color_palette())
 
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(8, 5), sharex=True)
-    for filt in band:
-        ax1.errorbar(ellipsefit[filt].sma[indx] * smascale, ellipsefit[filt].eps[indx],
-                     ellipsefit[filt].ellip_err[indx], fmt='o',
-                     markersize=4)#, color=color[filt])
-        #ax1.set_ylim(0, 0.5)
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
+    for filt in np.atleast_1d(refband):
+
+        good = (ellipsefit[filt].stop_code < 4)
+        bad = ~good
+
+        ax1.fill_between(ellipsefit[filt].sma[good] * smascale, 
+                         ellipsefit[filt].eps[good]-ellipsefit[filt].ellip_err[good],
+                         ellipsefit[filt].eps[good]+ellipsefit[filt].ellip_err[good])
+        if np.count_nonzero(bad) > 0:
+            ax1.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].eps[bad],
+                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         
-        ax2.errorbar(ellipsefit[filt].sma[indx] * smascale, np.degrees(ellipsefit[filt].pa[indx]),
-                     np.degrees(ellipsefit[filt].pa_err[indx]), fmt='o',
-                     markersize=4)#, color=color[filt])
+        #ax1.errorbar(ellipsefit[filt].sma[good] * smascale,
+        #             ellipsefit[filt].eps[good],
+        #             ellipsefit[filt].ellip_err[good], fmt='o',
+        #             markersize=4)#, color=color[filt])
+        #ax1.set_ylim(0, 0.5)
+        ax1.xaxis.set_major_formatter(ScalarFormatter())
+
+        ax2.fill_between(ellipsefit[filt].sma[good] * smascale, 
+                         ellipsefit[filt].pa[good]-ellipsefit[filt].pa_err[good],
+                         ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good])
+        if np.count_nonzero(bad) > 0:
+            ax2.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].pa[bad],
+                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+        #ax2.errorbar(ellipsefit[filt].sma[good] * smascale,
+        #             np.degrees(ellipsefit[filt].pa[good]),
+        #             np.degrees(ellipsefit[filt].pa_err[good]), fmt='o',
+        #             markersize=4)#, color=color[filt])
         ax2.yaxis.tick_right()
         ax2.yaxis.set_label_position('right')
+        ax2.xaxis.set_major_formatter(ScalarFormatter())
         #ax2.set_ylim(0, 180)
 
-        ax3.errorbar(ellipsefit[filt].sma[indx] * smascale, ellipsefit[filt].x0[indx],
-                     ellipsefit[filt].x0_err[indx], fmt='o',
-                     markersize=4)#, color=color[filt])
+        ax3.fill_between(ellipsefit[filt].sma[good] * smascale, 
+                         ellipsefit[filt].x0[good]-ellipsefit[filt].x0_err[good],
+                         ellipsefit[filt].x0[good]+ellipsefit[filt].x0_err[good])
+        if np.count_nonzero(bad) > 0:
+            ax3.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].x0[bad],
+                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+        #ax3.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].x0[good],
+        #             ellipsefit[filt].x0_err[good], fmt='o',
+        #             markersize=4)#, color=color[filt])
+        ax3.xaxis.set_major_formatter(ScalarFormatter())
         ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
         
-        ax4.errorbar(ellipsefit[filt].sma[indx] * smascale, ellipsefit[filt].y0[indx],
-                     ellipsefit[filt].y0_err[indx], fmt='o',
-                     markersize=4)#, color=color[filt])
+        ax4.fill_between(ellipsefit[filt].sma[good] * smascale, 
+                         ellipsefit[filt].y0[good]-ellipsefit[filt].y0_err[good],
+                         ellipsefit[filt].y0[good]+ellipsefit[filt].y0_err[good])
+        if np.count_nonzero(bad) > 0:
+            ax4.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].y0[bad],
+                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+        #ax4.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].y0[good],
+        #             ellipsefit[filt].y0_err[good], fmt='o',
+        #             markersize=4)#, color=color[filt])
         ax4.yaxis.tick_right()
         ax4.yaxis.set_label_position('right')
+        ax4.xaxis.set_major_formatter(ScalarFormatter())
         ax4.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
         
     ax1.set_ylabel('Ellipticity')
@@ -211,7 +245,7 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
     sbprofile = _sbprofile(ellipsefit, indx, smascale)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     for filt in band:
         ax1.fill_between(sbprofile['sma'], sbprofile[filt]-sbprofile['{}_err'.format(filt)],
                          sbprofile[filt]+sbprofile['{}_err'.format(filt)],

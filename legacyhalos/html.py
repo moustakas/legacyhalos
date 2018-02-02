@@ -4,7 +4,7 @@ import os, subprocess
 import numpy as np
 
 import seaborn as sns
-sns.set(style='ticks', font_scale=1.2, palette='Set2')
+sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
 def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False):
     """Montage the coadds into a nice QAplot."""

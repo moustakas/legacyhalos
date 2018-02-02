@@ -61,7 +61,7 @@ def _initial_ellipse(cat, pixscale=PIXSCALE, data=None, refband='r',
     return geometry, ellaper
 
 def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refband='r',
-                         integrmode='bilinear', sclip=3.0, nclip=3, step=0.2, fflag=0.5,
+                         integrmode='bilinear', sclip=3.0, nclip=3, step=0.1, fflag=0.5,
                          nowrite=False, verbose=False):
     """Ellipse-fit the multiband data.
 
