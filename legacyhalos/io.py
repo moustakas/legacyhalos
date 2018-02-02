@@ -10,6 +10,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import pickle
 import numpy as np
+import numpy.ma as ma
 from glob import glob
 
 def get_objid(cat, analysis_dir=None):
@@ -58,34 +59,54 @@ def html_dir():
         os.makedirs(htmldir, exist_ok=True)
     return htmldir
 
-def write_isophotfit(objid, objdir, isophotfit, band='r', verbose=False):
-    """Write an photutils.isophote.isophote.IsophoteList object (see, e.g.,
-    ellipse.fit_multiband).
+def write_ellipsefit(objid, objdir, ellipsefit, verbose=False):
+    """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
+    e.g., ellipse.fit_multiband).
 
     """
-    isofitfile = os.path.join(objdir, '{}-isophotfit-{}.p'.format(objid, band))
+    ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
     if verbose:
-        print('Writing {}'.format(isofitfile))
-    with open(isofitfile, 'wb') as iso:
-        pickle.dump(isophotfit, iso)
+        print('Writing {}'.format(ellipsefitfile))
+    with open(ellipsefitfile, 'wb') as ell:
+        pickle.dump(ellipsefit, ell)
 
-def read_isophotfit(objid, objdir, band):
-    """Read the output of write_isophotfit."""
+def read_ellipsefit(objid, objdir):
+    """Read the output of write_ellipsefit."""
 
-    isophotfitall = dict()
-    for filt in band:
-        isophotfitall[filt] = []
-    
-    for filt in band:
-        isofitfile = os.path.join(objdir, '{}-isophotfit-{}.p'.format(objid, filt))
-        try:
-            with open(isofitfile, 'rb') as iso:
-                isophotfitall[filt] = pickle.load(iso)
-        except:
-            #raise IOError
-            print('File {} not found!'.format(isofitfile))
+    ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
+    try:
+        with open(ellipsefitfile, 'rb') as ell:
+            ellipsefit = pickle.load(ell)
+    except:
+        #raise IOError
+        print('File {} not found!'.format(ellipsefitfile))
+        ellipsefit = dict()
 
-    return isophotfitall
+    return ellipsefit
+
+def write_mgefit(objid, objdir, mgefit, band='r', verbose=False):
+    """Pickle an XXXXX object (see, e.g., ellipse.mgefit_multiband).
+
+    """
+    mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
+    if verbose:
+        print('Writing {}'.format(mgefitfile))
+    with open(mgefitfile, 'wb') as mge:
+        pickle.dump(mgefit, mge)
+
+def read_mgefit(objid, objdir):
+    """Read the output of write_mgefit."""
+
+    mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
+    try:
+        with open(mgefitfile, 'rb') as mge:
+            mgefit = pickle.load(mge)
+    except:
+        #raise IOError
+        print('File {} not found!'.format(mgefitfile))
+        mgefit = dict()
+
+    return mgefit
 
 def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     """Read the various catalogs.
@@ -108,3 +129,34 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     cat = fits_table(catfile, ext=extname, columns=columns)
 
     return cat
+
+def read_multiband(objid, objdir, band=('g', 'r', 'z')):
+    """Read the multi-band images, construct the residual image, and then create a
+    masked array from the corresponding inverse variances image.
+
+    """
+    import fitsio
+    from scipy.ndimage.morphology import binary_dilation
+
+    data = dict()
+    for filt in band:
+
+        image = fitsio.read(os.path.join(objdir, '{}-image-{}.fits.fz'.format(objid, filt)))
+        model = fitsio.read(os.path.join(objdir, '{}-model-{}.fits.fz'.format(objid, filt)))
+        invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))
+
+        # Mask pixels with ivar<=0. Also build an object mask from the model
+        # image, to handle systematic residuals.
+        sig1 = 1.0 / np.sqrt(np.median(invvar[invvar > 0]))
+
+        mask = (invvar <= 0)*1 # 1=bad, 0=good
+        mask = np.logical_or( mask, ( model > (2 * sig1) )*1 )
+        mask = binary_dilation(mask, iterations=5) * 1
+
+        data[filt] = image - model
+        data['{}_mask'.format(filt)] = mask == 0 # 1->bad
+        data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)]) # 0->bad
+        ma.set_fill_value(data['{}_masked'.format(filt)], 0)
+
+    return data
+
