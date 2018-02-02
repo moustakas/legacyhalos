@@ -31,7 +31,8 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
 
     """
     from legacyhalos.io import read_multiband, read_ellipsefit
-    from legacyhalos.qa import display_multiband, display_ellipse_sbprofile
+    from legacyhalos.qa import (display_multiband, display_ellipsefit,
+                                display_ellipse_sbprofile)
 
     ellipsefit = read_ellipsefit(objid, objdir)
 
@@ -48,16 +49,15 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
             display_multiband(data, ellipsefit=ellipsefit, band=band, refband=refband,
                               indx=indx, png=multibandfile)
 
-        #isophotfile = os.path.join(htmlobjdir, '{}-ellipse-isophotfit.png'.format(objid))
-        #if not os.path.isfile(isophotfile) or clobber:
-        #    # Just display the reference band.
-        #    display_isophotfit(isophotfit, band=refband, redshift=redshift,
-        #                       indx=indx, pixscale=pixscale, png=isophotfile)
-        #
-        #sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
-        #if not os.path.isfile(sbprofilefile) or clobber:
-        #    display_ellipse_sbprofile(isophotfit, band=band, redshift=redshift,
-        #                              indx=indx, pixscale=pixscale, png=sbprofilefile)
+        ellipsefitfile = os.path.join(htmlobjdir, '{}-ellipse-ellipsefit.png'.format(objid))
+        if not os.path.isfile(ellipsefitfile) or clobber:
+            display_ellipsefit(ellipsefit, band=band, refband=refband, redshift=redshift,
+                               pixscale=pixscale, png=ellipsefitfile)
+        
+        sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
+        if not os.path.isfile(sbprofilefile) or clobber:
+            display_ellipse_sbprofile(ellipsefit, band=band, refband=refband, redshift=redshift,
+                                      pixscale=pixscale, png=sbprofilefile)
         
 def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
                    band=('g', 'r', 'z'), pixscale=0.262, clobber=False):
@@ -210,6 +210,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
                                      columns=('mem_match_id', 'z', 'r_lambda'))
     sample.add_columns_from(rm)
 
+    #sample = sample[40:42]
     sample = sample[40:50]
     #sample = sample[0:4]
     print('Read {} galaxies.'.format(len(sample)))
@@ -263,42 +264,38 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<h2>Coadds</h2>\n')
             html.write('<table cols=1 width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td width="100%" align=center><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td align="left"><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
             #html.write('<br />\n')
             
-            html.write('<h2>MGE</h2>\n')
+            html.write('<h2>Ellipse-Fitting</h2>\n')
             html.write('<table cols=1 width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td width="100%" align="center"><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td align="left"><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('</tr>\n')
+            html.write('</table>\n')
+
+            html.write('<table cols=2 width="90%">\n')
+            html.write('<tr>\n')
+            html.write('<td align="left"><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td align="left"><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
             
-            html.write('<h2>Ellipse</h2>\n')
+            html.write('<br />\n')
+
+            html.write('<h2>MGE</h2>\n')
             html.write('<table cols=1 width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td width="100%" align="center"><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td align="left"><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('<tr>\n')
             html.write('<td align="left"><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" height="auto" width="75%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
-            html.write('</table>\n')
-            html.write('<br />\n')
             
-            if False:
-                html.write('<table cols=1 width="90%">\n')
-                html.write('<tr>\n')
-                html.write('<td width="30%" align="center"><a href="{}-ellipse-isophotfit.png"><img src="{}-ellipse-isophotfit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
-                html.write('</tr>\n')
-
-                html.write('<tr>\n')
-                html.write('<td width="30%" align="center"><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
-                html.write('</tr>\n')
-
-                html.write('</table>\n')
-                html.write('<br />\n')
-
+            html.write('</table>\n')
+            
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
             html.write('</html></body>\n')
             html.close()

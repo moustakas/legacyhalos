@@ -13,7 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import seaborn as sns
-sns.set(style='ticks', font_scale=1.4, palette='Set1')
+sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
 def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
                       mgefit=None, ellipsefit=None, indx=None, magrange=10,
@@ -50,10 +50,10 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
             #_magrange = 10**(-0.4*np.arange(0, magrange, 0.5)[::-1]) # 0.5 mag/arcsec^2 steps
 
             model = _multi_gauss(mgefit[filt].sol, img, sigmapsf, normpsf,
-                                 mgefit[filt].xmed, mgefit[filt].ymed,
-                                 mgefit[filt].pa)
+                                 mgefit['xmed'], mgefit['ymed'],
+                                 mgefit['pa'])
             
-            peak = data[filt][mgefit[filt].xpeak, mgefit[filt].ypeak]
+            peak = data[filt][mgefit['xpeak'], mgefit['ypeak']]
             levels = peak * _magrange
             s = img.shape
             extent = [0, s[1], 0, s[0]]
@@ -74,7 +74,7 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
                     indx = np.ones(len(ellipsefit[filt]), dtype=bool)
 
                 nfit = len(indx) # len(ellipsefit[filt])
-                nplot = np.rint(1*nfit).astype('int')
+                nplot = np.rint(0.5*nfit).astype('int')
                 
                 smas = np.linspace(0, ellipsefit[filt].sma[indx].max(), nplot)
                 for sma in smas:
@@ -83,7 +83,7 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
                     ax1.plot(x, y, color='k', alpha=0.75)
             else:
                 from photutils import EllipticalAperture
-                geometry = ellipsefit['{}_geometry'.format(refband)]
+                geometry = ellipsefit['geometry']
                 ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
                                              geometry.sma*(1 - geometry.eps), geometry.pa)
                 ellaper.plot(color='k', lw=1, ax=ax1)
@@ -98,8 +98,7 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
     if png:
         print('Writing {}'.format(png))
         fig.savefig(png, bbox_inches='tight', pad_inches=0)
-        #import pdb ; pdb.set_trace()
-        #plt.close(fig)
+        plt.close(fig)
     else:
         plt.show()
 
@@ -127,7 +126,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
 
         ax1.fill_between(ellipsefit[filt].sma[good] * smascale, 
                          ellipsefit[filt].eps[good]-ellipsefit[filt].ellip_err[good],
-                         ellipsefit[filt].eps[good]+ellipsefit[filt].ellip_err[good])
+                         ellipsefit[filt].eps[good]+ellipsefit[filt].ellip_err[good],
+                         edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax1.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].eps[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
@@ -141,7 +141,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
 
         ax2.fill_between(ellipsefit[filt].sma[good] * smascale, 
                          ellipsefit[filt].pa[good]-ellipsefit[filt].pa_err[good],
-                         ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good])
+                         ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good],
+                         edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax2.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].pa[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
@@ -156,7 +157,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
 
         ax3.fill_between(ellipsefit[filt].sma[good] * smascale, 
                          ellipsefit[filt].x0[good]-ellipsefit[filt].x0_err[good],
-                         ellipsefit[filt].x0[good]+ellipsefit[filt].x0_err[good])
+                         ellipsefit[filt].x0[good]+ellipsefit[filt].x0_err[good],
+                         edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax3.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].x0[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
@@ -168,7 +170,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
         
         ax4.fill_between(ellipsefit[filt].sma[good] * smascale, 
                          ellipsefit[filt].y0[good]-ellipsefit[filt].y0_err[good],
-                         ellipsefit[filt].y0[good]+ellipsefit[filt].y0_err[good])
+                         ellipsefit[filt].y0[good]+ellipsefit[filt].y0_err[good],
+                         edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax4.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].y0[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
@@ -247,9 +250,18 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     for filt in band:
+
+        good = (ellipsefit[filt].stop_code < 4)
+        bad = ~good
+        
         ax1.fill_between(sbprofile['sma'], sbprofile[filt]-sbprofile['{}_err'.format(filt)],
                          sbprofile[filt]+sbprofile['{}_err'.format(filt)],
-                         label=r'${}$'.format(filt), color=next(colors), alpha=0.75)
+                         label=r'${}$'.format(filt), color=next(colors), alpha=0.75,
+                         edgecolor='k', lw=2)
+        #if np.count_nonzero(bad) > 0:
+        #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
+        #                s=40, edgecolor='k', lw=2, alpha=0.75)
+        
     ax1.set_ylabel('AB Magnitude')
     ax1.set_ylim(32.99, 20)
     #ax1.invert_yaxis()
@@ -257,11 +269,13 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
     ax2.fill_between(sbprofile['sma'], sbprofile['rz']-sbprofile['rz_err'],
                      sbprofile['rz']+sbprofile['rz_err'],
-                     label=r'$r - z$', color=next(colors), alpha=0.75)
+                     label=r'$r - z$', color=next(colors), alpha=0.75,
+                     edgecolor='k', lw=2)
     
     ax2.fill_between(sbprofile['sma'], sbprofile['gr']-sbprofile['gr_err'],
                      sbprofile['gr']+sbprofile['gr_err'],
-                     label=r'$g - r$', color=next(colors), alpha=0.75)
+                     label=r'$g - r$', color=next(colors), alpha=0.75,
+                     edgecolor='k', lw=2)
 
     ax2.set_xlabel('Semimajor Axis ({})'.format(smaunit), alpha=0.75)
     ax2.set_ylabel('Color')

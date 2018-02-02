@@ -79,7 +79,7 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     # x-axis, while .pa in MGE measured counter-clockwise from the y-axis.
     if verbose:
         print('Initializing an Ellipse object in the reference {}-band image.'.format(refband))
-    geometry = EllipseGeometry(x0=mgefit['xmed'], y0=mgefit['ymed'], eps=mgefit['eps'],
+    geometry = EllipseGeometry(x0=mgefit['xpeak'], y0=mgefit['ypeak'], eps=mgefit['eps'],
                                #sma=0.5*mgefit['majoraxis'], 
                                sma=5,
                                pa=np.radians(mgefit['pa']-90))
@@ -97,9 +97,12 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     t0 = time.time()
     img = data['{}_masked'.format(refband)]
     ellipse = Ellipse(img, geometry)
-    isophot = ellipse.fit_image(minsma=0.0, maxsma=2*mgefit['majoraxis'],
+
+    # First fit with the default parameters.
+    isophot = ellipse.fit_image(minsma=0.0, maxsma=1.5*mgefit['majoraxis'],
                                 integrmode=integrmode, sclip=sclip,
                                 nclip=nclip, step=step, fflag=fflag)
+    #import pdb ; pdb.set_trace()
     ellipsefit[refband] = isophot
     
     if verbose:
@@ -129,11 +132,12 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
             # Create an Isophote instance with the sample.
             isobandfit.append(Isophote(sample, 0, True, 0))
 
-        # Central pixel
+        # Now deal with the central pixel; see
+        # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
         g = EllipseGeometry(geometry.x0, geometry.y0, 0.0, 0.0, 0.0)
+        g.find_center(img)
 
         # Use the same integration mode and clipping parameters.
-        img = data['{}_masked'.format(filt)]
         sample = CentralEllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
                                       sclip=sclip, nclip=nclip)
         cen = CentralEllipseFitter(sample).fit()
@@ -175,6 +179,11 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
     if debug:
         plt.show()
     
+    #galaxy.xmed -= 1
+    #galaxy.ymed -= 1
+    #galaxy.xpeak -= 1
+    #galaxy.ypeak -= 1
+    
     mgefit = dict()
     for key in ('eps', 'majoraxis', 'pa', 'theta',
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
@@ -186,8 +195,8 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
             if verbose:
                 print('Running MGE on the {}-band image.'.format(filt))
 
-            mgephot = sectors_photometry(data[filt], galaxy.eps, galaxy.theta, galaxy.xpeak,
-                                         galaxy.ypeak, n_sectors=11, minlevel=0, plot=debug,
+            mgephot = sectors_photometry(data[filt], galaxy.eps, galaxy.theta, galaxy.xmed,
+                                         galaxy.ymed, n_sectors=11, minlevel=0, plot=debug,
                                          mask=data['{}_mask'.format(filt)])
             if debug:
                 plt.show()
