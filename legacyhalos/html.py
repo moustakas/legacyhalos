@@ -346,7 +346,6 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.close()
 
         # Update the iterator.
-        print(objid1, prevobjid, nextobjid)
         prevobjid = objid1
         try:
             nextobjid = next(iterobjid)

@@ -37,7 +37,8 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
         norm = ImageNormalize(img, interval=Interval(contrast=0.95),
                               stretch=Stretch(a=0.95))
 
-        im = ax1.imshow(img, origin='lower', norm=norm, cmap='viridis')
+        im = ax1.imshow(img, origin='lower', norm=norm, cmap='viridis',
+                        interpolation='nearest')
         plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
                  ha='center', va='center', color='k', fontsize=14)
 
@@ -50,7 +51,7 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
             #_magrange = 10**(-0.4*np.arange(0, magrange, 0.5)[::-1]) # 0.5 mag/arcsec^2 steps
 
             model = _multi_gauss(mgefit[filt].sol, img, sigmapsf, normpsf,
-                                 mgefit['xmed'], mgefit['ymed'],
+                                 mgefit['xpeak'], mgefit['ypeak'],
                                  mgefit['pa'])
             
             peak = data[filt][mgefit['xpeak'], mgefit['ypeak']]
@@ -58,8 +59,8 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
             s = img.shape
             extent = [0, s[1], 0, s[0]]
 
-            ax1.contour(model, levels, colors='k', linestyles='solid', extent=extent,
-                        alpha=0.5, lw=1)
+            ax1.contour(model, levels, colors='k', linestyles='solid',
+                        extent=extent, alpha=0.75, lw=1)
 
         if geometry:
             from photutils import EllipticalAperture
@@ -253,14 +254,17 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
         good = (ellipsefit[filt].stop_code < 4)
         bad = ~good
-        
+
+        col = next(colors)
         ax1.fill_between(sbprofile['sma'], sbprofile[filt]-sbprofile['{}_err'.format(filt)],
                          sbprofile[filt]+sbprofile['{}_err'.format(filt)],
-                         label=r'${}$'.format(filt), color=next(colors), alpha=0.75,
+                         label=r'${}$'.format(filt), color=col, alpha=0.75,
                          edgecolor='k', lw=2)
         #if np.count_nonzero(bad) > 0:
         #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
         #                s=40, edgecolor='k', lw=2, alpha=0.75)
+
+        ax1.axhline(y=ellipsefit['{}_sky'.format(filt)], color=col, ls='--')
         
     ax1.set_ylabel('AB Magnitude')
     ax1.set_ylim(32.99, 20)
