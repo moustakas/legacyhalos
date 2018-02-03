@@ -18,7 +18,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import numpy as np
 
-def _cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
+def cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
     """Get a cutout radius of 100 kpc [in pixels] at the redshift of the cluster.
 
     """
@@ -27,8 +27,8 @@ def _cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
     radius = np.rint(radius_kpc * arcsec_per_kpc / pixscale).astype(int) # [pixels]
     return radius
 
-def _cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
-                           rmin=50, rmax=500, bound=False):
+def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
+                          rmin=50, rmax=500, bound=False):
     """Get a cutout radius which depends on the richness radius (in h^-1 Mpc)
     R_LAMBDA of each cluster (times an optional fudge factor).
 
@@ -172,10 +172,10 @@ def legacyhalos_coadds(galaxycat, survey=None, objid=None, objdir=None,
 
     # Step 0 - Get the cutout radius.
     if cluster_radius:
-        radius = _cutout_radius_cluster(redshift=galaxycat.z, pixscale=pixscale,
+        radius = cutout_radius_cluster(redshift=galaxycat.z, pixscale=pixscale,
                                         cluster_radius=galaxycat.r_lambda)
     else:
-        radius = _cutout_radius_100kpc(redshift=galaxycat.z, pixscale=pixscale)
+        radius = cutout_radius_100kpc(redshift=galaxycat.z, pixscale=pixscale)
 
     # Step 1 - Set up the first stage of the pipeline.
     P = _coadds_stage_tims(galaxycat, survey=survey, mp=mp, radius=radius)

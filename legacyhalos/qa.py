@@ -126,8 +126,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
 
         ax1.fill_between(ellipsefit[filt].sma[good] * smascale, 
                          ellipsefit[filt].eps[good]-ellipsefit[filt].ellip_err[good],
-                         ellipsefit[filt].eps[good]+ellipsefit[filt].ellip_err[good],
-                         edgecolor='k', lw=2)
+                         ellipsefit[filt].eps[good]+ellipsefit[filt].ellip_err[good])#,
+                         #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax1.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].eps[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
@@ -141,8 +141,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
 
         ax2.fill_between(ellipsefit[filt].sma[good] * smascale, 
                          ellipsefit[filt].pa[good]-ellipsefit[filt].pa_err[good],
-                         ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good],
-                         edgecolor='k', lw=2)
+                         ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good])#,
+                         #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax2.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].pa[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
@@ -157,8 +157,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
 
         ax3.fill_between(ellipsefit[filt].sma[good] * smascale, 
                          ellipsefit[filt].x0[good]-ellipsefit[filt].x0_err[good],
-                         ellipsefit[filt].x0[good]+ellipsefit[filt].x0_err[good],
-                         edgecolor='k', lw=2)
+                         ellipsefit[filt].x0[good]+ellipsefit[filt].x0_err[good])#,
+                         #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax3.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].x0[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
@@ -170,8 +170,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
         
         ax4.fill_between(ellipsefit[filt].sma[good] * smascale, 
                          ellipsefit[filt].y0[good]-ellipsefit[filt].y0_err[good],
-                         ellipsefit[filt].y0[good]+ellipsefit[filt].y0_err[good],
-                         edgecolor='k', lw=2)
+                         ellipsefit[filt].y0[good]+ellipsefit[filt].y0_err[good])#,
+                         #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax4.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].y0[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)

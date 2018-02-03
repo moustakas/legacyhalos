@@ -94,19 +94,36 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     if verbose:
         print('Ellipse-fitting the reference {}-band image.'.format(refband))
         
-    t0 = time.time()
     img = data['{}_masked'.format(refband)]
-    ellipse = Ellipse(img, geometry)
+    ellipse = Ellipse(img, geometry=geometry)
 
     # First fit with the default parameters.
+    # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
+    t0 = time.time()
     isophot = ellipse.fit_image(minsma=0.0, maxsma=1.5*mgefit['majoraxis'],
-                                integrmode=integrmode, sclip=sclip,
-                                nclip=nclip, step=step, fflag=fflag)
-    #import pdb ; pdb.set_trace()
-    ellipsefit[refband] = isophot
+                                integrmode='median', sclip=3, nclip=3, step=0.1,
+                                fflag=0.3)
+
+    # Fit the outer region, using a larger step.
+    #for step in (0.3, 0.5):
+    ii = np.where(isophot.stop_code == 0)[0].max() # last good fit
+    g = EllipseGeometry(isophot.x0[ii], isophot.y0[ii], isophot.sma[ii], isophot.eps[ii], isophot.pa[ii])
+    g.find_center(img)
+    ellipse_outer = Ellipse(img, geometry=g)
     
+    isophot_outer = ellipse_outer.fit_image(minsma=isophot.sma[ii+1], maxsma=1.5*mgefit['majoraxis'],
+                                            integrmode='median', sclip=3, nclip=3, step=0.3,
+                                            fflag=0.3)
+    
+
+    ff = isophot + isophot_outer
     if verbose:
         print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
+
+    import pdb ; pdb.set_trace()
+    
+    ellipsefit[refband] = isophot
+    
 
     tall = time.time()
     for filt in band:

@@ -6,6 +6,8 @@ import numpy as np
 import seaborn as sns
 sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
+PIXSCALE = 0.262
+
 def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False):
     """Montage the coadds into a nice QAplot."""
 
@@ -52,7 +54,7 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
         ellipsefitfile = os.path.join(htmlobjdir, '{}-ellipse-ellipsefit.png'.format(objid))
         if not os.path.isfile(ellipsefitfile) or clobber:
             display_ellipsefit(ellipsefit, band=band, refband=refband, redshift=redshift,
-                               pixscale=pixscale, png=ellipsefitfile)
+                               pixscale=pixscale, png=ellipsefitfile, xlog=True)
         
         sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
         if not os.path.isfile(sbprofilefile) or clobber:
@@ -122,9 +124,10 @@ def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
 
     objid, objdir = get_objid(sample, analysis_dir=analysis_dir)
 
-    for objid1, objdir1, redshift in zip(np.atleast_1d(objid),
-                                         np.atleast_1d(objdir),
-                                         sample.z):
+    for objid1, objdir1, redshift, ra, dec in zip(np.atleast_1d(objid),
+                                                  np.atleast_1d(objdir),
+                                                  sample.z, sample.ra,
+                                                  sample.dec):
 
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
         
@@ -200,6 +203,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
 
     """
     import legacyhalos.io
+    from legacyhalos.coadds import cutout_radius_100kpc
 
     if htmldir is None:
         htmldir = legacyhalos.io.html_dir()
@@ -207,11 +211,11 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
     sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
                                          columns=('ra', 'dec', 'bx', 'by', 'brickname', 'objid'))
     rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
-                                     columns=('mem_match_id', 'z', 'r_lambda'))
+                                     columns=('mem_match_id', 'z', 'r_lambda', 'lambda_chisq'))
     sample.add_columns_from(rm)
 
-    #sample = sample[40:42]
-    sample = sample[40:50]
+    sample = sample[0:5]
+    #sample = sample[0:50]
     #sample = sample[0:4]
     print('Read {} galaxies.'.format(len(sample)))
 
@@ -226,21 +230,52 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
 
     with open(htmlfile, 'w') as html:
         html.write('<html><body>\n')
-        html.write('<h1>LegacyHalos</h1>\n')
+        html.write('<style type="text/css">\n')
+        #html.write('img.ls-gallery {display: block;}\n')
 
-        html.write('<b><i>Jump to an object:</i></b>\n')
-        html.write('<ul>\n')
-        for objid1 in np.atleast_1d(objid):
+        html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
+        #html.write('.toc {padding: 15px; text-align: left; border: 1px solid black;}\n')
+        #html.write('table.toc {border-collapse: collapse; border: 1px solid black;}\n')
+        #html.write('td.toc {width: 20%; word-wrap: break-word;}\n')
+        html.write('</style>\n')
+        html.write('<h1>LegacyHalos: Central Galaxies</h1>\n')
+
+        #html.write('<b><i>Jump to an object:</i></b>\n')
+        #html.write('<ul>\n')
+        html.write('<table cols=5>\n')
+        html.write('<tr><th>Number</th><th>redMaPPer ID</th><th>RA</th><th>Dec</th><th>Redshift</th><th>Richness</th></tr>\n')
+        for ii, (gal, objid1) in enumerate(zip( sample, np.atleast_1d(objid) )):
             htmlfile = os.path.join('{}'.format(objid1), '{}.html'.format(objid1))
-            html.write('<li><a href="{}">{}</a>\n'.format(htmlfile, objid1))
-        html.write('</ul>\n')
 
+            html.write('<tr>\n')
+            html.write('<td>{:g}</td>\n'.format(ii + 1))
+            html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile, objid1))
+            html.write('<td>{:.7f}</td>\n'.format(gal.ra))
+            html.write('<td>{:.7f}</td>\n'.format(gal.dec))
+            html.write('<td>{:.5f}</td>\n'.format(gal.z))
+            html.write('<td>{:.4f}</td>\n'.format(gal.lambda_chisq))
+            html.write('</tr>\n')
+        html.write('</table>\n')
+        
+        #html.write('<li><a href="{}">{}</a>\n'.format(htmlfile, objid1))
+        #html.write('</ul>\n')
+
+        html.write('<br /><br />\n')
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
         html.write('</html></body>\n')
         html.close()
-    
+
+    # Set up the object iterators
     iterobjid = iter(objid)
-    nextobjid = next(iterobjid) # move by one
+    if len(objid) > 1:
+        next(iterobjid)
+        nextobjid = next(iterobjid) # advance by one
+    else:
+        nextobjid = objid[0]
+    prevobjid = objid[-1]
+
+    baseurl = 'http://legacysurvey.org/viewer/'
+    dr = 'dr5'
 
     # Make a separate page for each object.
     for gal, objid1, objdir1 in zip(sample, np.atleast_1d(objid), np.atleast_1d(objdir)):
@@ -248,19 +283,29 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         if not os.path.exists(htmlobjdir):
             os.makedirs(htmlobjdir)
 
-        try:
-            nextobjid = next(iterobjid)
-        except:
-            nextobjid = objid[0] # wrap around
         nexthtmlobjdir = os.path.join('../', '{}'.format(nextobjid), '{}.html'.format(nextobjid))
+        prevhtmlobjdir = os.path.join('../', '{}'.format(prevobjid), '{}.html'.format(prevobjid))
+
+        size = 2 * cutout_radius_100kpc(redshift=gal.z, pixscale=PIXSCALE)
+        if size > 400:
+            zoom = 14
+        else:
+            zoom = 15
+
+        fitsurl = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=decals-{}'.format(
+            baseurl, gal.ra, gal.dec, zoom, dr)
 
         htmlfile = os.path.join(htmlobjdir, '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
             html.write('<h1>Central Galaxy {}</h1>\n'.format(objid1))
-            #html.write('<br />\n')
+            html.write('<a href="{}" target="_blank">LegacySurvey Viewer Link</a><br />\n'.format(fitsurl))
+            html.write('<br />\n')
             html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlobjdir, nextobjid))
-            
+            html.write('<br />\n')
+            html.write('<a href="{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlobjdir, prevobjid))
+            #html.write('<br />\n')
+
             html.write('<h2>Coadds</h2>\n')
             html.write('<table cols=1 width="90%">\n')
             html.write('<tr>\n')
@@ -299,6 +344,14 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
             html.write('</html></body>\n')
             html.close()
+
+        # Update the iterator.
+        print(objid1, prevobjid, nextobjid)
+        prevobjid = objid1
+        try:
+            nextobjid = next(iterobjid)
+        except:
+            nextobjid = objid[0] # wrap around
 
     if makeplots:
         make_plots(sample, analysis_dir=analysis_dir, htmldir=htmldir, refband=refband,
