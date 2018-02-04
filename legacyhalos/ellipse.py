@@ -44,14 +44,16 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     ellipsefit = dict()
     ellipsefit['geometry'] = geometry
 
-    def _sky(data, ellipsefit, band, diameter=2.0):
+    def _sky(data, ellipsefit, diameter=2.0):
         """Estimate the sky brightness in each band."""
         area = diameter**2 # arcsec^2
         for filt in band:
-            img = data['{}_masked'.format(refband)]
+            img = data['{}_masked'.format(filt)]
             ellipsefit['{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
             ellipsefit['mu_{}_sky'.format(filt)] = ellipsefit['{}_sky'.format(filt)] + \
               2.5 * np.log10(area)
+
+    _sky(data, ellipsefit)
 
     # Fit in the reference band...
     if verbose:
@@ -73,12 +75,12 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     tall = time.time()
     for filt in band:
         t0 = time.time()
-        if verbose:
-            print('Ellipse-fitting {}-band image.'.format(filt))
-
         if filt == refband: # we did it already!
             continue
 
+        if verbose:
+            print('Ellipse-fitting {}-band image.'.format(filt))
+            
         img = data['{}_masked'.format(filt)]
 
         # Loop on the reference band isophotes but skip the first isophote,

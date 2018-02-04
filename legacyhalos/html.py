@@ -99,29 +99,26 @@ def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
 
     """
     from legacyhalos.io import get_objid
+    from legacyhalos.qa import sample_trends
 
-    objid, objdir = get_objid(sample, analysis_dir=analysis_dir)
+    sample_trends(sample, htmldir, analysis_dir=analysis_dir, refband=refband)
 
-    for objid1, objdir1, redshift, ra, dec in zip(np.atleast_1d(objid),
-                                                  np.atleast_1d(objdir),
-                                                  sample.z, sample.ra,
-                                                  sample.dec):
+    for gal in sample:
+        objid, objdir = get_objid(gal, analysis_dir=analysis_dir)
 
-        htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
-        
+        htmlobjdir = os.path.join(htmldir, '{}'.format(objid))
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
 
         # Build the montage coadds.
-        #print('HACK!!!  do not remake the coadds!')
-        err = qa_montage_coadds(objid1, objdir1, htmlobjdir, clobber=clobber)
+        qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber)
 
-        #if err == 0:
-            # Build the ellipse QAplots.
-        qa_mge_results(objid1, objdir1, htmlobjdir, redshift=redshift,
+        # Build the MGE plots.
+        qa_mge_results(objid, objdir, htmlobjdir, redshift=gal.z,
                        refband='r', band=band, clobber=clobber)
 
-        qa_ellipse_results(objid1, objdir1, htmlobjdir, redshift=redshift,
+        # Build the ellipse plots.
+        qa_ellipse_results(objid, objdir, htmlobjdir, redshift=gal.z,
                            refband='r', band=band, clobber=clobber)
 
 
@@ -167,11 +164,13 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
     if htmldir is None:
         htmldir = legacyhalos.io.html_dir()
 
-    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
-                                         columns=('ra', 'dec', 'bx', 'by', 'brickname', 'objid'))
-    rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
-                                     columns=('mem_match_id', 'z', 'r_lambda', 'lambda_chisq'))
+    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=('ra', 'dec'))
+    rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True, columns=(
+        'mem_match_id', 'z', 'r_lambda', 'lambda_chisq'))
+    sdss = legacyhalos.io.read_catalog(extname='SDSSPHOT', upenn=True, columns=np.atleast_1d('objid'))
+
     sample.add_columns_from(rm)
+    sample.add_columns_from(sdss)
 
     sample = sample[0:5]
     #sample = sample[0:50]
@@ -186,7 +185,6 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
     # Get the viewer link
     def _viewer_link(gal, dr):
         baseurl = 'http://legacysurvey.org/viewer/'
-
         width = 2 * cutout_radius_100kpc(redshift=gal.z, pixscale=PIXSCALE) # [pixels]
         if width > 400:
             zoom = 14
@@ -194,11 +192,17 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             zoom = 15
         viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=decals-{}'.format(
             baseurl, gal.ra, gal.dec, zoom, dr)
-
         return viewer
 
-    # Build the HTML page
+    def _skyserver_link(gal):
+        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal.objid)
+
+    #import pdb ; pdb.set_trace()
+
+    trendshtml = 'trends.html'
     homehtml = 'index.html'
+
+    # Build the home (index.html) page--
     if not os.path.exists(htmldir):
         os.makedirs(htmldir)
     htmlfile = os.path.join(htmldir, homehtml)
@@ -210,7 +214,10 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         html.write('</style>\n')
 
         html.write('<h1>LegacyHalos: Central Galaxies</h1>\n')
-        html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
+        html.write('<p>\n')
+        html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
+        html.write('<a href="https://github.com/moustakas/legacyhalos">Code and documentation</a>\n')
+        html.write('</p>\n')
 
         html.write('<table>\n')
         html.write('<tr>\n')
@@ -221,10 +228,10 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         html.write('<th>Redshift</th>\n')
         html.write('<th>Richness</th>\n')
         html.write('<th>Viewer</th>\n')
+        html.write('<th>SkyServer</th>\n')
         html.write('</tr>\n')
         for ii, (gal, objid1) in enumerate(zip( sample, np.atleast_1d(objid) )):
             htmlfile = os.path.join('{}'.format(objid1), '{}.html'.format(objid1))
-            viewer = _viewer_link(gal, dr)
 
             html.write('<tr>\n')
             html.write('<td>{:g}</td>\n'.format(ii + 1))
@@ -233,10 +240,28 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<td>{:.7f}</td>\n'.format(gal.dec))
             html.write('<td>{:.5f}</td>\n'.format(gal.z))
             html.write('<td>{:.4f}</td>\n'.format(gal.lambda_chisq))
-            html.write('<td><a href="{}">Link</a></td>\n'.format(viewer))
+            html.write('<td><a href="{}">Link</a></td>\n'.format(_viewer_link(gal, dr)))
+            html.write('<td><a href="{}">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
         html.write('</table>\n')
         
+        html.write('<br /><br />\n')
+        html.write('<b><i>Last updated {}</b></i>\n'.format(js))
+        html.write('</html></body>\n')
+        html.close()
+
+    # Build the trends (trends.html) page--
+    htmlfile = os.path.join(htmldir, trendshtml)
+    with open(htmlfile, 'w') as html:
+        html.write('<html><body>\n')
+        html.write('<style type="text/css">\n')
+        html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
+        html.write('</style>\n')
+
+        html.write('<h1>LegacyHalos: Sample Trends</h1>\n')
+        html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
+        html.write('<a href="trends/sma_vs_ellipticity.png"><img src="trends/sma_vs_ellipticity.png" height="auto" width="50%"></a>')
+
         html.write('<br /><br />\n')
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
         html.write('</html></body>\n')
@@ -251,7 +276,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         nextobjid = objid[0]
     prevobjid = objid[-1]
 
-    # Make a separate page for each object.
+    # Make a separate HTML page for each object.
     for ii, (gal, objid1, objdir1) in enumerate( zip(sample, np.atleast_1d(objid), np.atleast_1d(objdir)) ):
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
         if not os.path.exists(htmlobjdir):
@@ -259,8 +284,6 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
 
         nexthtmlobjdir = os.path.join('../', '{}'.format(nextobjid), '{}.html'.format(nextobjid))
         prevhtmlobjdir = os.path.join('../', '{}'.format(prevobjid), '{}.html'.format(prevobjid))
-
-        viewer = _viewer_link(gal, dr)
 
         htmlfile = os.path.join(htmlobjdir, '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
@@ -289,6 +312,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<th>Redshift</th>\n')
             html.write('<th>Richness</th>\n')
             html.write('<th>Viewer</th>\n')
+            html.write('<th>SkyServer</th>\n')
             html.write('</tr>\n')
 
             html.write('<tr>\n')
@@ -298,7 +322,8 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<td>{:.7f}</td>\n'.format(gal.dec))
             html.write('<td>{:.5f}</td>\n'.format(gal.z))
             html.write('<td>{:.4f}</td>\n'.format(gal.lambda_chisq))
-            html.write('<td><a href="{}">Link</a></td>\n'.format(viewer))
+            html.write('<td><a href="{}">Link</a></td>\n'.format(_viewer_link(gal, dr)))
+            html.write('<td><a href="{}">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
             html.write('</table>\n')
 

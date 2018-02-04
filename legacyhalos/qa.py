@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
+PIXSCALE = 0.262
+
 def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
                       mgefit=None, ellipsefit=None, indx=None, magrange=10,
                       inchperband=3, contours=False, png=None):
@@ -257,21 +259,25 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
         bad = ~good
 
         col = next(colors)
-        ax1.fill_between(
-            #sbprofile['sma'], sbprofile['mu_{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
-            sbprofile['sma'], sbprofile['{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
-            sbprofile['mu_{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
+        ax1.fill_between(sbprofile['sma'], 
+            #sbprofile['mu_{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
+            #sbprofile['mu_{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
+            sbprofile['{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
+            sbprofile['{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
             label=r'${}$'.format(filt), color=col, alpha=0.75, edgecolor='k', lw=2)
         #if np.count_nonzero(bad) > 0:
         #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
         #                s=40, edgecolor='k', lw=2, alpha=0.75)
 
-        ax1.axhline(y=ellipsefit['{}_sky'.format(filt)], color=col, ls='--')
+        #ax1.axhline(y=ellipsefit['{}_sky'.format(filt)], color=col, ls='--')
         #ax1.axhline(y=ellipsefit['mu_{}_sky'.format(filt)], color=col, ls='--')
         
-    ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
-    ax1.set_ylim(32, 18)
-    #ax1.invert_yaxis()
+    ax1.set_ylabel('Brightness (AB mag)')
+    ax1.set_ylim(32, 20)
+
+    #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
+    #ax1.set_ylim(31.99, 18)
+
     ax1.legend(loc='upper right')
 
     ax2.fill_between(sbprofile['sma'],
@@ -288,7 +294,7 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
     ax2.set_xlabel('Semimajor Axis ({})'.format(smaunit), alpha=0.75)
     ax2.set_ylabel('Color')
-    ax2.set_ylim(-0.5, 2.5)
+    ax2.set_ylim(0, 2.4)
     ax2.legend(loc='upper left')
 
     fig.subplots_adjust(hspace=0.0)
@@ -389,3 +395,44 @@ def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', redshift=No
     else:
         plt.show()
         
+def sample_trends(sample, htmldir, analysis_dir=None, refband='r',
+                  pixscale=PIXSCALE):
+    """Trends with the whole sample."""
+    from astropy.cosmology import WMAP9 as cosmo
+    from legacyhalos.io import get_objid
+    from legacyhalos.io import read_ellipsefit
+
+    trendsdir = os.path.join(htmldir, 'trends')
+    if not os.path.isdir(trendsdir):
+        os.makedirs(trendsdir, exist_ok=True)
+
+    # Ellipticity vs semi-major axis
+    png = os.path.join(trendsdir, 'sma_vs_ellipticity.png')
+    
+    fig, ax1 = plt.subplots()
+    for gal in sample:
+        objid, objdir = get_objid(gal, analysis_dir=analysis_dir)
+        smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal.z).value # [kpc/pixel]
+
+        ellipsefit = read_ellipsefit(objid, objdir)
+        good = (ellipsefit[refband].stop_code < 4)
+
+        ax1.fill_between(ellipsefit[refband].sma[good] * smascale, 
+                         ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
+                         ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good],
+                         alpha=0.9, color='gray')
+
+    ax1.grid('on')
+    ax1.set_ylim(0, 0.5)
+    ax1.set_ylabel('Ellipticity')
+    ax1.set_xlabel('Semimajor Axis (kpc)')
+
+    fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
+
+    if png:
+        print('Writing {}'.format(png))
+        fig.savefig(png)
+        plt.close(fig)
+    else:
+        plt.show()
+
