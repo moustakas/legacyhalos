@@ -95,29 +95,7 @@ def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
         
 def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False):
-    """Make DESI targeting QA plots given a passed set of targets
-
-    Parameters
-    ----------
-    targs : :class:`~numpy.array` or `str`
-        An array of targets in the DESI data model format. If a string is passed then the
-        targets are read fron the file with the passed name (supply the full directory path)
-    qadir : :class:`str`, optional, defaults to the current directory
-        The output directory to which to write produced plots
-    targdens : :class:`dictionary`, optional, set automatically by the code if not passed
-        A dictionary of DESI target classes and the goal density for that class. Used to
-        label the goal density on histogram plots
-    max_bin_area : :class:`float`, optional, defaults to 1 degree
-        The bin size in the passed coordinates is chosen automatically to be as close as
-        possible to this value without exceeding it
-    weight : :class:`boolean`, optional, defaults to True
-        If this is set, weight pixels using the ``DESIMODEL`` HEALPix footprint file to
-        ameliorate under dense pixels at the footprint edges
-
-    Returns
-    -------
-    Nothing
-        But a set of .png plots for target QA are written to qadir
+    """Make QA plots.
 
     """
     from legacyhalos.io import get_objid
@@ -179,27 +157,8 @@ def _javastring():
     return js
         
 def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r', 
-              makeplots=True, clobber=False):
-    """Create a directory containing a webpage structure in which to embed QA plots
-
-    Parameters
-    ----------
-    targs : :class:`~numpy.array` or `str`
-        An array of targets in the DESI data model format. If a string is passed then the
-        targets are read fron the file with the passed name (supply the full directory path)
-    makeplots : :class:`boolean`, optional, default=True
-        If ``True``, then create the plots as well as the webpage
-    htmldir : :class:`str`, optional, defaults to the current directory
-        The output directory to which to write produced plots
-    Returns
-    -------
-    Nothing
-        But the page `index.html` and associated pages and plots are written to ``htmldir``
-
-    Notes
-    -----
-    If making plots, then the ``DESIMODEL`` environment variable must be set to find 
-    the file of HEALPixels that overlap the DESI footprint
+              dr='dr5', makeplots=True, clobber=False):
+    """Make the HTML pages.
 
     """
     import legacyhalos.io
@@ -221,31 +180,51 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
 
     objid, objdir = legacyhalos.io.get_objid(sample)
 
+    # Write the last-updated date to a webpage.
+    js = _javastring()       
+
+    # Get the viewer link
+    def _viewer_link(gal, dr):
+        baseurl = 'http://legacysurvey.org/viewer/'
+
+        width = 2 * cutout_radius_100kpc(redshift=gal.z, pixscale=PIXSCALE) # [pixels]
+        if width > 400:
+            zoom = 14
+        else:
+            zoom = 15
+        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=decals-{}'.format(
+            baseurl, gal.ra, gal.dec, zoom, dr)
+
+        return viewer
+
+    # Build the HTML page
+    homehtml = 'index.html'
     if not os.path.exists(htmldir):
         os.makedirs(htmldir)
-    htmlfile = os.path.join(htmldir, 'index.html')
-
-    #Write the last-updated date to a webpage.
-    js = _javastring()       
+    htmlfile = os.path.join(htmldir, homehtml)
 
     with open(htmlfile, 'w') as html:
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')
-        #html.write('img.ls-gallery {display: block;}\n')
-
         html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
-        #html.write('.toc {padding: 15px; text-align: left; border: 1px solid black;}\n')
-        #html.write('table.toc {border-collapse: collapse; border: 1px solid black;}\n')
-        #html.write('td.toc {width: 20%; word-wrap: break-word;}\n')
         html.write('</style>\n')
-        html.write('<h1>LegacyHalos: Central Galaxies</h1>\n')
 
-        #html.write('<b><i>Jump to an object:</i></b>\n')
-        #html.write('<ul>\n')
-        html.write('<table cols=5>\n')
-        html.write('<tr><th>Number</th><th>redMaPPer ID</th><th>RA</th><th>Dec</th><th>Redshift</th><th>Richness</th></tr>\n')
+        html.write('<h1>LegacyHalos: Central Galaxies</h1>\n')
+        html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
+
+        html.write('<table>\n')
+        html.write('<tr>\n')
+        html.write('<th>Number</th>\n')
+        html.write('<th>redMaPPer ID</th>\n')
+        html.write('<th>RA</th>\n')
+        html.write('<th>Dec</th>\n')
+        html.write('<th>Redshift</th>\n')
+        html.write('<th>Richness</th>\n')
+        html.write('<th>Viewer</th>\n')
+        html.write('</tr>\n')
         for ii, (gal, objid1) in enumerate(zip( sample, np.atleast_1d(objid) )):
             htmlfile = os.path.join('{}'.format(objid1), '{}.html'.format(objid1))
+            viewer = _viewer_link(gal, dr)
 
             html.write('<tr>\n')
             html.write('<td>{:g}</td>\n'.format(ii + 1))
@@ -254,12 +233,10 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<td>{:.7f}</td>\n'.format(gal.dec))
             html.write('<td>{:.5f}</td>\n'.format(gal.z))
             html.write('<td>{:.4f}</td>\n'.format(gal.lambda_chisq))
+            html.write('<td><a href="{}">Link</a></td>\n'.format(viewer))
             html.write('</tr>\n')
         html.write('</table>\n')
         
-        #html.write('<li><a href="{}">{}</a>\n'.format(htmlfile, objid1))
-        #html.write('</ul>\n')
-
         html.write('<br /><br />\n')
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
         html.write('</html></body>\n')
@@ -274,11 +251,8 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         nextobjid = objid[0]
     prevobjid = objid[-1]
 
-    baseurl = 'http://legacysurvey.org/viewer/'
-    dr = 'dr5'
-
     # Make a separate page for each object.
-    for gal, objid1, objdir1 in zip(sample, np.atleast_1d(objid), np.atleast_1d(objdir)):
+    for ii, (gal, objid1, objdir1) in enumerate( zip(sample, np.atleast_1d(objid), np.atleast_1d(objdir)) ):
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
         if not os.path.exists(htmlobjdir):
             os.makedirs(htmlobjdir)
@@ -286,59 +260,81 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
         nexthtmlobjdir = os.path.join('../', '{}'.format(nextobjid), '{}.html'.format(nextobjid))
         prevhtmlobjdir = os.path.join('../', '{}'.format(prevobjid), '{}.html'.format(prevobjid))
 
-        size = 2 * cutout_radius_100kpc(redshift=gal.z, pixscale=PIXSCALE)
-        if size > 400:
-            zoom = 14
-        else:
-            zoom = 15
-
-        fitsurl = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=decals-{}'.format(
-            baseurl, gal.ra, gal.dec, zoom, dr)
+        viewer = _viewer_link(gal, dr)
 
         htmlfile = os.path.join(htmlobjdir, '{}.html'.format(objid1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
+            html.write('<style type="text/css">\n')
+            html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
+            html.write('</style>\n')
+
             html.write('<h1>Central Galaxy {}</h1>\n'.format(objid1))
-            html.write('<a href="{}" target="_blank">LegacySurvey Viewer Link</a><br />\n'.format(fitsurl))
+
+            html.write('<a href="../{}">Home</a>\n'.format(homehtml))
             html.write('<br />\n')
             html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlobjdir, nextobjid))
             html.write('<br />\n')
             html.write('<a href="{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlobjdir, prevobjid))
-            #html.write('<br />\n')
+            html.write('<br />\n')
+            html.write('<br />\n')
+
+            # Table of properties
+            html.write('<table>\n')
+            html.write('<tr>\n')
+            html.write('<th>Number</th>\n')
+            html.write('<th>redMaPPer ID</th>\n')
+            html.write('<th>RA</th>\n')
+            html.write('<th>Dec</th>\n')
+            html.write('<th>Redshift</th>\n')
+            html.write('<th>Richness</th>\n')
+            html.write('<th>Viewer</th>\n')
+            html.write('</tr>\n')
+
+            html.write('<tr>\n')
+            html.write('<td>{:g}</td>\n'.format(ii + 1))
+            html.write('<td>{}</td>\n'.format(objid1))
+            html.write('<td>{:.7f}</td>\n'.format(gal.ra))
+            html.write('<td>{:.7f}</td>\n'.format(gal.dec))
+            html.write('<td>{:.5f}</td>\n'.format(gal.z))
+            html.write('<td>{:.4f}</td>\n'.format(gal.lambda_chisq))
+            html.write('<td><a href="{}">Link</a></td>\n'.format(viewer))
+            html.write('</tr>\n')
+            html.write('</table>\n')
 
             html.write('<h2>Coadds</h2>\n')
-            html.write('<table cols=1 width="90%">\n')
-            html.write('<tr>\n')
-            html.write('<td align="left"><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
-            html.write('</tr>\n')
+            html.write('<p>Each coadd (left to right: data, model, residuals) is 200 kpc by 200 kpc.</p>\n')
+            html.write('<table width="90%">\n')
+            html.write('<tr><td><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(objid1, objid1))
+            #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
             html.write('</table>\n')
             #html.write('<br />\n')
             
             html.write('<h2>Ellipse-Fitting</h2>\n')
-            html.write('<table cols=1 width="90%">\n')
+            html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td align="left"><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
 
-            html.write('<table cols=2 width="90%">\n')
+            html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td align="left"><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
-            html.write('<td align="left"><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
             
             html.write('<br />\n')
 
-            html.write('<h2>MGE</h2>\n')
-            html.write('<table cols=1 width="90%">\n')
+            html.write('<h2>Multi-Gaussian Expansion Fitting</h2>\n')
+            html.write('<p>The figures below are a work in progress.</p>\n')
+            html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td align="left"><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
             html.write('<tr>\n')
-            html.write('<td align="left"><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" height="auto" width="75%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" height="auto" width="50%"></a></td>\n'.format(objid1, objid1))
             html.write('</tr>\n')
-            
             html.write('</table>\n')
             
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))

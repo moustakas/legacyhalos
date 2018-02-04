@@ -205,8 +205,7 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
         plt.show()
         
 def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
-                              redshift=None, indx=None, pixscale=0.262,
-                              minerr=0.02, png=None):
+                              redshift=None, pixscale=0.262, minerr=0.02, png=None):
     """Display the multi-band surface brightness profile."""
 
     colors = iter(sns.color_palette())
@@ -219,19 +218,20 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
         smascale = 1.0
         smaunit = 'pixels'
 
-    if indx is None:
-        indx = np.ones(len(ellipsefit[refband]), dtype=bool)
-        
-    def _sbprofile(ellipsefit, indx, smascale):
+    def _sbprofile(ellipsefit, indx, smascale, pixscale):
         """Convert fluxes to magnitudes and colors."""
         sbprofile = dict()
         sbprofile['sma'] = ellipsefit['r'].sma[indx] * smascale
         
         with np.errstate(invalid='ignore'):
             for filt in band:
+                area = ellipsefit[filt].sarea[indx] * pixscale**2
+                
                 sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
                 sbprofile['{}_err'.format(filt)] = ellipsefit[filt].int_err[indx] / \
                   ellipsefit[filt].intens[indx] / np.log(10)
+
+                sbprofile['mu_{}'.format(filt)] = sbprofile[filt] + 2.5 * np.log10(area)
 
                 # Just for the plot use a minimum uncertainty
                 sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
@@ -247,7 +247,8 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
         return sbprofile
 
-    sbprofile = _sbprofile(ellipsefit, indx, smascale)
+    indx = np.ones(len(ellipsefit[refband]), dtype=bool)
+    sbprofile = _sbprofile(ellipsefit, indx, smascale, pixscale)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     for filt in band:
@@ -256,28 +257,32 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
         bad = ~good
 
         col = next(colors)
-        ax1.fill_between(sbprofile['sma'], sbprofile[filt]-sbprofile['{}_err'.format(filt)],
-                         sbprofile[filt]+sbprofile['{}_err'.format(filt)],
-                         label=r'${}$'.format(filt), color=col, alpha=0.75,
-                         edgecolor='k', lw=2)
+        ax1.fill_between(
+            #sbprofile['sma'], sbprofile['mu_{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
+            sbprofile['sma'], sbprofile['{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
+            sbprofile['mu_{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
+            label=r'${}$'.format(filt), color=col, alpha=0.75, edgecolor='k', lw=2)
         #if np.count_nonzero(bad) > 0:
         #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
         #                s=40, edgecolor='k', lw=2, alpha=0.75)
 
         ax1.axhline(y=ellipsefit['{}_sky'.format(filt)], color=col, ls='--')
+        #ax1.axhline(y=ellipsefit['mu_{}_sky'.format(filt)], color=col, ls='--')
         
-    ax1.set_ylabel('AB Magnitude')
-    ax1.set_ylim(32.99, 20)
+    ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
+    ax1.set_ylim(32, 18)
     #ax1.invert_yaxis()
     ax1.legend(loc='upper right')
 
-    ax2.fill_between(sbprofile['sma'], sbprofile['rz']-sbprofile['rz_err'],
-                     sbprofile['rz']+sbprofile['rz_err'],
+    ax2.fill_between(sbprofile['sma'],
+                     sbprofile['rz'] - sbprofile['rz_err'],
+                     sbprofile['rz'] + sbprofile['rz_err'],
                      label=r'$r - z$', color=next(colors), alpha=0.75,
                      edgecolor='k', lw=2)
     
-    ax2.fill_between(sbprofile['sma'], sbprofile['gr']-sbprofile['gr_err'],
-                     sbprofile['gr']+sbprofile['gr_err'],
+    ax2.fill_between(sbprofile['sma'],
+                     sbprofile['gr'] - sbprofile['gr_err'],
+                     sbprofile['gr'] + sbprofile['gr_err'],
                      label=r'$g - r$', color=next(colors), alpha=0.75,
                      edgecolor='k', lw=2)
 

@@ -30,21 +30,28 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     from photutils.isophote.sample import CentralEllipseSample
     from photutils.isophote.fitter import CentralEllipseFitter
 
+    # Default parameters
+    integrmode, sclip, nclip, step, fflag = 'median', 3, 0, 0.1, 0.5
+
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
     # x-axis, while .pa in MGE measured counter-clockwise from the y-axis.
-    if verbose:
-        print('Initializing an Ellipse object in the reference {}-band image.'.format(refband))
     geometry = EllipseGeometry(x0=mgefit['xpeak'], y0=mgefit['ypeak'], eps=mgefit['eps'],
                                #sma=0.5*mgefit['majoraxis'], 
                                sma=5,
                                pa=np.radians(mgefit['pa']-90))
     
-    #print('QA for debugging.')
-    #display_multiband(data, geometry=geometry, band=band, mgefit=mgefit)
-
     ellipsefit = dict()
     ellipsefit['geometry'] = geometry
+
+    def _sky(data, ellipsefit, band, diameter=2.0):
+        """Estimate the sky brightness in each band."""
+        area = diameter**2 # arcsec^2
+        for filt in band:
+            img = data['{}_masked'.format(refband)]
+            ellipsefit['{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
+            ellipsefit['mu_{}_sky'.format(filt)] = ellipsefit['{}_sky'.format(filt)] + \
+              2.5 * np.log10(area)
 
     # Fit in the reference band...
     if verbose:
@@ -53,14 +60,9 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     img = data['{}_masked'.format(refband)]
     ellipse = Ellipse(img, geometry=geometry)
 
-    ellipsefit['{}_sky'.format(refband)] = 22.5 - 2.5 * np.log10( 0.1 * ma.std(img) ) # 10% sky level
-
     # First fit with the default parameters.
-    # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
-    integrmode, sclip, nclip, step, fflag = 'median', 3, 3, 0.1, 0.3
-    
     t0 = time.time()
-    isophot = ellipse.fit_image(minsma=0.0, maxsma=2*mgefit['majoraxis'],
+    isophot = ellipse.fit_image(minsma=1.0, maxsma=1.5*mgefit['majoraxis'],
                                 integrmode=integrmode, sclip=sclip, nclip=nclip,
                                 step=step, fflag=fflag)
     if verbose:
@@ -78,12 +80,12 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
             continue
 
         img = data['{}_masked'.format(filt)]
-        ellipsefit['{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( 0.1 * ma.std(img) ) # 10% sky level
 
         # Loop on the reference band isophotes but skip the first isophote,
         # which is a CentralEllipseSample object (see below).
         isobandfit = []
-        for iso in isophot[1:]:
+        for iso in isophot:
+        #for iso in isophot[1:]:
             g = iso.sample.geometry # fixed geometry
 
             # Use the same integration mode and clipping parameters.
@@ -96,15 +98,16 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
 
         # Now deal with the central pixel; see
         # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
-        g = EllipseGeometry(geometry.x0, geometry.y0, 0.0, 0.0, 0.0)
+        #import pdb ; pdb.set_trace()
+        #g = EllipseGeometry(x0=geometry.x0, y0=geometry.y0, eps=mgefit['eps'], sma=1.0)
         #g.find_center(img)
 
-        # Use the same integration mode and clipping parameters.
-        sample = CentralEllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
-                                      sclip=sclip, nclip=nclip)
-        cen = CentralEllipseFitter(sample).fit()
-        isobandfit.append(cen)
-        isobandfit.sort()
+        ## Use the same integration mode and clipping parameters.
+        #sample = CentralEllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
+        #                              sclip=sclip, nclip=nclip)
+        #cen = CentralEllipseFitter(sample).fit()
+        #isobandfit.append(cen)
+        #isobandfit.sort()
 
         # Build the IsophoteList instance with the result.
         ellipsefit[filt] = IsophoteList(isobandfit)
