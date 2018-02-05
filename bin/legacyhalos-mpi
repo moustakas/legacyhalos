@@ -113,8 +113,8 @@ def main():
                                          columns=('mem_match_id', 'z', 'r_lambda'))
         sample.add_columns_from(rm)
 
-        #sample = sample[41:42]
-        sample = sample[40:50]
+        #sample = sample[:5]
+        sample = sample[0:20]
         #sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
 
