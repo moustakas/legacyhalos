@@ -240,8 +240,8 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<td>{:.7f}</td>\n'.format(gal.dec))
             html.write('<td>{:.5f}</td>\n'.format(gal.z))
             html.write('<td>{:.4f}</td>\n'.format(gal.lambda_chisq))
-            html.write('<td><a href="{}">Link</a></td>\n'.format(_viewer_link(gal, dr)))
-            html.write('<td><a href="{}">Link</a></td>\n'.format(_skyserver_link(gal)))
+            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
+            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
         html.write('</table>\n')
         
@@ -322,8 +322,8 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<td>{:.7f}</td>\n'.format(gal.dec))
             html.write('<td>{:.5f}</td>\n'.format(gal.z))
             html.write('<td>{:.4f}</td>\n'.format(gal.lambda_chisq))
-            html.write('<td><a href="{}">Link</a></td>\n'.format(_viewer_link(gal, dr)))
-            html.write('<td><a href="{}">Link</a></td>\n'.format(_skyserver_link(gal)))
+            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
+            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
             html.write('</table>\n')
 
