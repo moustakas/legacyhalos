@@ -172,8 +172,8 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
     sample.add_columns_from(rm)
     sample.add_columns_from(sdss)
 
-    sample = sample[0:5]
-    #sample = sample[0:50]
+    #sample = sample[0:5]
+    sample = sample[0:20]
     #sample = sample[0:4]
     print('Read {} galaxies.'.format(len(sample)))
 

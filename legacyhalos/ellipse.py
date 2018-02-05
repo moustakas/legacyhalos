@@ -31,7 +31,8 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
     from photutils.isophote.fitter import CentralEllipseFitter
 
     # Default parameters
-    integrmode, sclip, nclip, step, fflag = 'median', 3, 0, 0.1, 0.5
+    integrmode, sclip, nclip, step, fflag = 'bilinear', 3, 0, 0.1, 0.5
+    #integrmode, sclip, nclip, step, fflag = 'median', 3, 0, 0.1, 0.5
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
