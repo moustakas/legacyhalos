@@ -159,7 +159,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
 
     """
     import legacyhalos.io
-    from legacyhalos.coadds import cutout_radius_100kpc
+    from legacyhalos.util import cutout_radius_100kpc
 
     if htmldir is None:
         htmldir = legacyhalos.io.html_dir()

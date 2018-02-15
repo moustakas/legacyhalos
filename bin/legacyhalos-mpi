@@ -35,6 +35,8 @@ def _missing(sample, comm=None, filetype='coadds'):
         filesuffix = 'resid.jpg'
     elif filetype == 'ellipse':
         filesuffix = 'ellipse.fits'
+    elif filetype == 'test':
+        filesuffix = 'junk.test'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -69,12 +71,17 @@ def missing_ellipse(sample, comm=None):
     '''Find the galaxies that do not yet have ellipse fits.'''
     return _missing(sample, comm=None, filetype='ellipse')
 
+def missing_test(sample, comm=None):
+    '''For testing'''
+    return _missing(sample, comm=None, filetype='test')
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ncpu', type=int, help='number of multiprocessing processes per MPI rank.')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
     parser.add_argument('--coadds', action='store_true', help='Build the coadds')
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting')
+    parser.add_argument('--test', action='store_true', help='Testing')
     parser.add_argument('--debug', action='store_true', help='Build some debugging plots.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
 
@@ -125,6 +132,63 @@ def main():
             legacyhalos_ellipse(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose,
                                 debug=args.debug)
 
+        if args.test: # for testing
+            legacyhalos_test(sample, comm=comm, ncpu=args.ncpu)
+
+def legacyhalos_test(sample, ncpu=1, comm=None):
+    """Do ellipse-fitting.
+
+    """
+    from legacyhalos.io import get_objid
+
+    if comm is None:
+        rank, size = 0, 1
+    else:
+        rank, size = comm.rank, comm.size
+
+    # Determine how many more ellipse fits we need to make and chunk them.
+    t0 = time.time()
+    if rank == 0:
+        print('Starting at {}'.format(time.asctime()), flush=True)
+
+    groups = missing_test(sample, comm=comm)
+    if len(groups) == 0:
+        return
+
+    if comm is not None:
+        groups = comm.bcast(groups, root=0)
+        sample = comm.bcast(sample, root=0)
+
+    # Loop on the remaining objects.
+    for ii in groups[rank]:
+        objid, objdir = get_objid(sample[ii])
+
+        logfile = os.path.join(objdir, '{}-test.log'.format(objid))
+        print('Logging to {}'.format(logfile), flush=True)
+
+        print('Rank {} and objid {} starting at {}'.format(rank, objid, time.asctime()), flush=True)
+
+        try:
+            t0 = time.time()
+            with open(logfile, 'a') as log:
+                sys.stdout = log
+                sys.stderr = log
+                print('Things are happening.', flush=True)
+            runtime = (time.time()-t0) / 60
+            print('SUCCESS: objid {} on rank {} took {:.1f} minutes'.format(objid, rank, runtime))
+
+        except:
+            print('FAILED: objid {} on rank {} raised an exception'.format(objid, rank))
+            import traceback
+            traceback.print_exc()
+
+    print('---- rank {} is done'.format(rank), flush=True)
+
+    if comm is not None:
+        comm.barrier()
+
+        print('All done at {}'.format(time.asctime()))
+        
 def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False, debug=False):
     """Do ellipse-fitting.
 

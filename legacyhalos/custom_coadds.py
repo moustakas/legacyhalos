@@ -18,33 +18,7 @@ from __future__ import absolute_import, division, print_function
 import os
 import numpy as np
 
-def cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
-    """Get a cutout radius of 100 kpc [in pixels] at the redshift of the cluster.
-
-    """
-    from astropy.cosmology import WMAP9 as cosmo
-    arcsec_per_kpc = cosmo.arcsec_per_kpc_proper(redshift).value
-    radius = np.rint(radius_kpc * arcsec_per_kpc / pixscale).astype(int) # [pixels]
-    return radius
-
-def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
-                          rmin=50, rmax=500, bound=False):
-    """Get a cutout radius which depends on the richness radius (in h^-1 Mpc)
-    R_LAMBDA of each cluster (times an optional fudge factor).
-
-    Optionally bound the radius to (rmin, rmax).
-
-    """
-    from astropy.cosmology import WMAP9 as cosmo
-
-    radius_kpc = cluster_radius * 1e3 * cosmo.h # cluster radius in kpc
-    radius = np.rint(factor * radius_kpc * cosmo.arcsec_per_kpc_proper(redshift).value / pixscale)
-
-    if bound:
-        radius[radius < rmin] = rmin
-        radius[radius > rmax] = rmax
-
-    return radius
+from legacyhalos.util import cutout_radius_100kpc, cutout_radius_cluster
 
 def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100):
     """Initialize the first step of the pipeline, returning
@@ -62,34 +36,6 @@ def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100):
     P = stage_tims(brickname=galaxycat.brickname, survey=survey, target_extent=bbox,
                    pixPsf=True, hybridPsf=True, depth_cut=False, mp=mp)
     return P
-
-def _read_tractor(galaxycat, targetwcs, survey=None, mp=None, verbose=False):
-    """Read the full Tractor catalog for a given brick 
-    and remove the BCG.
-    
-    """
-    from astrometry.util.fits import fits_table
-
-    H, W = targetwcs.shape
-
-    # Read the full Tractor catalog.
-    fn = survey.find_file('tractor', brick=galaxycat.brickname)
-    cat = fits_table(fn)
-    if verbose:
-        print('Read {} sources from {}'.format(len(cat), fn))
-    
-    # Restrict to just the sources in our little box. 
-    ok, xx, yy = targetwcs.radec2pixelxy(cat.ra, cat.dec)
-    cat.cut(np.flatnonzero((xx > 0) * (xx < W) * (yy > 0) * (yy < H)))
-    if verbose:
-        print('Cut to {} sources within our box.'.format(len(cat)))
-    
-    # Remove the central galaxy.
-    cat.cut(np.flatnonzero(cat.objid != galaxycat.objid))
-    if verbose:
-        print('Removed central galaxy with objid = {}'.format(galaxycat.objid))
-        
-    return cat
 
 def _build_model_image(cat, tims, survey=None, verbose=False):
     """Generate a model image by rendering each source.
@@ -156,9 +102,9 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
         imsave_jpeg(outfn, rgb, origin='lower', **kwa)
         del rgb
 
-def legacyhalos_coadds(galaxycat, survey=None, objid=None, objdir=None,
-                       ncpu=1, pixscale=0.262, cluster_radius=False,
-                       verbose=False):
+def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
+                              ncpu=1, pixscale=0.262, cluster_radius=False,
+                              verbose=False):
     """Top-level wrapper script to generate coadds for a single galaxy.
 
     """ 
@@ -173,21 +119,17 @@ def legacyhalos_coadds(galaxycat, survey=None, objid=None, objdir=None,
     # Step 0 - Get the cutout radius.
     if cluster_radius:
         radius = cutout_radius_cluster(redshift=galaxycat.z, pixscale=pixscale,
-                                        cluster_radius=galaxycat.r_lambda)
+                                       cluster_radius=galaxycat.r_lambda)
     else:
         radius = cutout_radius_100kpc(redshift=galaxycat.z, pixscale=pixscale)
 
-    # Step 1 - Set up the first stage of the pipeline.
-    P = _coadds_stage_tims(galaxycat, survey=survey, mp=mp, radius=radius)
+    # Step 1 - Run legacypipe on a custom "brick" centered on the central.
+    ### 
 
-    # Step 2 - Read the Tractor catalog for this brick and remove the central.
-    cat = _read_tractor(galaxycat, P['targetwcs'], survey=survey, mp=mp,
-                        verbose=verbose)
-
-    # Step 3 - Render the model images without the central.
+    # Step 2 - Render the model images without the central.
     mods = _build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
 
-    # Step 4 - Generate and write out the coadds.
+    # Step 3 - Generate and write out the coadds.
     _tractor_coadds(galaxycat, P['targetwcs'], P['tims'], mods, P['version_header'],
                     objid=objid, survey=survey, mp=mp, verbose=verbose)
 
