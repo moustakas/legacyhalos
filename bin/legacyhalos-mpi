@@ -20,7 +20,7 @@ def init_survey():
     from legacypipe.survey import LegacySurveyData
 
     dr5_dir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo', 'data', 'legacysurvey', 'dr5')
-    return LegacySurveyData()#cache_dir=dr5_dir)
+    return LegacySurveyData(cache_dir=dr5_dir)
 
 def _destroy_logger(log):
     allhndl = list(log.handlers)
@@ -67,7 +67,11 @@ def _missing(sample, comm=None, filetype='coadds', clobber=False):
     else:
         indices[todo]
 
+    print('SETTING SIZE TO 3!!!!!')
+    size = 3
+
     groups = np.array_split(indices, size)
+    print(size, groups)
 
     return groups
 
@@ -84,6 +88,7 @@ def main():
     parser.add_argument('--ncpu', type=int, help='number of multiprocessing processes per MPI rank.')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
     parser.add_argument('--coadds', action='store_true', help='Build the coadds')
+    parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds')
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting')
     parser.add_argument('--debug', action='store_true', help='Build some debugging plots.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
@@ -94,7 +99,7 @@ def main():
         from mpi4py import MPI
         comm = MPI.COMM_WORLD
         rank, size = comm.rank, comm.size
-        print(rank, size)
+        print('Rank {}, size {}'.format(rank, size))
     else:
         comm = None
         rank = 0
@@ -109,10 +114,8 @@ def main():
     if args.ncpu is None:
         args.ncpu = maxproc // 2 # avoid hyper-threading
 
-    print('BEFORE RANK0!')
     # Read the sample to see how many more galaxies we need to process.
     if rank == 0:
-        print('IN RANK0!')
         import legacyhalos.io
         from astrometry.util.fits import merge_tables
 
@@ -125,20 +128,38 @@ def main():
                                          columns=('mem_match_id', 'z', 'r_lambda'))
         sample.add_columns_from(rm)
 
-        sample = sample[1:2]
+        sample = sample[1:4]
         #sample = sample[0:20]
         #sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
 
-        if args.coadds: # Build the coadds
-            legacyhalos_coadds(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose,
-                               clobber=args.clobber)
+        survey = init_survey()
+        groups = missing_coadds(sample, comm=comm, clobber=args.clobber)
 
-        if args.ellipse: # Do ellipse fitting
-            legacyhalos_ellipse(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose,
-                                debug=args.debug, clobber=args.clobber)
+    else:
+        survey = None
+        sample = None
+        groups = None
 
-def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False, clobber=False):
+    if comm is not None:
+        args = comm.bcast(args, root=0)
+        sample = comm.bcast(sample, root=0)
+        groups = comm.bcast(groups, root=0)
+        survey = comm.bcast(survey, root=0)
+
+    if comm is not None:
+        comm.barrier()
+
+    if args.coadds: # Build the coadds
+        legacyhalos_coadds(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose, survey=survey, groups=groups, 
+                           clobber=args.clobber, custom=args.custom_coadds)
+
+    if args.ellipse: # Do ellipse fitting
+        legacyhalos_ellipse(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose, survey=survey, groups=groups, 
+                            debug=args.debug, clobber=args.clobber)
+
+def legacyhalos_coadds(sample, ncpu=1, comm=None, custom=False, survey=None, groups=None,
+                       verbose=False, clobber=False):
     """Generate the coadds.
 
     """
@@ -152,21 +173,22 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False, clobber=False):
 
     # Determine how many more coadds we need to make and chunk them.
     t0 = time.time()
-    if rank == 0:
-        print('Starting at {}'.format(time.asctime()))
-
-    groups = missing_coadds(sample, comm=comm, clobber=clobber)
-    if len(groups) == 0:
-        return
-
-    # Initialize and then broadcast the LegacySurveyData() object to all ranks.
-    if rank == 0:
-        survey = init_survey()
+    #if rank == 0:
+    #    print('Starting at {}'.format(time.asctime()))
+    #    groups = missing_coadds(sample, comm=comm, clobber=clobber)
+    #    if len(groups) == 0:
+    #        return
+    #else:
+    #    groups = None
+    #
+    #if comm is not None:
+    #    groups = comm.bcast(groups, root=0)
         
-    if comm is not None:
-        survey = comm.bcast(survey, root=0)
-        groups = comm.bcast(groups, root=0)
-        sample = comm.bcast(sample, root=0)
+    #if comm is not None:
+    #    comm.barrier()
+    print('Rank {}!!!!!!'.format(rank))
+    print(groups)
+    print(sample)
 
     # Loop on the remaining objects.
     for ii in groups[rank]:
@@ -176,14 +198,23 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False, clobber=False):
         print('Logging rank {} to {}'.format(rank, logfile))
 
         log = get_logger(logfile)
+        log.info('Yo!')
         log.info('Rank {} started working on objid {} at {}'.format(rank, objid, time.asctime()))
 
         try:
             t0 = time.time()
-            legacyhalos.coadds.legacyhalos_custom_coadds(sample[ii], survey=survey,
-                                                         objid=objid, objdir=objdir,
-                                                         ncpu=ncpu, pixscale=PIXSCALE,
-                                                         verbose=verbose)
+            if custom:
+                legacyhalos.coadds.legacyhalos_custom_coadds(sample[ii], survey=survey,
+                                                             objid=objid, objdir=objdir,
+                                                             ncpu=ncpu, pixscale=PIXSCALE,
+                                                             verbose=verbose)
+            else:
+                legacyhalos.coadds.legacyhalos_coadds(sample[ii], survey=survey,
+                                                      objid=objid, objdir=objdir,
+                                                      ncpu=ncpu, pixscale=PIXSCALE,
+                                                      verbose=verbose)
+                log.info('In try')
+                pass
             log.info('Rank {} finished objid {} after {:.1f} minutes'.format(
                 rank, objid, (time.time()-t0) / 60))
         except:
@@ -191,7 +222,7 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False, clobber=False):
             import traceback
             traceback.print_exc()
 
-        #_destroy_logger(log)
+        _destroy_logger(log)
 
     if comm is not None:
         comm.barrier()

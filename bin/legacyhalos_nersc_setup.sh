@@ -8,6 +8,22 @@
 # conda install astropy
 # conda install photutils -c astropy
 
+#cd $CSCRATCH/
+#git clone https://github.com/dstndstn/astrometry.net.git
+#cd astrometry.net/
+#make
+#make py
+#make extra
+#make install INSTALL_DIR=/scratch1/scratchdirs/desiproc/DRcode/build/
+#export PYTHONPATH=$SCRATCH/DRcode/build/lib/python:$PYTHONPATH
+#export PATH=$SCRATCH/DRcode/build/bin:$PATH
+#cd ..
+#git clone https://github.com/dstndstn/tractor.git
+#cd tractor/
+#make
+#python setup.py install --prefix=/scratch1/scratchdirs/desiproc/DRcode/build/
+#cd ..
+
 dr=dr5-new
 desiconda_version=20180103-1.2.3-img
 #desiconda_version=20170818-1.1.12-img
@@ -36,10 +52,10 @@ export PYTHONPATH=$LEGACYHALOS_CODE_DIR:$PYTHONPATH
 # https://software.intel.com/en-us/articles/using-threaded-intel-mkl-in-multi-thread-application
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
+export KMP_AFFINITY=disabled
 
 # To avoid problems with MPI and Python multiprocessing
 export MPICH_GNI_FORK_MODE=FULLCOPY
-export KMP_AFFINITY=disabled
 
 if [ "$NERSC_HOST" == "cori" ]; then
   module use $LEGACYPIPE_DIR/bin/modulefiles/cori

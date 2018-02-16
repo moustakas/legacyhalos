@@ -22,10 +22,11 @@ def get_logger(logfile):
     datefmt = '%Y-%m-%dT%H:%M:%S'
 
     logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
 
     # logging to logfile
     ch = logging.FileHandler(logfile, mode='w')
-    ch.setLevel(logging.INFO)
+    #ch.setLevel(logging.INFO)
     ch.setFormatter( logging.Formatter(fmt, datefmt=datefmt) )
     logger.addHandler(ch)
 
