@@ -125,7 +125,7 @@ def main():
                                          columns=('mem_match_id', 'z', 'r_lambda'))
         sample.add_columns_from(rm)
 
-        sample = sample[5:7]
+        sample = sample[6:7]
         #sample = sample[0:20]
         #sample = sample[1050:1055]
         print('Read {} galaxies.'.format(len(sample)))
@@ -180,10 +180,10 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, verbose=False, clobber=False):
 
         try:
             t0 = time.time()
-            #legacyhalos.coadds.legacyhalos_coadds(sample[ii], survey=survey,
-            #                                      objid=objid, objdir=objdir,
-            #                                      ncpu=ncpu, pixscale=PIXSCALE,
-            #                                      verbose=verbose)
+            legacyhalos.coadds.legacyhalos_custom_coadds(sample[ii], survey=survey,
+                                                         objid=objid, objdir=objdir,
+                                                         ncpu=ncpu, pixscale=PIXSCALE,
+                                                         verbose=verbose)
             log.info('Rank {} finished objid {} after {:.1f} minutes'.format(
                 rank, objid, (time.time()-t0) / 60))
         except:

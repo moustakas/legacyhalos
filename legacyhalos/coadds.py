@@ -192,3 +192,45 @@ def legacyhalos_coadds(galaxycat, survey=None, objid=None, objdir=None,
                     objid=objid, survey=survey, mp=mp, verbose=verbose)
 
     return 1 # success!
+
+
+def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
+                              ncpu=1, pixscale=0.262, cluster_radius=False,
+                              verbose=False):
+    """Top-level wrapper script to generate coadds for a single galaxy.
+
+    """ 
+    from legacypipe.runbrick import run_brick
+    from astrometry.util.multiproc import multiproc
+    #mp = multiproc(nthreads=ncpu)
+
+    if objid is None and objdir is None:
+        objid, objdir = get_objid(galaxycat)
+
+    survey.output_dir = objdir
+
+    # Step 0 - Get the cutout radius.
+    if cluster_radius:
+        radius = cutout_radius_cluster(redshift=galaxycat.z, pixscale=pixscale,
+                                       cluster_radius=galaxycat.r_lambda)
+    else:
+        radius = cutout_radius_100kpc(redshift=galaxycat.z, pixscale=pixscale)
+
+    zoom = (1800-radius, 1800+radius, 1800-radius, 1800+radius)
+    
+    # Step 1 - Run legacypipe on a custom "brick" centered on the central.
+    run_brick(None, survey, radec=(galaxycat.ra, galaxycat.dec), pixscale=pixscale,
+              width=2*radius, height=2*radius, blobxy=blobxy, 
+              threads=ncpu, wise=False, forceAll=True, writePickles=False,
+              do_calibs=False, write_metrics=False, hybridPsf=True, splinesky=True, 
+              early_coadds=False, stages=['writecat'], ceres=False, nsigma=nsigma,
+              apodize=False, plots=False)
+
+    ## Step 2 - Render the model images without the central.
+    #mods = _build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
+    #
+    ## Step 3 - Generate and write out the coadds.
+    #_tractor_coadds(galaxycat, P['targetwcs'], P['tims'], mods, P['version_header'],
+    #                objid=objid, survey=survey, mp=mp, verbose=verbose)
+
+    return 1 # success!
