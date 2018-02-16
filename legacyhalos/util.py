@@ -7,7 +7,37 @@ Miscellaneous utility code used by various scripts.
 """
 from __future__ import absolute_import, division, print_function
 
+import sys
 import numpy as np
+
+def get_logger(logfile):
+    """Instantiate a simple logger.
+
+    """
+    import logging
+    from contextlib import redirect_stdout
+
+    fmt = "%(levelname)s:%(filename)s:%(lineno)s:%(funcName)s: %(message)s"
+    #fmt = '%(levelname)s:%(filename)s:%(lineno)s:%(funcName)s:%(asctime)s: %(message)s']
+    datefmt = '%Y-%m-%dT%H:%M:%S'
+
+    logger = logging.getLogger()
+
+    # logging to logfile
+    ch = logging.FileHandler(logfile, mode='w')
+    ch.setLevel(logging.INFO)
+    ch.setFormatter( logging.Formatter(fmt, datefmt=datefmt) )
+    logger.addHandler(ch)
+
+    ### log stdout
+    #ch = logging.StreamHandler()
+    #ch.setLevel(logging.DEBUG)
+    #ch.setFormatter( logging.Formatter(fmt, datefmt=datefmt) )
+    #logger.addHandler(ch)
+    #
+    #logger.write = lambda msg: logger.info(msg) if msg != '\n' else None
+
+    return logger
 
 def cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
     """Get a cutout radius of 100 kpc [in pixels] at the redshift of the cluster.
