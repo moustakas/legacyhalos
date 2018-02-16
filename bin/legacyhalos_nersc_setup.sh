@@ -32,7 +32,12 @@ export PATH=$LEGACYHALOS_CODE_DIR/bin:$PATH
 export PYTHONPATH=$LEGACYPIPE_DIR/py:$PYTHONPATH
 export PYTHONPATH=$LEGACYHALOS_CODE_DIR:$PYTHONPATH
 
+# Force MKL single-threaded
+# https://software.intel.com/en-us/articles/using-threaded-intel-mkl-in-multi-thread-application
 export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+# To avoid problems with MPI and Python multiprocessing
 export MPICH_GNI_FORK_MODE=FULLCOPY
 export KMP_AFFINITY=disabled
 
@@ -48,4 +53,4 @@ export GAIA_CAT_DIR=/project/projectdirs/cosmo/work/gaia/chunks-gaia_rel1
 module load unwise_coadds
 module load dust
 
-echo $GAIA_CAT_DIR
+echo '$GAIA_CAT_DIR='$GAIA_CAT_DIR

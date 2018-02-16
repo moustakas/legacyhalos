@@ -223,7 +223,7 @@ def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
               width=2*radius, height=2*radius, threads=ncpu, normalizePsf=True,
               do_calibs=False, wise=False, depth_cut=False, splinesky=True,
               early_coadds=False, hybridPsf=True, ceres=False, forceall=True,
-              stages=['writecat'])
+              write_pickles=False, plots=True, stages=['writecat'])
 
     ## Step 2 - Render the model images without the central.
     #mods = _build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
