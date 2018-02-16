@@ -43,5 +43,9 @@ if [ "$NERSC_HOST" == "edison" ]; then
   module use $LEGACYPIPE_DIR/bin/modulefiles/edison
 fi  
 
+export GAIA_CAT_DIR=/project/projectdirs/cosmo/work/gaia/chunks-gaia_rel1
+
 module load unwise_coadds
 module load dust
+
+echo $GAIA_CAT_DIR

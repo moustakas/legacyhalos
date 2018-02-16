@@ -12,6 +12,8 @@ Note:
    should define custom bricks and generate custom Tractor catalogs, which would
    also remove much of the DR5 dependency.
 
+python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
+
 """
 from __future__ import absolute_import, division, print_function
 
@@ -219,7 +221,9 @@ def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
     # Step 1 - Run legacypipe on a custom "brick" centered on the central.
     run_brick(None, survey, radec=(galaxycat.ra, galaxycat.dec), pixscale=pixscale,
               width=2*radius, height=2*radius, threads=ncpu, normalizePsf=True,
-              do_calibs=False, wise=False, stages=['writecat'])
+              do_calibs=False, wise=False, depth_cut=False, splinesky=True,
+              early_coadds=False, hybridPsf=True, ceres=False, forceall=True,
+              stages=['writecat'])
 
     ## Step 2 - Render the model images without the central.
     #mods = _build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
