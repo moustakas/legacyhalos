@@ -216,15 +216,10 @@ def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
     else:
         radius = cutout_radius_100kpc(redshift=galaxycat.z, pixscale=pixscale)
 
-    zoom = (1800-radius, 1800+radius, 1800-radius, 1800+radius)
-    
     # Step 1 - Run legacypipe on a custom "brick" centered on the central.
     run_brick(None, survey, radec=(galaxycat.ra, galaxycat.dec), pixscale=pixscale,
-              width=2*radius, height=2*radius, blobxy=blobxy, 
-              threads=ncpu, wise=False, forceAll=True, writePickles=False,
-              do_calibs=False, write_metrics=False, hybridPsf=True, splinesky=True, 
-              early_coadds=False, stages=['writecat'], ceres=False, nsigma=nsigma,
-              apodize=False, plots=False)
+              width=2*radius, height=2*radius, threads=ncpu, normalizePsf=True,
+              do_calibs=False, wise=False, stages=['writecat'])
 
     ## Step 2 - Render the model images without the central.
     #mods = _build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)

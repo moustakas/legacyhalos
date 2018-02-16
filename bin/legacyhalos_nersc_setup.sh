@@ -9,12 +9,12 @@
 # conda install photutils -c astropy
 
 dr=dr5-new
-#desiconda_version=20180103-1.2.3-img
-desiconda_version=20170818-1.1.12-img
+desiconda_version=20180103-1.2.3-img
+#desiconda_version=20170818-1.1.12-img
 
 echo '$desiconda='$desiconda_version
-#module use /global/common/software/desi/$NERSC_HOST/desiconda/$desiconda_version/modulefiles
-module use /global/common/${NERSC_HOST}/contrib/desi/desiconda/$desiconda_version/modulefiles
+module use /global/common/software/desi/$NERSC_HOST/desiconda/$desiconda_version/modulefiles
+#module use /global/common/${NERSC_HOST}/contrib/desi/desiconda/$desiconda_version/modulefiles
 module load desiconda
 
 export LEGACY_SURVEY_DIR=/global/cscratch1/sd/desiproc/$dr
