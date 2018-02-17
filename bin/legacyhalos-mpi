@@ -3,6 +3,8 @@
 """MPI wrapper for the various computationally intensive legacyhalos analysis
 steps.
 
+
+
 """
 
 from __future__ import absolute_import, division, print_function
@@ -14,6 +16,27 @@ import numpy as np
 from legacyhalos.util import get_logger
 
 PIXSCALE = 0.262
+
+def read_sample():
+    """Read the sample.
+
+    """
+    import legacyhalos.io
+    from astrometry.util.fits import merge_tables
+
+    cols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
+            'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
+            'shapedev_r', 'shapedev_e1', 'shapedev_e2')
+        
+    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=cols)
+    rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
+                                     columns=('mem_match_id', 'z', 'r_lambda'))
+    sample.add_columns_from(rm)
+
+    sample = sample[:1]
+    print('Read {} galaxies'.format(len(sample)))
+
+    return sample
 
 def init_survey():
     """Instantiate the LegacySurveyData object."""
@@ -29,22 +52,15 @@ def _destroy_logger(log):
         hndl.flush()
         hndl.close()
 
-def _missing(sample, comm=None, filetype='coadds', clobber=False):
+def _missing(sample, size=1, filetype='coadds', clobber=False):
     """Find missing data of a given filetype."""
     
     from legacyhalos.io import get_objid
-
-    if comm is None:
-        rank, size = 0, 1
-    else:
-        rank, size = comm.rank, comm.size
 
     if filetype == 'coadds':
         filesuffix = 'resid.jpg'
     elif filetype == 'ellipse':
         filesuffix = 'ellipse.fits'
-    elif filetype == 'test':
-        filesuffix = 'junk.test'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -61,27 +77,21 @@ def _missing(sample, comm=None, filetype='coadds', clobber=False):
             todo[ii] = False
 
     if np.sum(todo) == 0:
-        if rank == 0:
-            print('All galaxies of filetype {} have been processed!'.format(filetype))
         return list()
     else:
         indices[todo]
 
-    print('SETTING SIZE TO 3!!!!!')
-    size = 3
+    return np.array_split(indices, size)
 
-    groups = np.array_split(indices, size)
-    print(size, groups)
-
-    return groups
-
-def missing_coadds(sample, comm=None, clobber=False):
+def missing_coadds(sample, size=1, clobber=False):
     '''Find the galaxies that do not yet have coadds.'''
-    return _missing(sample, comm=None, filetype='coadds', clobber=clobber)
+    return _missing(sample, size=size, filetype='coadds',
+                    clobber=clobber)
 
-def missing_ellipse(sample, comm=None, clobber=False):
+def missing_ellipse(sample, size=1, clobber=False):
     '''Find the galaxies that do not yet have ellipse fits.'''
-    return _missing(sample, comm=None, filetype='ellipse', clobber=clobber)
+    return _missing(sample, size=size, filetype='ellipse',
+                    clobber=clobber)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -99,7 +109,6 @@ def main():
         from mpi4py import MPI
         comm = MPI.COMM_WORLD
         rank, size = comm.rank, comm.size
-        print('Rank {}, size {}'.format(rank, size))
     else:
         comm = None
         rank = 0
@@ -114,81 +123,59 @@ def main():
     if args.ncpu is None:
         args.ncpu = maxproc // 2 # avoid hyper-threading
 
-    # Read the sample to see how many more galaxies we need to process.
+    # Read the sample and initialize the LegacySurveyData() object.
     if rank == 0:
-        import legacyhalos.io
-        from astrometry.util.fits import merge_tables
-
-        cols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
-                'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
-                'shapedev_r', 'shapedev_e1', 'shapedev_e2')
-        sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=cols)
-        
-        rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
-                                         columns=('mem_match_id', 'z', 'r_lambda'))
-        sample.add_columns_from(rm)
-
-        sample = sample[1:4]
-        #sample = sample[0:20]
-        #sample = sample[1050:1055]
-        print('Read {} galaxies.'.format(len(sample)))
-
+        sample = read_sample()
         survey = init_survey()
-        groups = missing_coadds(sample, comm=comm, clobber=args.clobber)
-
     else:
-        survey = None
         sample = None
-        groups = None
+        survey = None
 
-    if comm is not None:
-        args = comm.bcast(args, root=0)
+    if comm:
+        #args = comm.bcast(args, root=0)
         sample = comm.bcast(sample, root=0)
-        groups = comm.bcast(groups, root=0)
         survey = comm.bcast(survey, root=0)
 
-    if comm is not None:
-        comm.barrier()
-
     if args.coadds: # Build the coadds
-        legacyhalos_coadds(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose, survey=survey, groups=groups, 
-                           clobber=args.clobber, custom=args.custom_coadds)
+        legacyhalos_coadds(sample, survey=survey, comm=comm, custom=args.custom_coadds,
+                           ncpu=args.ncpu, verbose=args.verbose, clobber=args.clobber)
 
     if args.ellipse: # Do ellipse fitting
-        legacyhalos_ellipse(sample, comm=comm, ncpu=args.ncpu, verbose=args.verbose, survey=survey, groups=groups, 
-                            debug=args.debug, clobber=args.clobber)
+        legacyhalos_ellipse(sample, survey=survey, comm=comm, ncpu=args.ncpu,
+                            verbose=args.verbose, debug=args.debug, clobber=args.clobber)
 
-def legacyhalos_coadds(sample, ncpu=1, comm=None, custom=False, survey=None, groups=None,
+def legacyhalos_coadds(sample, survey=None, comm=None, custom=False, ncpu=1, 
                        verbose=False, clobber=False):
     """Generate the coadds.
 
     """
-    from legacyhalos.io import get_objid
     import legacyhalos.coadds
+    from legacyhalos.io import get_objid
 
-    if comm is None:
-        rank, size = 0, 1
-    else:
+    print('Starting at {}'.format(time.asctime()))
+    
+    if comm:
         rank, size = comm.rank, comm.size
+    else:
+        rank, size = 0, 1
 
     # Determine how many more coadds we need to make and chunk them.
     t0 = time.time()
-    #if rank == 0:
-    #    print('Starting at {}'.format(time.asctime()))
-    #    groups = missing_coadds(sample, comm=comm, clobber=clobber)
-    #    if len(groups) == 0:
-    #        return
-    #else:
-    #    groups = None
-    #
-    #if comm is not None:
-    #    groups = comm.bcast(groups, root=0)
-        
-    #if comm is not None:
-    #    comm.barrier()
-    print('Rank {}!!!!!!'.format(rank))
-    print(groups)
-    print(sample)
+    if rank == 0:
+        groups = missing_coadds(sample, size=size, clobber=clobber)
+    else:
+        groups = []
+
+    if comm:
+        groups = comm.bcast(groups, root=0)
+
+    if len(groups) == 0:
+        print('No more galaxies to process by rank {}!'.format(rank))
+        return
+
+    #if len(groups) == 0: # All done!
+    #    print('All done at {}'.format(time.asctime()))
+    #    return 
 
     # Loop on the remaining objects.
     for ii in groups[rank]:
@@ -198,7 +185,6 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, custom=False, survey=None, gro
         print('Logging rank {} to {}'.format(rank, logfile))
 
         log = get_logger(logfile)
-        log.info('Yo!')
         log.info('Rank {} started working on objid {} at {}'.format(rank, objid, time.asctime()))
 
         try:
@@ -213,19 +199,14 @@ def legacyhalos_coadds(sample, ncpu=1, comm=None, custom=False, survey=None, gro
                                                       objid=objid, objdir=objdir,
                                                       ncpu=ncpu, pixscale=PIXSCALE,
                                                       verbose=verbose)
-                log.info('In try')
-                pass
-            log.info('Rank {} finished objid {} after {:.1f} minutes'.format(
-                rank, objid, (time.time()-t0) / 60))
+            log.info('Rank {} finished objid {} after {:.1f} seconds'.format(
+                rank, objid, time.time()-t0))
         except:
             log.warning('Rank {} FAILED on objid {}'.format(rank, objid))
             import traceback
             traceback.print_exc()
 
         _destroy_logger(log)
-
-    if comm is not None:
-        comm.barrier()
 
     print('All done at {}'.format(time.asctime()))
 
@@ -293,18 +274,7 @@ def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False,
             import traceback
             traceback.print_exc()
 
-    print('---- rank {} is done'.format(rank))
-    sys.stdout.flush()
-
-    if comm is not None:
-        comm.barrier()
-
-    #if rank == 0:
-    #    for outfile in zbfiles:
-    #        if not os.path.exists(outfile):
-    #            print('ERROR missing {}'.format(outfile))
-
-        print('All done at {}'.format(time.asctime()))
+        log.info('All done at {}'.format(time.asctime()))
         
 if __name__ == '__main__':
     main()
