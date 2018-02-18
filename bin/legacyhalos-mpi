@@ -33,7 +33,7 @@ def read_sample():
                                      columns=('mem_match_id', 'z', 'r_lambda'))
     sample.add_columns_from(rm)
 
-    sample = sample[2:3]
+    sample = sample[0:1]
     print('Read {} galaxies'.format(len(sample)))
 
     return sample
@@ -42,8 +42,9 @@ def init_survey():
     """Instantiate the LegacySurveyData object."""
     from legacypipe.survey import LegacySurveyData
 
-    dr5_dir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo', 'data', 'legacysurvey', 'dr5')
-    return LegacySurveyData(cache_dir=dr5_dir)
+    cache_dir = os.path.join(os.sep, 'global', 'cscratch1', 'sd', 'dstn', 'dr6plus')
+    #cache_dir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo', 'data', 'legacysurvey', 'dr5')
+    return LegacySurveyData(cache_dir=cache_dir)
 
 def _destroy_logger(log):
     allhndl = list(log.handlers)

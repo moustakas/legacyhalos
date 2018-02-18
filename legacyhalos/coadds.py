@@ -78,9 +78,10 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
     newfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(objid))
     shutil.copy(oldfile, newfile)
 
-    shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
-    shutil.rmtree(os.path.join(survey.output_dir, 'tractor'))
-    shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
+    if False:
+        shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
+        shutil.rmtree(os.path.join(survey.output_dir, 'tractor'))
+        shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
 
 def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100,
                        brickname=None, pixscale=0.262, custom=False):
@@ -131,7 +132,7 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None,
         if verbose:
             print('Removed central galaxy with objid = {}'.format(cat[m1].objid))
 
-        cat.cut( np.flatnonzero(cat.objid != m1) )
+        cat.cut( cat.objid != m1 )
     else:
         # Read the full Tractor catalog.
         fn = survey.find_file('tractor', brick=galaxycat.brickname)
@@ -203,8 +204,10 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
                     brickname, suffix, band))
             newfile = os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, suffix, band))
-            shutil.move(oldfile, newfile)
-    shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
+            shutil.copy(oldfile, newfile)
+
+    if False:
+        shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
     
     # Build png postage stamps of the coadds.
     coadd_list = [('image', C.coimgs,   rgbkwargs),
