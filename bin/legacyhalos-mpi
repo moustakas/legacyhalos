@@ -44,12 +44,12 @@ def read_sample():
                                      columns=('mem_match_id', 'z', 'r_lambda'))
     sample.add_columns_from(rm)
 
-    #sample = sample[3:4] # AttributeError: 'numpy.ndarray' object has no attribute 'strip' after custom_brick is run
+    sample = sample[3:4] # AttributeError: 'numpy.ndarray' object has no attribute 'strip' after custom_brick is run
     # sample = sample[4:5] # timed out...
     #sample = sample[12:13] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130608/c4d_130608_234704_oow_r_a1.fits.fz'
     #sample = sample[13:14] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130910/c4d_130910_091527_oow_r_a1.fits.fz'
     #sample = sample[14:15] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130905/c4d_130905_031857_ooi_g_a1.fits.fz'
-    sample = sample[15:20]
+    #sample = sample[15:20]
     print('Read {} galaxies'.format(len(sample)))
 
     return sample
@@ -183,8 +183,7 @@ def legacyhalos_coadds(sample, survey=None, comm=None, custom=False, ncpu=1,
     else:
         rank, size = 0, 1
 
-    # Determine how many more coadds we need to make and chunk them.
-    t0 = time.time()
+    # Determine how many more coadds we need and divide them across ranks.
     if rank == 0:
         groups = missing_coadds(sample, size=size, clobber=clobber)
     else:
@@ -196,10 +195,6 @@ def legacyhalos_coadds(sample, survey=None, comm=None, custom=False, ncpu=1,
     if len(groups) == 0:
         print('No more galaxies to process by rank {}!'.format(rank))
         return
-
-    #if len(groups) == 0: # All done!
-    #    print('All done at {}'.format(time.asctime()))
-    #    return 
 
     # Loop on the remaining objects.
     for ii in groups[rank]:
@@ -237,44 +232,34 @@ def legacyhalos_coadds(sample, survey=None, comm=None, custom=False, ncpu=1,
 
     print('All done at {}'.format(time.asctime()))
 
-def legacyhalos_ellipse(sample, ncpu=1, comm=None, verbose=False,
+def legacyhalos_ellipse(sample, comm=None, ncpu=1, verbose=False,
                         debug=False, clobber=False):
     """Do ellipse-fitting.
 
     """
-    import fitsio
-    from legacyhalos.io import get_objid
     import legacyhalos.ellipse
+    from legacyhalos.io import get_objid
 
-    if comm is None:
-        rank, size = 0, 1
-    else:
+    if comm:
         rank, size = comm.rank, comm.size
+    else:
+        rank, size = 0, 1
 
-    # Determine how many more ellipse fits we need to make and chunk them.
-    t0 = time.time()
+    # Determine how many more ellipse fits we need and divide them across ranks. 
     if rank == 0:
-        print('Starting at {}'.format(time.asctime()))
+        groups = missing_ellipse(sample, size=size, clobber=clobber)
+    else:
+        groups = []
 
-    groups = missing_ellipse(sample, comm=comm, clobber=clobber)
-    if len(groups) == 0:
-        return
-
-    #sys.stdout.flush()
-    #if comm is not None:
-    #    indices = comm.bcast(indices, root=0)
-
-    # Initialize and then broadcast the LegacySurveyData() object to all ranks.
-    if rank == 0:
-        survey = init_survey()
-        
-    if comm is not None:
+    if comm:
         groups = comm.bcast(groups, root=0)
-        sample = comm.bcast(sample, root=0)
 
+    if len(groups) == 0:
+        print('No more galaxies to process by rank {}!'.format(rank))
+        return
+    
     # Loop on the remaining objects.
     for ii in groups[rank]:
-
         objid, objdir = get_objid(sample[ii])
 
         logfile = os.path.join(objdir, '{}-ellipse.log'.format(objid))

@@ -127,12 +127,19 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None,
         if verbose:
             print('Read {} sources from {}'.format(len(cat), fn))
 
-        # Find and remove the central.
-        m1, m2, d12 = match_radec(cat.ra, cat.dec, galaxycat.ra, galaxycat.dec, 1/3600.0)
+        # Find and remove the central.  For some reason, match_radec
+        # occassionally returns two matches, even though nearest=True.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, galaxycat.ra, galaxycat.dec,
+                                  1/3600.0, nearest=True)
+        if len(d12) == 0:
+            print('No matching central found -- definitely a problem.')
+        elif len(d12) > 1:
+            m1 = m1[np.argmin(d12)]
+            
         if verbose:
             print('Removed central galaxy with objid = {}'.format(cat[m1].objid))
 
-        cat.cut( cat.objid != m1 )
+        cat.cut( ~np.in1d(cat.objid, m1) )
     else:
         # Read the full Tractor catalog.
         fn = survey.find_file('tractor', brick=galaxycat.brickname)

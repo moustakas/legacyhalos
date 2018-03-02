@@ -71,7 +71,6 @@ fi
 export GAIA_CAT_DIR=/project/projectdirs/cosmo/work/gaia/chunks-gaia_rel1
 
 module load unwise_coadds
-module load unwise_coadds_timeresolved
 module load dust
 
 echo '$GAIA_CAT_DIR='$GAIA_CAT_DIR
