@@ -33,13 +33,12 @@ module load desiconda
 # python setup.py install --prefix=$CSCRATCH/repos/build
 ##################################################
 
-dr=dr5-new
-
-export LEGACY_SURVEY_DIR=/global/cscratch1/sd/desiproc/$dr
+#export LEGACY_SURVEY_DIR=/global/cscratch1/sd/dstn/dr6plus
+export LEGACY_SURVEY_DIR=/global/cscratch1/sd/desiproc/dr5-new
+#export LEGACY_SURVEY_DIR=/global/project/projectdirs/cosmo/data/legacysurvey/dr5
 export LEGACYPIPE_DIR=${CSCRATCH}/repos/legacypipe
 export LEGACYHALOS_DIR=${CSCRATCH}/legacyhalos
 export LEGACYHALOS_CODE_DIR=${CSCRATCH}/repos/legacyhalos
-export DESIUTIL_DIR=${CSCRATCH}/repos/desiutil
 
 echo '$LEGACYHALOS_DIR='$LEGACYHALOS_DIR
 echo '$LEGACYHALOS_CODE_DIR='$LEGACYHALOS_CODE_DIR
@@ -51,7 +50,6 @@ export PATH=$SCRATCH/repos/build/bin:$PATH
 
 export PYTHONPATH=$LEGACYPIPE_DIR/py:$PYTHONPATH
 export PYTHONPATH=$LEGACYHALOS_CODE_DIR:$PYTHONPATH
-export PYTHONPATH=$DESIUTIL_DIR/py:$PYTHONPATH
 export PYTHONPATH=$CSCRATCH/repos/build/lib/python3.5/site-packages:$PYTHONPATH
 
 # Force MKL single-threaded
@@ -73,6 +71,7 @@ fi
 export GAIA_CAT_DIR=/project/projectdirs/cosmo/work/gaia/chunks-gaia_rel1
 
 module load unwise_coadds
+module load unwise_coadds_timeresolved
 module load dust
 
 echo '$GAIA_CAT_DIR='$GAIA_CAT_DIR

@@ -64,9 +64,9 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
     run_brick(None, survey, radec=(galaxycat.ra, galaxycat.dec), pixscale=pixscale,
               width=2*radius, height=2*radius, threads=ncpu, normalizePsf=True,
               do_calibs=False, wise=False, depth_cut=False, splinesky=True,
-              early_coadds=False, hybridPsf=True, ceres=False, forceall=True,
-              write_pickles=False, write_metrics=False, plots=False,
-              stages=['writecat'])
+              early_coadds=False, pixPsf=True, hybridPsf=True, ceres=False,
+              rex=True, forceall=True, write_pickles=False, write_metrics=False,
+              gaia_stars=True, stages=['writecat'])
 
     # Move (rename) files into the desired output directory and clean up.
     brickname = custom_brickname(galaxycat, prefix='custom-')
@@ -99,8 +99,8 @@ def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100,
     if custom:
         P = stage_tims(ra=galaxycat.ra, dec=galaxycat.dec, brickname=brickname,
                        survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
-                       mp=mp, normalizePsf=True, hybridPsf=True,
-                       depth_cut=False, apodize=False, do_calibs=False,
+                       mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
+                       depth_cut=False, apodize=False, do_calibs=False, rex=True, 
                        splinesky=True)
     else:
         bbox = [galaxycat.bx-radius, galaxycat.bx+radius,

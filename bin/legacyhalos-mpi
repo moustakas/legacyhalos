@@ -3,17 +3,28 @@
 """MPI wrapper for the various computationally intensive legacyhalos analysis
 steps.
 
+/global/cscratch1/sd/desiproc/dr5-new
+/global/cscratch1/sd/dstn/dr6plus
+
+For unWISE coadds, in tractor/wise/unwise.py, you'll probably have to use
+unwise_tiles_touching_wcs to get the tiles overlapping, and then maybe
+get_unwise_tractor_image to read the data, and then maybe legacypipe/coadds.py :
+quick_coadds ?
+
+legacyhalos-mpi --coadds --custom-coadds --clobber --ncpu 6
 
 
 """
-
 from __future__ import absolute_import, division, print_function
 
 import os, sys, time
 import argparse
 import numpy as np
 
+#from legacyhalos.parallel import stdouterr_redirected
 from legacyhalos.util import get_logger
+#from desiutil.log import get_logger, DEBUG
+#log = get_logger(DEBUG)
 
 PIXSCALE = 0.262
 
@@ -33,17 +44,29 @@ def read_sample():
                                      columns=('mem_match_id', 'z', 'r_lambda'))
     sample.add_columns_from(rm)
 
-    sample = sample[0:1]
+    #sample = sample[3:4] # AttributeError: 'numpy.ndarray' object has no attribute 'strip' after custom_brick is run
+    # sample = sample[4:5] # timed out...
+    #sample = sample[12:13] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130608/c4d_130608_234704_oow_r_a1.fits.fz'
+    #sample = sample[13:14] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130910/c4d_130910_091527_oow_r_a1.fits.fz'
+    #sample = sample[14:15] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130905/c4d_130905_031857_ooi_g_a1.fits.fz'
+    sample = sample[15:20]
     print('Read {} galaxies'.format(len(sample)))
 
     return sample
 
-def init_survey():
+def init_survey(custom=False):
     """Instantiate the LegacySurveyData object."""
     from legacypipe.survey import LegacySurveyData
 
-    cache_dir = os.path.join(os.sep, 'global', 'cscratch1', 'sd', 'dstn', 'dr6plus')
-    #cache_dir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo', 'data', 'legacysurvey', 'dr5')
+    if custom:
+        cache_dir = None
+    else:
+        cache_dir = os.path.join('/project/projectdirs/cosmo/data/legacysurvey/dr5')
+        #cache_dir = os.path.join('/global/cscratch1/sd/dstn/dr6plus')
+
+    cache_dir = '/global/cscratch1/sd/dstn/dr5-new-sky'
+    #cache_dir = None
+
     return LegacySurveyData(cache_dir=cache_dir)
 
 def _destroy_logger(log):
@@ -127,7 +150,7 @@ def main():
     # Read the sample and initialize the LegacySurveyData() object.
     if rank == 0:
         sample = read_sample()
-        survey = init_survey()
+        survey = init_survey(custom=args.custom_coadds)
     else:
         sample = None
         survey = None
@@ -183,9 +206,10 @@ def legacyhalos_coadds(sample, survey=None, comm=None, custom=False, ncpu=1,
         objid, objdir = get_objid(sample[ii])
 
         logfile = os.path.join(objdir, '{}-coadds.log'.format(objid))
-        print('Logging rank {} to {}'.format(rank, logfile))
 
+        #stdouterr_redirected(to=logfile)
         log = get_logger(logfile)
+        log.info('Logfile {}'.format(logfile))
         log.info('Rank {} started working on objid {} at {}'.format(rank, objid, time.asctime()))
 
         try:
@@ -196,6 +220,8 @@ def legacyhalos_coadds(sample, survey=None, comm=None, custom=False, ncpu=1,
                                                              ncpu=ncpu, pixscale=PIXSCALE,
                                                              verbose=verbose)
             else:
+                print('Need to pass cache_dr to read the tractor catalogs from the DR5 release.')
+                import pdb ; pdb.set_trace()
                 legacyhalos.coadds.legacyhalos_coadds(sample[ii], survey=survey,
                                                       objid=objid, objdir=objdir,
                                                       ncpu=ncpu, pixscale=PIXSCALE,
