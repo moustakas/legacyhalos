@@ -40,6 +40,13 @@ def get_logger(logfile):
 
     return logger
 
+def destroy_logger(log):
+    allhndl = list(log.handlers)
+    for hndl in allhndl:
+        log.removeHandler(hndl)
+        hndl.flush()
+        hndl.close()
+
 def cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
     """Get a cutout radius of 100 kpc [in pixels] at the redshift of the cluster.
 
