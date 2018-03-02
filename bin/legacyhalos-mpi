@@ -21,11 +21,17 @@ import os, sys, time
 import argparse
 import numpy as np
 
-#from legacyhalos.parallel import stdouterr_redirected
-#from desiutil.log import get_logger, DEBUG
-#log = get_logger(DEBUG)
-
-PIXSCALE = 0.262
+def get_ncpu():
+    """Get the number of CPU cores to use."""
+    if os.getenv('NERSC_HOST') == 'cori':
+        maxproc = 64
+    elif os.getenv('NERSC_HOST') == 'edison':
+        maxproc = 48
+    else:
+        import multiprocessing
+        maxproc = multiprocessing.cpu_count()
+        
+    return maxproc // 2 # avoid hyper-threading
 
 def read_sample():
     """Read the sample.
@@ -116,6 +122,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--ncpu', type=int, help='number of multiprocessing processes per MPI rank.')
+    parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
     parser.add_argument('--coadds', action='store_true', help='Build the DR-based coadds')
     parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds')
@@ -131,17 +138,10 @@ def main():
         rank, size = comm.rank, comm.size
     else:
         comm = None
-        rank = 0
-
-    if os.getenv('NERSC_HOST') == 'cori':
-        maxproc = 64
-    elif os.getenv('NERSC_HOST') == 'edison':
-        maxproc = 48
-    else:
-        maxproc = 4
+        rank, size = 0, 1
 
     if args.ncpu is None:
-        args.ncpu = maxproc // 2 # avoid hyper-threading
+        args.ncpu = get_ncpu()
 
     # Read the sample and initialize the LegacySurveyData() object.
     if rank == 0:
@@ -157,76 +157,87 @@ def main():
 
     # Determine how many more objects we need to analyze and divide them
     # across ranks.
+    groups, suffix = [], ''
     if rank == 0:
         if args.coadds or args.custom_coadds:
-            from legacyhalos.coadds import coadds
             groups = missing_coadds(sample, size=size, clobber=args.clobber)
             suffix = 'coadds'
         elif args.ellipse:
-            from legacyhalos.ellipse import ellipse
             groups = missing_ellipse(sample, size=size, clobber=args.clobber)
             suffix = 'ellipse'
         else:
             groups = []
-    #else:
-    #    groups = []
 
     if comm:
         groups = comm.bcast(groups, root=0)
+        suffix = comm.bcast(suffix, root=0)
 
     if len(groups) == 0:
         print('No more galaxies to process by rank {}!'.format(rank))
         return
+
+    if rank == 0:
+        print('Analyzing {} galaxies with {} tasks/ranks at {}'.format(
+            len(sample), size, time.asctime()))
 
     # Loop on the remaining objects.
     for ii in groups[rank]:
         objid, objdir = get_objid(sample[ii])
 
         logfile = os.path.join(objdir, '{}-{}.log'.format(objid, suffix))
-        print('Started at {}'.format(time.asctime()))
-        print('Logging to {} '.format(logfile))
+        #print('Logging to {} '.format(logfile))
 
         t0 = time.time()
         if args.custom_coadds:
+            from legacyhalos.coadds import legacyhalos_custom_coadds
             with open(logfile, 'w') as log:
                 with redirect_stdout(log):
                     print('Rank {} started working on objid {} at {}'.format(
                         rank, objid, time.asctime()))
-                    print('Hi there')
-                    #coadds.legacyhalos_custom_coadds(
-                    #    sample[ii], survey=survey, objid=objid, objdir=objdir,
-                    #    ncpu=ncpu, pixscale=PIXSCALE, verbose=verbose)
+                    legacyhalos_custom_coadds(
+                        sample[ii], survey=survey, objid=objid, objdir=objdir,
+                        ncpu=args.ncpu, pixscale=args.pixscale, verbose=args.verbose)
+                    print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
+                        rank, objid, time.asctime(), (time.time() - t0)/60))
                     
         if args.coadds:
+            from legacyhalos.coadds import legacyhalos_custom_coadds
             print('Need to pass cache_dr to read the tractor catalogs from the DR5 release.')
             import pdb ; pdb.set_trace()
             with open(logfile, 'w') as log:
                 with redirect_stdout(log):
                     print('Rank {} started working on objid {} at {}'.format(
                         rank, objid, time.asctime()))
-                    coadds.legacyhalos_coadds(
+                    legacyhalos_coadds(
                         sample[ii], survey=survey, objid=objid, objdir=objdir,
-                        ncpu=ncpu, pixscale=PIXSCALE, verbose=verbose)
+                        ncpu=args.ncpu, pixscale=args.pixscale, verbose=args.verbose)
+                    print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
+                        rank, objid, time.asctime(), (time.time() - t0)/60))
                     
-        #if args.ellipse:
-        #    from legacyhalos.util import get_logger, destroy_logger
-        #    log = get_logger(logfile)
-        #    log.info('Rank {} started working on objid {} at {}'.format(
-        #        rank, objid, time.asctime()))
-        #
-        #    legacyhalos.ellipse.legacyhalos_ellipse(
-        #        sample[ii], objid=objid, objdir=objdir, ncpu=ncpu,
-        #        pixscale=PIXSCALE, debug=debug, verbose=verbose)
-        #            
-        #    log.info('Rank {} finished objid {} after {:.1f} seconds'.format(
-        #        rank, objid, time.time()-t0))
-        #    destroy_logger(log)
-        #    
-        #    #log.warning('Rank {} FAILED on objid {}'.format(rank, objid))
-        #    #import traceback
-        #    #traceback.print_exc()
+        if args.ellipse:
+            from legacyhalos.ellipse import legacyhalos_ellipse
+            from legacyhalos.util import get_logger, destroy_logger
+            log = get_logger(logfile)
+            log.info('Rank {} started working on objid {} at {}'.format(
+                rank, objid, time.asctime()))
+        
+            legacyhalos.ellipse.legacyhalos_ellipse(
+                sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
+                pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
+                    
+            log.info('Rank {} finished objid {} after {:.1f} seconds'.format(
+                rank, objid, time.time()-t0))
+            destroy_logger(log)
+            
+            #log.warning('Rank {} FAILED on objid {}'.format(rank, objid))
+            #import traceback
+            #traceback.print_exc()
 
-        print('All done at {}'.format(time.asctime()))
+    if comm:
+        comm.barrier()
+        
+    if rank == 0:
+        print('Finished at {}'.format(time.asctime()))
 
 if __name__ == '__main__':
     main()
