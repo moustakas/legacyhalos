@@ -13,6 +13,7 @@ quick_coadds ?
 
 legacyhalos-mpi --custom-coadds --clobber --ncpu 6
 
+python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
 
 """
 from __future__ import absolute_import, division, print_function
@@ -49,7 +50,7 @@ def read_sample():
                                      columns=('mem_match_id', 'z', 'r_lambda'))
     sample.add_columns_from(rm)
 
-    sample = sample[0:2]
+    sample = sample[0:1]
     # sample = sample[4:5] # timed out...
     #sample = sample[12:13] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130608/c4d_130608_234704_oow_r_a1.fits.fz'
     #sample = sample[13:14] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130910/c4d_130910_091527_oow_r_a1.fits.fz'
@@ -69,7 +70,7 @@ def init_survey(custom=False):
         cache_dir = os.path.join('/project/projectdirs/cosmo/data/legacysurvey/dr5')
         #cache_dir = os.path.join('/global/cscratch1/sd/dstn/dr6plus')
 
-    cache_dir = '/global/cscratch1/sd/dstn/dr5-new-sky'
+    cache_dir = '/global/cscratch1/sd/dstn/dr5-new-sky/cache'
     #cache_dir = None
 
     return LegacySurveyData(cache_dir=cache_dir)
@@ -116,7 +117,7 @@ def missing_ellipse(sample, size=1, clobber=False):
                     clobber=clobber)
 
 def main():
-    from contextlib import redirect_stdout
+    from contextlib import redirect_stdout, redirect_stderr
     from legacyhalos.io import get_objid
     from legacyhalos.util import get_logger
 
@@ -177,7 +178,7 @@ def main():
         return
 
     if rank == 0:
-        print('Analyzing {} galaxies with {} tasks/ranks at {}'.format(
+        print('Analyzing {} galaxies with {} rank(s) at {}'.format(
             len(sample), size, time.asctime()))
 
     # Loop on the remaining objects.
@@ -191,7 +192,7 @@ def main():
         if args.custom_coadds:
             from legacyhalos.coadds import legacyhalos_custom_coadds
             with open(logfile, 'w') as log:
-                with redirect_stdout(log):
+                with redirect_stdout(log), redirect_stderr(log):
                     print('Rank {} started working on objid {} at {}'.format(
                         rank, objid, time.asctime()))
                     legacyhalos_custom_coadds(

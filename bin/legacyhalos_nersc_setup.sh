@@ -34,7 +34,8 @@ module load desiconda
 ##################################################
 
 #export LEGACY_SURVEY_DIR=/global/cscratch1/sd/dstn/dr6plus
-export LEGACY_SURVEY_DIR=/global/cscratch1/sd/desiproc/dr5-new
+#export LEGACY_SURVEY_DIR=/global/cscratch1/sd/desiproc/dr5-new
+export LEGACY_SURVEY_DIR=/global/cscratch1/sd/dstn/dr5-new-sky
 #export LEGACY_SURVEY_DIR=/global/project/projectdirs/cosmo/data/legacysurvey/dr5
 export LEGACYPIPE_DIR=${CSCRATCH}/repos/legacypipe
 export LEGACYHALOS_DIR=${CSCRATCH}/legacyhalos
