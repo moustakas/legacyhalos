@@ -160,3 +160,30 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z')):
 
     return data
 
+def read_sample(istart=None, iend=None):
+    """Read the sample.
+
+    """
+    import legacyhalos.io
+    from astrometry.util.fits import merge_tables
+
+    cols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
+            'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
+            'shapedev_r', 'shapedev_e1', 'shapedev_e2')
+        
+    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=cols)
+    rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
+                                     columns=('mem_match_id', 'z', 'r_lambda'))
+    sample.add_columns_from(rm)
+
+    # sample[4] - timed out
+
+    if istart is None:
+        istart = 0
+    if iend is None:
+        istart = len(sample)
+
+    sample = sample[istart:iend]
+    print('Read {} galaxies'.format(len(sample)))
+
+    return sample

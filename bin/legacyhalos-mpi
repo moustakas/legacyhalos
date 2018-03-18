@@ -34,32 +34,6 @@ def get_ncpu():
         
     return maxproc // 2 # avoid hyper-threading
 
-def read_sample():
-    """Read the sample.
-
-    """
-    import legacyhalos.io
-    from astrometry.util.fits import merge_tables
-
-    cols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
-            'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
-            'shapedev_r', 'shapedev_e1', 'shapedev_e2')
-        
-    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=cols)
-    rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
-                                     columns=('mem_match_id', 'z', 'r_lambda'))
-    sample.add_columns_from(rm)
-
-    sample = sample[0:1]
-    # sample = sample[4:5] # timed out...
-    #sample = sample[12:13] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130608/c4d_130608_234704_oow_r_a1.fits.fz'
-    #sample = sample[13:14] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130910/c4d_130910_091527_oow_r_a1.fits.fz'
-    #sample = sample[14:15] # OSError: File not found: '/global/cscratch1/sd/desiproc/dr5-new/images/decam/NonDECaLS-DR5/CP20130905/c4d_130905_031857_ooi_g_a1.fits.fz'
-    #sample = sample[15:20]
-    print('Read {} galaxies'.format(len(sample)))
-
-    return sample
-
 def init_survey(custom=False):
     """Instantiate the LegacySurveyData object."""
     from legacypipe.survey import LegacySurveyData
@@ -118,16 +92,19 @@ def missing_ellipse(sample, size=1, clobber=False):
 
 def main():
     from contextlib import redirect_stdout, redirect_stderr
-    from legacyhalos.io import get_objid
+    from legacyhalos.io import get_objid, read_sample
     from legacyhalos.util import get_logger
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--ncpu', type=int, help='number of multiprocessing processes per MPI rank.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
+
     parser.add_argument('--coadds', action='store_true', help='Build the DR-based coadds')
     parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds')
-    parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting')
+    parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
+    parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
+    
     parser.add_argument('--debug', action='store_true', help='Build some debugging plots.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
@@ -146,8 +123,11 @@ def main():
 
     # Read the sample and initialize the LegacySurveyData() object.
     if rank == 0:
-        sample = read_sample()
-        survey = init_survey(custom=args.custom_coadds)
+        sample = read_sample(istart=0, iend=1)
+        if args.coadds or args.custom_coadds:
+            survey = init_survey(custom=args.custom_coadds)
+        else:
+            survey = None
     else:
         sample = None
         survey = None
@@ -186,7 +166,7 @@ def main():
         objid, objdir = get_objid(sample[ii])
 
         logfile = os.path.join(objdir, '{}-{}.log'.format(objid, suffix))
-        #print('Logging to {} '.format(logfile))
+        print('Logging to {} '.format(logfile))
 
         t0 = time.time()
         if args.custom_coadds:
@@ -218,22 +198,24 @@ def main():
         if args.ellipse:
             from legacyhalos.ellipse import legacyhalos_ellipse
             from legacyhalos.util import get_logger, destroy_logger
-            log = get_logger(logfile)
-            log.info('Rank {} started working on objid {} at {}'.format(
-                rank, objid, time.asctime()))
-        
-            legacyhalos.ellipse.legacyhalos_ellipse(
-                sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
-                pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
-                    
-            log.info('Rank {} finished objid {} after {:.1f} seconds'.format(
-                rank, objid, time.time()-t0))
-            destroy_logger(log)
+            #log = get_logger(logfile)
+            with open(logfile, 'w') as log:
+                with redirect_stdout(log), redirect_stderr(log):
+                    print('Rank {} started working on objid {} at {}'.format(
+                        rank, objid, time.asctime()))
+                    try:
+                        legacyhalos_ellipse(
+                            sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
+                            pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
+                        print('Rank {} finished objid {} after {:.1f} seconds'.format(
+                            rank, objid, time.time()-t0))
+                    except:
+                        print('Failed.')
+                        import traceback
+                        traceback.print_exc()
+                        
+            #destroy_logger(log)
             
-            #log.warning('Rank {} FAILED on objid {}'.format(rank, objid))
-            #import traceback
-            #traceback.print_exc()
-
     if comm:
         comm.barrier()
         
