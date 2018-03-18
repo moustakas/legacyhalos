@@ -207,50 +207,17 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
         plt.show()
         
 def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
-                              redshift=None, pixscale=0.262, minerr=0.02, png=None):
-    """Display the multi-band surface brightness profile."""
+                              minerr=0.02, redshift=None, pixscale=0.262,
+                              png=None):
+    """Display the multi-band surface brightness profile.
+
+    """
+    from legacyhalos.util import ellipse_sbprofile
+
+    sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband, minerr=minerr,
+                                  redshift=redshift, pixscale=pixscale)
 
     colors = iter(sns.color_palette())
-
-    if redshift:
-        from astropy.cosmology import WMAP9 as cosmo
-        smascale = pixscale / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/pixel]
-        smaunit = 'kpc'
-    else:
-        smascale = 1.0
-        smaunit = 'pixels'
-
-    def _sbprofile(ellipsefit, indx, smascale, pixscale):
-        """Convert fluxes to magnitudes and colors."""
-        sbprofile = dict()
-        sbprofile['sma'] = ellipsefit['r'].sma[indx] * smascale
-        
-        with np.errstate(invalid='ignore'):
-            for filt in band:
-                area = ellipsefit[filt].sarea[indx] * pixscale**2
-                
-                sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
-                sbprofile['{}_err'.format(filt)] = ellipsefit[filt].int_err[indx] / \
-                  ellipsefit[filt].intens[indx] / np.log(10)
-
-                sbprofile['mu_{}'.format(filt)] = sbprofile[filt] + 2.5 * np.log10(area)
-
-                # Just for the plot use a minimum uncertainty
-                sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
-                
-        sbprofile['gr'] = sbprofile['g'] - sbprofile['r']
-        sbprofile['rz'] = sbprofile['r'] - sbprofile['z']
-        sbprofile['gr_err'] = np.sqrt(sbprofile['g_err']**2 + sbprofile['r_err']**2)
-        sbprofile['rz_err'] = np.sqrt(sbprofile['r_err']**2 + sbprofile['z_err']**2)
-
-        # Just for the plot use a minimum uncertainty
-        sbprofile['gr_err'][sbprofile['gr_err'] < minerr] = minerr
-        sbprofile['rz_err'][sbprofile['rz_err'] < minerr] = minerr
-
-        return sbprofile
-
-    indx = np.ones(len(ellipsefit[refband]), dtype=bool)
-    sbprofile = _sbprofile(ellipsefit, indx, smascale, pixscale)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     for filt in band:
@@ -292,7 +259,7 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
                      label=r'$g - r$', color=next(colors), alpha=0.75,
                      edgecolor='k', lw=2)
 
-    ax2.set_xlabel('Semimajor Axis ({})'.format(smaunit), alpha=0.75)
+    ax2.set_xlabel('Semimajor Axis ({})'.format(sbprofile['smaunit']), alpha=0.75)
     ax2.set_ylabel('Color')
     ax2.set_ylim(0, 2.4)
     ax2.legend(loc='upper left')
