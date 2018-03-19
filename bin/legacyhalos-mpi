@@ -199,20 +199,20 @@ def main():
             from legacyhalos.ellipse import legacyhalos_ellipse
             from legacyhalos.util import get_logger, destroy_logger
             #log = get_logger(logfile)
-            with open(logfile, 'w') as log:
-                with redirect_stdout(log), redirect_stderr(log):
-                    print('Rank {} started working on objid {} at {}'.format(
-                        rank, objid, time.asctime()))
-                    try:
-                        legacyhalos_ellipse(
-                            sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
-                            pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
-                        print('Rank {} finished objid {} after {:.1f} seconds'.format(
-                            rank, objid, time.time()-t0))
-                    except:
-                        print('Failed.')
-                        import traceback
-                        traceback.print_exc()
+            #with open(logfile, 'w') as log:
+            #    with redirect_stdout(log), redirect_stderr(log):
+            print('Rank {} started working on objid {} at {}'.format(
+                rank, objid, time.asctime()))
+            try:
+                legacyhalos_ellipse(
+                    sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
+                    pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
+                print('Rank {} finished objid {} after {:.1f} seconds'.format(
+                    rank, objid, time.time()-t0))
+            except:
+                print('Failed.')
+                import traceback
+                traceback.print_exc()
                         
             #destroy_logger(log)
             

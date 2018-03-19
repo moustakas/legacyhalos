@@ -97,21 +97,23 @@ def ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
     with np.errstate(invalid='ignore'):
         for filt in band:
-            area = ellipsefit[filt].sarea[indx] * pixscale**2
+            #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-            sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
-            sbprofile['{}_err'.format(filt)] = ellipsefit[filt].int_err[indx] / \
+            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
+
+            #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
+            sbprofile['mu_{}_err'.format(filt)] = ellipsefit[filt].int_err[indx] / \
               ellipsefit[filt].intens[indx] / np.log(10)
 
-            sbprofile['mu_{}'.format(filt)] = sbprofile[filt] + 2.5 * np.log10(area)
+            #sbprofile['mu_{}'.format(filt)] = sbprofile[filt] + 2.5 * np.log10(area)
 
             # Just for the plot use a minimum uncertainty
-            sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
+            #sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
 
-    sbprofile['gr'] = sbprofile['g'] - sbprofile['r']
-    sbprofile['rz'] = sbprofile['r'] - sbprofile['z']
-    sbprofile['gr_err'] = np.sqrt(sbprofile['g_err']**2 + sbprofile['r_err']**2)
-    sbprofile['rz_err'] = np.sqrt(sbprofile['r_err']**2 + sbprofile['z_err']**2)
+    sbprofile['gr'] = sbprofile['mu_g'] - sbprofile['mu_r']
+    sbprofile['rz'] = sbprofile['mu_r'] - sbprofile['mu_z']
+    sbprofile['gr_err'] = np.sqrt(sbprofile['mu_g_err']**2 + sbprofile['mu_r_err']**2)
+    sbprofile['rz_err'] = np.sqrt(sbprofile['mu_r_err']**2 + sbprofile['mu_z_err']**2)
 
     # Just for the plot use a minimum uncertainty
     sbprofile['gr_err'][sbprofile['gr_err'] < minerr] = minerr

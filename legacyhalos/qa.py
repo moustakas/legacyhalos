@@ -208,7 +208,7 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
         
 def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
                               minerr=0.02, redshift=None, pixscale=0.262,
-                              png=None):
+                              sersicfit=None, png=None):
     """Display the multi-band surface brightness profile.
 
     """
@@ -227,20 +227,31 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
         col = next(colors)
         ax1.fill_between(sbprofile['sma'], 
-            #sbprofile['mu_{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
-            #sbprofile['mu_{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
-            sbprofile['{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
-            sbprofile['{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
+            sbprofile['mu_{}'.format(filt)] - sbprofile['mu_{}_err'.format(filt)],
+            sbprofile['mu_{}'.format(filt)] + sbprofile['mu_{}_err'.format(filt)],
+            #sbprofile['{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
+            #sbprofile['{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
             label=r'${}$'.format(filt), color=col, alpha=0.75, edgecolor='k', lw=2)
         #if np.count_nonzero(bad) > 0:
         #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
         #                s=40, edgecolor='k', lw=2, alpha=0.75)
 
-        #ax1.axhline(y=ellipsefit['{}_sky'.format(filt)], color=col, ls='--')
         #ax1.axhline(y=ellipsefit['mu_{}_sky'.format(filt)], color=col, ls='--')
-        
-    ax1.set_ylabel('Brightness (AB mag)')
-    ax1.set_ylim(32, 20)
+        if filt == refband:
+            ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
+            ax1.axhline(y=ysky, color=col, ls='--')
+
+        # Overplot the best-fitting model.
+        if sersicfit:
+            from astropy.modeling.models import Sersic1D
+            rad = np.arange(0, sbprofile['sma'].max(), 0.1)
+            sbmodel = -2.5 * np.log10( Sersic1D.evaluate(
+                rad, sersicfit[filt].amplitude, sersicfit[filt].r_eff,
+                sersicfit[filt].n) )
+            ax1.plot(rad, sbmodel, lw=2, ls='-', alpha=1, color='k')
+            
+    ax1.set_ylabel(r'Surface Brightness (mag arcsec$^{-2}$)')
+    ax1.set_ylim(30, 18)
 
     #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
     #ax1.set_ylim(31.99, 18)
@@ -260,7 +271,7 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
                      edgecolor='k', lw=2)
 
     ax2.set_xlabel('Semimajor Axis ({})'.format(sbprofile['smaunit']), alpha=0.75)
-    ax2.set_ylabel('Color')
+    ax2.set_ylabel('Color (mag)')
     ax2.set_ylim(0, 2.4)
     ax2.legend(loc='upper left')
 

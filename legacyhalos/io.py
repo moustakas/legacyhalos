@@ -130,9 +130,10 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
 
     return cat
 
-def read_multiband(objid, objdir, band=('g', 'r', 'z')):
+def read_multiband(objid, objdir, band=('g', 'r', 'z'), pixscale=0.262):
     """Read the multi-band images, construct the residual image, and then create a
-    masked array from the corresponding inverse variances image.
+    masked array from the corresponding inverse variances image.  Finally,
+    convert to surface brightness by dividing by the pixel area.
 
     """
     import fitsio
@@ -153,7 +154,8 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z')):
         mask = np.logical_or( mask, ( model > (2 * sig1) )*1 )
         mask = binary_dilation(mask, iterations=5) * 1
 
-        data[filt] = image - model
+        data[filt] = (image - model) / pixscale**2 # [nanomaggies/arcsec**2]
+        
         data['{}_mask'.format(filt)] = mask == 0 # 1->bad
         data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)]) # 0->bad
         ma.set_fill_value(data['{}_masked'.format(filt)], 0)
