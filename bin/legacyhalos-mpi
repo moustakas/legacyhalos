@@ -15,6 +15,9 @@ legacyhalos-mpi --custom-coadds --clobber --ncpu 6
 
 python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
 
+
+/global/cscratch1/sd/desiproc/dr7_zpts/survey-ccds-dr7-uncut.fits
+
 """
 from __future__ import absolute_import, division, print_function
 
