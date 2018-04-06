@@ -11,7 +11,7 @@ unwise_tiles_touching_wcs to get the tiles overlapping, and then maybe
 get_unwise_tractor_image to read the data, and then maybe legacypipe/coadds.py :
 quick_coadds ?
 
-legacyhalos-mpi --custom-coadds --clobber --ncpu 6
+time legacyhalos-mpi --custom-coadds --clobber --ncpu 12
 
 python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
 
@@ -47,7 +47,10 @@ def init_survey(custom=False):
         cache_dir = os.path.join('/project/projectdirs/cosmo/data/legacysurvey/dr5')
         #cache_dir = os.path.join('/global/cscratch1/sd/dstn/dr6plus')
 
-    cache_dir = '/global/cscratch1/sd/dstn/dr5-new-sky/cache'
+    #cache_dir = '/global/cscratch1/sd/desiproc/dr5-calib'
+    #cache_dir = '/global/cscratch1/sd/desiproc/dr7/calib'
+    #cache_dir = '/global/cscratch1/sd/dstn/dr5-new-sky/cache'
+    cache_dir = '/global/project/projectdirs/cosmo/work/legacysurvey/dr5'
     #cache_dir = None
 
     return LegacySurveyData(cache_dir=cache_dir)
