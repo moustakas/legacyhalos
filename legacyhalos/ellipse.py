@@ -17,8 +17,8 @@ import legacyhalos.io
 
 PIXSCALE = 0.262
 
-def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refband='r',
-                         nowrite=False, verbose=False):
+def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
+                         refband='r', nowrite=False, verbose=False):
     """Ellipse-fit the multiband data.
 
     See
@@ -47,12 +47,12 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'), refb
 
     def _sky(data, ellipsefit, diameter=2.0):
         """Estimate the sky brightness in each band."""
-        area = diameter**2 # arcsec^2
+        #area = diameter**2 # arcsec^2
         for filt in band:
             img = data['{}_masked'.format(filt)]
-            ellipsefit['{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
-            ellipsefit['mu_{}_sky'.format(filt)] = ellipsefit['{}_sky'.format(filt)] + \
-              2.5 * np.log10(area)
+            #ellipsefit['{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
+            #ellipsefit['mu_{}_sky'.format(filt)] = ellipsefit['{}_sky'.format(filt)] # + 2.5 * np.log10(area)
+            ellipsefit['mu_{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
 
     _sky(data, ellipsefit)
 

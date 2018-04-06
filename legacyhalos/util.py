@@ -75,3 +75,48 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
 
     return radius
 
+def ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
+                      minerr=0.02, redshift=None, pixscale=0.262):
+    """Convert ellipse-fitting results to a magnitude, color, and surface brightness
+    profiles.
+
+    """
+    if redshift:
+        from astropy.cosmology import WMAP9 as cosmo
+        smascale = pixscale / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/pixel]
+        smaunit = 'kpc'
+    else:
+        smascale = 1.0
+        smaunit = 'pixels'
+
+    indx = np.ones(len(ellipsefit[refband]), dtype=bool)
+
+    sbprofile = dict()
+    sbprofile['smaunit'] = smaunit
+    sbprofile['sma'] = ellipsefit['r'].sma[indx] * smascale
+
+    with np.errstate(invalid='ignore'):
+        for filt in band:
+            #area = ellipsefit[filt].sarea[indx] * pixscale**2
+
+            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
+
+            #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
+            sbprofile['mu_{}_err'.format(filt)] = ellipsefit[filt].int_err[indx] / \
+              ellipsefit[filt].intens[indx] / np.log(10)
+
+            #sbprofile['mu_{}'.format(filt)] = sbprofile[filt] + 2.5 * np.log10(area)
+
+            # Just for the plot use a minimum uncertainty
+            #sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
+
+    sbprofile['gr'] = sbprofile['mu_g'] - sbprofile['mu_r']
+    sbprofile['rz'] = sbprofile['mu_r'] - sbprofile['mu_z']
+    sbprofile['gr_err'] = np.sqrt(sbprofile['mu_g_err']**2 + sbprofile['mu_r_err']**2)
+    sbprofile['rz_err'] = np.sqrt(sbprofile['mu_r_err']**2 + sbprofile['mu_z_err']**2)
+
+    # Just for the plot use a minimum uncertainty
+    sbprofile['gr_err'][sbprofile['gr_err'] < minerr] = minerr
+    sbprofile['rz_err'][sbprofile['rz_err'] < minerr] = minerr
+
+    return sbprofile
