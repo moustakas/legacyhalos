@@ -44,13 +44,13 @@ def init_survey(custom=False):
     if custom:
         cache_dir = None
     else:
-        cache_dir = os.path.join('/project/projectdirs/cosmo/data/legacysurvey/dr5')
+        #cache_dir = os.path.join('/project/projectdirs/cosmo/data/legacysurvey/dr5')
+        cache_dir = '/global/project/projectdirs/cosmo/work/legacysurvey/dr5'
         #cache_dir = os.path.join('/global/cscratch1/sd/dstn/dr6plus')
 
     #cache_dir = '/global/cscratch1/sd/desiproc/dr5-calib'
     #cache_dir = '/global/cscratch1/sd/desiproc/dr7/calib'
     #cache_dir = '/global/cscratch1/sd/dstn/dr5-new-sky/cache'
-    cache_dir = '/global/project/projectdirs/cosmo/work/legacysurvey/dr5'
     #cache_dir = None
 
     return LegacySurveyData(cache_dir=cache_dir)
@@ -129,7 +129,7 @@ def main():
 
     # Read the sample and initialize the LegacySurveyData() object.
     if rank == 0:
-        sample = read_sample(istart=0, iend=1)
+        sample = read_sample(istart=10, iend=11)
         if args.coadds or args.custom_coadds:
             survey = init_survey(custom=args.custom_coadds)
         else:
@@ -189,7 +189,7 @@ def main():
                     
         if args.coadds:
             from legacyhalos.coadds import legacyhalos_custom_coadds
-            print('Need to pass cache_dr to read the tractor catalogs from the DR5 release.')
+            print('Need to pass cache_dir to read the tractor catalogs from the DR5 release.')
             import pdb ; pdb.set_trace()
             with open(logfile, 'w') as log:
                 with redirect_stdout(log):

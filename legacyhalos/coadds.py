@@ -66,7 +66,7 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
               do_calibs=False, wise=False, depth_cut=False, splinesky=True,
               early_coadds=False, pixPsf=True, hybridPsf=True, ceres=False,
               rex=True, forceall=True, write_pickles=False, write_metrics=False,
-              gaia_stars=True, stages=['writecat'])
+              gaia_stars=False, stages=['writecat'])
 
     # Move (rename) files into the desired output directory and clean up.
     brickname = custom_brickname(galaxycat, prefix='custom-')
