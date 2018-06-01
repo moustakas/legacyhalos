@@ -119,4 +119,14 @@ def ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
     sbprofile['gr_err'][sbprofile['gr_err'] < minerr] = minerr
     sbprofile['rz_err'][sbprofile['rz_err'] < minerr] = minerr
 
+    # Add the effective wavelength of each bandpass, although this needs to take
+    # into account the DECaLS vs BASS/MzLS filter curves.
+    from speclite import filters
+    names = ('decam2014-g', 'decam2014-r', 'decam2014-z', 'wise2010-W1', 'wise2010-W2')
+    filt = filters.load_filters(names)
+    for ii, band in ('g', 'r', 'z', 'W1', 'W2'):
+        sbprofile.append({
+            '{}_wave_eff'.format(band): filt.effective_wavelengths[ii].value
+            })
+
     return sbprofile

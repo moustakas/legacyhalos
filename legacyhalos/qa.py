@@ -248,7 +248,7 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
             sbmodel = -2.5 * np.log10( Sersic1D.evaluate(
                 rad, sersicfit[filt].amplitude, sersicfit[filt].r_eff,
                 sersicfit[filt].n) )
-            ax1.plot(rad, sbmodel, lw=2, ls='-', alpha=1, color='k')
+            ax1.plot(rad, sbmodel, lw=2, ls='--', alpha=1, color=col)
             
     ax1.set_ylabel(r'Surface Brightness (mag arcsec$^{-2}$)')
     ax1.set_ylim(30, 18)
