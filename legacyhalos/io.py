@@ -127,6 +127,7 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     catfile = os.path.join(lsdir, 'legacyhalos-parent{}.fits'.format(suffix))
     
     cat = fits_table(catfile, ext=extname, columns=columns)
+    print('Read {} objects from {}'.format(len(cat), catfile))
 
     return cat
 
@@ -162,8 +163,10 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), pixscale=0.262):
 
     return data
 
-def read_sample(istart=None, iend=None):
+def read_sample(first=None, last=None):
     """Read the sample.
+
+    Temporary hack to add the DR to the catalog.
 
     """
     import legacyhalos.io
@@ -180,12 +183,15 @@ def read_sample(istart=None, iend=None):
 
     # sample[4] - timed out
 
-    if istart is None:
-        istart = 0
-    if iend is None:
-        istart = len(sample)
+    if first is None:
+        first = 0
+    if last is None:
+        last = len(sample)
+    elif last == first:
+        last = last + 1
 
-    sample = sample[istart:iend]
-    print('Read {} galaxies'.format(len(sample)))
+    sample = sample[first:last]
+    print('Sample contains {} objects with first, last indices {}, {}'.format(
+        len(sample), first, last - 1))
 
     return sample

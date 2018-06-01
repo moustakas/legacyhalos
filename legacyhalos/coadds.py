@@ -66,7 +66,7 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
               do_calibs=False, wise=False, depth_cut=False, splinesky=True,
               early_coadds=False, pixPsf=True, hybridPsf=True, ceres=False,
               rex=True, forceall=True, write_pickles=False, write_metrics=False,
-              gaia_stars=False, stages=['writecat'])
+              gaia_stars=True, stages=['writecat'])
 
     # Move (rename) files into the desired output directory and clean up.
     brickname = custom_brickname(galaxycat, prefix='custom-')
@@ -78,7 +78,7 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
     newfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(objid))
     shutil.copy(oldfile, newfile)
 
-    if False:
+    if True:
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor'))
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
@@ -213,7 +213,7 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
             newfile = os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, suffix, band))
             shutil.copy(oldfile, newfile)
 
-    if False:
+    if True:
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
     
     # Build png postage stamps of the coadds.
