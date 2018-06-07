@@ -127,7 +127,7 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     catfile = os.path.join(lsdir, 'legacyhalos-parent{}.fits'.format(suffix))
     
     cat = fits_table(catfile, ext=extname, columns=columns)
-    print('Read {} objects from {}'.format(len(cat), catfile))
+    print('Read {} objects from {} [{}]'.format(len(cat), catfile, extname))
 
     return cat
 
@@ -178,10 +178,12 @@ def read_sample(first=None, last=None):
         
     sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=cols)
     rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
-                                     columns=('mem_match_id', 'z', 'r_lambda'))
+                                     columns=('mem_match_id', 'z', 'r_lambda',
+                                              'lambda_chisq'))
+    sdss = legacyhalos.io.read_catalog(extname='SDSSPHOT', upenn=True,
+                                       columns=np.atleast_1d('objid'))
     sample.add_columns_from(rm)
-
-    # sample[4] - timed out
+    sample.add_columns_from(sdss)
 
     if first is None:
         first = 0

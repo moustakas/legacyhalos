@@ -154,7 +154,7 @@ def _javastring():
     return js
         
 def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r', 
-              dr='dr5', makeplots=True, clobber=False):
+              dr='dr5', first=None, last=None, makeplots=True, clobber=False):
     """Make the HTML pages.
 
     """
@@ -164,19 +164,7 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
     if htmldir is None:
         htmldir = legacyhalos.io.html_dir()
 
-    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=('ra', 'dec'))
-    rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True, columns=(
-        'mem_match_id', 'z', 'r_lambda', 'lambda_chisq'))
-    sdss = legacyhalos.io.read_catalog(extname='SDSSPHOT', upenn=True, columns=np.atleast_1d('objid'))
-
-    sample.add_columns_from(rm)
-    sample.add_columns_from(sdss)
-
-    #sample = sample[0:5]
-    sample = sample[0:20]
-    #sample = sample[0:4]
-    print('Read {} galaxies.'.format(len(sample)))
-
+    sample = legacyhalos.io.read_sample(first=first, last=last)
     objid, objdir = legacyhalos.io.get_objid(sample)
 
     # Write the last-updated date to a webpage.
@@ -277,7 +265,8 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
     prevobjid = objid[-1]
 
     # Make a separate HTML page for each object.
-    for ii, (gal, objid1, objdir1) in enumerate( zip(sample, np.atleast_1d(objid), np.atleast_1d(objdir)) ):
+    for ii, (gal, objid1, objdir1) in enumerate( zip(sample, np.atleast_1d(objid),
+                                                     np.atleast_1d(objdir)) ):
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid1))
         if not os.path.exists(htmlobjdir):
             os.makedirs(htmlobjdir)

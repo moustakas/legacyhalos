@@ -3,20 +3,22 @@
 """MPI wrapper for the various computationally intensive legacyhalos analysis
 steps.
 
-/global/cscratch1/sd/desiproc/dr5-new
-/global/cscratch1/sd/dstn/dr6plus
-
 For unWISE coadds, in tractor/wise/unwise.py, you'll probably have to use
 unwise_tiles_touching_wcs to get the tiles overlapping, and then maybe
 get_unwise_tractor_image to read the data, and then maybe legacypipe/coadds.py :
 quick_coadds ?
 
-time legacyhalos-mpi --custom-coadds --clobber --ncpu 12
-
 python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
 
+time legacyhalos-mpi --first 0 --last 0 --custom-coadds --ncpu 4 --dry-run --debug
 
-/global/cscratch1/sd/desiproc/dr7_zpts/survey-ccds-dr7-uncut.fits
+So if I wanted 24 MPI tasks and 8 cores per MPI task for
+multiprocessing, on cori I would do
+  srun -N 6 -n 24 -c 8
+and on edison
+  srun -N 8 -n 24 -c 8
+
+where N = 8 * 24 / 32 (e.g., on cori).
 
 """
 from __future__ import absolute_import, division, print_function
@@ -157,6 +159,8 @@ def main():
         sample = comm.bcast(sample, root=0)
         survey = comm.bcast(survey, root=0)
 
+    #objid, objdir = legacyhalos.io.get_objid(sample) 
+
     # Determine how many more objects we need to analyze and divide them
     # across ranks.
     groups, suffix = [], ''
@@ -174,7 +178,11 @@ def main():
         groups = comm.bcast(groups, root=0)
         suffix = comm.bcast(suffix, root=0)
 
-    ntodo = len(np.hstack(np.atleast_1d(groups)))
+    if len(groups) == 0:
+        ntodo = 0
+    else:
+        ntodo = len(np.hstack(np.atleast_1d(groups)))
+        
     if rank == 0:
         if ntodo == 0:
             print('{} for all {} galaxies are complete!'.format(
@@ -185,6 +193,9 @@ def main():
                 suffix.upper(), ntodo, len(sample), len(groups), size))
 
     if len(groups[rank]) == 0 or args.dry_run:
+        if len(groups[rank]) > 0 and args.debug:
+            objid, objdir = legacyhalos.io.get_objid(sample)
+            [print('  {}'.format(dd)) for dd in np.atleast_1d(objdir)]
         return
     #_catchup(comm, size)
 
@@ -199,7 +210,7 @@ def main():
 
         if not args.debug:
             logfile = os.path.join(objdir, '{}-{}.log'.format(objid, suffix))
-            #print('Logging to {} '.format(logfile))
+            print('Logging to {} '.format(logfile))
 
         t0 = time.time()
         if args.custom_coadds:
@@ -263,7 +274,7 @@ def main():
             ntodo, suffix.upper(), time.asctime(), (time.time() - t0) / 60 ))
         if args.custom_coadds:
             groups = missing_coadds(sample, size=size, clobber=args.clobber)
-            
+
         stilltodo = len(np.hstack(np.atleast_1d(groups)))
         print('{} left to do: {} / {}.'.format(suffix.upper(), stilltodo, ntodo))
         #pdb.set_trace()
