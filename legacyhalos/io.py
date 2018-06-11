@@ -26,7 +26,7 @@ def get_objid(cat, analysis_dir=None):
         analysis_dir = os.path.join(legacyhalos_dir(), 'analysis')
 
     objid, objdir = list(), list()
-    for ii, memid in enumerate(np.atleast_1d(cat.mem_match_id)):
+    for ii, memid in enumerate(np.atleast_1d(cat['mem_match_id'])):
         objid.append('{:07d}'.format(memid))
         objdir.append(os.path.join(analysis_dir, objid[ii]))
         if not os.path.isdir(objdir[ii]):
