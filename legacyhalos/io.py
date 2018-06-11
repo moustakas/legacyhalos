@@ -194,6 +194,6 @@ def read_sample(first=None, last=None):
 
     sample = sample[first:last]
     print('Sample contains {} objects with first, last indices {}, {}'.format(
-        len(sample), first, last - 1))
+        len(sample), first, last))
 
     return sample
