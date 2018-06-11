@@ -1,39 +1,25 @@
 #! /bin/bash
 
-#SBATCH -p debug
-#SBATCH -N 10
-#SBATCH -n 30
-#SBATCH -c 16
-#SBATCH -L cscratch1,project
-#SBATCH -C haswell
-#SBATCH -t 00:30:00
+#SBATCH -A cosmo
+#SBATCH -p regular
+#SBATCH -N 3
+#SBATCH -n 18
+#SBATCH -L SCRATCH,project
+#SBATCH -t 02:00:00
 #SBATCH -o legacyhalos-coadds.log.%j
 
-export OMP_NUM_THREADS=1
-export MPICH_GNI_FORK_MODE=1
-export KMP_AFFINITY=disabled
+# #SBATCH -C haswell
 
-dr=dr5
-desiconda_version=20180102-1.2.2-img
+# sbatch ~/scratch/repos/legacyhalos/bin/legacyhalos-coadds.slurm
 
-module use /global/common/software/desi/$NERSC_HOST/desiconda/$desiconda_version/modulefiles
-module load desiconda
+export IMPY_DIR=$HOME/repos/git/impy
+source $IMPY_DIR/bin/legacyhalos-env-nersc
 
-export LEGACYHALOS_DIR=${CSCRATCH}/legacyhalos
-export LEGACYPIPE_DIR=${CSCRATCH}/repos/legacypipe
-export LEGACYHALOS_CODE_DIR=${CSCRATCH}/repos/legacyhalos
+time srun -N 3 -n 18 -c 4 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 19 \
+    --custom-coadds --ncpu 4 --mpi --clobber
 
-export PATH=$LEGACYPIPE_DIR/bin:${PATH}
-export PATH=$LEGACYHALOS_CODE_DIR/bin:${PATH}
+#time srun -N 3 -n 20 -c 4 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 19 \
+#    --custom-coadds --ncpu 4 --mpi
 
-export PYTHONPATH=$LEGACYPIPE_DIR/py:${PYTHONPATH}
-export PYTHONPATH=$LEGACYHALOS_CODE_DIR:${PYTHONPATH}
-
-export LEGACY_SURVEY_DIR=/global/cscratch1/sd/dstn/$dr
-
-module use $LEGACYPIPE_DIR/bin/modulefiles/cori
-module load unwise_coadds
-module load unwise_coadds_timeresolved
-module load dust
-
-time srun --cpu_bind=cores -N 3 -n 3 mpi-legacyhalos-coadds -v
+#time srun -N 3 -n 24 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 \
+#    --custom-coadds --ncpu 4 --mpi

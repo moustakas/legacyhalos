@@ -393,12 +393,13 @@ def sample_trends(sample, htmldir, analysis_dir=None, refband='r',
         smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal.z).value # [kpc/pixel]
 
         ellipsefit = read_ellipsefit(objid, objdir)
-        good = (ellipsefit[refband].stop_code < 4)
+        if len(ellipsefit) > 0:
+            good = (ellipsefit[refband].stop_code < 4)
 
-        ax1.fill_between(ellipsefit[refband].sma[good] * smascale, 
-                         ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
-                         ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good],
-                         alpha=0.9, color='gray')
+            ax1.fill_between(ellipsefit[refband].sma[good] * smascale, 
+                             ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
+                             ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good],
+                             alpha=0.9, color='gray')
 
     ax1.grid('on')
     ax1.set_ylim(0, 0.5)

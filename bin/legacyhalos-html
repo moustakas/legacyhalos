@@ -5,13 +5,23 @@ from __future__ import print_function, division
 import argparse
 from legacyhalos.html import make_html
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--htmldir', type=str, default=None, help='Output HTML directory (e.g. /project/projectdirs/desi/www/users/USERNAME/ will appear at http://portal.nersc.gov/project/desi/users/USERNAME)')
-parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the plots.')
-parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
+def main():
 
-args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--htmldir', type=str, default='/project/projectdirs/cosmo/www/temp/ioannis/legacyhalos', help="""Output HTML directory (e.g. /project/projectdirs/desi/www/users/USERNAME/
+    will appear at http://portal.nersc.gov/project/desi/users/USERNAME)""")
+    
+    parser.add_argument('--first', type=int, help='Index of first object to process.')
+    parser.add_argument('--last', type=int, help='Index of last object to process.')
 
-make_html(htmldir=args.htmldir, clobber=args.clobber, makeplots=not args.nomakeplots)
-print('HTML pages written to {}'.format(args.htmldir))
+    parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the plots.')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
 
+    args = parser.parse_args()
+
+    make_html(htmldir=args.htmldir, clobber=args.clobber, makeplots=not args.nomakeplots,
+              first=args.first, last=args.last)
+    print('HTML pages written to {}'.format(args.htmldir))
+
+if __name__ == '__main__':
+    main()
