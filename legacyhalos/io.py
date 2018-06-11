@@ -192,7 +192,7 @@ def read_sample(first=None, last=None):
     elif last == first:
         last = last + 1
 
-    sample = sample[first:last]
+    sample = sample[first:last+1]
     print('Sample contains {} objects with first, last indices {}, {}'.format(
         len(sample), first, last))
 
