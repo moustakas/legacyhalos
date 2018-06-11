@@ -115,7 +115,8 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
       upenn - Restrict to the UPenn-matched catalogs.
 
     """
-    from astrometry.util.fits import fits_table
+    import fitsio
+    from astropy.table import Table
 
     suffix = ''
     if isedfit:
@@ -126,7 +127,7 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     lsdir = legacyhalos_dir()
     catfile = os.path.join(lsdir, 'legacyhalos-parent{}.fits'.format(suffix))
     
-    cat = fits_table(catfile, ext=extname, columns=columns)
+    cat = Table(fitsio.read(catfile, ext=extname, columns=columns, lower=True))
     print('Read {} objects from {} [{}]'.format(len(cat), catfile, extname))
 
     return cat
@@ -169,8 +170,8 @@ def read_sample(first=None, last=None):
     Temporary hack to add the DR to the catalog.
 
     """
+    from astropy.table import hstack
     import legacyhalos.io
-    from astrometry.util.fits import merge_tables
 
     cols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
             'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
@@ -182,15 +183,15 @@ def read_sample(first=None, last=None):
                                               'lambda_chisq'))
     sdss = legacyhalos.io.read_catalog(extname='SDSSPHOT', upenn=True,
                                        columns=np.atleast_1d('objid'))
-    sample.add_columns_from(rm)
-    sample.add_columns_from(sdss)
+    sample = hstack( (sample, rm) )
+    sample = hstack( (sample, sdss) )
 
     if first is None:
         first = 0
     if last is None:
         last = len(sample)
     elif last == first:
-        last = last + 1
+        last = last
 
     sample = sample[first:last+1]
     print('Sample contains {} objects with first, last indices {}, {}'.format(
