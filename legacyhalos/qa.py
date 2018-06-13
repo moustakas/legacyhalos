@@ -390,7 +390,7 @@ def sample_trends(sample, htmldir, analysis_dir=None, refband='r',
     fig, ax1 = plt.subplots()
     for gal in sample:
         objid, objdir = get_objid(gal, analysis_dir=analysis_dir)
-        smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal.z).value # [kpc/pixel]
+        smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal['z']).value # [kpc/pixel]
 
         ellipsefit = read_ellipsefit(objid, objdir)
         if len(ellipsefit) > 0:

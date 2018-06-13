@@ -8,7 +8,7 @@ Code to read and write the various legacyhalos files.
 from __future__ import absolute_import, division, print_function
 
 import os
-import pickle
+import pickle, pdb
 import numpy as np
 import numpy.ma as ma
 from glob import glob
@@ -183,6 +183,8 @@ def read_sample(first=None, last=None):
                                               'lambda_chisq'))
     sdss = legacyhalos.io.read_catalog(extname='SDSSPHOT', upenn=True,
                                        columns=np.atleast_1d('objid'))
+    sdss.rename_column('objid', 'sdss_objid')
+    print('Renaming column objid-->sdss_objid in [SDSSPHOT] extension.')
     sample = hstack( (sample, rm) )
     sample = hstack( (sample, sdss) )
 

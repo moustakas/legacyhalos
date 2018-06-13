@@ -1,6 +1,6 @@
 from __future__ import (absolute_import, division)
 
-import os, subprocess
+import os, subprocess, pdb
 import numpy as np
 
 import seaborn as sns
@@ -114,11 +114,11 @@ def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber)
 
         # Build the MGE plots.
-        qa_mge_results(objid, objdir, htmlobjdir, redshift=gal.z,
+        qa_mge_results(objid, objdir, htmlobjdir, redshift=gal['z'],
                        refband='r', band=band, clobber=clobber)
 
         # Build the ellipse plots.
-        qa_ellipse_results(objid, objdir, htmlobjdir, redshift=gal.z,
+        qa_ellipse_results(objid, objdir, htmlobjdir, redshift=gal['z'],
                            refband='r', band=band, clobber=clobber)
 
 
@@ -173,19 +173,17 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
     # Get the viewer link
     def _viewer_link(gal, dr):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_100kpc(redshift=gal.z, pixscale=PIXSCALE) # [pixels]
+        width = 2 * cutout_radius_100kpc(redshift=gal['z'], pixscale=PIXSCALE) # [pixels]
         if width > 400:
             zoom = 14
         else:
             zoom = 15
         viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=decals-{}'.format(
-            baseurl, gal.ra, gal.dec, zoom, dr)
+            baseurl, gal['ra'], gal['dec'], zoom, dr)
         return viewer
 
     def _skyserver_link(gal):
-        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal.objid)
-
-    #import pdb ; pdb.set_trace()
+        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['sdss_objid'])
 
     trendshtml = 'trends.html'
     homehtml = 'index.html'
@@ -224,10 +222,10 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<tr>\n')
             html.write('<td>{:g}</td>\n'.format(ii + 1))
             html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile, objid1))
-            html.write('<td>{:.7f}</td>\n'.format(gal.ra))
-            html.write('<td>{:.7f}</td>\n'.format(gal.dec))
-            html.write('<td>{:.5f}</td>\n'.format(gal.z))
-            html.write('<td>{:.4f}</td>\n'.format(gal.lambda_chisq))
+            html.write('<td>{:.7f}</td>\n'.format(gal['ra']))
+            html.write('<td>{:.7f}</td>\n'.format(gal['dec']))
+            html.write('<td>{:.5f}</td>\n'.format(gal['z']))
+            html.write('<td>{:.4f}</td>\n'.format(gal['lambda_chisq']))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
@@ -307,10 +305,10 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             html.write('<tr>\n')
             html.write('<td>{:g}</td>\n'.format(ii + 1))
             html.write('<td>{}</td>\n'.format(objid1))
-            html.write('<td>{:.7f}</td>\n'.format(gal.ra))
-            html.write('<td>{:.7f}</td>\n'.format(gal.dec))
-            html.write('<td>{:.5f}</td>\n'.format(gal.z))
-            html.write('<td>{:.4f}</td>\n'.format(gal.lambda_chisq))
+            html.write('<td>{:.7f}</td>\n'.format(gal['ra']))
+            html.write('<td>{:.7f}</td>\n'.format(gal['dec']))
+            html.write('<td>{:.5f}</td>\n'.format(gal['z']))
+            html.write('<td>{:.4f}</td>\n'.format(gal['lambda_chisq']))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
