@@ -23,8 +23,8 @@ import numpy as np
 
 def custom_brickname(galaxycat, prefix='custom-'):
     brickname = 'custom-{:06d}{}{:05d}'.format(
-        int(1000*galaxycat.ra), 'm' if galaxycat.dec < 0 else 'p',
-        int(1000*np.abs(galaxycat.dec)))
+        int(1000*galaxycat['ra']), 'm' if galaxycat['dec'] < 0 else 'p',
+        int(1000*np.abs(galaxycat['dec'])))
     return brickname
 
 def cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
@@ -61,7 +61,7 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
     """
     from legacypipe.runbrick import run_brick
 
-    run_brick(None, survey, radec=(galaxycat.ra, galaxycat.dec), pixscale=pixscale,
+    run_brick(None, survey, radec=(galaxycat['ra'], galaxycat['dec']), pixscale=pixscale,
               width=2*radius, height=2*radius, threads=ncpu, normalizePsf=True,
               do_calibs=False, wise=False, depth_cut=False, splinesky=True,
               early_coadds=False, pixPsf=True, hybridPsf=True, ceres=False,
@@ -97,15 +97,15 @@ def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100,
     from legacypipe.runbrick import stage_tims
 
     if custom:
-        P = stage_tims(ra=galaxycat.ra, dec=galaxycat.dec, brickname=brickname,
+        P = stage_tims(ra=galaxycat['ra'], dec=galaxycat['dec'], brickname=brickname,
                        survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
                        mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                        depth_cut=False, apodize=False, do_calibs=False, rex=True, 
                        splinesky=True)
     else:
-        bbox = [galaxycat.bx-radius, galaxycat.bx+radius,
-                galaxycat.by-radius, galaxycat.by+radius]
-        P = stage_tims(brickname=galaxycat.brickname, survey=survey, target_extent=bbox,
+        bbox = [galaxycat['bx']-radius, galaxycat['bx']+radius,
+                galaxycat['by']-radius, galaxycat['by']+radius]
+        P = stage_tims(brickname=galaxycat['brickname'], survey=survey, target_extent=bbox,
                        pixscale=pixscale, mp=mp, normalizePsf=True, hybridPsf=True,
                        depth_cut=False, apodize=False, do_calibs=False,
                        splinesky=True)
@@ -129,7 +129,7 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None,
 
         # Find and remove the central.  For some reason, match_radec
         # occassionally returns two matches, even though nearest=True.
-        m1, m2, d12 = match_radec(cat.ra, cat.dec, galaxycat.ra, galaxycat.dec,
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, galaxycat['ra'], galaxycat['dec'],
                                   1/3600.0, nearest=True)
         if len(d12) == 0:
             print('No matching central found -- definitely a problem.')
@@ -142,7 +142,7 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None,
         cat.cut( ~np.in1d(cat.objid, m1) )
     else:
         # Read the full Tractor catalog.
-        fn = survey.find_file('tractor', brick=galaxycat.brickname)
+        fn = survey.find_file('tractor', brick=galaxycat['brickname'])
         cat = fits_table(fn)
         if verbose:
             print('Read {} sources from {}'.format(len(cat), fn))
@@ -155,9 +155,9 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None,
             print('Cut to {} sources within our box.'.format(len(cat)))
 
         # Remove the central galaxy.
-        cat.cut( np.flatnonzero(cat.objid != galaxycat.objid) )
+        cat.cut( np.flatnonzero(cat.objid != galaxycat['objid']) )
         if verbose:
-            print('Removed central galaxy with objid = {}'.format(galaxycat.objid))
+            print('Removed central galaxy with objid = {}'.format(galaxycat['objid']))
         
     return cat
 
@@ -194,7 +194,7 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
     from legacypipe.survey import get_rgb, imsave_jpeg
 
     if brickname is None:
-        brickname = galaxycat.brickname
+        brickname = galaxycat['brickname']
 
     if verbose:
         print('Producing coadds...')
@@ -246,10 +246,10 @@ def legacyhalos_coadds(galaxycat, survey=None, objid=None, objdir=None,
 
     # Step 0 - Get the cutout radius.
     if cluster_radius:
-        radius = cutout_radius_cluster(redshift=galaxycat.z, pixscale=pixscale,
-                                        cluster_radius=galaxycat.r_lambda)
+        radius = cutout_radius_cluster(redshift=galaxycat['z'], pixscale=pixscale,
+                                        cluster_radius=galaxycat['r_lambda'])
     else:
-        radius = cutout_radius_100kpc(redshift=galaxycat.z, pixscale=pixscale)
+        radius = cutout_radius_100kpc(redshift=galaxycat['z'], pixscale=pixscale)
 
     # Step 1 - Set up the first stage of the pipeline.
     P = _coadds_stage_tims(galaxycat, survey=survey, mp=mp, radius=radius,
@@ -284,10 +284,10 @@ def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
 
     # Step 0 - Get the cutout radius.
     if cluster_radius:
-        radius = cutout_radius_cluster(redshift=galaxycat.z, pixscale=pixscale,
-                                       cluster_radius=galaxycat.r_lambda)
+        radius = cutout_radius_cluster(redshift=galaxycat['z'], pixscale=pixscale,
+                                       cluster_radius=galaxycat['r_lambda'])
     else:
-        radius = cutout_radius_100kpc(redshift=galaxycat.z, pixscale=pixscale)
+        radius = cutout_radius_100kpc(redshift=galaxycat['z'], pixscale=pixscale)
 
     # Step 1 - Run legacypipe to generate a custom "brick" and tractor catalog
     # centered on the central.
