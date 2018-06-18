@@ -13,26 +13,30 @@ import numpy as np
 import numpy.ma as ma
 from glob import glob
 
-def get_objid(cat, analysis_dir=None):
+def get_objid(cat, analysisdir=None):
     """Build a unique object ID based on the redmapper mem_match_id.
 
     Args:
       cat - must be a redmapper catalog or a catalog that has MEM_MATCH_ID.
 
     """
-    ngal = len(cat)
+    if analysisdir is None:
+        analysisdir = analysis_dir()
 
-    if analysis_dir is None:
-        analysis_dir = os.path.join(legacyhalos_dir(), 'analysis')
+    ngal = len(np.atleast_1d(cat))
+    objid = np.zeros(ngal, dtype='U7')
+    objdir = np.zeros(ngal, dtype='U{}'.format(len(analysisdir)+1+7))
 
-    objid, objdir = list(), list()
+    #objid, objdir = list(), list()
     for ii, memid in enumerate(np.atleast_1d(cat['mem_match_id'])):
-        objid.append('{:07d}'.format(memid))
-        objdir.append(os.path.join(analysis_dir, objid[ii]))
+        objid[ii] = '{:07d}'.format(memid)
+        objdir[ii] = os.path.join(analysisdir, objid[ii])
+        #objid.append('{:07d}'.format(memid))
+        #objdir.append(os.path.join(analysis_dir, objid[ii]))
         if not os.path.isdir(objdir[ii]):
             os.makedirs(objdir[ii], exist_ok=True)
-    objid = np.array(objid)
-    objdir = np.array(objdir)
+    #objid = np.array(objid)
+    #objdir = np.array(objdir)
 
     if ngal == 1:
         objid = objid[0]
