@@ -93,7 +93,7 @@ def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
             display_mge_sbprofile(mgefit, band=band, refband=refband, redshift=redshift,
                                   pixscale=pixscale, png=sbprofilefile)
         
-def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
+def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False):
     """Make QA plots.
 
@@ -101,10 +101,10 @@ def make_plots(sample, analysis_dir=None, htmldir='.', refband='r',
     from legacyhalos.io import get_objid
     from legacyhalos.qa import sample_trends
 
-    sample_trends(sample, htmldir, analysis_dir=analysis_dir, refband=refband)
+    sample_trends(sample, htmldir, analysisdir=analysisdir, refband=refband)
 
     for gal in sample:
-        objid, objdir = get_objid(gal, analysis_dir=analysis_dir)
+        objid, objdir = get_objid(gal, analysisdir=analysisdir)
 
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid))
         if not os.path.isdir(htmlobjdir):
@@ -153,7 +153,7 @@ def _javastring():
 
     return js
         
-def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r', 
+def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r', 
               dr='dr5', first=None, last=None, makeplots=True, clobber=False):
     """Make the HTML pages.
 
@@ -361,5 +361,5 @@ def make_html(analysis_dir=None, htmldir=None, band=('g', 'r', 'z'), refband='r'
             nextobjid = objid[0] # wrap around
 
     if makeplots:
-        make_plots(sample, analysis_dir=analysis_dir, htmldir=htmldir, refband=refband,
+        make_plots(sample, analysisdir=analysisdir, htmldir=htmldir, refband=refband,
                    band=band, clobber=clobber)

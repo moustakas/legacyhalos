@@ -373,7 +373,7 @@ def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', redshift=No
     else:
         plt.show()
         
-def sample_trends(sample, htmldir, analysis_dir=None, refband='r',
+def sample_trends(sample, htmldir, analysisdir=None, refband='r',
                   pixscale=PIXSCALE):
     """Trends with the whole sample."""
     from astropy.cosmology import WMAP9 as cosmo
@@ -389,7 +389,7 @@ def sample_trends(sample, htmldir, analysis_dir=None, refband='r',
     
     fig, ax1 = plt.subplots()
     for gal in sample:
-        objid, objdir = get_objid(gal, analysis_dir=analysis_dir)
+        objid, objdir = get_objid(gal, analysisdir=analysisdir)
         smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal['z']).value # [kpc/pixel]
 
         ellipsefit = read_ellipsefit(objid, objdir)
