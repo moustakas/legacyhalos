@@ -57,8 +57,11 @@ def analysis_dir():
     return adir
 
 def html_dir():
-    htmldir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo',
-                           'www', 'temp', 'ioannis', 'html')
+    if 'NERSC_HOST' in os.environ:
+        htmldir = '/global/project/projectdirs/cosmo/www/temp/ioannis/legacyhalos'
+    else:
+        htmldir = os.path.join(legacyhalos_dir(), 'html')
+
     if not os.path.isdir(htmldir):
         os.makedirs(htmldir, exist_ok=True)
     return htmldir

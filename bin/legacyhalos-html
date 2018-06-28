@@ -1,16 +1,20 @@
 #!/usr/bin/env python
 
+"""
+legacyhalos-html --clobber
+
+"""
+
 from __future__ import print_function, division
 
-import argparse
+import os, argparse
 from legacyhalos.html import make_html
 
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--htmldir', type=str, default='/project/projectdirs/cosmo/www/temp/ioannis/legacyhalos', help="""Output HTML directory (e.g. /project/projectdirs/desi/www/users/USERNAME/
-    will appear at http://portal.nersc.gov/project/desi/users/USERNAME)""")
-    
+    parser.add_argument('--htmldir', type=str, default=None)
+
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
 
@@ -19,9 +23,18 @@ def main():
 
     args = parser.parse_args()
 
+    if args.htmldir is None:
+        from legacyhalos.io import html_dir
+        args.htmldir = html_dir()
+
     make_html(htmldir=args.htmldir, clobber=args.clobber, makeplots=not args.nomakeplots,
               first=args.first, last=args.last)
     print('HTML pages written to {}'.format(args.htmldir))
+
+    if 'NERSC_HOST' in os.environ:
+        print('Execute the following command to publish the webpage.')
+        print("""  rsync -auvP --delete ~/scratch/legacyhalos/html/*
+          /project/projectdirs/cosmo/www/temp/ioannis/legacyhalos""")
 
 if __name__ == '__main__':
     main()
