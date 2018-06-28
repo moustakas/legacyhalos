@@ -94,7 +94,7 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
         ax1.get_xaxis().set_visible(False)
         ax1.get_yaxis().set_visible(False)
         ax1.axis('off')
-        ax1.set_adjustable('box-forced')
+        #ax1.set_adjustable('box-forced')
         ax1.autoscale(False)
 
     fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.02, right=0.98)
@@ -401,7 +401,7 @@ def sample_trends(sample, htmldir, analysisdir=None, refband='r',
                              ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good],
                              alpha=0.9, color='gray')
 
-    ax1.grid('on')
+    ax1.grid()
     ax1.set_ylim(0, 0.5)
     ax1.set_ylabel('Ellipticity')
     ax1.set_xlabel('Semimajor Axis (kpc)')

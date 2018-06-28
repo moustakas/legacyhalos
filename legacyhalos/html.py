@@ -114,8 +114,8 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber)
 
         # Build the MGE plots.
-        qa_mge_results(objid, objdir, htmlobjdir, redshift=gal['z'],
-                       refband='r', band=band, clobber=clobber)
+        #qa_mge_results(objid, objdir, htmlobjdir, redshift=gal['z'],
+        #               refband='r', band=band, clobber=clobber)
 
         # Build the ellipse plots.
         qa_ellipse_results(objid, objdir, htmlobjdir, redshift=gal['z'],
@@ -338,16 +338,17 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             
             html.write('<br />\n')
 
-            html.write('<h2>Multi-Gaussian Expansion Fitting</h2>\n')
-            html.write('<p>The figures below are a work in progress.</p>\n')
-            html.write('<table width="90%">\n')
-            html.write('<tr>\n')
-            html.write('<td><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
-            html.write('</tr>\n')
-            html.write('<tr>\n')
-            html.write('<td><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" height="auto" width="50%"></a></td>\n'.format(objid1, objid1))
-            html.write('</tr>\n')
-            html.write('</table>\n')
+            if False:
+                html.write('<h2>Multi-Gaussian Expansion Fitting</h2>\n')
+                html.write('<p>The figures below are a work in progress.</p>\n')
+                html.write('<table width="90%">\n')
+                html.write('<tr>\n')
+                html.write('<td><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+                html.write('</tr>\n')
+                html.write('<tr>\n')
+                html.write('<td><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" height="auto" width="50%"></a></td>\n'.format(objid1, objid1))
+                html.write('</tr>\n')
+                html.write('</table>\n')
             
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
             html.write('</html></body>\n')
