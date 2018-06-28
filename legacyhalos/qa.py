@@ -7,7 +7,7 @@ Code to do produce various QA (quality assurance) plots.
 """
 from __future__ import absolute_import, division, print_function
 
-import os
+import os, pdb
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -72,18 +72,19 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
             ellaper.plot(color='k', lw=1, ax=ax1)
 
         if ellipsefit:
-            if len(ellipsefit[filt]) > 0:
-                if indx is None:
-                    indx = np.ones(len(ellipsefit[filt]), dtype=bool)
+            if ellipsefit['success']:
+                if len(ellipsefit[filt]) > 0:
+                    if indx is None:
+                        indx = np.ones(len(ellipsefit[filt]), dtype=bool)
 
-                nfit = len(indx) # len(ellipsefit[filt])
-                nplot = np.rint(0.5*nfit).astype('int')
-                
-                smas = np.linspace(0, ellipsefit[filt].sma[indx].max(), nplot)
-                for sma in smas:
-                    efit = ellipsefit[filt].get_closest(sma)
-                    x, y, = efit.sampled_coordinates()
-                    ax1.plot(x, y, color='k', alpha=0.75)
+                    nfit = len(indx) # len(ellipsefit[filt])
+                    nplot = np.rint(0.5*nfit).astype('int')
+
+                    smas = np.linspace(0, ellipsefit[filt].sma[indx].max(), nplot)
+                    for sma in smas:
+                        efit = ellipsefit[filt].get_closest(sma)
+                        x, y, = efit.sampled_coordinates()
+                        ax1.plot(x, y, color='k', alpha=0.75)
             else:
                 from photutils import EllipticalAperture
                 geometry = ellipsefit['geometry']
@@ -125,63 +126,65 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
     for filt in np.atleast_1d(refband):
 
-        good = (ellipsefit[filt].stop_code < 4)
-        bad = ~good
+        if ellipsefit['success']:
+            good = (ellipsefit[filt].stop_code < 4)
+            bad = ~good
 
-        ax1.fill_between(ellipsefit[filt].sma[good] * smascale, 
-                         ellipsefit[filt].eps[good]-ellipsefit[filt].ellip_err[good],
-                         ellipsefit[filt].eps[good]+ellipsefit[filt].ellip_err[good])#,
-                         #edgecolor='k', lw=2)
-        if np.count_nonzero(bad) > 0:
-            ax1.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].eps[bad],
-                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
-        
-        #ax1.errorbar(ellipsefit[filt].sma[good] * smascale,
-        #             ellipsefit[filt].eps[good],
-        #             ellipsefit[filt].ellip_err[good], fmt='o',
-        #             markersize=4)#, color=color[filt])
-        #ax1.set_ylim(0, 0.5)
-        ax1.xaxis.set_major_formatter(ScalarFormatter())
+            ax1.fill_between(ellipsefit[filt].sma[good] * smascale, 
+                             ellipsefit[filt].eps[good]-ellipsefit[filt].ellip_err[good],
+                             ellipsefit[filt].eps[good]+ellipsefit[filt].ellip_err[good])#,
+                             #edgecolor='k', lw=2)
+            if np.count_nonzero(bad) > 0:
+                ax1.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].eps[bad],
+                            marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
 
-        ax2.fill_between(ellipsefit[filt].sma[good] * smascale, 
-                         ellipsefit[filt].pa[good]-ellipsefit[filt].pa_err[good],
-                         ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good])#,
-                         #edgecolor='k', lw=2)
-        if np.count_nonzero(bad) > 0:
-            ax2.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].pa[bad],
-                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
-        #ax2.errorbar(ellipsefit[filt].sma[good] * smascale,
-        #             np.degrees(ellipsefit[filt].pa[good]),
-        #             np.degrees(ellipsefit[filt].pa_err[good]), fmt='o',
-        #             markersize=4)#, color=color[filt])
-        ax2.yaxis.tick_right()
-        ax2.yaxis.set_label_position('right')
-        ax2.xaxis.set_major_formatter(ScalarFormatter())
-        #ax2.set_ylim(0, 180)
+            #ax1.errorbar(ellipsefit[filt].sma[good] * smascale,
+            #             ellipsefit[filt].eps[good],
+            #             ellipsefit[filt].ellip_err[good], fmt='o',
+            #             markersize=4)#, color=color[filt])
+            #ax1.set_ylim(0, 0.5)
+            ax1.xaxis.set_major_formatter(ScalarFormatter())
 
-        ax3.fill_between(ellipsefit[filt].sma[good] * smascale, 
-                         ellipsefit[filt].x0[good]-ellipsefit[filt].x0_err[good],
-                         ellipsefit[filt].x0[good]+ellipsefit[filt].x0_err[good])#,
-                         #edgecolor='k', lw=2)
-        if np.count_nonzero(bad) > 0:
-            ax3.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].x0[bad],
-                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
-        #ax3.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].x0[good],
-        #             ellipsefit[filt].x0_err[good], fmt='o',
-        #             markersize=4)#, color=color[filt])
-        ax3.xaxis.set_major_formatter(ScalarFormatter())
-        ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-        
-        ax4.fill_between(ellipsefit[filt].sma[good] * smascale, 
-                         ellipsefit[filt].y0[good]-ellipsefit[filt].y0_err[good],
-                         ellipsefit[filt].y0[good]+ellipsefit[filt].y0_err[good])#,
-                         #edgecolor='k', lw=2)
-        if np.count_nonzero(bad) > 0:
-            ax4.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].y0[bad],
-                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
-        #ax4.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].y0[good],
-        #             ellipsefit[filt].y0_err[good], fmt='o',
-        #             markersize=4)#, color=color[filt])
+            ax2.fill_between(ellipsefit[filt].sma[good] * smascale, 
+                             ellipsefit[filt].pa[good]-ellipsefit[filt].pa_err[good],
+                             ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good])#,
+                             #edgecolor='k', lw=2)
+            if np.count_nonzero(bad) > 0:
+                ax2.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].pa[bad],
+                            marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+            #ax2.errorbar(ellipsefit[filt].sma[good] * smascale,
+            #             np.degrees(ellipsefit[filt].pa[good]),
+            #             np.degrees(ellipsefit[filt].pa_err[good]), fmt='o',
+            #             markersize=4)#, color=color[filt])
+            ax2.yaxis.tick_right()
+            ax2.yaxis.set_label_position('right')
+            ax2.xaxis.set_major_formatter(ScalarFormatter())
+            #ax2.set_ylim(0, 180)
+
+            ax3.fill_between(ellipsefit[filt].sma[good] * smascale, 
+                             ellipsefit[filt].x0[good]-ellipsefit[filt].x0_err[good],
+                             ellipsefit[filt].x0[good]+ellipsefit[filt].x0_err[good])#,
+                             #edgecolor='k', lw=2)
+            if np.count_nonzero(bad) > 0:
+                ax3.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].x0[bad],
+                            marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+            #ax3.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].x0[good],
+            #             ellipsefit[filt].x0_err[good], fmt='o',
+            #             markersize=4)#, color=color[filt])
+            ax3.xaxis.set_major_formatter(ScalarFormatter())
+            ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+
+            ax4.fill_between(ellipsefit[filt].sma[good] * smascale, 
+                             ellipsefit[filt].y0[good]-ellipsefit[filt].y0_err[good],
+                             ellipsefit[filt].y0[good]+ellipsefit[filt].y0_err[good])#,
+                             #edgecolor='k', lw=2)
+            if np.count_nonzero(bad) > 0:
+                ax4.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].y0[bad],
+                            marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+            #ax4.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].y0[good],
+            #             ellipsefit[filt].y0_err[good], fmt='o',
+            #             markersize=4)#, color=color[filt])
+            
         ax4.yaxis.tick_right()
         ax4.yaxis.set_label_position('right')
         ax4.xaxis.set_major_formatter(ScalarFormatter())
@@ -216,66 +219,72 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
     """
     from legacyhalos.util import ellipse_sbprofile
 
-    sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband, minerr=minerr,
-                                  redshift=redshift, pixscale=pixscale)
+    if ellipsefit['success']:
+        sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband, minerr=minerr,
+                                      redshift=redshift, pixscale=pixscale)
 
     colors = iter(sns.color_palette())
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     for filt in band:
 
-        good = (ellipsefit[filt].stop_code < 4)
-        bad = ~good
+        if ellipsefit['success']:
+            good = (ellipsefit[filt].stop_code < 4)
+            bad = ~good
 
-        col = next(colors)
-        ax1.fill_between(sbprofile['sma'], 
-            sbprofile['mu_{}'.format(filt)] - sbprofile['mu_{}_err'.format(filt)],
-            sbprofile['mu_{}'.format(filt)] + sbprofile['mu_{}_err'.format(filt)],
-            #sbprofile['{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
-            #sbprofile['{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
-            label=r'${}$'.format(filt), color=col, alpha=0.75, edgecolor='k', lw=2)
-        #if np.count_nonzero(bad) > 0:
-        #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
-        #                s=40, edgecolor='k', lw=2, alpha=0.75)
+            col = next(colors)
+            ax1.fill_between(sbprofile['sma'], 
+                sbprofile['mu_{}'.format(filt)] - sbprofile['mu_{}_err'.format(filt)],
+                sbprofile['mu_{}'.format(filt)] + sbprofile['mu_{}_err'.format(filt)],
+                #sbprofile['{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
+                #sbprofile['{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
+                label=r'${}$'.format(filt), color=col, alpha=0.75, edgecolor='k', lw=2)
+            #if np.count_nonzero(bad) > 0:
+            #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
+            #                s=40, edgecolor='k', lw=2, alpha=0.75)
 
-        #ax1.axhline(y=ellipsefit['mu_{}_sky'.format(filt)], color=col, ls='--')
-        if filt == refband:
-            ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
-            ax1.axhline(y=ysky, color=col, ls='--')
+            #ax1.axhline(y=ellipsefit['mu_{}_sky'.format(filt)], color=col, ls='--')
+            if filt == refband:
+                ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
+                ax1.axhline(y=ysky, color=col, ls='--')
 
-        # Overplot the best-fitting model.
-        if sersicfit:
-            from astropy.modeling.models import Sersic1D
-            rad = np.arange(0, sbprofile['sma'].max(), 0.1)
-            sbmodel = -2.5 * np.log10( Sersic1D.evaluate(
-                rad, sersicfit[filt].amplitude, sersicfit[filt].r_eff,
-                sersicfit[filt].n) )
-            ax1.plot(rad, sbmodel, lw=2, ls='--', alpha=1, color=col)
+            # Overplot the best-fitting model.
+            if sersicfit:
+                from astropy.modeling.models import Sersic1D
+                rad = np.arange(0, sbprofile['sma'].max(), 0.1)
+                sbmodel = -2.5 * np.log10( Sersic1D.evaluate(
+                    rad, sersicfit[filt].amplitude, sersicfit[filt].r_eff,
+                    sersicfit[filt].n) )
+                ax1.plot(rad, sbmodel, lw=2, ls='--', alpha=1, color=col)
             
     ax1.set_ylabel(r'Surface Brightness (mag arcsec$^{-2}$)')
-    ax1.set_ylim(30, 18)
+    ax1.set_ylim(30, 17)
 
     #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
     #ax1.set_ylim(31.99, 18)
 
-    ax1.legend(loc='upper right')
+    if ellipsefit['success']:
+        ax1.legend(loc='upper right')
 
-    ax2.fill_between(sbprofile['sma'],
-                     sbprofile['rz'] - sbprofile['rz_err'],
-                     sbprofile['rz'] + sbprofile['rz_err'],
-                     label=r'$r - z$', color=next(colors), alpha=0.75,
-                     edgecolor='k', lw=2)
-    
-    ax2.fill_between(sbprofile['sma'],
-                     sbprofile['gr'] - sbprofile['gr_err'],
-                     sbprofile['gr'] + sbprofile['gr_err'],
-                     label=r'$g - r$', color=next(colors), alpha=0.75,
-                     edgecolor='k', lw=2)
+        ax2.fill_between(sbprofile['sma'],
+                         sbprofile['rz'] - sbprofile['rz_err'],
+                         sbprofile['rz'] + sbprofile['rz_err'],
+                         label=r'$r - z$', color=next(colors), alpha=0.75,
+                         edgecolor='k', lw=2)
 
-    ax2.set_xlabel('Semimajor Axis ({})'.format(sbprofile['smaunit']), alpha=0.75)
+        ax2.fill_between(sbprofile['sma'],
+                         sbprofile['gr'] - sbprofile['gr_err'],
+                         sbprofile['gr'] + sbprofile['gr_err'],
+                         label=r'$g - r$', color=next(colors), alpha=0.75,
+                         edgecolor='k', lw=2)
+
+        ax2.set_xlabel('Semimajor Axis ({})'.format(sbprofile['smaunit']), alpha=0.75)
+    else:
+        ax2.set_xlabel('Semimajor Axis', alpha=0.75)
+        ax2.legend(loc='upper left')
+        
     ax2.set_ylabel('Color (mag)')
     ax2.set_ylim(0, 2.4)
-    ax2.legend(loc='upper left')
 
     fig.subplots_adjust(hspace=0.0)
 
@@ -398,12 +407,12 @@ def sample_trends(sample, htmldir, analysisdir=None, refband='r',
 
         ellipsefit = read_ellipsefit(objid, objdir)
         if len(ellipsefit) > 0:
-            good = (ellipsefit[refband].stop_code < 4)
-
-            ax1.fill_between(ellipsefit[refband].sma[good] * smascale, 
-                             ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
-                             ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good],
-                             alpha=0.9, color='gray')
+            if ellipsefit['success']:
+                good = (ellipsefit[refband].stop_code < 4)
+                ax1.fill_between(ellipsefit[refband].sma[good] * smascale, 
+                                 ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
+                                 ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good],
+                                 alpha=0.9, color='gray')
 
     ax1.grid()
     ax1.set_ylim(0, 0.5)

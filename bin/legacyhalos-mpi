@@ -204,7 +204,7 @@ def main():
     for count, ii in enumerate(groups[rank]):
         if (count % 10) == 0:
             print('Rank {}: Building {} {} / {}'.format(
-                rank, suffix.upper(), count, len(groups[rank])))
+                rank, suffix.upper(), count+1, len(groups[rank])))
 
         objid, objdir = legacyhalos.io.get_objid(sample[ii])
 
@@ -248,27 +248,23 @@ def main():
                     
         if args.ellipse:
             from legacyhalos.ellipse import legacyhalos_ellipse
-            from legacyhalos.util import get_logger, destroy_logger
-            #log = get_logger(logfile)
-            #with open(logfile, 'w') as log:
-            #    with redirect_stdout(log), redirect_stderr(log):
-            print('Rank {} started working on objid {} at {}'.format(
-                rank, objid, time.asctime()))
-            try:
+            if args.debug:
                 legacyhalos_ellipse(
                     sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
                     pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
-                print('Rank {} finished objid {} after {:.1f} seconds'.format(
-                    rank, objid, time.time()-t0))
-            except:
-                print('Failed.')
-                import traceback
-                traceback.print_exc()
+                print('Finished objid {} in {:.3f} minutes.'.format(
+                    objid, (time.time() - t0)/60))
+            else:
+                with open(logfile, 'w') as log:
+                    with redirect_stdout(log), redirect_stderr(log):
+                        print('Rank {} started working on objid {} at {}'.format(
+                            rank, objid, time.asctime()))
+                        legacyhalos_ellipse(
+                            sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
+                            pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
+                        print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
+                            rank, objid, time.asctime(), (time.time() - t0)/60))
                         
-            #destroy_logger(log)
-            
-    #_catchup(comm, size)
-        
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - t0) / 60 ))
