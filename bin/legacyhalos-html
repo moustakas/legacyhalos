@@ -33,8 +33,7 @@ def main():
 
     if 'NERSC_HOST' in os.environ:
         print('Execute the following command to publish the webpage.')
-        print("""  rsync -auvP --delete ~/scratch/legacyhalos/html/*
-          /project/projectdirs/cosmo/www/temp/ioannis/legacyhalos""")
+        print('rsync -auvP --delete ~/scratch/legacyhalos/html/* /project/projectdirs/cosmo/www/temp/ioannis/legacyhalos')
 
 if __name__ == '__main__':
     main()
