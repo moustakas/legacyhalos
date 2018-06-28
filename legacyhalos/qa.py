@@ -19,7 +19,7 @@ PIXSCALE = 0.262
 
 def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
                       mgefit=None, ellipsefit=None, indx=None, magrange=10,
-                      inchperband=3, contours=False, png=None):
+                      inchperband=3, contours=False, png=None, verbose=True):
     """Display the multi-band images and, optionally, the isophotal fits based on
     either MGE and/or Ellipse.
 
@@ -99,14 +99,15 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
 
     fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.02, right=0.98)
     if png:
-        print('Writing {}'.format(png))
+        if verbose:
+            print('Writing {}'.format(png))
         fig.savefig(png, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
     else:
         plt.show()
 
 def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=None,
-                       pixscale=0.262, xlog=False, png=None):
+                       pixscale=0.262, xlog=False, png=None, verbose=True):
     """Display the isophote fitting results."""
 
     from matplotlib.ticker import FormatStrFormatter, ScalarFormatter
@@ -200,7 +201,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
     fig.subplots_adjust(hspace=0.05, wspace=0.05, bottom=0.15, right=0.85, left=0.15)
 
     if png:
-        print('Writing {}'.format(png))
+        if verbose:
+            print('Writing {}'.format(png))
         fig.savefig(png)
         plt.close(fig)
     else:
@@ -208,7 +210,7 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
         
 def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
                               minerr=0.02, redshift=None, pixscale=0.262,
-                              sersicfit=None, png=None):
+                              sersicfit=None, png=None, verbose=True):
     """Display the multi-band surface brightness profile.
 
     """
@@ -278,14 +280,15 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
     fig.subplots_adjust(hspace=0.0)
 
     if png:
-        print('Writing {}'.format(png))
+        if verbose:
+            print('Writing {}'.format(png))
         fig.savefig(png)
         plt.close(fig)
     else:
         plt.show()
         
 def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', redshift=None,
-                          indx=None, pixscale=0.262, png=None):
+                          indx=None, pixscale=0.262, png=None, verbose=True):
     """Display the multi-band surface brightness profile."""
 
     colors = iter(sns.color_palette())
@@ -367,14 +370,15 @@ def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', redshift=No
     fig.subplots_adjust(hspace=0.0)
 
     if png:
-        print('Writing {}'.format(png))
+        if verbose:
+            print('Writing {}'.format(png))
         fig.savefig(png)
         plt.close(fig)
     else:
         plt.show()
         
 def sample_trends(sample, htmldir, analysisdir=None, refband='r',
-                  pixscale=PIXSCALE):
+                  pixscale=PIXSCALE, verbose=True):
     """Trends with the whole sample."""
     from astropy.cosmology import WMAP9 as cosmo
     from legacyhalos.io import get_objid
@@ -409,7 +413,8 @@ def sample_trends(sample, htmldir, analysisdir=None, refband='r',
     fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
 
     if png:
-        print('Writing {}'.format(png))
+        if verbose:
+            print('Writing {}'.format(png))
         fig.savefig(png)
         plt.close(fig)
     else:
