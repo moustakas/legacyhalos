@@ -151,8 +151,19 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), pixscale=0.262):
     from scipy.ndimage.morphology import binary_dilation
 
     data = dict()
-    for filt in band:
 
+    found_data = True
+    for filt in band:
+        for imtype in ('image', 'model', 'invvar'):
+            imfile = os.path.join(objdir, '{}-{}-{}.fits.fz'.format(objid, imtype, filt))
+            if not os.path.isfile(imfile):
+                print('File {} not found.'.format(imfile))
+                found_data = False
+
+    if not found_data:
+        return data
+    
+    for filt in band:
         image = fitsio.read(os.path.join(objdir, '{}-image-{}.fits.fz'.format(objid, filt)))
         model = fitsio.read(os.path.join(objdir, '{}-model-{}.fits.fz'.format(objid, filt)))
         invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))

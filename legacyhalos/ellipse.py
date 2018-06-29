@@ -211,14 +211,14 @@ def legacyhalos_ellipse(galaxycat, objid=None, objdir=None, ncpu=1,
 
     # Read the data.  
     data = legacyhalos.io.read_multiband(objid, objdir, band=band)
+    if bool(data):
+        # Find the galaxy and perform MGE fitting
+        mgefit = mgefit_multiband(objid, objdir, data, band=band, refband=refband,
+                                  pixscale=pixscale, verbose=verbose, debug=debug)
 
-    # Find the galaxy and perform MGE fitting
-    mgefit = mgefit_multiband(objid, objdir, data, band=band, refband=refband,
-                              pixscale=pixscale, verbose=verbose, debug=debug)
-
-    # Do ellipse-fitting
-    ellipsefit = ellipsefit_multiband(objid, objdir, data, mgefit, band=band,
-                                      refband=refband, verbose=verbose)
-
-    return 1 # success!
-
+        # Do ellipse-fitting
+        ellipsefit = ellipsefit_multiband(objid, objdir, data, mgefit, band=band,
+                                          refband=refband, verbose=verbose)
+        return 1
+    else:
+        return 0

@@ -310,4 +310,4 @@ def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
                     objid=objid, brickname=brickname, survey=survey, mp=mp,
                     verbose=verbose)
 
-    return 1 # success!
+    return 1
