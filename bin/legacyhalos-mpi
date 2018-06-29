@@ -76,7 +76,7 @@ def _missing(sample, size=1, filetype='coadds', clobber=False):
     if filetype == 'coadds':
         filesuffix = 'resid.jpg'
     elif filetype == 'ellipse':
-        filesuffix = 'ellipse.fits'
+        filesuffix = 'ellipsefit.p'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -201,6 +201,7 @@ def main():
 
     # Loop on the remaining objects.
     print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()))
+    tall = time.time()
     for count, ii in enumerate(groups[rank]):
         if (count % 10) == 0:
             print('Rank {}: Building {} {} / {}'.format(
@@ -220,7 +221,7 @@ def main():
                     sample[ii], survey=survey, objid=objid, objdir=objdir,
                     ncpu=args.ncpu, pixscale=args.pixscale, verbose=args.verbose)
                 if result == 0:
-                    print('ERROR: please check the logfile.')
+                    print('ERROR: objid {}; please check the logfile.'.format(objid))
                 print('Finished objid {} in {:.3f} minutes.'.format(
                     objid, (time.time() - t0)/60))
             else:
@@ -228,13 +229,14 @@ def main():
                     with redirect_stdout(log), redirect_stderr(log):
                         print('Rank {} started working on objid {} at {}'.format(
                             rank, objid, time.asctime()))
-                        legacyhalos_custom_coadds(
+                        result = legacyhalos_custom_coadds(
                             sample[ii], survey=survey, objid=objid, objdir=objdir,
                             ncpu=args.ncpu, pixscale=args.pixscale, verbose=args.verbose)
+                        print('ERROR: objid {}; please check the logfile.'.format(objid))
                         print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
                             rank, objid, time.asctime(), (time.time() - t0)/60))
                 if result == 0:
-                    print('ERROR: please check the logfile.')
+                    print('ERROR: objid {}; please check the logfile.'.format(objid))
                     
         if args.coadds:
             from legacyhalos.coadds import legacyhalos_custom_coadds
@@ -257,7 +259,7 @@ def main():
                     sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
                     pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
                 if result == 0:
-                    print('ERROR: please check the logfile.')
+                    print('ERROR: objid {}; please check the logfile.'.format(objid))
                 print('Finished objid {} in {:.3f} minutes.'.format(
                     objid, (time.time() - t0)/60))
             else:
@@ -268,16 +270,20 @@ def main():
                         result = legacyhalos_ellipse(
                             sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
                             pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
+                        if result == 0:
+                            print('ERROR: objid {}; please check the logfile.'.format(objid))
                         print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
                             rank, objid, time.asctime(), (time.time() - t0)/60))
                 if result == 0:
-                    print('ERROR: please check the logfile.')
+                    print('ERROR: objid {}; please check the logfile.'.format(objid))
                         
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
-            ntodo, suffix.upper(), time.asctime(), (time.time() - t0) / 60 ))
+            ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ))
         if args.custom_coadds:
             groups = missing_coadds(sample, size=size, clobber=args.clobber)
+        if args.ellipse:
+            groups = missing_ellipse(sample, size=size, clobber=args.clobber)
 
         stilltodo = len(np.hstack(np.atleast_1d(groups)))
         print('{} left to do: {} / {}.'.format(suffix.upper(), stilltodo, ntodo))

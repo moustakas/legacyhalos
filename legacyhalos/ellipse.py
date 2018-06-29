@@ -153,7 +153,8 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
     galaxy = find_galaxy(data[refband], nblob=1, binning=3,
                          plot=debug, quiet=not verbose)
     if debug:
-        plt.show()
+        #plt.show()
+        pass
     
     #galaxy.xmed -= 1
     #galaxy.ymed -= 1
@@ -184,7 +185,8 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
                                        quiet=not debug, outer_slope=4, bulge_disk=False,
                                        plot=debug)
             if debug:
-                plt.show()
+                pass
+                #plt.show()
 
             #_ = print_contours(data[refband], galaxy.pa, galaxy.xpeak, galaxy.ypeak, pp.sol, 
             #                   binning=2, normpsf=1, magrange=6, mask=None, 

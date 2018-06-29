@@ -279,9 +279,9 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
                          edgecolor='k', lw=2)
 
         ax2.set_xlabel('Semimajor Axis ({})'.format(sbprofile['smaunit']), alpha=0.75)
+        ax2.legend(loc='upper left')
     else:
         ax2.set_xlabel('Semimajor Axis', alpha=0.75)
-        ax2.legend(loc='upper left')
         
     ax2.set_ylabel('Color (mag)')
     ax2.set_ylim(0, 2.4)

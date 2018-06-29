@@ -193,16 +193,21 @@ def read_sample(first=None, last=None):
     from astropy.table import hstack
     import legacyhalos.io
 
-    cols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
-            'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
-            'shapedev_r', 'shapedev_e1', 'shapedev_e2')
+    tractorcols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
+                   'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
+                   'shapedev_r', 'shapedev_e1', 'shapedev_e2')
+    rmcols = ('mem_match_id', 'z', 'r_lambda', 'lambda_chisq', 'p_cen')
+    sdsscols = ('objid')
         
-    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=cols)
+    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
+                                         columns=tractorcols)
+    
     rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
-                                     columns=('mem_match_id', 'z', 'r_lambda',
-                                              'lambda_chisq'))
+                                     columns=rmcols)
+    
     sdss = legacyhalos.io.read_catalog(extname='SDSSPHOT', upenn=True,
-                                       columns=np.atleast_1d('objid'))
+                                       columns=np.atleast_1d(sdsscols))
+    
     sdss.rename_column('objid', 'sdss_objid')
     print('Renaming column objid-->sdss_objid in [SDSSPHOT] extension.')
     sample = hstack( (sample, rm) )
