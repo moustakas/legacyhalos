@@ -231,7 +231,7 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             htmlfile = os.path.join('{}'.format(objid1), '{}.html'.format(objid1))
 
             html.write('<tr>\n')
-            html.write('<td>{:g}</td>\n'.format(ii + 1))
+            html.write('<td>{:g}</td>\n'.format(ii))
             html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile, objid1))
             html.write('<td>{:.7f}</td>\n'.format(gal['ra']))
             html.write('<td>{:.7f}</td>\n'.format(gal['dec']))
@@ -316,7 +316,7 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             html.write('</tr>\n')
 
             html.write('<tr>\n')
-            html.write('<td>{:g}</td>\n'.format(ii + 1))
+            html.write('<td>{:g}</td>\n'.format(ii))
             html.write('<td>{}</td>\n'.format(objid1))
             html.write('<td>{:.7f}</td>\n'.format(gal['ra']))
             html.write('<td>{:.7f}</td>\n'.format(gal['dec']))

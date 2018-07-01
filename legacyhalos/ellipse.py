@@ -69,60 +69,70 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
         t0 = time.time()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            isophot = ellipse.fit_image(minsma=1.0, maxsma=1.5*mgefit['majoraxis'],
-                                        integrmode=integrmode, sclip=sclip, nclip=nclip,
-                                        step=step, fflag=fflag)
+            for minsma in (5, 2, 10): # try a few different starting minor axes
+                print('  Trying minimum sma = {:.1f} pixels.'.format(minsma))
+                isophot = ellipse.fit_image(minsma=minsma, maxsma=1.5*mgefit['majoraxis'],
+                                            integrmode=integrmode, sclip=sclip, nclip=nclip,
+                                            step=step, fflag=fflag)
+                if len(isophot) > 0:
+                    break
+
         if verbose:
             print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
 
-        ellipsefit[refband] = isophot
+        if len(isophot) == 0:
+            print('Ellipse-fitting failed, likely due to complex morphology or poor initial geometry.')
 
-        tall = time.time()
-        for filt in band:
-            t0 = time.time()
-            if filt == refband: # we did it already!
-                continue
+        else:
+            ellipsefit[refband] = isophot
+
+            tall = time.time()
+            for filt in band:
+                t0 = time.time()
+                if filt == refband: # we did it already!
+                    continue
+
+                if verbose:
+                    print('Ellipse-fitting {}-band image.'.format(filt))
+
+                img = data['{}_masked'.format(filt)]
+
+                # Loop on the reference band isophotes but skip the first isophote,
+                # which is a CentralEllipseSample object (see below).
+                isobandfit = []
+                for iso in isophot:
+                #for iso in isophot[1:]:
+                    g = iso.sample.geometry # fixed geometry
+
+                    # Use the same integration mode and clipping parameters.
+                    sample = EllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
+                                           sclip=sclip, nclip=nclip)
+                    sample.update()
+
+                    # Create an Isophote instance with the sample.
+                    isobandfit.append(Isophote(sample, 0, True, 0))
+
+                # Now deal with the central pixel; see
+                # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
+                #import pdb ; pdb.set_trace()
+                #g = EllipseGeometry(x0=geometry.x0, y0=geometry.y0, eps=mgefit['eps'], sma=1.0)
+                #g.find_center(img)
+
+                ## Use the same integration mode and clipping parameters.
+                #sample = CentralEllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
+                #                              sclip=sclip, nclip=nclip)
+                #cen = CentralEllipseFitter(sample).fit()
+                #isobandfit.append(cen)
+                #isobandfit.sort()
+
+                # Build the IsophoteList instance with the result.
+                ellipsefit[filt] = IsophoteList(isobandfit)
+                if verbose:
+                    print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
 
             if verbose:
-                print('Ellipse-fitting {}-band image.'.format(filt))
-
-            img = data['{}_masked'.format(filt)]
-
-            # Loop on the reference band isophotes but skip the first isophote,
-            # which is a CentralEllipseSample object (see below).
-            isobandfit = []
-            for iso in isophot:
-            #for iso in isophot[1:]:
-                g = iso.sample.geometry # fixed geometry
-
-                # Use the same integration mode and clipping parameters.
-                sample = EllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
-                                       sclip=sclip, nclip=nclip)
-                sample.update()
-
-                # Create an Isophote instance with the sample.
-                isobandfit.append(Isophote(sample, 0, True, 0))
-
-            # Now deal with the central pixel; see
-            # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
-            #import pdb ; pdb.set_trace()
-            #g = EllipseGeometry(x0=geometry.x0, y0=geometry.y0, eps=mgefit['eps'], sma=1.0)
-            #g.find_center(img)
-
-            ## Use the same integration mode and clipping parameters.
-            #sample = CentralEllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
-            #                              sclip=sclip, nclip=nclip)
-            #cen = CentralEllipseFitter(sample).fit()
-            #isobandfit.append(cen)
-            #isobandfit.sort()
-
-            # Build the IsophoteList instance with the result.
-            ellipsefit[filt] = IsophoteList(isobandfit)
-            if verbose:
-                print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
-
-        if verbose:
-            print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
+                print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
+            ellipsefit['success'] = True
 
     except:
         print('Ellipse-fitting failed, likely due to too many masked pixels.')
@@ -221,6 +231,10 @@ def legacyhalos_ellipse(galaxycat, objid=None, objdir=None, ncpu=1,
         # Do ellipse-fitting
         ellipsefit = ellipsefit_multiband(objid, objdir, data, mgefit, band=band,
                                           refband=refband, verbose=verbose)
-        return 1
+        if ellipsefit['success']:
+            return 1
+        else:
+            return 0
+        
     else:
         return 0
