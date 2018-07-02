@@ -212,8 +212,8 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=N
         plt.show()
         
 def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
-                              minerr=0.02, redshift=None, pixscale=0.262,
-                              sersicfit=None, png=None, verbose=True):
+                              minerr=0.02, pixscale=0.262, sersicfit=None,
+                              png=None, verbose=True):
     """Display the multi-band surface brightness profile.
 
     """
@@ -221,8 +221,7 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
     if ellipsefit['success']:
         sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband,
-                                      minerr=minerr, redshift=redshift,
-                                      pixscale=pixscale)
+                                      minerr=minerr, pixscale=pixscale)
 
     colors = iter(sns.color_palette())
 
@@ -297,8 +296,8 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
     else:
         plt.show()
         
-def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', redshift=None,
-                          indx=None, pixscale=0.262, png=None, verbose=True):
+def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', indx=None,
+                          pixscale=0.262, png=None, verbose=True):
     """Display the multi-band surface brightness profile."""
 
     colors = iter(sns.color_palette())
@@ -414,8 +413,7 @@ def sample_trends(sample, htmldir, analysisdir=None, refband='r',
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:
                     sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband,
-                                                  minerr=0.01, redshift=ellipsefit['redshift'],
-                                                  pixscale=pixscale)
+                                                  minerr=0.01, pixscale=pixscale)
                     good = (ellipsefit[refband].stop_code < 4)
                     ax1.fill_between(sbprofile['sma'][good] * smascale, 
                                      sbprofile['gr'][good]-sbprofile['gr_err'][good],

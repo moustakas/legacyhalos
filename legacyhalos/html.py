@@ -33,9 +33,8 @@ def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False, verbose=True):
                 print('Writing {}'.format(montagefile))
             subprocess.call(cmd.split())
 
-def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
-                       band=('g', 'r', 'z'), pixscale=0.262, clobber=False,
-                       verbose=True):
+def qa_ellipse_results(objid, objdir, htmlobjdir, refband='r', band=('g', 'r', 'z'),
+                       pixscale=0.262, clobber=False, verbose=True):
     """Generate QAplots from the ellipse-fitting.
 
     """
@@ -60,17 +59,16 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
 
         ellipsefitfile = os.path.join(htmlobjdir, '{}-ellipse-ellipsefit.png'.format(objid))
         if not os.path.isfile(ellipsefitfile) or clobber:
-            display_ellipsefit(ellipsefit, band=band, refband=refband, redshift=redshift,
-                               pixscale=pixscale, png=ellipsefitfile, xlog=True, verbose=verbose)
+            display_ellipsefit(ellipsefit, band=band, refband=refband, pixscale=pixscale,
+                               png=ellipsefitfile, xlog=True, verbose=verbose)
         
         sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
         if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, band=band, refband=refband, redshift=redshift,
-                                      pixscale=pixscale, png=sbprofilefile, verbose=verbose)
+            display_ellipse_sbprofile(ellipsefit, band=band, refband=refband, pixscale=pixscale,
+                                      png=sbprofilefile, verbose=verbose)
         
-def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
-                   band=('g', 'r', 'z'), pixscale=0.262, clobber=False,
-                   verbose=True):
+def qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=('g', 'r', 'z'),
+                   pixscale=0.262, clobber=False, verbose=True):
     """Generate QAplots from the MGE fitting.
 
     """
@@ -93,14 +91,13 @@ def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
         #isophotfile = os.path.join(htmlobjdir, '{}-mge-mgefit.png'.format(objid))
         #if not os.path.isfile(isophotfile) or clobber:
         #    # Just display the reference band.
-        #    display_mgefit(mgefit, band=refband, redshift=redshift,
-        #                   indx=indx, pixscale=pixscale, png=isophotfile,
-        #                   verbose=verbose)
+        #    display_mgefit(mgefit, band=refband, indx=indx, pixscale=pixscale,
+        #                   png=isophotfile, verbose=verbose)
 
         sbprofilefile = os.path.join(htmlobjdir, '{}-mge-sbprofile.png'.format(objid))
         if not os.path.isfile(sbprofilefile) or clobber:
-            display_mge_sbprofile(mgefit, band=band, refband=refband, redshift=redshift,
-                                  pixscale=pixscale, png=sbprofilefile, verbose=verbose)
+            display_mge_sbprofile(mgefit, band=band, refband=refband, pixscale=pixscale,
+                                  png=sbprofilefile, verbose=verbose)
         
 def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False, verbose=True):
@@ -124,12 +121,12 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)
 
         # Build the MGE plots.
-        #qa_mge_results(objid, objdir, htmlobjdir, redshift=gal['z'],
-        #               refband='r', band=band, clobber=clobber, verbose=verbose)
+        #qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=band,
+        #               clobber=clobber, verbose=verbose)
 
         # Build the ellipse plots.
-        qa_ellipse_results(objid, objdir, htmlobjdir, redshift=gal['z'],
-                           refband='r', band=band, clobber=clobber, verbose=verbose)
+        qa_ellipse_results(objid, objdir, htmlobjdir, refband='r', band=band,
+                           clobber=clobber, verbose=verbose)
 
 
 def _javastring():

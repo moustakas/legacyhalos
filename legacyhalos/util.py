@@ -76,13 +76,14 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
     return radius
 
 def ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
-                      minerr=0.02, redshift=None, pixscale=0.262):
+                      minerr=0.02, pixscale=0.262):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
 
     """
-    if redshift:
+    if 'redshift' in ellipsefit:
         from astropy.cosmology import WMAP9 as cosmo
+        redshift = ellipsefit['redshift']
         smascale = pixscale / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/pixel]
         smaunit = 'kpc'
     else:
