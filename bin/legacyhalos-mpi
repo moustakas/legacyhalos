@@ -186,11 +186,11 @@ def main():
     if rank == 0:
         if ntodo == 0:
             print('{} for all {} galaxies are complete!'.format(
-                suffix.upper(), len(sample)))
+                suffix.upper(), len(sample)), flush=True)
             return
         else:
             print('{} left to do: {} / {} divided across {} group(s) and {} rank(s).'.format(
-                suffix.upper(), ntodo, len(sample), len(groups), size))
+                suffix.upper(), ntodo, len(sample), len(groups), size), flush=True)
 
     if len(groups[rank]) == 0 or args.dry_run:
         if len(groups[rank]) > 0 and args.debug:
@@ -200,18 +200,18 @@ def main():
     #_catchup(comm, size)
 
     # Loop on the remaining objects.
-    print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()))
+    print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         if (count % 10) == 0:
             print('Rank {}: Building {} {} / {}'.format(
-                rank, suffix.upper(), count+1, len(groups[rank])))
+                rank, suffix.upper(), count+1, len(groups[rank])), flush=True)
 
         objid, objdir = legacyhalos.io.get_objid(sample[ii])
 
         if not args.debug:
             logfile = os.path.join(objdir, '{}-{}.log'.format(objid, suffix))
-            print('Logging to {} '.format(logfile))
+            print('Logging to {} '.format(logfile), flush=True)
 
         t0 = time.time()
         if args.custom_coadds:
@@ -221,22 +221,22 @@ def main():
                     sample[ii], survey=survey, objid=objid, objdir=objdir,
                     ncpu=args.ncpu, pixscale=args.pixscale, verbose=args.verbose)
                 if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid))
+                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                 print('Finished objid {} in {:.3f} minutes.'.format(
-                    objid, (time.time() - t0)/60))
+                    objid, (time.time() - t0)/60), flush=True)
             else:
                 with open(logfile, 'w') as log:
                     with redirect_stdout(log), redirect_stderr(log):
                         print('Rank {} started working on objid {} at {}'.format(
-                            rank, objid, time.asctime()))
+                            rank, objid, time.asctime()), flush=True)
                         result = legacyhalos_custom_coadds(
                             sample[ii], survey=survey, objid=objid, objdir=objdir,
                             ncpu=args.ncpu, pixscale=args.pixscale, verbose=args.verbose)
-                        print('ERROR: objid {}; please check the logfile.'.format(objid))
+                        print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                         print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
-                            rank, objid, time.asctime(), (time.time() - t0)/60))
+                            rank, objid, time.asctime(), (time.time() - t0)/60), flush=True)
                 if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid))
+                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                     
         if args.coadds:
             from legacyhalos.coadds import legacyhalos_custom_coadds
@@ -259,34 +259,34 @@ def main():
                     sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
                     pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
                 if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid))
+                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                 print('Finished objid {} in {:.3f} minutes.'.format(
-                    objid, (time.time() - t0)/60))
+                    objid, (time.time() - t0)/60), flush=True)
             else:
                 with open(logfile, 'w') as log:
                     with redirect_stdout(log), redirect_stderr(log):
                         print('Rank {} started working on objid {} at {}'.format(
-                            rank, objid, time.asctime()))
+                            rank, objid, time.asctime()), flush=True)
                         result = legacyhalos_ellipse(
                             sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
                             pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
                         if result == 0:
-                            print('ERROR: objid {}; please check the logfile.'.format(objid))
+                            print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                         print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
-                            rank, objid, time.asctime(), (time.time() - t0)/60))
+                            rank, objid, time.asctime(), (time.time() - t0)/60), flush=True)
                 if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid))
+                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                         
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
-            ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ))
+            ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
         if args.custom_coadds:
             groups = missing_coadds(sample, size=size, clobber=args.clobber)
         if args.ellipse:
             groups = missing_ellipse(sample, size=size, clobber=args.clobber)
 
         stilltodo = len(np.hstack(np.atleast_1d(groups)))
-        print('{} left to do: {} / {}.'.format(suffix.upper(), stilltodo, ntodo))
+        print('{} left to do: {} / {}.'.format(suffix.upper(), stilltodo, ntodo), flush=True)
         #pdb.set_trace()
 
 if __name__ == '__main__':

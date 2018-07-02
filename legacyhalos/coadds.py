@@ -63,8 +63,8 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
 
     run_brick(None, survey, radec=(galaxycat['ra'], galaxycat['dec']), pixscale=pixscale,
               width=2*radius, height=2*radius, threads=ncpu, normalizePsf=True,
-              do_calibs=False, wise=False, depth_cut=False, splinesky=True,
-              early_coadds=False, pixPsf=True, hybridPsf=True, ceres=False,
+              do_calibs=False, wise=True, depth_cut=False, splinesky=True,
+              early_coadds=True, pixPsf=True, hybridPsf=True, ceres=False,
               rex=True, forceall=True, write_pickles=False, write_metrics=False,
               gaia_stars=True, stages=['writecat'])
 
