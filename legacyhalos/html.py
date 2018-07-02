@@ -110,7 +110,8 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
     from legacyhalos.io import get_objid
     from legacyhalos.qa import sample_trends
 
-    sample_trends(sample, htmldir, analysisdir=analysisdir, refband=refband, verbose=verbose)
+    sample_trends(sample, htmldir, analysisdir=analysisdir,
+                  refband=refband, verbose=verbose)
 
     for gal in sample:
         objid, objdir = get_objid(gal, analysisdir=analysisdir)
@@ -259,6 +260,7 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
         html.write('<h1>LegacyHalos: Sample Trends</h1>\n')
         html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
         html.write('<a href="trends/sma_vs_ellipticity.png"><img src="trends/sma_vs_ellipticity.png" height="auto" width="50%"></a>')
+        html.write('<a href="trends/color_vs_ellipticity.png"><img src="trends/color_vs_ellipticity.png" height="auto" width="50%"></a>')
 
         html.write('<br /><br />\n')
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))

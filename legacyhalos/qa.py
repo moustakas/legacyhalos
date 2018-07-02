@@ -220,8 +220,9 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
     from legacyhalos.util import ellipse_sbprofile
 
     if ellipsefit['success']:
-        sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband, minerr=minerr,
-                                      redshift=redshift, pixscale=pixscale)
+        sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband,
+                                      minerr=minerr, redshift=redshift,
+                                      pixscale=pixscale)
 
     colors = iter(sns.color_palette())
 
@@ -387,45 +388,90 @@ def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', redshift=No
         plt.show()
         
 def sample_trends(sample, htmldir, analysisdir=None, refband='r',
-                  pixscale=PIXSCALE, verbose=True):
-    """Trends with the whole sample."""
+                  band=('g', 'r', 'z'), pixscale=PIXSCALE,
+                  verbose=True):
+    """Trends with the whole sample.
+
+    """
     from astropy.cosmology import WMAP9 as cosmo
-    from legacyhalos.io import get_objid
-    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.io import get_objid, read_ellipsefit
+    from legacyhalos.util import ellipse_sbprofile
 
     trendsdir = os.path.join(htmldir, 'trends')
     if not os.path.isdir(trendsdir):
         os.makedirs(trendsdir, exist_ok=True)
 
-    # Ellipticity vs semi-major axis
-    png = os.path.join(trendsdir, 'sma_vs_ellipticity.png')
+    # color vs semi-major axis
+    def _color_vs_sma():
+        png = os.path.join(trendsdir, 'color_vs_ellipticity.png')
     
-    fig, ax1 = plt.subplots()
-    for gal in sample:
-        objid, objdir = get_objid(gal, analysisdir=analysisdir)
-        smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal['z']).value # [kpc/pixel]
+        fig, ax1 = plt.subplots()
+        for gal in sample:
+            objid, objdir = get_objid(gal, analysisdir=analysisdir)
+            smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal['z']).value # [kpc/pixel]
 
-        ellipsefit = read_ellipsefit(objid, objdir)
-        if len(ellipsefit) > 0:
-            if ellipsefit['success']:
-                good = (ellipsefit[refband].stop_code < 4)
-                ax1.fill_between(ellipsefit[refband].sma[good] * smascale, 
-                                 ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
-                                 ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good],
-                                 alpha=0.9, color='gray')
+            ellipsefit = read_ellipsefit(objid, objdir)
+            if len(ellipsefit) > 0:
+                if ellipsefit['success']:
+                    sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband,
+                                                  minerr=0.01, redshift=ellipsefit['redshift'],
+                                                  pixscale=pixscale)
+                    good = (ellipsefit[refband].stop_code < 4)
+                    ax1.fill_between(sbprofile['sma'][good] * smascale, 
+                                     sbprofile['gr'][good]-sbprofile['gr_err'][good],
+                                     sbprofile['gr'][good]+sbprofile['gr_err'][good],
+                                     alpha=0.6, color='gray')
 
-    ax1.grid()
-    ax1.set_ylim(0, 0.5)
-    ax1.set_ylabel('Ellipticity')
-    ax1.set_xlabel('Semimajor Axis (kpc)')
+        ax1.grid()
+        ax1.set_xlim(0, 50)
+        ax1.set_ylim(0, 2.5)
+        ax1.set_ylabel(r'$g - r$')
+        ax1.set_xlabel('Semimajor Axis (kpc)')
 
-    fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
+        fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
 
-    if png:
-        if verbose:
-            print('Writing {}'.format(png))
-        fig.savefig(png)
-        plt.close(fig)
-    else:
-        plt.show()
+        if png:
+            if verbose:
+                print('Writing {}'.format(png))
+            fig.savefig(png)
+            plt.close(fig)
+        else:
+            plt.show()
+            
+    # Ellipticity vs semi-major axis
+    def _ellipticity_vs_sma():
+        png = os.path.join(trendsdir, 'sma_vs_ellipticity.png')
+    
+        fig, ax1 = plt.subplots()
+        for gal in sample:
+            objid, objdir = get_objid(gal, analysisdir=analysisdir)
+            smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal['z']).value # [kpc/pixel]
 
+            ellipsefit = read_ellipsefit(objid, objdir)
+            if len(ellipsefit) > 0:
+                if ellipsefit['success']:
+                    good = (ellipsefit[refband].stop_code < 4)
+                    ax1.fill_between(ellipsefit[refband].sma[good] * smascale, 
+                                     ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
+                                     ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good],
+                                     alpha=0.6, color='gray')
+
+        ax1.grid()
+        ax1.set_ylim(0, 0.5)
+        ax1.set_ylabel('Ellipticity')
+        ax1.set_xlabel('Semimajor Axis (kpc)')
+
+        fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
+
+        if png:
+            if verbose:
+                print('Writing {}'.format(png))
+            fig.savefig(png)
+            plt.close(fig)
+        else:
+            plt.show()
+
+    # Build all the plots here.
+    
+    _color_vs_sma()       # color vs semi-major axis
+    _ellipticity_vs_sma() # ellipticity vs semi-major axis

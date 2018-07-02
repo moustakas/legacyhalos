@@ -18,7 +18,7 @@ import legacyhalos.io
 PIXSCALE = 0.262
 
 def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
-                         refband='r', nowrite=False, verbose=False):
+                         refband='r', redshift=None, nowrite=False, verbose=False):
     """Ellipse-fit the multiband data.
 
     See
@@ -37,13 +37,15 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
     # x-axis, while .pa in MGE measured counter-clockwise from the y-axis.
-    geometry = EllipseGeometry(x0=mgefit['xpeak'], y0=mgefit['ypeak'], eps=mgefit['eps'],
+    geometry = EllipseGeometry(x0=mgefit['xpeak'], y0=mgefit['ypeak'],
+                               eps=mgefit['eps'],
                                #sma=0.5*mgefit['majoraxis'], 
-                               sma=5,
+                               sma=10,
                                pa=np.radians(mgefit['pa']-90))
-    
+
     ellipsefit = dict()
     ellipsefit['success'] = False
+    ellipsefit['redshift'] = redshift
     ellipsefit['geometry'] = geometry
 
     def _sky(data, ellipsefit, diameter=2.0):
@@ -69,21 +71,20 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
         t0 = time.time()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            for minsma in (5, 2, 10): # try a few different starting minor axes
+            for minsma in (5, 1, 10): # try a few different starting minor axes
                 print('  Trying minimum sma = {:.1f} pixels.'.format(minsma))
                 isophot = ellipse.fit_image(minsma=minsma, maxsma=1.5*mgefit['majoraxis'],
                                             integrmode=integrmode, sclip=sclip, nclip=nclip,
                                             step=step, fflag=fflag)
                 if len(isophot) > 0:
                     break
-
         if verbose:
             print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
 
         if len(isophot) == 0:
             print('Ellipse-fitting failed, likely due to complex morphology or poor initial geometry.')
-
         else:
+            ellipsefit['success'] = True
             ellipsefit[refband] = isophot
 
             tall = time.time()
@@ -132,8 +133,7 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
 
             if verbose:
                 print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
-            ellipsefit['success'] = True
-
+                
     except:
         print('Ellipse-fitting failed, likely due to too many masked pixels.')
 
@@ -230,7 +230,8 @@ def legacyhalos_ellipse(galaxycat, objid=None, objdir=None, ncpu=1,
 
         # Do ellipse-fitting
         ellipsefit = ellipsefit_multiband(objid, objdir, data, mgefit, band=band,
-                                          refband=refband, verbose=verbose)
+                                          refband=refband, verbose=verbose,
+                                          redshift=galaxycat['z'])
         if ellipsefit['success']:
             return 1
         else:
