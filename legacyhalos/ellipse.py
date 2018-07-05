@@ -59,6 +59,8 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
 
     _sky(data, ellipsefit)
 
+    print('ADD THE PSFWIDTH!!')
+
     # Fit in the reference band...
     if verbose:
         print('Ellipse-fitting the reference {}-band image.'.format(refband))
