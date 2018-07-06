@@ -57,8 +57,13 @@ def analysis_dir():
     return adir
 
 def html_dir():
-    htmldir = os.path.join(os.sep, 'project', 'projectdirs', 'cosmo',
-                           'www', 'temp', 'ioannis', 'html')
+    #if 'NERSC_HOST' in os.environ:
+    #    htmldir = '/global/project/projectdirs/cosmo/www/temp/ioannis/legacyhalos'
+    #else:
+    #    htmldir = os.path.join(legacyhalos_dir(), 'html')
+
+    htmldir = os.path.join(legacyhalos_dir(), 'html')
+
     if not os.path.isdir(htmldir):
         os.makedirs(htmldir, exist_ok=True)
     return htmldir
@@ -136,7 +141,7 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
 
     return cat
 
-def read_multiband(objid, objdir, band=('g', 'r', 'z'), pixscale=0.262):
+def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
@@ -146,10 +151,21 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), pixscale=0.262):
     from scipy.ndimage.morphology import binary_dilation
 
     data = dict()
-    for filt in band:
 
+    found_data = True
+    for filt in band:
+        for imtype in ('image', 'model', 'invvar'):
+            imfile = os.path.join(objdir, '{}-{}-{}.fits.fz'.format(objid, imtype, filt))
+            if not os.path.isfile(imfile):
+                print('File {} not found.'.format(imfile))
+                found_data = False
+
+    if not found_data:
+        return data
+    
+    for filt in band:
         image = fitsio.read(os.path.join(objdir, '{}-image-{}.fits.fz'.format(objid, filt)))
-        model = fitsio.read(os.path.join(objdir, '{}-model-{}.fits.fz'.format(objid, filt)))
+        model = fitsio.read(os.path.join(objdir, '{}-model-nocentral-{}.fits.fz'.format(objid, filt)))
         invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))
 
         # Mask pixels with ivar<=0. Also build an object mask from the model
@@ -166,6 +182,10 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), pixscale=0.262):
         data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)]) # 0->bad
         ma.set_fill_value(data['{}_masked'.format(filt)], 0)
 
+    data['band'] = band
+    data['refband'] = refband
+    data['pixscale'] = pixscale
+
     return data
 
 def read_sample(first=None, last=None):
@@ -177,16 +197,23 @@ def read_sample(first=None, last=None):
     from astropy.table import hstack
     import legacyhalos.io
 
-    cols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
-            'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
-            'shapedev_r', 'shapedev_e1', 'shapedev_e2')
+    tractorcols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
+                   'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
+                   'shapedev_r', 'shapedev_e1', 'shapedev_e2',
+                   'fracdev', 'psfsize_g', 'psfsize_r', 'psfsize_z')
         
-    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True, columns=cols)
+    rmcols = ('mem_match_id', 'z', 'r_lambda', 'lambda_chisq', 'p_cen')
+    sdsscols = ('objid')
+        
+    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
+                                         columns=tractorcols)
+    
     rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
-                                     columns=('mem_match_id', 'z', 'r_lambda',
-                                              'lambda_chisq'))
+                                     columns=rmcols)
+    
     sdss = legacyhalos.io.read_catalog(extname='SDSSPHOT', upenn=True,
-                                       columns=np.atleast_1d('objid'))
+                                       columns=np.atleast_1d(sdsscols))
+    
     sdss.rename_column('objid', 'sdss_objid')
     print('Renaming column objid-->sdss_objid in [SDSSPHOT] extension.')
     sample = hstack( (sample, rm) )

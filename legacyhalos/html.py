@@ -6,29 +6,33 @@ import numpy as np
 import seaborn as sns
 sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
-PIXSCALE = 0.262
-
-def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False):
+def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
 
     montagefile = os.path.join(htmlobjdir, '{}-coadd-montage.png'.format(objid))
 
     if not os.path.isfile(montagefile) or clobber:
-        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-        cmd = cmd+' '.join([os.path.join(objdir, '{}-{}.jpg'.format(objid, suffix)) for
-                            suffix in ('image', 'model', 'resid')])
-        cmd = cmd+' {}'.format(montagefile)
-        print('Writing {}'.format(montagefile))
+        # Make sure all the files exist.
+        check = True
+        jpgfile = []
+        for suffix in ('image', 'model-nocentral', 'image-central'):
+            _jpgfile = os.path.join(objdir, '{}-{}.jpg'.format(objid, suffix))
+            jpgfile.append(_jpgfile)
+            if not os.path.isfile(_jpgfile):
+                print('File {} not found!'.format(_jpgfile))
+                check = False
+                
+        if check:        
+            cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
+            cmd = cmd+' '.join(ff for ff in jpgfile)
+            cmd = cmd+' {}'.format(montagefile)
 
-        err = subprocess.call(cmd.split())
+            if verbose:
+                print('Writing {}'.format(montagefile))
+            subprocess.call(cmd.split())
 
-    else:
-        err = 0
-
-    return err
-
-def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
-                       band=('g', 'r', 'z'), pixscale=0.262, clobber=False):
+def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
+                       clobber=False, verbose=True):
     """Generate QAplots from the ellipse-fitting.
 
     """
@@ -48,21 +52,19 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
         multibandfile = os.path.join(htmlobjdir, '{}-ellipse-multiband.png'.format(objid))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(objid, objdir, band=band)
-            display_multiband(data, ellipsefit=ellipsefit, band=band, refband=refband,
-                              indx=indx, png=multibandfile)
+            display_multiband(data, ellipsefit=ellipsefit, indx=indx,
+                              png=multibandfile, verbose=verbose)
 
         ellipsefitfile = os.path.join(htmlobjdir, '{}-ellipse-ellipsefit.png'.format(objid))
         if not os.path.isfile(ellipsefitfile) or clobber:
-            display_ellipsefit(ellipsefit, band=band, refband=refband, redshift=redshift,
-                               pixscale=pixscale, png=ellipsefitfile, xlog=True)
+            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=True, verbose=verbose)
         
         sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
         if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, band=band, refband=refband, redshift=redshift,
-                                      pixscale=pixscale, png=sbprofilefile)
+            display_ellipse_sbprofile(ellipsefit, png=sbprofilefile, verbose=verbose)
         
-def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
-                   band=('g', 'r', 'z'), pixscale=0.262, clobber=False):
+def qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=('g', 'r', 'z'),
+                   pixscale=0.262, clobber=False, verbose=True):
     """Generate QAplots from the MGE fitting.
 
     """
@@ -80,28 +82,29 @@ def qa_mge_results(objid, objdir, htmlobjdir, redshift=None, refband='r',
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(objid, objdir, band=band)
             display_multiband(data, mgefit=mgefit, band=band, refband=refband,
-                              png=multibandfile, contours=True)
+                              png=multibandfile, contours=True, verbose=verbose)
         
         #isophotfile = os.path.join(htmlobjdir, '{}-mge-mgefit.png'.format(objid))
         #if not os.path.isfile(isophotfile) or clobber:
         #    # Just display the reference band.
-        #    display_mgefit(mgefit, band=refband, redshift=redshift,
-        #                       indx=indx, pixscale=pixscale, png=isophotfile)
+        #    display_mgefit(mgefit, band=refband, indx=indx, pixscale=pixscale,
+        #                   png=isophotfile, verbose=verbose)
 
         sbprofilefile = os.path.join(htmlobjdir, '{}-mge-sbprofile.png'.format(objid))
         if not os.path.isfile(sbprofilefile) or clobber:
-            display_mge_sbprofile(mgefit, band=band, refband=refband, redshift=redshift,
-                                  pixscale=pixscale, png=sbprofilefile)
+            display_mge_sbprofile(mgefit, band=band, refband=refband, pixscale=pixscale,
+                                  png=sbprofilefile, verbose=verbose)
         
 def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
-               band=('g', 'r', 'z'), clobber=False):
+               band=('g', 'r', 'z'), clobber=False, verbose=True):
     """Make QA plots.
 
     """
     from legacyhalos.io import get_objid
     from legacyhalos.qa import sample_trends
 
-    sample_trends(sample, htmldir, analysisdir=analysisdir, refband=refband)
+    sample_trends(sample, htmldir, analysisdir=analysisdir,
+                  refband=refband, verbose=verbose)
 
     for gal in sample:
         objid, objdir = get_objid(gal, analysisdir=analysisdir)
@@ -111,15 +114,15 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
             os.makedirs(htmlobjdir, exist_ok=True)
 
         # Build the montage coadds.
-        qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber)
+        qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)
 
         # Build the MGE plots.
-        qa_mge_results(objid, objdir, htmlobjdir, redshift=gal['z'],
-                       refband='r', band=band, clobber=clobber)
+        #qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=band,
+        #               clobber=clobber, verbose=verbose)
 
         # Build the ellipse plots.
-        qa_ellipse_results(objid, objdir, htmlobjdir, redshift=gal['z'],
-                           refband='r', band=band, clobber=clobber)
+        qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
+                           clobber=clobber, verbose=verbose)
 
 
 def _javastring():
@@ -154,12 +157,13 @@ def _javastring():
     return js
         
 def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r', 
-              dr='dr5', first=None, last=None, makeplots=True, clobber=False):
+              dr='dr5', first=None, last=None, makeplots=True, clobber=False,
+              verbose=True):
     """Make the HTML pages.
 
     """
     import legacyhalos.io
-    from legacyhalos.util import cutout_radius_100kpc
+    from legacyhalos.misc import cutout_radius_150kpc
 
     if htmldir is None:
         htmldir = legacyhalos.io.html_dir()
@@ -173,7 +177,7 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
     # Get the viewer link
     def _viewer_link(gal, dr):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_100kpc(redshift=gal['z'], pixscale=PIXSCALE) # [pixels]
+        width = 2 * cutout_radius_150kpc(redshift=gal['z'], pixscale=0.262) # [pixels]
         if width > 400:
             zoom = 14
         else:
@@ -213,6 +217,7 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
         html.write('<th>Dec</th>\n')
         html.write('<th>Redshift</th>\n')
         html.write('<th>Richness</th>\n')
+        html.write('<th>Pcen</th>\n')
         html.write('<th>Viewer</th>\n')
         html.write('<th>SkyServer</th>\n')
         html.write('</tr>\n')
@@ -220,12 +225,13 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             htmlfile = os.path.join('{}'.format(objid1), '{}.html'.format(objid1))
 
             html.write('<tr>\n')
-            html.write('<td>{:g}</td>\n'.format(ii + 1))
+            html.write('<td>{:g}</td>\n'.format(ii))
             html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile, objid1))
             html.write('<td>{:.7f}</td>\n'.format(gal['ra']))
             html.write('<td>{:.7f}</td>\n'.format(gal['dec']))
             html.write('<td>{:.5f}</td>\n'.format(gal['z']))
             html.write('<td>{:.4f}</td>\n'.format(gal['lambda_chisq']))
+            html.write('<td>{:.3f}</td>\n'.format(gal['p_cen'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
@@ -247,6 +253,7 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
         html.write('<h1>LegacyHalos: Sample Trends</h1>\n')
         html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
         html.write('<a href="trends/sma_vs_ellipticity.png"><img src="trends/sma_vs_ellipticity.png" height="auto" width="50%"></a>')
+        html.write('<a href="trends/color_vs_ellipticity.png"><img src="trends/color_vs_ellipticity.png" height="auto" width="50%"></a>')
 
         html.write('<br /><br />\n')
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
@@ -298,56 +305,59 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             html.write('<th>Dec</th>\n')
             html.write('<th>Redshift</th>\n')
             html.write('<th>Richness</th>\n')
+            html.write('<th>Pcen</th>\n')
             html.write('<th>Viewer</th>\n')
             html.write('<th>SkyServer</th>\n')
             html.write('</tr>\n')
 
             html.write('<tr>\n')
-            html.write('<td>{:g}</td>\n'.format(ii + 1))
+            html.write('<td>{:g}</td>\n'.format(ii))
             html.write('<td>{}</td>\n'.format(objid1))
             html.write('<td>{:.7f}</td>\n'.format(gal['ra']))
             html.write('<td>{:.7f}</td>\n'.format(gal['dec']))
             html.write('<td>{:.5f}</td>\n'.format(gal['z']))
             html.write('<td>{:.4f}</td>\n'.format(gal['lambda_chisq']))
+            html.write('<td>{:.3f}</td>\n'.format(gal['p_cen'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
             html.write('</table>\n')
 
-            html.write('<h2>Coadds</h2>\n')
-            html.write('<p>Each coadd (left to right: data, model, residuals) is 200 kpc by 200 kpc.</p>\n')
+            html.write('<h2>Image mosaics</h2>\n')
+            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 300 kpc by 300 kpc.</p>\n')
             html.write('<table width="90%">\n')
-            html.write('<tr><td><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(objid1, objid1))
+            html.write('<tr><td><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" alt="Missing file {}-coadd-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(objid1, objid1, objid1))
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
             html.write('</table>\n')
             #html.write('<br />\n')
             
-            html.write('<h2>Ellipse-Fitting</h2>\n')
+            html.write('<h2>Elliptical Isophote Modeling</h2>\n')
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" alt="Missing file {}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
 
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
-            html.write('<td><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
+            html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" alt="Missing file {}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" alt="Missing file {}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
             html.write('</tr>\n')
             html.write('</table>\n')
             
             html.write('<br />\n')
 
-            html.write('<h2>Multi-Gaussian Expansion Fitting</h2>\n')
-            html.write('<p>The figures below are a work in progress.</p>\n')
-            html.write('<table width="90%">\n')
-            html.write('<tr>\n')
-            html.write('<td><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1))
-            html.write('</tr>\n')
-            html.write('<tr>\n')
-            html.write('<td><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" height="auto" width="50%"></a></td>\n'.format(objid1, objid1))
-            html.write('</tr>\n')
-            html.write('</table>\n')
+            if False:
+                html.write('<h2>Multi-Gaussian Expansion Fitting</h2>\n')
+                html.write('<p>The figures below are a work in progress.</p>\n')
+                html.write('<table width="90%">\n')
+                html.write('<tr>\n')
+                html.write('<td><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" alt="Missing file {}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+                html.write('</tr>\n')
+                html.write('<tr>\n')
+                html.write('<td><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" alt="Missing file {}-mge-sbprofile.png" height="auto" width="50%"></a></td>\n'.format(objid1, objid1, objid1))
+                html.write('</tr>\n')
+                html.write('</table>\n')
             
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
             html.write('</html></body>\n')
@@ -362,4 +372,4 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
 
     if makeplots:
         make_plots(sample, analysisdir=analysisdir, htmldir=htmldir, refband=refband,
-                   band=band, clobber=clobber)
+                   band=band, clobber=clobber, verbose=verbose)
