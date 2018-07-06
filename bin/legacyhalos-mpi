@@ -3,17 +3,11 @@
 """MPI wrapper for the various computationally intensive legacyhalos analysis
 steps.
 
-For unWISE coadds, in tractor/wise/unwise.py, you'll probably have to use
-unwise_tiles_touching_wcs to get the tiles overlapping, and then maybe
-get_unwise_tractor_image to read the data, and then maybe legacypipe/coadds.py :
-quick_coadds ?
-
 python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
 
 time legacyhalos-mpi --first 0 --last 0 --custom-coadds --ncpu 4 --dry-run --debug
 
-So if I wanted 24 MPI tasks and 8 cores per MPI task for
-multiprocessing, on cori I would do
+To get 24 MPI tasks and 8 cores per MPI task for multiprocessing, on cori I do 
   srun -N 6 -n 24 -c 8
 and on edison
   srun -N 8 -n 24 -c 8
@@ -28,47 +22,6 @@ import argparse
 import numpy as np
 
 import legacyhalos.io
-
-def _get_ncpu():
-    """Get the number of CPU cores to use."""
-    if os.getenv('NERSC_HOST') == 'cori':
-        maxproc = 64
-    elif os.getenv('NERSC_HOST') == 'edison':
-        maxproc = 48
-    else:
-        import multiprocessing
-        maxproc = multiprocessing.cpu_count()
-        
-    return maxproc // 2 # avoid hyper-threading
-
-def _catchup(comm=None, size=None):
-    """Silly wrapper script so all the ranks can catch up.
-
-    """
-    if comm:
-        comm.barrier()
-        for rank in range(size):
-            print('In rank {}'.format(rank))
-            pass
-        comm.barrier()
-
-def _init_survey():
-    """Instantiate the LegacySurveyData object."""
-    from legacypipe.survey import LegacySurveyData
-
-    #if custom:
-    #    cache_dir = None
-    #else:
-    #    #cache_dir = os.path.join('/project/projectdirs/cosmo/data/legacysurvey/dr5')
-    #    cache_dir = '/global/project/projectdirs/cosmo/work/legacysurvey/dr5'
-    #    #cache_dir = os.path.join('/global/cscratch1/sd/dstn/dr6plus')
-
-    #cache_dir = '/global/cscratch1/sd/desiproc/dr5-calib'
-    #cache_dir = '/global/cscratch1/sd/desiproc/dr7/calib'
-    #cache_dir = '/global/cscratch1/sd/dstn/dr5-new-sky/cache'
-    #cache_dir = None
-
-    return LegacySurveyData() # cache_dir=cache_dir)
 
 def _missing(sample, size=1, filetype='coadds', clobber=False):
     """Find missing data of a given filetype."""    
@@ -139,16 +92,14 @@ def main():
         comm = None
         rank, size = 0, 1
 
-    #if args.ncpu is None:
-    #    args.ncpu = _get_ncpu()
-    
     # Read the sample and initialize the LegacySurveyData() object.
     if rank == 0:
         print('LEGACYHALOS_DIR = {}'.format( legacyhalos.io.analysis_dir() ))
         sample = legacyhalos.io.read_sample(first=args.first, last=args.last)
         if args.coadds:
             print('Initializing the LegacySurveyData object.')
-            survey = _init_survey()
+            from legacypipe.survey import LegacySurveyData
+            survey = LegacySurveyData()
         else:
             survey = None
     else:
@@ -270,9 +221,11 @@ def main():
         if args.ellipse:
             groups = missing_ellipse(sample, size=size, clobber=args.clobber)
 
-        stilltodo = len(np.hstack(np.atleast_1d(groups)))
+        if len(groups) > 0:
+            stilltodo = len(np.hstack(np.atleast_1d(groups)))
+        else:
+            stilltodo = 0
         print('{} left to do: {} / {}.'.format(suffix.upper(), stilltodo, ntodo), flush=True)
-        #pdb.set_trace()
 
 if __name__ == '__main__':
     main()
