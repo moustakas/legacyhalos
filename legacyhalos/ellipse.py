@@ -274,8 +274,8 @@ def legacyhalos_ellipse(sample, objid=None, objdir=None, ncpu=1,
         objid, objdir = get_objid(sample)
 
     # Read the data.  
-    data = legacyhalos.io.read_multiband(objid, objdir, band=band,
-                                         refband=refband, pixscale=pixscale)
+    data = legacyhalos.io.read_multiband(objid, objdir, band=band, refband=refband,
+                                         pixscale=pixscale)
     if bool(data):
         # Find the galaxy and perform MGE fitting.
         mgefit = mgefit_multiband(objid, objdir, data, verbose=verbose, debug=debug)

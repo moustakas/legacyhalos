@@ -17,9 +17,9 @@ sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
 PIXSCALE = 0.262
 
-def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
-                      mgefit=None, ellipsefit=None, indx=None, magrange=10,
-                      inchperband=3, contours=False, png=None, verbose=True):
+def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=None,
+                      magrange=10, inchperband=3, contours=False, png=None,
+                      verbose=True):
     """Display the multi-band images and, optionally, the isophotal fits based on
     either MGE and/or Ellipse.
 
@@ -27,7 +27,8 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
     from astropy.visualization import ZScaleInterval as Interval
     from astropy.visualization import AsinhStretch as Stretch
     from astropy.visualization import ImageNormalize
-    
+
+    band = data['band']
     nband = len(band)
 
     fig, ax = plt.subplots(1, 3, figsize=(inchperband*nband, nband))
@@ -107,21 +108,15 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
     else:
         plt.show()
 
-def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r',
-                       pixscale=0.262, xlog=False, png=None, verbose=True):
+def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
     """Display the isophote fitting results."""
 
     from matplotlib.ticker import FormatStrFormatter, ScalarFormatter
 
-    if redshift:
-        from astropy.cosmology import WMAP9 as cosmo
-        smascale = pixscale / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/pixel]
-        smaunit = 'kpc'
-    else:
-        smascale = 1.0
-        smaunit = 'pixels'
-
     colors = iter(sns.color_palette())
+
+    band, refband = ellipsefit['band'], ellipsefit['refband']
+    pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
 
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
     for filt in np.atleast_1d(refband):
@@ -130,12 +125,12 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r',
             good = (ellipsefit[filt].stop_code < 4)
             bad = ~good
 
-            ax1.fill_between(ellipsefit[filt].sma[good] * smascale, 
+            ax1.fill_between(ellipsefit[filt].sma[good] * pixscale,
                              ellipsefit[filt].eps[good]-ellipsefit[filt].ellip_err[good],
                              ellipsefit[filt].eps[good]+ellipsefit[filt].ellip_err[good])#,
                              #edgecolor='k', lw=2)
             if np.count_nonzero(bad) > 0:
-                ax1.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].eps[bad],
+                ax1.scatter(ellipsefit[filt].sma[bad] * pixscale, ellipsefit[filt].eps[bad],
                             marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
 
             #ax1.errorbar(ellipsefit[filt].sma[good] * smascale,
@@ -145,12 +140,12 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r',
             #ax1.set_ylim(0, 0.5)
             ax1.xaxis.set_major_formatter(ScalarFormatter())
 
-            ax2.fill_between(ellipsefit[filt].sma[good] * smascale, 
+            ax2.fill_between(ellipsefit[filt].sma[good] * pixscale, 
                              ellipsefit[filt].pa[good]-ellipsefit[filt].pa_err[good],
                              ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good])#,
                              #edgecolor='k', lw=2)
             if np.count_nonzero(bad) > 0:
-                ax2.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].pa[bad],
+                ax2.scatter(ellipsefit[filt].sma[bad] * pixscale, ellipsefit[filt].pa[bad],
                             marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
             #ax2.errorbar(ellipsefit[filt].sma[good] * smascale,
             #             np.degrees(ellipsefit[filt].pa[good]),
@@ -161,12 +156,12 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r',
             ax2.xaxis.set_major_formatter(ScalarFormatter())
             #ax2.set_ylim(0, 180)
 
-            ax3.fill_between(ellipsefit[filt].sma[good] * smascale, 
+            ax3.fill_between(ellipsefit[filt].sma[good] * pixscale,
                              ellipsefit[filt].x0[good]-ellipsefit[filt].x0_err[good],
                              ellipsefit[filt].x0[good]+ellipsefit[filt].x0_err[good])#,
                              #edgecolor='k', lw=2)
             if np.count_nonzero(bad) > 0:
-                ax3.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].x0[bad],
+                ax3.scatter(ellipsefit[filt].sma[bad] * pixscale, ellipsefit[filt].x0[bad],
                             marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
             #ax3.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].x0[good],
             #             ellipsefit[filt].x0_err[good], fmt='o',
@@ -174,12 +169,12 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r',
             ax3.xaxis.set_major_formatter(ScalarFormatter())
             ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
-            ax4.fill_between(ellipsefit[filt].sma[good] * smascale, 
+            ax4.fill_between(ellipsefit[filt].sma[good] * pixscale, 
                              ellipsefit[filt].y0[good]-ellipsefit[filt].y0_err[good],
                              ellipsefit[filt].y0[good]+ellipsefit[filt].y0_err[good])#,
                              #edgecolor='k', lw=2)
             if np.count_nonzero(bad) > 0:
-                ax4.scatter(ellipsefit[filt].sma[bad] * smascale, ellipsefit[filt].y0[bad],
+                ax4.scatter(ellipsefit[filt].sma[bad] * pixscale, ellipsefit[filt].y0[bad],
                             marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
             #ax4.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].y0[good],
             #             ellipsefit[filt].y0_err[good], fmt='o',
@@ -192,9 +187,9 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r',
         
     ax1.set_ylabel('Ellipticity')
     ax2.set_ylabel('Position Angle (deg)')
-    ax3.set_xlabel('Semimajor Axis ({})'.format(smaunit))
+    ax3.set_xlabel('Semimajor Axis (arcsec)')
     ax3.set_ylabel(r'$x_{0}$')
-    ax4.set_xlabel('Semimajor Axis ({})'.format(smaunit))
+    ax4.set_xlabel('Semimajor Axis (arcsec)')
     ax4.set_ylabel(r'$y_{0}$')
     
     if xlog:
@@ -211,17 +206,17 @@ def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r',
     else:
         plt.show()
         
-def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
-                              minerr=0.02, pixscale=0.262, sersicfit=None,
+def display_ellipse_sbprofile(ellipsefit, minerr=0.02, sersicfit=None,
                               png=None, verbose=True):
     """Display the multi-band surface brightness profile.
 
     """
     from legacyhalos.ellipse import ellipse_sbprofile
 
+    band, refband, redshift = ellipsefit['band'], ellipsefit['refband'], ellipsefit['redshift']
+
     if ellipsefit['success']:
-        sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband,
-                                      minerr=minerr, pixscale=pixscale)
+        sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr)
 
     colors = iter(sns.color_palette())
 
@@ -278,7 +273,7 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
                          label=r'$g - r$', color=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
-        ax2.set_xlabel('Semimajor Axis ({})'.format(sbprofile['smaunit']), alpha=0.75)
+        ax2.set_xlabel('Semimajor Axis (arcsec)', alpha=0.75)
         ax2.legend(loc='upper left')
     else:
         ax2.set_xlabel('Semimajor Axis', alpha=0.75)
@@ -296,19 +291,10 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
     else:
         plt.show()
         
-def display_mge_sbprofile(mgefit, band=('g', 'r', 'z'), refband='r', indx=None,
-                          pixscale=0.262, png=None, verbose=True):
+def display_mge_sbprofile(mgefit, indx=None, png=None, verbose=True):
     """Display the multi-band surface brightness profile."""
 
     colors = iter(sns.color_palette())
-
-    if redshift:
-        from astropy.cosmology import WMAP9 as cosmo
-        smascale = pixscale / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/pixel]
-        smaunit = 'kpc'
-    else:
-        smascale = 1.0
-        smaunit = 'pixels'
 
     #if indx is None:
     #    indx = np.ones_like(mgefit[refband].radius, dtype='bool')
@@ -395,6 +381,7 @@ def sample_trends(sample, htmldir, analysisdir=None, refband='r',
     from astropy.cosmology import WMAP9 as cosmo
     from legacyhalos.io import get_objid, read_ellipsefit
     from legacyhalos.ellipse import ellipse_sbprofile
+    from legacyhalos.misc import arcsec2kpc
 
     trendsdir = os.path.join(htmldir, 'trends')
     if not os.path.isdir(trendsdir):
@@ -407,15 +394,16 @@ def sample_trends(sample, htmldir, analysisdir=None, refband='r',
         fig, ax1 = plt.subplots()
         for gal in sample:
             objid, objdir = get_objid(gal, analysisdir=analysisdir)
-            smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal['z']).value # [kpc/pixel]
 
             ellipsefit = read_ellipsefit(objid, objdir)
             if len(ellipsefit) > 0:
-                if ellipsefit['success']:
-                    sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband,
-                                                  minerr=0.01, pixscale=pixscale)
+                if ellipsefit['success']:                    
+                    refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
+                    smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+                    
+                    sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.01)
                     good = (ellipsefit[refband].stop_code < 4)
-                    ax1.fill_between(sbprofile['sma'][good] * smascale, 
+                    ax1.fill_between(sbprofile['sma'][good] * smascale,
                                      sbprofile['gr'][good]-sbprofile['gr_err'][good],
                                      sbprofile['gr'][good]+sbprofile['gr_err'][good],
                                      alpha=0.6, color='gray')
@@ -438,16 +426,19 @@ def sample_trends(sample, htmldir, analysisdir=None, refband='r',
             
     # Ellipticity vs semi-major axis
     def _ellipticity_vs_sma():
+        
         png = os.path.join(trendsdir, 'sma_vs_ellipticity.png')
     
         fig, ax1 = plt.subplots()
         for gal in sample:
             objid, objdir = get_objid(gal, analysisdir=analysisdir)
-            smascale = pixscale / cosmo.arcsec_per_kpc_proper(gal['z']).value # [kpc/pixel]
 
             ellipsefit = read_ellipsefit(objid, objdir)
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:
+                    refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
+                    smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+                    
                     good = (ellipsefit[refband].stop_code < 4)
                     ax1.fill_between(ellipsefit[refband].sma[good] * smascale, 
                                      ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
