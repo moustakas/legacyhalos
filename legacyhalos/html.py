@@ -17,7 +17,7 @@ def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False, verbose=True):
         # Make sure all the files exist.
         check = True
         jpgfile = []
-        for suffix in ('image', 'model', 'resid'):
+        for suffix in ('image', 'model-nocentral', 'image-central'):
             _jpgfile = os.path.join(objdir, '{}-{}.jpg'.format(objid, suffix))
             jpgfile.append(_jpgfile)
             if not os.path.isfile(_jpgfile):
@@ -327,15 +327,15 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             html.write('</tr>\n')
             html.write('</table>\n')
 
-            html.write('<h2>Coadds</h2>\n')
-            html.write('<p>Each coadd (left to right: data, model, residuals) is 200 kpc by 200 kpc.</p>\n')
+            html.write('<h2>Image mosaics</h2>\n')
+            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 300 kpc by 300 kpc.</p>\n')
             html.write('<table width="90%">\n')
             html.write('<tr><td><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" alt="Missing file {}-coadd-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(objid1, objid1, objid1))
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
             html.write('</table>\n')
             #html.write('<br />\n')
             
-            html.write('<h2>Ellipse-Fitting</h2>\n')
+            html.write('<h2>Elliptical Isophote Modeling</h2>\n')
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
             html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" alt="Missing file {}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))

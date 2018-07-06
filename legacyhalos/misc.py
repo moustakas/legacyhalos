@@ -1,5 +1,5 @@
 """
-legacyhalos.util
+legacyhalos.misc
 ================
 
 Miscellaneous utility code used by various scripts.
@@ -47,8 +47,8 @@ def destroy_logger(log):
         hndl.flush()
         hndl.close()
 
-def cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
-    """Get a cutout radius of 100 kpc [in pixels] at the redshift of the cluster.
+def cutout_radius_150kpc(redshift, pixscale=0.262, radius_kpc=150):
+    """Get a cutout radius of 150 kpc [in pixels] at the redshift of the cluster.
 
     """
     from astropy.cosmology import WMAP9 as cosmo

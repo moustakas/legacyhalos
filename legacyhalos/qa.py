@@ -107,7 +107,7 @@ def display_multiband(data, band=('g', 'r', 'z'), refband='r', geometry=None,
     else:
         plt.show()
 
-def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r', redshift=None,
+def display_ellipsefit(ellipsefit, band=('g', 'r', 'z'), refband='r',
                        pixscale=0.262, xlog=False, png=None, verbose=True):
     """Display the isophote fitting results."""
 

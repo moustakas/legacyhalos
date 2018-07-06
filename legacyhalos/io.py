@@ -165,7 +165,7 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), pixscale=0.262):
     
     for filt in band:
         image = fitsio.read(os.path.join(objdir, '{}-image-{}.fits.fz'.format(objid, filt)))
-        model = fitsio.read(os.path.join(objdir, '{}-model-{}.fits.fz'.format(objid, filt)))
+        model = fitsio.read(os.path.join(objdir, '{}-model-nocentral-{}.fits.fz'.format(objid, filt)))
         invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))
 
         # Mask pixels with ivar<=0. Also build an object mask from the model
