@@ -75,3 +75,10 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
 
     return radius
 
+def arcsec2kpc(redshift):
+    """Compute and return the scale factor to convert a physical axis in arcseconds
+    to kpc.
+
+    """
+    from astropy.cosmology import WMAP9 as cosmo
+    return 1 / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/arcsec]

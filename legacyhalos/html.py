@@ -6,8 +6,6 @@ import numpy as np
 import seaborn as sns
 sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
-PIXSCALE = 0.262
-
 def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
 
@@ -181,7 +179,7 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
     # Get the viewer link
     def _viewer_link(gal, dr):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_150kpc(redshift=gal['z'], pixscale=PIXSCALE) # [pixels]
+        width = 2 * cutout_radius_150kpc(redshift=gal['z'], pixscale=0.262) # [pixels]
         if width > 400:
             zoom = 14
         else:

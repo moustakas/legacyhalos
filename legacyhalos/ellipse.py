@@ -9,16 +9,15 @@ from __future__ import absolute_import, division, print_function
 
 import os, pdb
 import time, warnings
+
 import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
 
 import legacyhalos.io
 
-PIXSCALE = 0.262
-
-def ellipsefit_multiband(objid, objdir, data, sample, mgefit, band=('g', 'r', 'z'),
-                         refband='r', nowrite=False, verbose=False):
+def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
+                         nowrite=False, verbose=False):
     """Ellipse-fit the multiband data.
 
     See
@@ -30,9 +29,14 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit, band=('g', 'r', 'z
     from photutils.isophote.sample import CentralEllipseSample
     from photutils.isophote.fitter import CentralEllipseFitter
 
+    band, refband, pixscale = data['band'], data['refband'], data['pixscale']
+
     ellipsefit = dict()
     ellipsefit['success'] = False
     ellipsefit['redshift'] = sample['z']
+    ellipsefit['band'] = band
+    ellipsefit['refband'] = refband
+    ellipsefit['pixscale'] = pixscale
     for filt in band:
         ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)]
 
@@ -145,26 +149,19 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit, band=('g', 'r', 'z
 
     return ellipsefit
 
-def ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
-                      minerr=0.02, pixscale=0.262):
+def ellipse_sbprofile(ellipsefit, minerr=0.02):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
 
     """
-    if 'redshift' in ellipsefit:
-        from astropy.cosmology import WMAP9 as cosmo
-        redshift = ellipsefit['redshift']
-        smascale = pixscale / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/pixel]
-        smaunit = 'kpc'
-    else:
-        smascale = 1.0
-        smaunit = 'pixels'
-
+    band, refband = ellipsefit['band'], ellipsefit['refband']
+    pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
+    
     indx = np.ones(len(ellipsefit[refband]), dtype=bool)
 
     sbprofile = dict()
-    sbprofile['smaunit'] = smaunit
-    sbprofile['sma'] = ellipsefit['r'].sma[indx] * smascale
+    sbprofile['smaunit'] = 'arcsec'
+    sbprofile['sma'] = ellipsefit['r'].sma[indx] * pixscale # [arcsec]
 
     with np.errstate(invalid='ignore'):
         for filt in band:
@@ -199,9 +196,8 @@ def ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
 
     return sbprofile
 
-def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
-                     pixscale=0.262, debug=False, nowrite=False, nofit=True,
-                     verbose=False):
+def mgefit_multiband(objid, objdir, data, debug=False, nowrite=False,
+                     nofit=True, verbose=False):
     """MGE-fit the multiband data.
 
     See http://www-astro.physics.ox.ac.uk/~mxc/software/#mge
@@ -211,6 +207,8 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
     from mge.sectors_photometry import sectors_photometry
     from mge.mge_fit_sectors import mge_fit_sectors as fit_sectors
     #from mge.mge_print_contours import mge_print_contours as print_contours
+
+    band, refband, pixscale = data['band'], data['refband'], data['pixscale']
 
     # Get the geometry of the galaxy in the reference band.
     if verbose:
@@ -276,15 +274,15 @@ def legacyhalos_ellipse(sample, objid=None, objdir=None, ncpu=1,
         objid, objdir = get_objid(sample)
 
     # Read the data.  
-    data = legacyhalos.io.read_multiband(objid, objdir, band=band)
+    data = legacyhalos.io.read_multiband(objid, objdir, band=band,
+                                         refband=refband, pixscale=pixscale)
     if bool(data):
         # Find the galaxy and perform MGE fitting.
-        mgefit = mgefit_multiband(objid, objdir, data, band=band, refband=refband,
-                                  pixscale=pixscale, verbose=verbose, debug=debug)
+        mgefit = mgefit_multiband(objid, objdir, data, verbose=verbose, debug=debug)
 
         # Do ellipse-fitting.
         ellipsefit = ellipsefit_multiband(objid, objdir, data, sample, mgefit,
-                                          band=band, refband=refband, verbose=verbose)
+                                          verbose=verbose)
         if ellipsefit['success']:
             return 1
         else:
