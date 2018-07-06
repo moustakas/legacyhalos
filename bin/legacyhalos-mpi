@@ -30,6 +30,8 @@ def _missing(sample, size=1, filetype='coadds', clobber=False):
         filesuffix = 'image-central.jpg'
     elif filetype == 'ellipse':
         filesuffix = 'ellipsefit.p'
+    elif filetype == 'sersic':
+        filesuffix = 'sersic-single.p'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -60,6 +62,11 @@ def missing_coadds(sample, size=1, clobber=False):
 def missing_ellipse(sample, size=1, clobber=False):
     '''Find the galaxies that do not yet have ellipse fits.'''
     return _missing(sample, size=size, filetype='ellipse',
+                    clobber=clobber)
+
+def missing_sersic(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have ellipse fits.'''
+    return _missing(sample, size=size, filetype='sersic',
                     clobber=clobber)
 
 def main():
@@ -122,6 +129,9 @@ def main():
         elif args.ellipse:
             groups = missing_ellipse(sample, size=size, clobber=args.clobber)
             suffix = 'ellipse'
+        elif args.sersic:
+            groups = missing_sersic(sample, size=size, clobber=args.clobber)
+            suffix = 'sersic'
         else:
             groups = []
 
@@ -206,6 +216,29 @@ def main():
                         result = legacyhalos_ellipse(
                             sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
                             pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
+                        if result == 0:
+                            print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
+                        print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
+                            rank, objid, time.asctime(), (time.time() - t0)/60), flush=True)
+                if result == 0:
+                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
+                        
+        if args.sersic:
+            from legacyhalos.sersic import legacyhalos_sersic
+            if args.debug:
+                result = legacyhalos_sersic(sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
+                    debug=args.debug, verbose=args.verbose)
+                if result == 0:
+                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
+                print('Finished objid {} in {:.3f} minutes.'.format(
+                    objid, (time.time() - t0)/60), flush=True)
+            else:
+                with open(logfile, 'w') as log:
+                    with redirect_stdout(log), redirect_stderr(log):
+                        print('Rank {} started working on objid {} at {}'.format(
+                            rank, objid, time.asctime()), flush=True)
+                        result = legacyhalos_sersic(sample[ii], objid=objid, objdir=objdir, ncpu=args.ncpu,
+                                                    debug=args.debug, verbose=args.verbose)
                         if result == 0:
                             print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                         print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
