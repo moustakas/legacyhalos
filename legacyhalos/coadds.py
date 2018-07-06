@@ -17,9 +17,10 @@ python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/da
 """
 from __future__ import absolute_import, division, print_function
 
-import os, pdb
+import os, sys, pdb
 import shutil
 import numpy as np
+from contextlib import redirect_stdout, redirect_stderr
 
 def custom_brickname(galaxycat, prefix='custom-'):
     brickname = 'custom-{:06d}{}{:05d}'.format(
@@ -56,7 +57,7 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
     return radius
 
 def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1,
-                  pixscale=0.262, log=None):
+                  pixscale=0.262, log=None, force=False):
     """Run legacypipe on a custom "brick" centered on the central.
 
     """
@@ -69,7 +70,9 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1,
     #cmd += '--force-all '
     cmd += '--write-stage srcs --no-write --skip --skip-calibs --no-wise-ceres '
     cmd += '--checkpoint {outdir}/checkpoint-{objid}.pickle '
-    cmd += '--pickle "{outdir}/{objid}-%%(stage)s.pickle" '
+    cmd += '--pickle {outdir}/{objid}-%%(stage)s.pickle' 
+    if force:
+        cmd += '--force-all '
     
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'),
                      ra=galaxycat['ra'], dec=galaxycat['dec'],
@@ -145,7 +148,7 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1,
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
 
 def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100,
-                       brickname=None, pixscale=0.262):
+                       brickname=None, pixscale=0.262, log=None):
     """Initialize the first step of the pipeline, returning
     a dictionary with the following keys:
     
@@ -157,16 +160,26 @@ def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100,
     """
     from legacypipe.runbrick import stage_tims
 
-    unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)
-    P = stage_tims(ra=galaxycat['ra'], dec=galaxycat['dec'], brickname=brickname,
-                   survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
-                   mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
-                   depth_cut=False, apodize=False, do_calibs=False, rex=True, 
-                   splinesky=True, unwise_dir=unwise_dir)
+    unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)    
+
+    if log:
+        with redirect_stdout(log), redirect_stderr(log):
+            P = stage_tims(ra=galaxycat['ra'], dec=galaxycat['dec'], brickname=brickname,
+                           survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
+                           mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
+                           depth_cut=False, apodize=False, do_calibs=False, rex=True, 
+                           splinesky=True, unwise_dir=unwise_dir)
+    else:
+        P = stage_tims(ra=galaxycat['ra'], dec=galaxycat['dec'], brickname=brickname,
+                       survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
+                       mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
+                       depth_cut=False, apodize=False, do_calibs=False, rex=True, 
+                       splinesky=True, unwise_dir=unwise_dir)
+
     return P
 
 def _read_tractor(galaxycat, objid=None, targetwcs=None,
-                  survey=None, verbose=False):
+                  survey=None, log=None):
     """Read the full Tractor catalog for a given brick 
     and remove the BCG.
     
@@ -177,8 +190,7 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None,
     # Read the newly-generated Tractor catalog
     fn = os.path.join(survey.output_dir, '{}-tractor.fits'.format(objid))
     cat = fits_table(fn)
-    if verbose:
-        print('Read {} sources from {}'.format(len(cat), fn))
+    print('Read {} sources from {}'.format(len(cat), fn), flush=True, file=log)
 
     # Find and remove the central.  For some reason, match_radec
     # occassionally returns two matches, even though nearest=True.
@@ -189,8 +201,8 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None,
     elif len(d12) > 1:
         m1 = m1[np.argmin(d12)]
 
-    if verbose:
-        print('Removed central galaxy with objid = {}'.format(cat[m1].objid))
+    print('Removed central galaxy with objid = {}'.format(cat[m1].objid),
+          flush=True, file=log)
 
     # To prevent excessive masking, leave the central galaxy and any source
     # who's center is within a half-light radius intact.
@@ -207,29 +219,27 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None,
         
     return cat
 
-def _build_model_image(cat, tims, survey=None, verbose=False):
+def _build_model_image(cat, tims, survey=None, log=None):
     """Generate a model image by rendering each source.
     
     """
     from legacypipe.catalog import read_fits_catalog
     from legacypipe.runbrick import _get_mod
     
-    if verbose:
-        print('Creating tractor sources...')
+    print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')
     
     if False:
         print('Sources:')
         [print(' ', src) for src in srcs]
 
-    if verbose:
-        print('Rendering model images...')
+    print('Rendering model images...', flush=True, file=log)
     mods = [_get_mod((tim, srcs)) for tim in tims]
 
     return mods
 
 def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None,
-                    brickname=None, survey=None, mp=None, verbose=False,
+                    brickname=None, survey=None, mp=None, log=None, 
                     bands=['g','r','z']):
     """Generate individual-band FITS and color coadds for each central using
     Tractor.
@@ -242,13 +252,18 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
     if brickname is None:
         brickname = galaxycat['brickname']
 
-    if verbose:
-        print('Producing coadds...')
-    C = make_coadds(tims, bands, targetwcs, mods=mods, mp=mp,
-                    callback=write_coadd_images,
-                    callback_args=(survey, brickname, version_header, 
-                                   tims, targetwcs)
-                    )
+    print('Producing coadds...', flush=True, file=log)
+    if log:
+        with redirect_stdout(log), redirect_stderr(log):
+            C = make_coadds(tims, bands, targetwcs, mods=mods, mp=mp,
+                            callback=write_coadd_images,
+                            callback_args=(survey, brickname, version_header, 
+                                           tims, targetwcs))
+    else:
+        C = make_coadds(tims, bands, targetwcs, mods=mods, mp=mp,
+                        callback=write_coadd_images,
+                        callback_args=(survey, brickname, version_header, 
+                                       tims, targetwcs))
 
     # Move (rename) the coadds into the desired output directory.
     for suffix in np.atleast_1d('model'):
@@ -278,14 +293,13 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
         rgb = get_rgb(ims, bands, **rgbkw)
         kwa = {}
         outfn = os.path.join(survey.output_dir, '{}-{}.jpg'.format(objid, name))
-        if verbose:
-            print('Writing {}'.format(outfn))
+        print('Writing {}'.format(outfn), flush=True, file=log)
         imsave_jpeg(outfn, rgb, origin='lower', **kwa)
         del rgb
 
 def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
-                              ncpu=1, pixscale=0.262, log=None,
-                              cluster_radius=False, verbose=False):
+                              ncpu=1, pixscale=0.262, log=None, force=False,
+                              cluster_radius=False):
     """Top-level wrapper script to generate coadds for a single galaxy.
 
     """ 
@@ -308,21 +322,20 @@ def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
     # Step 1 - Run legacypipe to generate a custom "brick" and tractor catalog
     # centered on the central.
     _custom_brick(galaxycat, objid=objid, survey=survey, radius=radius,
-                  ncpu=ncpu, pixscale=pixscale, log=log)
+                  ncpu=ncpu, pixscale=pixscale, log=log, force=force)
 
     # Step 2 - Read the Tractor catalog for this brick and remove the central.
-    cat = _read_tractor(galaxycat, objid=objid, survey=survey, verbose=verbose)
+    cat = _read_tractor(galaxycat, objid=objid, survey=survey, log=log)
 
     # Step 3 - Set up the first stage of the pipeline.
     P = _coadds_stage_tims(galaxycat, survey=survey, mp=mp, radius=radius,
-                           brickname=brickname, pixscale=pixscale)
+                           brickname=brickname, pixscale=pixscale, log=log)
 
     # Step 4 - Render the model images without the central.
-    mods = _build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
+    mods = _build_model_image(cat, tims=P['tims'], survey=survey, log=log)
     
     # Step 3 - Generate and write out the coadds.
     _tractor_coadds(galaxycat, P['targetwcs'], P['tims'], mods, P['version_header'],
-                    objid=objid, brickname=brickname, survey=survey, mp=mp,
-                    verbose=verbose)
+                    objid=objid, brickname=brickname, survey=survey, mp=mp, log=log)
 
     return 1

@@ -124,6 +124,7 @@ def main():
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
     parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
     
+    parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
     parser.add_argument('--debug', action='store_true', help='Log to STDOUT and build debugging plots.')
     parser.add_argument('--dry-run', action='store_true', help='Count how many objects are left to analyze.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
@@ -193,10 +194,10 @@ def main():
 
     if len(groups[rank]) == 0 or args.dry_run:
         if len(groups[rank]) > 0 and args.debug:
-            objid, objdir = legacyhalos.io.get_objid(sample)
+            objid, objdir = legacyhalos.io.get_objid(sample[groups])
+            #[print('  {} {}'.format(ii, dd)) for ii, dd in zip(np.atleast_1d(groups), np.atleast_1d(objdir))]
             [print('  {}'.format(dd)) for dd in np.atleast_1d(objdir)]
         return
-    #_catchup(comm, size)
 
     # Loop on the remaining objects.
     print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
@@ -218,7 +219,7 @@ def main():
             if args.debug:
                 result = legacyhalos_custom_coadds(
                     sample[ii], survey=survey, objid=objid, objdir=objdir,
-                    ncpu=args.ncpu, pixscale=args.pixscale, verbose=args.verbose)
+                    ncpu=args.ncpu, pixscale=args.pixscale, force=args.force)
                 if result == 0:
                     print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                 print('Finished objid {} in {:.3f} minutes.'.format(
@@ -230,7 +231,7 @@ def main():
                         rank, objid, time.asctime()), flush=True, file=log)
                     result = legacyhalos_custom_coadds(
                         sample[ii], survey=survey, objid=objid, objdir=objdir, ncpu=args.ncpu, 
-                        pixscale=args.pixscale, verbose=args.verbose, log=log)
+                        pixscale=args.pixscale, log=log, force=args.force)
                     if result == 0:
                         print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True, file=log)
                     print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
