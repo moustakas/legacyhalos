@@ -27,8 +27,8 @@ def custom_brickname(galaxycat, prefix='custom-'):
         int(1000*np.abs(galaxycat['dec'])))
     return brickname
 
-def cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=100):
-    """Get a cutout radius of 100 kpc [in pixels] at the redshift of the cluster.
+def cutout_radius_100kpc(redshift, pixscale=0.262, radius_kpc=150):
+    """Get a cutout radius of 150 kpc [in pixels] at the redshift of the cluster.
 
     """
     from astropy.cosmology import WMAP9 as cosmo
@@ -55,7 +55,8 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
 
     return radius
 
-def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.262):
+def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1,
+                  pixscale=0.262, log=None):
     """Run legacypipe on a custom "brick" centered on the central.
 
     """
@@ -76,8 +77,8 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
                      threads=ncpu, outdir=survey.output_dir,
                      objid=objid)
     
-    print(cmd, flush=True)
-    err = subprocess.call(cmd.split())
+    print(cmd, flush=True, file=log)
+    err = subprocess.call(cmd.split(), stdout=log, stderr=log)
 
     #from legacypipe.runbrick import run_brick
     #run_brick(None, survey, radec=(galaxycat['ra'], galaxycat['dec']), pixscale=pixscale,
@@ -138,7 +139,7 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
             os.path.join(survey.output_dir, '{}-depth-{}.fits.fz'.format(objid, band))
             )
         
-    if False:
+    if True:
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor'))
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
@@ -193,14 +194,23 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None,
         m1, m2, d12 = match_radec(cat.ra, cat.dec, galaxycat['ra'], galaxycat['dec'],
                                   1/3600.0, nearest=True)
         if len(d12) == 0:
-            print('No matching central found -- definitely a problem.')
+            raise ValueError('No matching central found -- definitely a problem.')
         elif len(d12) > 1:
             m1 = m1[np.argmin(d12)]
 
-        print('Do not subtract out neighbors!')
-        #pdb.set_trace()
         if verbose:
             print('Removed central galaxy with objid = {}'.format(cat[m1].objid))
+            
+        # To prevent excessive masking, leave the central galaxy and any source
+        # who's center is within a half-light radius intact.
+        if False:
+            fracdev = cat[m1].fracdev[0]
+            radius = fracdev * cat[m1].shapedev_r[0] + (1-fracdev) * cat[m1].shapeexp_r[0] # [arcsec]
+            if radius > 0:
+                n1, n2, nd12 = match_radec(cat.ra, cat.dec, galaxycat['ra'], galaxycat['dec'],
+                                           radius/3600.0, nearest=False)
+                m1 = np.hstack( (m1, n1) )
+                m1 = np.unique(m1)
 
         cat.cut( ~np.in1d(cat.objid, m1) )
     else:
@@ -277,20 +287,19 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
                 os.path.join(survey.output_dir, '{}-{}-nocentral-{}.fits.fz'.format(objid, suffix, band))
                 )
 
-    if False:
+    if True:
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
     
     # Build png postage stamps of the coadds.
-    #rgbkwargs = dict(mnmx=np.percentile(C.coimgs, (0.1, 99)).tolist(), arcsinh=1.)
-    #rgbkwargs_resid = dict(mnmx=np.percentile(C.coresids, (1, 99)).tolist(), arcsinh=1.)
-    rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1.0)
-    rgbkwargs_resid = dict(mnmx=(-5, 1), arcsinh=0.1)
+    rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1)
+    #rgbkwargs_resid = dict(mnmx=(0.1, 2), arcsinh=1)
+    rgbkwargs_resid = dict(mnmx=(-1, 100), arcsinh=1)
 
     #coadd_list = [('image-central', C.coimgs,   rgbkwargs),
     #              ('model-central', C.comods,   rgbkwargs),
     #              ('resid-central', C.coresids, rgbkwargs_resid)]
-    coadd_list = [('model-central', C.comods,   rgbkwargs),
-                  ('resid-nocentral', C.coresids, rgbkwargs_resid)]
+    coadd_list = [('model-nocentral', C.comods,   rgbkwargs),
+                  ('image-central', C.coresids, rgbkwargs_resid)]
 
     for name, ims, rgbkw in coadd_list:
         rgb = get_rgb(ims, bands, **rgbkw)
@@ -339,8 +348,8 @@ def legacyhalos_coadds(galaxycat, survey=None, objid=None, objdir=None,
     return 1 # success!
 
 def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
-                              ncpu=1, pixscale=0.262, cluster_radius=False,
-                              verbose=False):
+                              ncpu=1, pixscale=0.262, log=None,
+                              cluster_radius=False, verbose=False):
     """Top-level wrapper script to generate coadds for a single galaxy.
 
     """ 
@@ -363,7 +372,7 @@ def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
     # Step 1 - Run legacypipe to generate a custom "brick" and tractor catalog
     # centered on the central.
     _custom_brick(galaxycat, objid=objid, survey=survey, radius=radius,
-                  ncpu=ncpu, pixscale=pixscale)
+                  ncpu=ncpu, pixscale=pixscale, log=log)
 
     # Step 2 - Read the Tractor catalog for this brick and remove the central.
     cat = _read_tractor(galaxycat, objid=objid, survey=survey, custom=True,
