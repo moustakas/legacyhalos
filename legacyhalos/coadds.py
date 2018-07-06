@@ -145,7 +145,7 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1,
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
 
 def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100,
-                       brickname=None, pixscale=0.262, custom=False):
+                       brickname=None, pixscale=0.262):
     """Initialize the first step of the pipeline, returning
     a dictionary with the following keys:
     
@@ -157,24 +157,16 @@ def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100,
     """
     from legacypipe.runbrick import stage_tims
 
-    if custom:
-        unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)
-        P = stage_tims(ra=galaxycat['ra'], dec=galaxycat['dec'], brickname=brickname,
-                       survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
-                       mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
-                       depth_cut=False, apodize=False, do_calibs=False, rex=True, 
-                       splinesky=True, unwise_dir=unwise_dir)
-    else:
-        bbox = [galaxycat['bx']-radius, galaxycat['bx']+radius,
-                galaxycat['by']-radius, galaxycat['by']+radius]
-        P = stage_tims(brickname=galaxycat['brickname'], survey=survey, target_extent=bbox,
-                       pixscale=pixscale, mp=mp, normalizePsf=True, hybridPsf=True,
-                       depth_cut=False, apodize=False, do_calibs=False,
-                       splinesky=True, unwise_dir=unwise_dir)
+    unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)
+    P = stage_tims(ra=galaxycat['ra'], dec=galaxycat['dec'], brickname=brickname,
+                   survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
+                   mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
+                   depth_cut=False, apodize=False, do_calibs=False, rex=True, 
+                   splinesky=True, unwise_dir=unwise_dir)
     return P
 
-def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None, 
-                  custom=False, verbose=False):
+def _read_tractor(galaxycat, objid=None, targetwcs=None,
+                  survey=None, verbose=False):
     """Read the full Tractor catalog for a given brick 
     and remove the BCG.
     
@@ -183,54 +175,35 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None,
     from astrometry.libkd.spherematch import match_radec
 
     # Read the newly-generated Tractor catalog
-    if custom:
-        fn = os.path.join(survey.output_dir, '{}-tractor.fits'.format(objid))
-        cat = fits_table(fn)
-        if verbose:
-            print('Read {} sources from {}'.format(len(cat), fn))
+    fn = os.path.join(survey.output_dir, '{}-tractor.fits'.format(objid))
+    cat = fits_table(fn)
+    if verbose:
+        print('Read {} sources from {}'.format(len(cat), fn))
 
-        # Find and remove the central.  For some reason, match_radec
-        # occassionally returns two matches, even though nearest=True.
-        m1, m2, d12 = match_radec(cat.ra, cat.dec, galaxycat['ra'], galaxycat['dec'],
-                                  1/3600.0, nearest=True)
-        if len(d12) == 0:
-            raise ValueError('No matching central found -- definitely a problem.')
-        elif len(d12) > 1:
-            m1 = m1[np.argmin(d12)]
+    # Find and remove the central.  For some reason, match_radec
+    # occassionally returns two matches, even though nearest=True.
+    m1, m2, d12 = match_radec(cat.ra, cat.dec, galaxycat['ra'], galaxycat['dec'],
+                              1/3600.0, nearest=True)
+    if len(d12) == 0:
+        raise ValueError('No matching central found -- definitely a problem.')
+    elif len(d12) > 1:
+        m1 = m1[np.argmin(d12)]
 
-        if verbose:
-            print('Removed central galaxy with objid = {}'.format(cat[m1].objid))
-            
-        # To prevent excessive masking, leave the central galaxy and any source
-        # who's center is within a half-light radius intact.
-        if False:
-            fracdev = cat[m1].fracdev[0]
-            radius = fracdev * cat[m1].shapedev_r[0] + (1-fracdev) * cat[m1].shapeexp_r[0] # [arcsec]
-            if radius > 0:
-                n1, n2, nd12 = match_radec(cat.ra, cat.dec, galaxycat['ra'], galaxycat['dec'],
-                                           radius/3600.0, nearest=False)
-                m1 = np.hstack( (m1, n1) )
-                m1 = np.unique(m1)
+    if verbose:
+        print('Removed central galaxy with objid = {}'.format(cat[m1].objid))
 
-        cat.cut( ~np.in1d(cat.objid, m1) )
-    else:
-        # Read the full Tractor catalog.
-        fn = survey.find_file('tractor', brick=galaxycat['brickname'])
-        cat = fits_table(fn)
-        if verbose:
-            print('Read {} sources from {}'.format(len(cat), fn))
+    # To prevent excessive masking, leave the central galaxy and any source
+    # who's center is within a half-light radius intact.
+    if False:
+        fracdev = cat[m1].fracdev[0]
+        radius = fracdev * cat[m1].shapedev_r[0] + (1-fracdev) * cat[m1].shapeexp_r[0] # [arcsec]
+        if radius > 0:
+            n1, n2, nd12 = match_radec(cat.ra, cat.dec, galaxycat['ra'], galaxycat['dec'],
+                                       radius/3600.0, nearest=False)
+            m1 = np.hstack( (m1, n1) )
+            m1 = np.unique(m1)
 
-        # Restrict to just the sources in our little box. 
-        H, W = targetwcs.shape
-        ok, xx, yy = targetwcs.radec2pixelxy(cat.ra, cat.dec)
-        cat.cut( np.flatnonzero((xx > 0) * (xx < W) * (yy > 0) * (yy < H)) )
-        if verbose:
-            print('Cut to {} sources within our box.'.format(len(cat)))
-
-        # Remove the central galaxy.
-        cat.cut( np.flatnonzero(cat.objid != galaxycat['objid']) )
-        if verbose:
-            print('Removed central galaxy with objid = {}'.format(galaxycat['objid']))
+    cat.cut( ~np.in1d(cat.objid, m1) )
         
     return cat
 
@@ -310,43 +283,6 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
         imsave_jpeg(outfn, rgb, origin='lower', **kwa)
         del rgb
 
-def legacyhalos_coadds(galaxycat, survey=None, objid=None, objdir=None,
-                       ncpu=1, pixscale=0.262, cluster_radius=False,
-                       verbose=False):
-    """Top-level wrapper script to generate coadds for a single galaxy.
-
-    """ 
-    from astrometry.util.multiproc import multiproc
-    mp = multiproc(nthreads=ncpu)
-
-    if objid is None and objdir is None:
-        objid, objdir = get_objid(galaxycat)
-
-    survey.output_dir = objdir
-
-    # Step 0 - Get the cutout radius.
-    if cluster_radius:
-        radius = cutout_radius_cluster(redshift=galaxycat['z'], pixscale=pixscale,
-                                        cluster_radius=galaxycat['r_lambda'])
-    else:
-        radius = cutout_radius_100kpc(redshift=galaxycat['z'], pixscale=pixscale)
-
-    # Step 1 - Set up the first stage of the pipeline.
-    P = _coadds_stage_tims(galaxycat, survey=survey, mp=mp, radius=radius,
-                           pixscale=pixscale)
-
-    # Step 2 - Read the Tractor catalog for this brick and remove the central.
-    cat = _read_tractor(galaxycat, P['targetwcs'], survey=survey, verbose=verbose)
-
-    # Step 3 - Render the model images without the central.
-    mods = _build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
-
-    # Step 4 - Generate and write out the coadds.
-    _tractor_coadds(galaxycat, P['targetwcs'], P['tims'], mods, P['version_header'],
-                    objid=objid, survey=survey, mp=mp, verbose=verbose)
-
-    return 1 # success!
-
 def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
                               ncpu=1, pixscale=0.262, log=None,
                               cluster_radius=False, verbose=False):
@@ -375,12 +311,11 @@ def legacyhalos_custom_coadds(galaxycat, survey=None, objid=None, objdir=None,
                   ncpu=ncpu, pixscale=pixscale, log=log)
 
     # Step 2 - Read the Tractor catalog for this brick and remove the central.
-    cat = _read_tractor(galaxycat, objid=objid, survey=survey, custom=True,
-                        verbose=verbose)
+    cat = _read_tractor(galaxycat, objid=objid, survey=survey, verbose=verbose)
 
     # Step 3 - Set up the first stage of the pipeline.
     P = _coadds_stage_tims(galaxycat, survey=survey, mp=mp, radius=radius,
-                           brickname=brickname, pixscale=pixscale, custom=True)
+                           brickname=brickname, pixscale=pixscale)
 
     # Step 4 - Render the model images without the central.
     mods = _build_model_image(cat, tims=P['tims'], survey=survey, verbose=verbose)
