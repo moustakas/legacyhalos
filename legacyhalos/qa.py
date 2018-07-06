@@ -217,7 +217,7 @@ def display_ellipse_sbprofile(ellipsefit, band=('g', 'r', 'z'), refband='r',
     """Display the multi-band surface brightness profile.
 
     """
-    from legacyhalos.util import ellipse_sbprofile
+    from legacyhalos.ellipse import ellipse_sbprofile
 
     if ellipsefit['success']:
         sbprofile = ellipse_sbprofile(ellipsefit, band=band, refband=refband,
@@ -394,7 +394,7 @@ def sample_trends(sample, htmldir, analysisdir=None, refband='r',
     """
     from astropy.cosmology import WMAP9 as cosmo
     from legacyhalos.io import get_objid, read_ellipsefit
-    from legacyhalos.util import ellipse_sbprofile
+    from legacyhalos.ellipse import ellipse_sbprofile
 
     trendsdir = os.path.join(htmldir, 'trends')
     if not os.path.isdir(trendsdir):
