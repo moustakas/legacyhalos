@@ -17,7 +17,7 @@ python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/da
 """
 from __future__ import absolute_import, division, print_function
 
-import os
+import os, pdb
 import shutil
 import numpy as np
 
@@ -59,26 +59,86 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1, pixscale=0.
     """Run legacypipe on a custom "brick" centered on the central.
 
     """
-    from legacypipe.runbrick import run_brick
+    import subprocess
 
-    run_brick(None, survey, radec=(galaxycat['ra'], galaxycat['dec']), pixscale=pixscale,
-              width=2*radius, height=2*radius, threads=ncpu, normalizePsf=True,
-              do_calibs=False, wise=True, depth_cut=False, splinesky=True,
-              early_coadds=True, pixPsf=True, hybridPsf=True, ceres=False,
-              rex=True, forceall=True, write_pickles=False, write_metrics=False,
-              gaia_stars=True, stages=['writecat'])
+    cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
+    cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
+    cmd += '--threads {threads} --outdir {outdir} --unwise-coadds --skip-metrics '
+    #cmd += '--force-stage coadds '
+    #cmd += '--force-all '
+    cmd += '--write-stage srcs --no-write --skip --skip-calibs --no-wise-ceres '
+    cmd += '--checkpoint {outdir}/checkpoint-{objid}.pickle '
+    cmd += '--pickle "{outdir}/{objid}-%%(stage)s.pickle" '
+    
+    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'),
+                     ra=galaxycat['ra'], dec=galaxycat['dec'],
+                     width=2*radius, pixscale=pixscale,
+                     threads=ncpu, outdir=survey.output_dir,
+                     objid=objid)
+    
+    print(cmd, flush=True)
+    err = subprocess.call(cmd.split())
+
+    #from legacypipe.runbrick import run_brick
+    #run_brick(None, survey, radec=(galaxycat['ra'], galaxycat['dec']), pixscale=pixscale,
+    #          width=2*radius, height=2*radius, threads=ncpu, normalizePsf=True,
+    #          do_calibs=False, wise=True, depth_cut=False, splinesky=True,
+    #          early_coadds=True, pixPsf=True, hybridPsf=True, ceres=False, wise_ceres=False,
+    #          rex=True, forceall=True, write_pickles=True, write_metrics=False,
+    #          gaia_stars=True, stages=['writecat'])
 
     # Move (rename) files into the desired output directory and clean up.
     brickname = custom_brickname(galaxycat, prefix='custom-')
-    oldfile = os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname))
-    newfile = os.path.join(survey.output_dir, '{}-tractor.fits'.format(objid))
-    shutil.copy(oldfile, newfile)
 
-    oldfile = os.path.join(survey.output_dir, 'coadd', 'cus', brickname, 'legacysurvey-{}-ccds.fits'.format(brickname))
-    newfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(objid))
-    shutil.copy(oldfile, newfile)
+    # tractor catalog
+    shutil.copy(
+        os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
+        os.path.join(survey.output_dir, '{}-tractor.fits'.format(objid))
+        )
 
-    if True:
+    # data and model images
+    for band in ('g', 'r', 'z'):
+        for imtype in ('image', 'model', 'invvar'):
+            shutil.copy(
+                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, imtype, band))
+                )
+    for band in ('W1', 'W2'):
+        for imtype in ('image', 'model'):
+            shutil.copy(
+                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, imtype, band))
+                )
+
+    # jpg images
+    for imtype in ('image', 'model', 'resid', 'wise', 'wisemodel'):
+        shutil.copy(
+            os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                         'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
+            os.path.join(survey.output_dir, '{}-{}.jpg'.format(objid, imtype))
+            )
+
+    # CCDs, maskbits, and depth images
+    shutil.copy(
+        os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                     'legacysurvey-{}-ccds.fits'.format(brickname)),
+        os.path.join(survey.output_dir, '{}-ccds.fits'.format(objid))
+        )
+    shutil.copy(
+        os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                     'legacysurvey-{}-maskbits.fits.gz'.format(brickname)),
+        os.path.join(survey.output_dir, '{}-maskbits.fits.gz'.format(objid))
+        )
+    for band in ('g', 'r', 'z'):
+        shutil.copy(
+            os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                         'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
+            os.path.join(survey.output_dir, '{}-depth-{}.fits.fz'.format(objid, band))
+            )
+        
+    if False:
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor'))
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
@@ -97,18 +157,19 @@ def _coadds_stage_tims(galaxycat, survey=None, mp=None, radius=100,
     from legacypipe.runbrick import stage_tims
 
     if custom:
+        unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)
         P = stage_tims(ra=galaxycat['ra'], dec=galaxycat['dec'], brickname=brickname,
                        survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
                        mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                        depth_cut=False, apodize=False, do_calibs=False, rex=True, 
-                       splinesky=True)
+                       splinesky=True, unwise_dir=unwise_dir)
     else:
         bbox = [galaxycat['bx']-radius, galaxycat['bx']+radius,
                 galaxycat['by']-radius, galaxycat['by']+radius]
         P = stage_tims(brickname=galaxycat['brickname'], survey=survey, target_extent=bbox,
                        pixscale=pixscale, mp=mp, normalizePsf=True, hybridPsf=True,
                        depth_cut=False, apodize=False, do_calibs=False,
-                       splinesky=True)
+                       splinesky=True, unwise_dir=unwise_dir)
     return P
 
 def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None, 
@@ -135,7 +196,9 @@ def _read_tractor(galaxycat, objid=None, targetwcs=None, survey=None,
             print('No matching central found -- definitely a problem.')
         elif len(d12) > 1:
             m1 = m1[np.argmin(d12)]
-            
+
+        print('Do not subtract out neighbors!')
+        #pdb.set_trace()
         if verbose:
             print('Removed central galaxy with objid = {}'.format(cat[m1].objid))
 
@@ -190,7 +253,7 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
 
     """
     from legacypipe.coadds import make_coadds, write_coadd_images
-    from legacypipe.runbrick import rgbkwargs, rgbkwargs_resid
+    #from legacypipe.runbrick import rgbkwargs, rgbkwargs_resid
     from legacypipe.survey import get_rgb, imsave_jpeg
 
     if brickname is None:
@@ -203,23 +266,31 @@ def _tractor_coadds(galaxycat, targetwcs, tims, mods, version_header, objid=None
                     callback_args=(survey, brickname, version_header, 
                                    tims, targetwcs)
                     )
-    
-    # Move (rename) the coadds into the desired output directory.
-    for suffix in ('chi2', 'image', 'invvar', 'model'):
-        for band in bands:
-            oldfile = os.path.join(survey.output_dir, 'coadd', brickname[:3], 
-                                   brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
-                    brickname, suffix, band))
-            newfile = os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, suffix, band))
-            shutil.copy(oldfile, newfile)
 
-    if True:
+    # Move (rename) the coadds into the desired output directory.
+    for suffix in np.atleast_1d('model'):
+        for band in bands:
+            shutil.copy(
+                os.path.join(survey.output_dir, 'coadd', brickname[:3], 
+                                   brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
+                    brickname, suffix, band)),
+                os.path.join(survey.output_dir, '{}-{}-nocentral-{}.fits.fz'.format(objid, suffix, band))
+                )
+
+    if False:
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
     
     # Build png postage stamps of the coadds.
-    coadd_list = [('image', C.coimgs,   rgbkwargs),
-                  ('model', C.comods,   rgbkwargs),
-                  ('resid', C.coresids, rgbkwargs_resid)]
+    #rgbkwargs = dict(mnmx=np.percentile(C.coimgs, (0.1, 99)).tolist(), arcsinh=1.)
+    #rgbkwargs_resid = dict(mnmx=np.percentile(C.coresids, (1, 99)).tolist(), arcsinh=1.)
+    rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1.0)
+    rgbkwargs_resid = dict(mnmx=(-5, 1), arcsinh=0.1)
+
+    #coadd_list = [('image-central', C.coimgs,   rgbkwargs),
+    #              ('model-central', C.comods,   rgbkwargs),
+    #              ('resid-central', C.coresids, rgbkwargs_resid)]
+    coadd_list = [('model-central', C.comods,   rgbkwargs),
+                  ('resid-nocentral', C.coresids, rgbkwargs_resid)]
 
     for name, ims, rgbkw in coadd_list:
         rgb = get_rgb(ims, bands, **rgbkw)

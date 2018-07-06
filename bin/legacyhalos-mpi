@@ -113,7 +113,7 @@ def main():
     from contextlib import redirect_stdout, redirect_stderr
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ncpu', type=int, help='number of multiprocessing processes per MPI rank.')
+    parser.add_argument('--ncpu', default=4, type=int, help='number of multiprocessing processes per MPI rank.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
 
@@ -139,8 +139,8 @@ def main():
         comm = None
         rank, size = 0, 1
 
-    if args.ncpu is None:
-        args.ncpu = _get_ncpu()
+    #if args.ncpu is None:
+    #    args.ncpu = _get_ncpu()
     
     # Read the sample and initialize the LegacySurveyData() object.
     if rank == 0:
