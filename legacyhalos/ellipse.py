@@ -17,8 +17,8 @@ import legacyhalos.io
 
 PIXSCALE = 0.262
 
-def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
-                         refband='r', redshift=None, nowrite=False, verbose=False):
+def ellipsefit_multiband(objid, objdir, data, sample, mgefit, band=('g', 'r', 'z'),
+                         refband='r', nowrite=False, verbose=False):
     """Ellipse-fit the multiband data.
 
     See
@@ -29,6 +29,12 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
                                     Isophote, IsophoteList)
     from photutils.isophote.sample import CentralEllipseSample
     from photutils.isophote.fitter import CentralEllipseFitter
+
+    ellipsefit = dict()
+    ellipsefit['success'] = False
+    ellipsefit['redshift'] = sample['z']
+    for filt in band:
+        ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)]
 
     # Default parameters
     integrmode, sclip, nclip, step, fflag = 'bilinear', 3, 0, 0.1, 0.5
@@ -42,10 +48,6 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
                                #sma=0.5*mgefit['majoraxis'], 
                                sma=10,
                                pa=np.radians(mgefit['pa']-90))
-
-    ellipsefit = dict()
-    ellipsefit['success'] = False
-    ellipsefit['redshift'] = redshift
     ellipsefit['geometry'] = geometry
 
     def _sky(data, ellipsefit, diameter=2.0):
@@ -59,8 +61,6 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
 
     _sky(data, ellipsefit)
 
-    print('ADD THE PSFWIDTH!!')
-
     # Fit in the reference band...
     if verbose:
         print('Ellipse-fitting the reference {}-band image.'.format(refband))
@@ -72,8 +72,8 @@ def ellipsefit_multiband(objid, objdir, data, mgefit, band=('g', 'r', 'z'),
     try:
         t0 = time.time()
         with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            for minsma in (5, 1, 10): # try a few different starting minor axes
+            warnings.simplefilter('ignore')
+            for minsma in (10, 1, 5): # try a few different starting minor axes
                 print('  Trying minimum sma = {:.1f} pixels.'.format(minsma))
                 isophot = ellipse.fit_image(minsma=minsma, maxsma=1.5*mgefit['majoraxis'],
                                             integrmode=integrmode, sclip=sclip, nclip=nclip,
@@ -212,28 +212,25 @@ def mgefit_multiband(objid, objdir, data, band=('g', 'r', 'z'), refband='r',
 
     return mgefit
     
-def legacyhalos_ellipse(galaxycat, objid=None, objdir=None, ncpu=1,
+def legacyhalos_ellipse(sample, objid=None, objdir=None, ncpu=1,
                         pixscale=0.262, refband='r', band=('g', 'r', 'z'),
                         verbose=False, debug=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
-    photutils - do ellipse-fitting using photutils, otherwise use MGE.
-
     """ 
     if objid is None and objdir is None:
-        objid, objdir = get_objid(galaxycat)
+        objid, objdir = get_objid(sample)
 
     # Read the data.  
     data = legacyhalos.io.read_multiband(objid, objdir, band=band)
     if bool(data):
-        # Find the galaxy and perform MGE fitting
+        # Find the galaxy and perform MGE fitting.
         mgefit = mgefit_multiband(objid, objdir, data, band=band, refband=refband,
                                   pixscale=pixscale, verbose=verbose, debug=debug)
 
-        # Do ellipse-fitting
-        ellipsefit = ellipsefit_multiband(objid, objdir, data, mgefit, band=band,
-                                          refband=refband, verbose=verbose,
-                                          redshift=galaxycat['z'])
+        # Do ellipse-fitting.
+        ellipsefit = ellipsefit_multiband(objid, objdir, data, sample, mgefit,
+                                          band=band, refband=refband, verbose=verbose)
         if ellipsefit['success']:
             return 1
         else:

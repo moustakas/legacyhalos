@@ -195,7 +195,9 @@ def read_sample(first=None, last=None):
 
     tractorcols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
                    'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
-                   'shapedev_r', 'shapedev_e1', 'shapedev_e2')
+                   'shapedev_r', 'shapedev_e1', 'shapedev_e2',
+                   'fracdev', 'psfsize_g', 'psfsize_r', 'psfsize_z')
+        
     rmcols = ('mem_match_id', 'z', 'r_lambda', 'lambda_chisq', 'p_cen')
     sdsscols = ('objid')
         
