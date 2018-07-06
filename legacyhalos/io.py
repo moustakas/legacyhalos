@@ -93,6 +93,31 @@ def read_ellipsefit(objid, objdir):
 
     return ellipsefit
 
+def write_sersic(objid, objdir, sersic, model='single', verbose=False):
+    """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
+    e.g., ellipse.fit_multiband).
+
+    """
+    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, model))
+    if verbose:
+        print('Writing {}'.format(sersicfile))
+    with open(sersicfile, 'wb') as ell:
+        pickle.dump(sersic, ell)
+
+def read_sersic(objid, objdir, model='single'):
+    """Read the output of write_sersic."""
+
+    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, model))
+    try:
+        with open(sersicfile, 'rb') as ell:
+            sersic = pickle.load(ell)
+    except:
+        #raise IOError
+        print('File {} not found!'.format(sersicfile))
+        sersic = dict()
+
+    return sersic
+
 def write_mgefit(objid, objdir, mgefit, band='r', verbose=False):
     """Pickle an XXXXX object (see, e.g., ellipse.mgefit_multiband).
 
