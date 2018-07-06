@@ -69,8 +69,8 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1,
     #cmd += '--force-stage coadds '
     #cmd += '--force-all '
     cmd += '--write-stage srcs --no-write --skip --skip-calibs --no-wise-ceres '
-    cmd += '--checkpoint {outdir}/checkpoint-{objid}.pickle '
-    cmd += '--pickle {outdir}/{objid}-%%(stage)s.pickle' 
+    cmd += '--checkpoint {outdir}/{objid}-runbrick-checkpoint.p '
+    cmd += '--pickle {outdir}/{objid}-runbrick-%%(stage)s.p' 
     if force:
         cmd += '--force-all '
     
@@ -82,14 +82,6 @@ def _custom_brick(galaxycat, objid, survey=None, radius=100, ncpu=1,
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
-
-    #from legacypipe.runbrick import run_brick
-    #run_brick(None, survey, radec=(galaxycat['ra'], galaxycat['dec']), pixscale=pixscale,
-    #          width=2*radius, height=2*radius, threads=ncpu, normalizePsf=True,
-    #          do_calibs=False, wise=True, depth_cut=False, splinesky=True,
-    #          early_coadds=True, pixPsf=True, hybridPsf=True, ceres=False, wise_ceres=False,
-    #          rex=True, forceall=True, write_pickles=True, write_metrics=False,
-    #          gaia_stars=True, stages=['writecat'])
 
     # Move (rename) files into the desired output directory and clean up.
     brickname = custom_brickname(galaxycat, prefix='custom-')
