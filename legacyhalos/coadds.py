@@ -31,18 +31,15 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} --unwise-coadds --skip-metrics '
     #cmd += '--force-stage coadds '
-    #cmd += '--force-all '
     cmd += '--write-stage srcs --no-write --skip --skip-calibs --no-wise-ceres '
-    cmd += '--checkpoint {outdir}/{objid}-runbrick-checkpoint.p '
+    cmd += '--checkpoint {outdir}/{objid}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {outdir}/{objid}-runbrick-%%(stage)s.p' 
     if force:
         cmd += '--force-all '
     
-    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'),
-                     ra=sample['ra'], dec=sample['dec'],
-                     width=2*radius, pixscale=pixscale,
-                     threads=ncpu, outdir=survey.output_dir,
-                     objid=objid)
+    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), objid=objid,
+                     ra=sample['ra'], dec=sample['dec'], width=2*radius,
+                     pixscale=pixscale, threads=ncpu, outdir=survey.output_dir)
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)

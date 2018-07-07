@@ -1,11 +1,11 @@
 #! /bin/bash
 #SBATCH -A cosmo
-#SBATCH -p regular
+#SBATCH -p debug
 #SBATCH -C haswell
-#SBATCH -N 2
-#SBATCH -n 14
+#SBATCH -N 1
+#SBATCH -n 5
 #SBATCH -t 00:60:00
-#SBATCH -o my_job.o%j
+#SBATCH -o coadds.log.%j
 
 # sbatch ~/scratch/repos/legacyhalos/bin/legacyhalos-coadds.slurm
 
@@ -15,8 +15,8 @@
 export IMPY_DIR=$HOME/repos/git/impy
 source $IMPY_DIR/bin/legacyhalos-env-nersc
 
-time srun -N 2 -n 14 -c 4 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 31 \
-    --coadds --ncpu 4 --mpi
+time srun -N 1 -n 5 -c 6 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 31 \
+    --coadds --ncpu 6 --mpi
 
 # time $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 4 --last 4 --custom-coadds --ncpu 12 --clobber
 
