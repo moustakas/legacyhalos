@@ -15,7 +15,73 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
-PIXSCALE = 0.262
+def display_sersic_single(sersic, png=None, verbose=False):
+    """Plot a wavelength-dependent surface brightness profile.
+
+    """
+    from legacyhalos.misc import arcsec2kpc
+
+    colors = iter(sns.color_palette())
+    markers = iter(['o', 's', 'D'])
+
+    smascale = arcsec2kpc(sersic['redshift'])
+
+    if sersic['success']:
+        model = sersic['bestfit']
+    else:
+        model = None
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for band, lam in zip( sersic['band'], (sersic['lambda_g'],
+                                           sersic['lambda_r'],
+                                           sersic['lambda_z']) ):
+        good = lam == sersic['wave']
+        wave = sersic['wave'][good]
+        rad = sersic['radius'][good]
+        sb = sersic['sb'][good]
+
+        srt = np.argsort(rad)
+        rad, sb, wave = rad[srt], sb[srt], wave[srt]
+
+        if model is not None:
+            n = model.get_sersicn(nref=model.nref, lam=lam, alpha=model.alpha)
+            r50 = model.get_r50(r50ref=model.nref, lam=lam, beta=model.beta)
+            label = r'${}:\ n={:.2f}\ r_{{50}}={:.2f}$ arcsec'.format(band, n, r50)
+        else:
+            label = band
+
+        col = next(colors)
+        #ax.plot(rad, 22.5-2.5*np.log10(sb), label=band)
+        ax.scatter(rad, 22.5-2.5*np.log10(sb), color=col,
+                   alpha=1, s=50, label=label, marker=next(markers))
+        
+        # optionally overplot the model
+        if model is not None:
+            sb_model = model(rad, wave[srt])
+            ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
+                        ls='--', lw=2, alpha=0.5)
+
+    ax.set_xlabel('Galactocentric radius (arcsec)')
+    ax.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
+    ax.invert_yaxis()
+    #ax.set_yscale('log')
+
+    ax.set_xlim(xmin=0)
+
+    ax2 = ax.twiny()
+    xlim = ax.get_xlim()
+    ax2.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
+    ax2.set_xlabel('Galactocentric radius (kpc)')
+
+    ax.legend(loc='upper right', markerscale=1.2)
+
+    if png:
+        if verbose:
+            print('Writing {}'.format(png))
+        fig.savefig(png, bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+    else:
+        plt.show()
 
 def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=None,
                       magrange=10, inchperband=3, contours=False, png=None,
@@ -372,9 +438,7 @@ def display_mge_sbprofile(mgefit, indx=None, png=None, verbose=True):
     else:
         plt.show()
         
-def sample_trends(sample, htmldir, analysisdir=None, refband='r',
-                  band=('g', 'r', 'z'), pixscale=PIXSCALE,
-                  verbose=True):
+def sample_trends(sample, htmldir, analysisdir=None, verbose=True):
     """Trends with the whole sample.
 
     """

@@ -119,47 +119,6 @@ class SersicSingleWaveModel(Fittable2DModel):
         
         return mu
     
-    def plot(self, radius, wave, sbwave, model=None):
-        """Plot a wavelength-dependent surface brightness profile.
-        
-        model - instantiation of SersicSingleWaveModel()
-        """
-        colors = iter(sns.color_palette())
-        markers = iter(['o', 's', 'D'])
-    
-        fig, ax = plt.subplots(figsize=(8, 5))
-        for band, lam in zip( self.band, (self.lambda_g, self.lambda_r, self.lambda_z) ):
-            good = lam == wave
-            rad = radius[good]
-            sb = sbwave[good]
-
-            srt = np.argsort(rad)
-            rad, sb = rad[srt], sb[srt]
-
-            if model:
-                n = model.get_sersicn(nref=model.nref, lam=lam, alpha=model.alpha)
-                r50 = model.get_r50(r50ref=model.nref, lam=lam, beta=model.beta)
-                label = r'${}:\ n={:.2f}\ r_{{50}}={:.2f}$ arcsec'.format(band, n, r50)
-            else:
-                label = band
-            
-            col = next(colors)
-            #ax.plot(rad, 22.5-2.5*np.log10(sb), label=band)
-            ax.scatter(rad, 22.5-2.5*np.log10(sb), color=col,
-                       alpha=1, s=50, label=label, marker=next(markers))
-        
-            # optionally overplot the model
-            if model is not None:
-                sb_model = model(rad, wave[good][srt])
-                ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
-                            ls='--', lw=2, alpha=0.5)
-            
-        ax.set_xlabel('Galactocentric radius (arcsec)')
-        ax.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
-        ax.invert_yaxis()
-        #ax.set_yscale('log')
-        ax.legend(loc='upper right', markerscale=1.2)
-
 class SersicSingleWaveFit(object):
     """Fit surface brightness profiles with the SersicSingleWaveModel model."""
     
@@ -175,12 +134,11 @@ class SersicSingleWaveFit(object):
         self.fitter = fitting.LevMarLSQFitter()
         
         # initialize the fit (need to "ball" this step and include the PSF width!)
-        print('psf width needs to come from the sb profile!')
         self.fixed = {'alpha': fix_alpha, 'beta': fix_beta}
         self.initfit = SersicSingleWaveModel(fixed=self.fixed,
-                                             psfsigma_g=0.5, 
-                                             psfsigma_r=0.5, 
-                                             psfsigma_z=0.5)
+                                             psfsigma_g=sbprofile['psfsigma_g'],
+                                             psfsigma_r=sbprofile['psfsigma_r'],
+                                             psfsigma_z=sbprofile['psfsigma_z'])
         self.nparams = len(self.initfit.parameters)
 
         # parse the input sbprofile into the format that SersicSingleWaveModel() expects
@@ -203,6 +161,7 @@ class SersicSingleWaveFit(object):
         self.sberr = np.hstack(sberr)
         self.wave = np.hstack(wave)
         self.radius = np.hstack(radius)
+        self.redshift = sbprofile['redshift']
 
     def _mu2flux(self, mu, muerr=None):
         """Convert surface brightness mu to linear flux in nanomaggies."""
@@ -267,12 +226,28 @@ class SersicSingleWaveFit(object):
             
         return phot
 
-    def fit(self, nball=10, plot=False):
+    def fit(self, nball=10, chi2fail=1e6, verbose=False):
         """Perform the chi2 minimization.
         
         """
         import warnings
-        from scipy import integrate
+        if verbose:
+            warnvalue = 'always'
+        else:
+            warnvalue = 'ignore'
+
+        # initialize the output dictionary
+        result = {
+            'success': False,
+            'redshift': self.redshift,
+            'radius': self.radius,
+            'wave': self.wave,
+            'sb': self.sb,
+            'sberr': self.sberr,
+            'band': self.initfit.band,
+            'lambda_g': self.initfit.lambda_g,
+            'lambda_r': self.initfit.lambda_r,
+            'lambda_z': self.initfit.lambda_z}
 
         # perturb the parameter values
         params = np.repeat(self.initfit.parameters, nball).reshape(self.nparams, nball)
@@ -285,22 +260,32 @@ class SersicSingleWaveFit(object):
         
         # perform the fit several times
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
+            warnings.simplefilter(warnvalue)
             
-            chi2 = np.zeros(nball) + 1e6
+            chi2 = np.zeros(nball) + chi2fail
             for jj in range(nball):
                 self.initfit.parameters = params[:, jj]
-                ballfit = self.fitter(self.initfit, self.radius, self.wave, 
-                                      self.sb, weights=1/self.sberr)
-                chi2[jj] = self.chi2(ballfit)
-                params[:, jj] = ballfit.parameters # update
-        
-        # re-evaluate the model at the chi2 minimum
+                ballfit = self.fitter(self.initfit, self.radius, self.wave, self.sb,
+                                      weights=1/self.sberr, maxiter=200)
+                if self.fitter.fit_info['param_cov'] is not None: # failed
+                    chi2[jj] = self.chi2(ballfit)
+                    params[:, jj] = ballfit.parameters # update
+
+        # did at least one fit succeed?
+        good = chi2 < chi2fail
+        if np.sum(good) == 0:
+            print('Single-Sersic fitting failed.')
+            return result
+
+        # otherwise, re-evaluate the model at the chi2 minimum
+        result['success'] = True
         mindx = np.argmin(chi2)
+
         self.initfit.parameters = params[:, mindx]
         bestfit = self.fitter(self.initfit, self.radius, self.wave, 
                               self.sb, weights=1/self.sberr)
         chi2 = chi2[mindx]
+        print('Single-Sersic fitting succeeded with a chi^2 minimum of {:.2f}'.format(chi2))
 
         # Integrate the data and model over various apertures.
         phot = self.integrate(bestfit)
@@ -309,7 +294,7 @@ class SersicSingleWaveFit(object):
         # https://gist.github.com/eteq/1f3f0cec9e4f27536d52cd59054c55f2
         cov = self.fitter.fit_info['param_cov'] 
 
-        result = {
+        result.update({
             'param_names': bestfit.param_names,
             'values': bestfit.parameters,
             'uncertainties': np.diag(cov)**0.5,
@@ -319,11 +304,8 @@ class SersicSingleWaveFit(object):
             'bestfit': bestfit,
             'fit_message': self.fitter.fit_info['message'],
             'phot': phot,
-        }
+        })
         
-        if plot:
-            self.initfit.plot(self.radius, self.wave, self.sb, model=bestfit)
-            
         return result
 
 def sersic_single(objid, objdir, sbprofile, seed=None, nowrite=False, verbose=False):
@@ -333,7 +315,6 @@ def sersic_single(objid, objdir, sbprofile, seed=None, nowrite=False, verbose=Fa
     
     sersic = SersicSingleWaveFit(sbprofile, fix_alpha=False, fix_beta=False, seed=seed)
     sersic = sersic.fit()
-    sersic['success'] = True
 
     if not nowrite:
         legacyhalos.io.write_sersic(objid, objdir, sersic, verbose=verbose)
@@ -352,17 +333,18 @@ def legacyhalos_sersic(sample, objid=None, objdir=None, verbose=False, debug=Fal
 
     # Read the ellipse-fitting results and 
     ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir)
-    if ellipsefit['success']:
+    if bool(ellipsefit):
+        if ellipsefit['success']:
+            sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.03)
 
-        sbprofile = ellipse_sbprofile(ellipsefit)
+            # Single-sersic fit
+            single = sersic_single(objid, objdir, sbprofile, verbose=verbose)
 
-        # Single-sersic fit
-        single = sersic_single(objid, objdir, sbprofile, verbose=verbose)
-
-        if single['success']:
-            return 1
+            if single['success']:
+                return 1
+            else:
+                return 0
         else:
             return 0
-
     else:
         return 0

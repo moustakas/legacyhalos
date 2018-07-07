@@ -103,8 +103,7 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
     from legacyhalos.io import get_objid
     from legacyhalos.qa import sample_trends
 
-    sample_trends(sample, htmldir, analysisdir=analysisdir,
-                  refband=refband, verbose=verbose)
+    sample_trends(sample, htmldir, analysisdir=analysisdir, verbose=verbose)
 
     for gal in sample:
         objid, objdir = get_objid(gal, analysisdir=analysisdir)

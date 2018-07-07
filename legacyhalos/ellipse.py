@@ -38,7 +38,7 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
     for filt in band:
-        ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)]
+        ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)] / 2.355 # [Gaussian sigma, arcsec]
 
     # Default parameters
     integrmode, sclip, nclip, step, fflag = 'bilinear', 3, 0, 0.1, 0.5
@@ -160,6 +160,10 @@ def ellipse_sbprofile(ellipsefit, minerr=0.02):
     indx = np.ones(len(ellipsefit[refband]), dtype=bool)
 
     sbprofile = dict()
+    for filt in band:
+        sbprofile['psfsigma_{}'.format(filt)] = ellipsefit['psfsigma_{}'.format(filt)]
+    sbprofile['redshift'] = redshift
+    
     sbprofile['smaunit'] = 'arcsec'
     sbprofile['sma'] = ellipsefit['r'].sma[indx] * pixscale # [arcsec]
 
@@ -170,8 +174,9 @@ def ellipse_sbprofile(ellipsefit, minerr=0.02):
             sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
 
             #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
-            sbprofile['mu_{}_err'.format(filt)] = ellipsefit[filt].int_err[indx] / \
+            sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err[indx] / \
               ellipsefit[filt].intens[indx] / np.log(10)
+            sbprofile['mu_{}_err'.format(filt)] = np.sqrt(sbprofile['mu_{}_err'.format(filt)]**2 + minerr**2)
 
             #sbprofile['mu_{}'.format(filt)] = sbprofile[filt] + 2.5 * np.log10(area)
 
@@ -184,8 +189,8 @@ def ellipse_sbprofile(ellipsefit, minerr=0.02):
     sbprofile['rz_err'] = np.sqrt(sbprofile['mu_r_err']**2 + sbprofile['mu_z_err']**2)
 
     # Just for the plot use a minimum uncertainty
-    sbprofile['gr_err'][sbprofile['gr_err'] < minerr] = minerr
-    sbprofile['rz_err'][sbprofile['rz_err'] < minerr] = minerr
+    #sbprofile['gr_err'][sbprofile['gr_err'] < minerr] = minerr
+    #sbprofile['rz_err'][sbprofile['rz_err'] < minerr] = minerr
 
     # # Add the effective wavelength of each bandpass, although this needs to take
     # # into account the DECaLS vs BASS/MzLS filter curves.
