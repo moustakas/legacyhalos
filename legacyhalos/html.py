@@ -95,6 +95,30 @@ def qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=('g', 'r', 'z'),
             display_mge_sbprofile(mgefit, band=band, refband=refband, pixscale=pixscale,
                                   png=sbprofilefile, verbose=verbose)
         
+def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
+                      clobber=False, verbose=True):
+    """Generate QAplots from the Sersic modeling.
+
+    """
+    from legacyhalos.io import read_sersic
+    from legacyhalos.qa import display_sersic
+
+    # Double Sersic
+    double = read_sersic(objid, objdir, model='double')
+    if bool(double):
+        doublefile = os.path.join(htmlobjdir, '{}-sersic-double.png'.format(objid))
+        if not os.path.isfile(doublefile) or clobber:
+            display_sersic(double, modeltype='double', png=doublefile, verbose=verbose)
+
+    # Single Sersic
+    single = read_sersic(objid, objdir, model='single')
+    if bool(single):
+        singlefile = os.path.join(htmlobjdir, '{}-sersic-single.png'.format(objid))
+        if not os.path.isfile(singlefile) or clobber:
+            display_sersic(single, modeltype='single', png=singlefile, verbose=verbose)
+
+    pdb.set_trace()
+            
 def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False, verbose=True):
     """Make QA plots.
@@ -112,6 +136,9 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
 
+        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
+                          clobber=clobber, verbose=verbose)
+
         # Build the montage coadds.
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)
 
@@ -122,6 +149,9 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         # Build the ellipse plots.
         qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
                            clobber=clobber, verbose=verbose)
+
+        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
+                          clobber=clobber, verbose=verbose)
 
 
 def _javastring():
@@ -330,7 +360,7 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             html.write('</table>\n')
             #html.write('<br />\n')
             
-            html.write('<h2>Elliptical Isophote Modeling</h2>\n')
+            html.write('<h2>Elliptical Isophote Analysis</h2>\n')
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
             html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" alt="Missing file {}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
@@ -344,6 +374,17 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             html.write('</tr>\n')
             html.write('</table>\n')
             
+            html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
+            html.write('<table width="90%">\n')
+            html.write('<tr>\n')
+            html.write('<th>Single-Sersic</th><th>Double-Sersic</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('</tr>\n')
+            html.write('</table>\n')
+
             html.write('<br />\n')
 
             if False:

@@ -14,9 +14,14 @@ import matplotlib.pyplot as plt
 
 import seaborn as sns
 sns.set(style='ticks', font_scale=1.4, palette='Set2')
+#sns.reset_orig()
 
-def display_sersic_single(sersic, png=None, verbose=False):
-    """Plot a wavelength-dependent surface brightness profile.
+import matplotlib as mpl 
+#mpl.rcParams['text.usetex'] = True
+#mpl.rcParams['font.family'] = 'serif'
+
+def display_sersic(sersic, modeltype='single', png=None, verbose=False):
+    """Plot a wavelength-dependent surface brightness profile and model fit.
 
     """
     from legacyhalos.misc import arcsec2kpc
@@ -39,27 +44,53 @@ def display_sersic_single(sersic, png=None, verbose=False):
         wave = sersic['wave'][good]
         rad = sersic['radius'][good]
         sb = sersic['sb'][good]
+        sberr = sersic['sberr'][good]
 
         srt = np.argsort(rad)
-        rad, sb, wave = rad[srt], sb[srt], wave[srt]
+        rad, sb, sberr, wave = rad[srt], sb[srt], sberr[srt], wave[srt]
 
         if model is not None:
-            n = model.get_sersicn(nref=model.nref, lam=lam, alpha=model.alpha)
-            r50 = model.get_r50(r50ref=model.nref, lam=lam, beta=model.beta)
-            label = r'${}:\ n={:.2f}\ r_{{50}}={:.2f}$ arcsec'.format(band, n, r50)
+            filt = '${}:\ $'.format(band)
+            if modeltype == 'single':
+                n = r'$n={:.2f}$'.format(model.get_sersicn(nref=model.nref, lam=lam, alpha=model.alpha))
+                r50 = r'$r_{{50}}={:.2f}$ kpc'.format(model.get_r50(r50ref=model.r50ref, lam=lam, beta=model.beta) * smascale)
+                label = '{} {} {}'.format(filt, n, r50)
+                labelfont = 14
+            elif modeltype == 'double':
+                n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
+                n2 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref2, lam=lam, alpha=model.alpha2))
+                r50_1 = r'$r_{{50}}={:.2f}$ kpc'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
+                r50_2 = r'$r_{{50}}={:.2f}$ kpc'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
+                label = '{} {} {} {} {}'.format(filt, n1, n2, r50_1, r50_2)
+                labelfont = 12
+            else:
+                raise ValueError('Unrecognized model type {}'.format(modeltype))
         else:
             label = band
+            labelfont = 14
 
         col = next(colors)
         #ax.plot(rad, 22.5-2.5*np.log10(sb), label=band)
-        ax.scatter(rad, 22.5-2.5*np.log10(sb), color=col,
-                   alpha=1, s=50, label=label, marker=next(markers))
+        #ax.scatter(rad, 22.5-2.5*np.log10(sb), color=col,
+        #           alpha=1, s=50, label=label, marker=next(markers))
+        mu = 22.5 - 2.5 * np.log10(sb)
+        muerr = 2.5 * sberr / np.log(10) / sb
+        ax.fill_between(rad, mu-muerr, mu+muerr, color=col, label=label)
         
         # optionally overplot the model
         if model is not None:
-            sb_model = model(rad, wave[srt])
+            sb_model = model(rad, wave)
             ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
                         ls='--', lw=2, alpha=0.5)
+            if modeltype == 'single':
+                alpha = r'$\alpha={:.3f}\pm{:.3f}$'.format(sersic['alpha'], sersic['alpha_err'])
+                beta = r'$\beta={:.3f}\pm{:.3f}$'.format(sersic['beta'], sersic['beta_err'])
+                nref = r'$n_{{ref}}={:.3f}\pm{:.3f}$'.format(sersic['nref'], sersic['nref_err'])
+                r50ref = r'$r_{{50,ref}}={:.3f}\pm{:.3f}$ arcsec'.format(sersic['r50ref'], sersic['r50ref_err'])
+                txt = alpha+'\n'+beta+'\n'+nref+'\n'+r50ref
+            elif modeltype == 'double':
+                txt = 'Working on it'
+            ax.text(0.05, 0.05, txt, ha='left', va='bottom', transform=ax.transAxes, fontsize=14)
 
     ax.set_xlabel('Galactocentric radius (arcsec)')
     ax.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
@@ -73,7 +104,7 @@ def display_sersic_single(sersic, png=None, verbose=False):
     ax2.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
     ax2.set_xlabel('Galactocentric radius (kpc)')
 
-    ax.legend(loc='upper right', markerscale=1.2)
+    ax.legend(loc='upper right', fontsize=labelfont)
 
     if png:
         if verbose:
