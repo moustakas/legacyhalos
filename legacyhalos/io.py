@@ -166,6 +166,18 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
 
     return cat
 
+def write_results(results, clobber=False):
+    """Write out the output of legacyhalos-results
+
+    """
+    lsdir = legacyhalos_dir()
+    resultsfilt = os.path.join(lsdir, 'legacyhalos-results.fits')
+    if not os.path.isfile(resultsfilt) or clobber:
+        print('Writing {}'.format(resultsfilt))
+        results.write(resultsfilt, overwrite=True)
+    else:
+        print('File {} exists.'.format(resultsfilt))
+
 def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,

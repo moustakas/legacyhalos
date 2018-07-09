@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+
+"""
+legacyhalos-results --clobber
+
+Gather all the results into a single multi-extension FITS file.
+
+"""
+from __future__ import print_function, division
+
+import os, argparse, pdb
+import numpy as np
+from astropy.table import Table, Column
+import legacyhalos.io
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--first', type=int, help='Index of first object to process.')
+    parser.add_argument('--last', type=int, help='Index of last object to process.')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite an existing file.')
+    parser.add_argument('--quiet', action='store_true', help='Be (more) quiet.')
+
+    args = parser.parse_args()
+
+    verbose = not args.quiet
+
+    # Read the sample
+    sample = legacyhalos.io.read_sample(first=args.first, last=args.last)
+    ngal = len(sample)
+
+    # Initialize the output table
+    results = Table()
+    results.add_column(Column(name='ellipse', dtype=np.bool_, length=ngal))
+    results.add_column(Column(name='sersic_single', dtype=np.bool_, length=ngal))
+    
+    allobjid, allobjdir = legacyhalos.io.get_objid(sample)
+    for ii, (objid, objdir) in enumerate( zip(allobjid, allobjdir) ):
+
+        ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir)
+        if bool(ellipsefit):
+            if ellipsefit['success']:
+                results['ellipse'][ii] = 1
+        
+        #single = legacyhalos.io.read_sersic(objid, objdir, model='single')
+        #double = legacyhalos.io.read_sersic(objid, objdir, model='double')
+
+        #pdb.set_trace()
+
+    # Write out some summary statistics
+    print(results)
+
+    # Write out
+    legacyhalos.io.write_results(results, clobber=args.clobber)
+
+if __name__ == '__main__':
+    main()
