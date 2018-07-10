@@ -256,12 +256,13 @@ def read_sample(first=None, last=None):
     sample = hstack( (sample, rm) )
     sample = hstack( (sample, sdss) )
 
+    if first > last:
+        print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+
     if first is None:
         first = 0
     if last is None:
-        last = len(sample)
-    elif last == first:
-        last = last
+        last = len(sample)-1
 
     sample = sample[first:last+1]
     print('Sample contains {} objects with first, last indices {}, {}'.format(

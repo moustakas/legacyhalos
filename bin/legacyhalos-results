@@ -33,6 +33,8 @@ def main():
     results = Table()
     results.add_column(Column(name='ellipse', dtype=np.bool_, length=ngal))
     results.add_column(Column(name='sersic_single', dtype=np.bool_, length=ngal))
+    results.add_column(Column(name='sersic_double', dtype=np.bool_, length=ngal))
+    results.add_column(Column(name='sersic_exponential', dtype=np.bool_, length=ngal))
     
     allobjid, allobjdir = legacyhalos.io.get_objid(sample)
     for ii, (objid, objdir) in enumerate( zip(allobjid, allobjdir) ):
@@ -41,14 +43,36 @@ def main():
         if bool(ellipsefit):
             if ellipsefit['success']:
                 results['ellipse'][ii] = 1
-        
-        #single = legacyhalos.io.read_sersic(objid, objdir, model='single')
-        #double = legacyhalos.io.read_sersic(objid, objdir, model='double')
 
+        sersic_single = legacyhalos.io.read_sersic(objid, objdir, model='single')
+        if bool(sersic_single):
+            if sersic_single['success']:
+                results['sersic_single'][ii] = 1
+                
+        sersic_double = legacyhalos.io.read_sersic(objid, objdir, model='double')
+        if bool(sersic_double):
+            if sersic_double['success']:
+                results['sersic_double'][ii] = 1
+                
+        sersic_exponential = legacyhalos.io.read_sersic(objid, objdir, model='exponential')
+        if bool(sersic_exponential):
+            if sersic_exponential['success']:
+                results['sersic_exponential'][ii] = 1
+                
         #pdb.set_trace()
 
     # Write out some summary statistics
-    print(results)
+    print('Summary statistics:')
+    print('  Number of galaxies: {} '.format(ngal))
+    print('  Ellipse-fitting done:: {}/{} ({:.1f}%) '.format(
+        np.sum(results['ellipse']), ngal, 100*np.sum(results['ellipse'])/ngal))
+    print('  Single-Sersic done:: {}/{} ({:.1f}%) '.format(
+        np.sum(results['sersic_single']), ngal, 100*np.sum(results['sersic_single'])/ngal))
+    print('  Double-Sersic done:: {}/{} ({:.1f}%) '.format(
+        np.sum(results['sersic_double']), ngal, 100*np.sum(results['sersic_double'])/ngal))
+    print('  Sersic-Exponential done:: {}/{} ({:.1f}%) '.format(
+        np.sum(results['sersic_exponential']), ngal, 100*np.sum(results['sersic_exponential'])/ngal))
+    #print(results)
 
     # Write out
     legacyhalos.io.write_results(results, clobber=args.clobber)

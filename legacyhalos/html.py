@@ -3,8 +3,11 @@ from __future__ import (absolute_import, division)
 import os, subprocess, pdb
 import numpy as np
 
-import seaborn as sns
-sns.set(style='ticks', font_scale=1.4, palette='Set2')
+from legacyhalos.misc import legacyhalos_plot_style
+sns = legacyhalos_plot_style()
+
+#import seaborn as sns
+#sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
 def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
@@ -57,7 +60,7 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
 
         ellipsefitfile = os.path.join(htmlobjdir, '{}-ellipse-ellipsefit.png'.format(objid))
         if not os.path.isfile(ellipsefitfile) or clobber:
-            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=True, verbose=verbose)
+            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
         
         sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
         if not os.path.isfile(sbprofilefile) or clobber:
@@ -117,8 +120,6 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         if not os.path.isfile(singlefile) or clobber:
             display_sersic(single, modeltype='single', png=singlefile, verbose=verbose)
 
-    pdb.set_trace()
-            
 def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False, verbose=True):
     """Make QA plots.
@@ -138,6 +139,11 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
 
         qa_sersic_results(objid, objdir, htmlobjdir, band=band,
                           clobber=clobber, verbose=verbose)
+        pdb.set_trace()
+        
+        # Build the ellipse plots.
+        qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
+                           clobber=clobber, verbose=verbose)
 
         # Build the montage coadds.
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)
@@ -145,14 +151,6 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         # Build the MGE plots.
         #qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=band,
         #               clobber=clobber, verbose=verbose)
-
-        # Build the ellipse plots.
-        qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
-                           clobber=clobber, verbose=verbose)
-
-        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
-                          clobber=clobber, verbose=verbose)
-
 
 def _javastring():
     """Return a string that embeds a date in a webpage."""
@@ -281,8 +279,9 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
 
         html.write('<h1>LegacyHalos: Sample Trends</h1>\n')
         html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
-        html.write('<a href="trends/sma_vs_ellipticity.png"><img src="trends/sma_vs_ellipticity.png" height="auto" width="50%"></a>')
-        html.write('<a href="trends/color_vs_ellipticity.png"><img src="trends/color_vs_ellipticity.png" height="auto" width="50%"></a>')
+        html.write('<a href="trends/ellipticity_vs_sma.png"><img src="trends/ellipticity_vs_sma.png" height="auto" width="50%"></a>')
+        html.write('<a href="trends/gr_vs_sma.png"><img src="trends/gr_vs_sma.png" height="auto" width="50%"></a>')
+        html.write('<a href="trends/rz_vs_sma.png"><img src="trends/rz_vs_sma.png" height="auto" width="50%"></a>')
 
         html.write('<br /><br />\n')
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))

@@ -10,6 +10,16 @@ from __future__ import absolute_import, division, print_function
 import sys
 import numpy as np
 
+def legacyhalos_plot_style():
+    import seaborn as sns
+    rc = {'font.family': 'serif', 'text.usetex': True}
+    #rc = {'font.family': 'serif', 'text.usetex': True,
+    #       'text.latex.preamble': r'\boldmath'})
+    sns.set(style='ticks', font_scale=1.5, palette='Set2', rc=rc)
+    #sns.reset_orig()
+
+    return sns
+
 def get_logger(logfile):
     """Instantiate a simple logger.
 
@@ -82,3 +92,37 @@ def arcsec2kpc(redshift):
     """
     from astropy.cosmology import WMAP9 as cosmo
     return 1 / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/arcsec]
+
+def medxbin(xx, yy, binsize, minpts=20, xmin=None, xmax=None):
+    """
+    Compute the median (and other statistics) in fixed bins along the x-axis.
+    
+    """
+    from scipy import ptp
+
+    # Need an exception if there are fewer than three arguments.
+    if xmin == None:
+        xmin = xx.min()
+    if xmax == None:
+        xmax = xx.max()
+
+    nbin = int( ptp(xx) / binsize )
+    bins = np.linspace(xmin, xmax, nbin)
+    idx  = np.digitize(xx, bins)
+
+    stats = np.zeros(nbin, [('median', 'f4'), ('std', 'f4'), ('q25', 'f4'), ('q75', 'f4')])
+    for kk in range(nbin):
+        npts = len( yy[idx == kk] )
+        if npts > minpts:
+            stats['std'][kk] = np.nanstd( yy[idx==kk] )
+
+            qq = np.nanpercentile( yy[idx==kk], [25, 50, 75] )
+            stats['q25'][kk] = qq[0]
+            stats['median'][kk] = qq[1]
+            stats['q75'][kk] = qq[2]
+
+    # Remove bins with too few points.
+    good = np.nonzero( stats['median'] )
+    stats = stats[good]
+
+    return bins[good], stats

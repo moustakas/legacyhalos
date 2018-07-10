@@ -454,8 +454,12 @@ class SersicDoubleWaveFit(SersicWaveFit):
 
         return self._fit(nball=10, chi2fail=1e6, verbose=verbose, model='double')
 
-def sersic_single(objid, objdir, sbprofile, seed=None, nowrite=False, verbose=False):
-    """Wrapper to fit a single Sersic model to an input surface brightness profile. 
+def sersic_single(objid, objdir, sbprofile, seed=None, nowavepower=False,
+                  nowrite=False, verbose=False):
+    """Wrapper to fit a single Sersic model to an input surface brightness profile.
+
+    nowavepower : no wavelength-dependent variation in the Sersic index or
+      half-light radius
 
     """
     sersic = SersicSingleWaveFit(sbprofile, fix_alpha=False, fix_beta=False, seed=seed)
@@ -496,11 +500,10 @@ def legacyhalos_sersic(sample, objid=None, objdir=None, verbose=False, debug=Fal
 
             # double Sersic fit
             double = sersic_double(objid, objdir, sbprofile, verbose=verbose)
-            pdb.set_trace()
+            # pdb.set_trace()
 
             # single Sersic fit
             single = sersic_single(objid, objdir, sbprofile, verbose=verbose)
-            pdb.set_trace()
 
             if single['success']:
                 return 1

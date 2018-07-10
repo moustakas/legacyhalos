@@ -4,6 +4,8 @@ legacyhalos.qa
 
 Code to do produce various QA (quality assurance) plots. 
 
+https://xkcd.com/color/rgb/
+
 """
 from __future__ import absolute_import, division, print_function
 
@@ -12,22 +14,35 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-import seaborn as sns
-sns.set(style='ticks', font_scale=1.4, palette='Set2')
-#sns.reset_orig()
+from legacyhalos.misc import arcsec2kpc
+from legacyhalos.misc import legacyhalos_plot_style
 
-import matplotlib as mpl 
+sns = legacyhalos_plot_style()
+#snscolors = sns.color_palette()
+
+#import matplotlib as mpl 
 #mpl.rcParams['text.usetex'] = True
 #mpl.rcParams['font.family'] = 'serif'
+
+#from matplotlib import rc
+#rc('text.usetex'] = True
+#rc('font.family'] = 'serif'
+
+def _sbprofile_colors():
+    """Return an iterator of colors good for the surface brightness profile plots.
+    https://seaborn.pydata.org/generated/seaborn.color_palette.html#seaborn.color_palette
+
+    """
+    _colors = sns.color_palette('Set1', n_colors=8, desat=0.75)
+    colors = iter([_colors[1], _colors[2], _colors[0], _colors[3], _colors[4]])
+    return colors
 
 def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     """Plot a wavelength-dependent surface brightness profile and model fit.
 
     """
-    from legacyhalos.misc import arcsec2kpc
-
-    colors = iter(sns.color_palette())
     markers = iter(['o', 's', 'D'])
+    colors = _sbprofile_colors()
 
     smascale = arcsec2kpc(sersic['redshift'])
 
@@ -36,7 +51,9 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     else:
         model = None
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    ymnmax = [40, 0]
+
+    fig, ax = plt.subplots(figsize=(7, 5))
     for band, lam in zip( sersic['band'], (sersic['lambda_g'],
                                            sersic['lambda_r'],
                                            sersic['lambda_z']) ):
@@ -58,7 +75,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 labelfont = 14
             elif modeltype == 'double':
                 n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
-                n2 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref2, lam=lam, alpha=model.alpha2))
+                n2 = r'$n_{{2}}={:.2f}$'.format(model.get_sersicn(nref=model.nref2, lam=lam, alpha=model.alpha2))
                 r50_1 = r'$r_{{50}}={:.2f}$ kpc'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
                 r50_2 = r'$r_{{50}}={:.2f}$ kpc'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
                 label = '{} {} {} {} {}'.format(filt, n1, n2, r50_1, r50_2)
@@ -75,26 +92,46 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         #           alpha=1, s=50, label=label, marker=next(markers))
         mu = 22.5 - 2.5 * np.log10(sb)
         muerr = 2.5 * sberr / np.log(10) / sb
-        ax.fill_between(rad, mu-muerr, mu+muerr, color=col, label=label)
+        ax.fill_between(rad, mu-muerr, mu+muerr, color=col, label=label, alpha=0.9)
+
+        if np.min(mu-muerr) < ymnmax[0]:
+            ymnmax[0] = np.min(mu-muerr)
+        if np.max(mu+muerr) > ymnmax[1]:
+            ymnmax[1] = np.max(mu+muerr)
         
         # optionally overplot the model
         if model is not None:
             sb_model = model(rad, wave)
             ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
-                        ls='--', lw=2, alpha=0.5)
+                        ls='--', lw=2, alpha=1)
             if modeltype == 'single':
-                alpha = r'$\alpha={:.3f}\pm{:.3f}$'.format(sersic['alpha'], sersic['alpha_err'])
-                beta = r'$\beta={:.3f}\pm{:.3f}$'.format(sersic['beta'], sersic['beta_err'])
-                nref = r'$n_{{ref}}={:.3f}\pm{:.3f}$'.format(sersic['nref'], sersic['nref_err'])
-                r50ref = r'$r_{{50,ref}}={:.3f}\pm{:.3f}$ arcsec'.format(sersic['r50ref'], sersic['r50ref_err'])
-                txt = alpha+'\n'+beta+'\n'+nref+'\n'+r50ref
+                chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
+                alpha = r'$\alpha={:.2f}\pm{:.2f}$'.format(sersic['alpha'], sersic['alpha_err'])
+                beta = r'$\beta={:.2f}\pm{:.2f}$'.format(sersic['beta'], sersic['beta_err'])
+                nref = r'$n_{{ref}}={:.2f}\pm{:.2f}$'.format(sersic['nref'], sersic['nref_err'])
+                r50ref = r'$r_{{50,ref}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref'], sersic['r50ref_err'])
+                txt = chi2+'\n'+alpha+'\n'+beta+'\n'+nref+'\n'+r50ref
             elif modeltype == 'double':
-                txt = 'Working on it'
-            ax.text(0.05, 0.05, txt, ha='left', va='bottom', transform=ax.transAxes, fontsize=14)
+                chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
+                alpha1 = r'$\alpha_1={:.2f}\pm{:.2f}$'.format(sersic['alpha1'], sersic['alpha1_err'])
+                alpha2 = r'$\alpha_2={:.2f}\pm{:.2f}$'.format(sersic['alpha2'], sersic['alpha2_err'])
+                beta1 = r'$\beta_1={:.2f}\pm{:.2f}$'.format(sersic['beta1'], sersic['beta1_err'])
+                beta2 = r'$\beta_2={:.2f}\pm{:.2f}$'.format(sersic['beta2'], sersic['beta2_err'])
+                nref1 = r'$n_{{ref,1}}={:.2f}\pm{:.2f}$'.format(sersic['nref1'], sersic['nref1_err'])
+                nref2 = r'$n_{{ref,2}}={:.2f}\pm{:.2f}$'.format(sersic['nref2'], sersic['nref2_err'])
+                r50ref1 = r'$r_{{50,ref,1}}={:.2f}\pm{:.2f}$'.format(sersic['r50ref1'], sersic['r50ref1_err'])
+                r50ref2 = r'$r_{{50,ref,2}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref2'], sersic['r50ref2_err'])
+                txt = chi2+'\n'+alpha1+' '+alpha2+'\n'+beta1+' '+beta2+'\n'+nref1+' '+nref2+'\n'+r50ref1+' '+r50ref2
+                
+            ax.text(0.1, 0.1, txt, ha='left', va='bottom',
+                    transform=ax.transAxes, fontsize=12)
 
     ax.set_xlabel('Galactocentric radius (arcsec)')
     ax.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
+
+    ax.set_ylim(ymnmax[0]-0.2, ymnmax[1]+0.2)
     ax.invert_yaxis()
+    ax.margins(ymargins=0)
     #ax.set_yscale('log')
 
     ax.set_xlim(xmin=0)
@@ -106,10 +143,18 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
 
     ax.legend(loc='upper right', fontsize=labelfont)
 
+    ylim = ax.get_ylim()
+    ax.fill_between([0, 3*model.psfsigma_r], [ylim[0], ylim[0]],
+                    [ylim[1], ylim[1]], color='grey', alpha=0.1)
+    ax.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
+            transform=ax.transAxes, fontsize=10)
+
+    fig.subplots_adjust(bottom=0.15, top=0.85, right=0.95, left=0.12)
+
     if png:
         if verbose:
             print('Writing {}'.format(png))
-        fig.savefig(png, bbox_inches='tight', pad_inches=0)
+        fig.savefig(png)#, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
     else:
         plt.show()
@@ -214,11 +259,13 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
 
     band, refband = ellipsefit['band'], ellipsefit['refband']
     pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
+    smascale = arcsec2kpc(redshift) # [kpc/arcsec]
 
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
     for filt in np.atleast_1d(refband):
 
         if ellipsefit['success']:
+            
             good = (ellipsefit[filt].stop_code < 4)
             bad = ~good
 
@@ -238,11 +285,11 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
             ax1.xaxis.set_major_formatter(ScalarFormatter())
 
             ax2.fill_between(ellipsefit[filt].sma[good] * pixscale, 
-                             ellipsefit[filt].pa[good]-ellipsefit[filt].pa_err[good],
-                             ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good])#,
+                             np.degrees(ellipsefit[filt].pa[good]-ellipsefit[filt].pa_err[good]),
+                             np.degrees(ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good]))#,
                              #edgecolor='k', lw=2)
             if np.count_nonzero(bad) > 0:
-                ax2.scatter(ellipsefit[filt].sma[bad] * pixscale, ellipsefit[filt].pa[bad],
+                ax2.scatter(ellipsefit[filt].sma[bad] * pixscale, np.degrees(ellipsefit[filt].pa[bad]),
                             marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
             #ax2.errorbar(ellipsefit[filt].sma[good] * smascale,
             #             np.degrees(ellipsefit[filt].pa[good]),
@@ -281,19 +328,31 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         ax4.yaxis.set_label_position('right')
         ax4.xaxis.set_major_formatter(ScalarFormatter())
         ax4.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+
+    for xx in (ax1, ax2, ax3, ax4):
+        xx.set_xlim(xmin=0)
         
-    ax1.set_ylabel('Ellipticity')
+    xlim = ax1.get_xlim()
+    ax1_twin = ax1.twiny()
+    ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
+    ax1_twin.set_xlabel('Galactocentric radius (kpc)')
+
+    ax2_twin = ax2.twiny()
+    ax2_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
+    ax2_twin.set_xlabel('Galactocentric radius (kpc)')
+
+    ax1.set_ylabel(r'Ellipticity $\epsilon$')
     ax2.set_ylabel('Position Angle (deg)')
     ax3.set_xlabel('Semimajor Axis (arcsec)')
-    ax3.set_ylabel(r'$x_{0}$')
+    ax3.set_ylabel(r'$x$ Center')
     ax4.set_xlabel('Semimajor Axis (arcsec)')
-    ax4.set_ylabel(r'$y_{0}$')
+    ax4.set_ylabel(r'$y$ Center')
     
     if xlog:
         for xx in (ax1, ax2, ax3, ax4):
             xx.set_xscale('log')
 
-    fig.subplots_adjust(hspace=0.05, wspace=0.05, bottom=0.15, right=0.85, left=0.15)
+    fig.subplots_adjust(hspace=0.03, wspace=0.03, bottom=0.15, right=0.85, left=0.15)
 
     if png:
         if verbose:
@@ -311,15 +370,15 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.02, sersicfit=None,
     from legacyhalos.ellipse import ellipse_sbprofile
 
     band, refband, redshift = ellipsefit['band'], ellipsefit['refband'], ellipsefit['redshift']
+    smascale = arcsec2kpc(redshift) # [kpc/arcsec]
 
     if ellipsefit['success']:
         sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr)
 
-    colors = iter(sns.color_palette())
+    colors = _sbprofile_colors()
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     for filt in band:
-
         if ellipsefit['success']:
             good = (ellipsefit[filt].stop_code < 4)
             bad = ~good
@@ -349,9 +408,15 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.02, sersicfit=None,
                     sersicfit[filt].n) )
                 ax1.plot(rad, sbmodel, lw=2, ls='--', alpha=1, color=col)
             
-    ax1.set_ylabel(r'Surface Brightness (mag arcsec$^{-2}$)')
+    ax1.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
     ax1.set_ylim(30, 17)
+    ax1.set_xlim(xmin=0)
 
+    xlim = ax1.get_xlim()
+    ax1_twin = ax1.twiny()
+    ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
+    ax1_twin.set_xlabel('Galactocentric radius (kpc)')
+    
     #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
     #ax1.set_ylim(31.99, 18)
 
@@ -359,24 +424,30 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.02, sersicfit=None,
         ax1.legend(loc='upper right')
 
         ax2.fill_between(sbprofile['sma'],
-                         sbprofile['rz'] - sbprofile['rz_err'],
-                         sbprofile['rz'] + sbprofile['rz_err'],
-                         label=r'$r - z$', color=next(colors), alpha=0.75,
-                         edgecolor='k', lw=2)
-
-        ax2.fill_between(sbprofile['sma'],
                          sbprofile['gr'] - sbprofile['gr_err'],
                          sbprofile['gr'] + sbprofile['gr_err'],
                          label=r'$g - r$', color=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
+        ax2.fill_between(sbprofile['sma'],
+                         sbprofile['rz'] - sbprofile['rz_err'],
+                         sbprofile['rz'] + sbprofile['rz_err'],
+                         label=r'$r - z$', color=next(colors), alpha=0.75,
+                         edgecolor='k', lw=2)
+
         ax2.set_xlabel('Semimajor Axis (arcsec)', alpha=0.75)
-        ax2.legend(loc='upper left')
+        ax2.legend(loc='upper right')
     else:
         ax2.set_xlabel('Semimajor Axis', alpha=0.75)
         
     ax2.set_ylabel('Color (mag)')
-    ax2.set_ylim(0, 2.4)
+    ax2.set_ylim(-0.1, 2.5)
+
+    if ellipsefit['success']:
+        for xx in (ax1, ax2):
+            ylim = xx.get_ylim()
+            xx.fill_between([0, 3*ellipsefit['psfsigma_r']], [ylim[0], ylim[0]],
+                            [ylim[1], ylim[1]], color='grey', alpha=0.1)
 
     fig.subplots_adjust(hspace=0.0)
 
@@ -469,44 +540,86 @@ def display_mge_sbprofile(mgefit, indx=None, png=None, verbose=True):
     else:
         plt.show()
         
-def sample_trends(sample, htmldir, analysisdir=None, verbose=True):
+def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)):
     """Trends with the whole sample.
 
     """
     from astropy.cosmology import WMAP9 as cosmo
     from legacyhalos.io import get_objid, read_ellipsefit
     from legacyhalos.ellipse import ellipse_sbprofile
-    from legacyhalos.misc import arcsec2kpc
+    from legacyhalos.misc import medxbin
 
     trendsdir = os.path.join(htmldir, 'trends')
     if not os.path.isdir(trendsdir):
         os.makedirs(trendsdir, exist_ok=True)
 
-    # color vs semi-major axis
-    def _color_vs_sma():
-        png = os.path.join(trendsdir, 'color_vs_ellipticity.png')
-    
-        fig, ax1 = plt.subplots()
-        for gal in sample:
-            objid, objdir = get_objid(gal, analysisdir=analysisdir)
+    ngal = len(sample)
 
+    # color vs semi-major axis
+    def __color_vs_sma(color, label):
+
+        # read all the fits / data
+        allsma, allgood, allcolor, allcolorerr = [], [], [], []
+        smamax, nsma, refindx = 0.0, 0, -1
+        
+        for ii, gal in enumerate(sample):
+            objid, objdir = get_objid(gal, analysisdir=analysisdir)
             ellipsefit = read_ellipsefit(objid, objdir)
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:                    
                     refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
                     smascale = arcsec2kpc(redshift) # [kpc/arcsec]
-                    
                     sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.01)
-                    good = (ellipsefit[refband].stop_code < 4)
-                    ax1.fill_between(sbprofile['sma'][good] * smascale,
-                                     sbprofile['gr'][good]-sbprofile['gr_err'][good],
-                                     sbprofile['gr'][good]+sbprofile['gr_err'][good],
-                                     alpha=0.6, color='gray')
+
+                    sma = sbprofile['sma'] * smascale
+                    if sma.max() > smamax:
+                        refindx = ii
+                        nsma = len(sma)
+                        smamax = sma.max()
+                    
+                    allsma.append( sma )
+                    #good.append( (ellipsefit[refband].stop_code < 4) )
+                    allgood.append( np.arange( len(ellipsefit[refband].sma) ) )
+                    allcolor.append( sbprofile[color] )
+                    allcolorerr.append( sbprofile['{}_err'.format(color)] )
+                else:
+                    allsma.append([]), allgood.append([]), allcolor.append([]), allcolorerr.append([])
+            else:
+                allsma.append([]), allgood.append([]), allcolor.append([]), allcolorerr.append([])
+
+        # get the median and interquartile trend
+        median_sma, color_stats = medxbin(np.hstack(allsma), np.hstack(allcolor), 3, minpts=5)
+
+        if False:
+            refsma = allsma[refindx] # reference semimajor axis
+            allcolor_interp = np.zeros( (ngal, len(refsma)) ) * np.nan
+            for ii in range(ngal):
+                if len(allsma[ii]) > 0:
+                    allcolor_interp[ii, :] = np.interp(refsma, allsma[ii], allcolor[ii],
+                                                       left=np.nan, right=np.nan)
+            color_trend = np.nanpercentile(allcolor_interp, [25, 50, 75], axis=0)
+
+        # now make the plot
+        png = os.path.join(trendsdir, '{}_vs_sma.png'.format(color))
+        fig, ax1 = plt.subplots()
+        for ii, gal in enumerate(sample):
+            if len(allsma[ii]) > 0:
+                thisgood = allgood[ii]
+                thissma = allsma[ii][thisgood]
+                thiscolor = allcolor[ii][thisgood]
+                thiscolorerr = allcolorerr[ii][thisgood]
+                
+                ax1.fill_between(thissma, thiscolor-thiscolorerr, thiscolor+thiscolorerr,
+                                 alpha=0.1, color='gray')
+
+        ax1.plot(median_sma, color_stats['median'], color=sns.xkcd_rgb['blood red'], lw=2, ls='-')
+        ax1.plot(median_sma, color_stats['q25'], color=sns.xkcd_rgb['blood red'], lw=2, ls='--')
+        ax1.plot(median_sma, color_stats['q75'], color=sns.xkcd_rgb['blood red'], lw=2, ls='--')
 
         ax1.grid()
-        ax1.set_xlim(0, 50)
+        ax1.set_xlim(xlim)
         ax1.set_ylim(0, 2.5)
-        ax1.set_ylabel(r'$g - r$')
+        ax1.set_ylabel(r'{}'.format(label))
         ax1.set_xlabel('Semimajor Axis (kpc)')
 
         fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
@@ -519,10 +632,14 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True):
         else:
             plt.show()
             
+    def _color_vs_sma():
+        __color_vs_sma('gr', '$g - r$')
+        __color_vs_sma('rz', '$r - z$')
+        
     # Ellipticity vs semi-major axis
     def _ellipticity_vs_sma():
         
-        png = os.path.join(trendsdir, 'sma_vs_ellipticity.png')
+        png = os.path.join(trendsdir, 'ellipticity_vs_sma.png')
     
         fig, ax1 = plt.subplots()
         for gal in sample:
@@ -532,15 +649,17 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True):
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:
                     refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
-                    smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+                    smascale = ellipsefit['pixscale'] * arcsec2kpc(redshift) # [kpc/pixel]
                     
                     good = (ellipsefit[refband].stop_code < 4)
+                    #good = np.arange( len(ellipsefit[refband].sma) )
                     ax1.fill_between(ellipsefit[refband].sma[good] * smascale, 
                                      ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
                                      ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good],
                                      alpha=0.6, color='gray')
 
         ax1.grid()
+        ax1.set_xlim(xlim)
         ax1.set_ylim(0, 0.5)
         ax1.set_ylabel('Ellipticity')
         ax1.set_xlabel('Semimajor Axis (kpc)')
