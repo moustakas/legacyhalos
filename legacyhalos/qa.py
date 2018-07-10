@@ -70,14 +70,14 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
             filt = '${}:\ $'.format(band)
             if 'single' in modeltype:
                 n = r'$n={:.2f}$'.format(model.get_sersicn(nref=model.nref, lam=lam, alpha=model.alpha))
-                r50 = r'$r_{{50}}={:.2f}\, kpc$'.format(model.get_r50(r50ref=model.r50ref, lam=lam, beta=model.beta) * smascale)
+                r50 = r'$r_{{50}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref, lam=lam, beta=model.beta) * smascale)
                 label = '{} {}, {}'.format(filt, n, r50)
                 labelfont = 14
             elif 'double' in modeltype:
                 n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
                 n2 = r'$n_{{2}}={:.2f}$'.format(model.get_sersicn(nref=model.nref2, lam=lam, alpha=model.alpha2))
-                r50_1 = r'$r_{{50}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
-                r50_2 = r'$r_{{50}}={:.2f}\,kpc$'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
+                r50_1 = r'$r_{{50,1}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
+                r50_2 = r'$r_{{50,2}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
                 label = '{} {}, {}, {}, {}'.format(filt, n1, n2, r50_1, r50_2)
                 labelfont = 12
             else:
@@ -107,56 +107,100 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
 
     # legend with the best-fitting parameters
     if model is not None:
+        chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
+        lambdaref = '{}'.format(sersic['lambda_ref'])
         if modeltype == 'single':
-            chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
-            #alpha = r'$\alpha={:.1f}\pm{:.2f}$'.format(sersic['alpha'], sersic['alpha_err'])
-            #beta = r'$\beta={:.1f}\pm{:.2f}$'.format(sersic['beta'], sersic['beta_err'])
-            #nref = r'$n_{{ref}}={:.2f}\pm{:.2f}$'.format(sersic['nref'], sersic['nref_err'])
-            #r50ref = r'$r_{{50,ref}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref'], sersic['r50ref_err'])
-            #txt = chi2+'\n'+alpha+'\n'+beta+'\n'+nref+'\n'+r50ref
-            alpha = '{:.2f}\pm{:.2f}'.format(sersic['alpha'], sersic['alpha_err'])
-            beta = '{:.2f}\pm{:.2f}'.format(sersic['beta'], sersic['beta_err'])
-            nref = '{:.2f}\pm{:.2f}'.format(sersic['nref'], sersic['nref_err'])
-            r50ref = '{:.2f}\pm{:.2f}'.format(sersic['r50ref'], sersic['r50ref_err'])
-            lambdaref = '{}'.format(sersic['lambda_ref'])
-            n = r'$n(\lambda) = ({nref})(\lambda/{lambdaref})^{{{alpha}}}$'.format(
-                nref=nref, lambdaref=lambdaref, alpha=alpha)
-            r50 = r'$r_{{50}}(\lambda) = ({r50ref})(\lambda/{lambdaref})^{{{beta}}}\, arcsec$'.format(
-                r50ref=r50ref, lambdaref=lambdaref, beta=beta)
+            if sersic['converged']:
+                alpha = '{:.2f}\pm{:.2f}'.format(sersic['alpha'], sersic['alpha_err'])
+                beta = '{:.2f}\pm{:.2f}'.format(sersic['beta'], sersic['beta_err'])
+                nref = '{:.2f}\pm{:.2f}'.format(sersic['nref'], sersic['nref_err'])
+                r50ref = '{:.2f}\pm{:.2f}'.format(sersic['r50ref'], sersic['r50ref_err'])
+                n = r'$n(\lambda) = ({nref})(\lambda/{lambdaref})^{{{alpha}}}$'.format(
+                    nref=nref, lambdaref=lambdaref, alpha=alpha)
+                r50 = r'$r_{{50}}(\lambda) = ({r50ref})(\lambda/{lambdaref})^{{{beta}}}\ arcsec$'.format(
+                    r50ref=r50ref, lambdaref=lambdaref, beta=beta)
+            else:
+                alpha = '{:.2f}'.format(sersic['alpha'])
+                beta = '{:.2f}'.format(sersic['beta'])
+                nref = '{:.2f}'.format(sersic['nref'])
+                r50ref = '{:.2f}'.format(sersic['r50ref'])
+                n = r'$n(\lambda) = {nref}\ (\lambda/{lambdaref})^{{{alpha}}}$'.format(
+                    nref=nref, lambdaref=lambdaref, alpha=alpha)
+                r50 = r'$r_{{50}}(\lambda) = {r50ref}\ (\lambda/{lambdaref})^{{{beta}}}\ arcsec$'.format(
+                    r50ref=r50ref, lambdaref=lambdaref, beta=beta)
             txt = chi2+'\n'+n+'\n'+r50
         elif modeltype == 'single-nowavepower':
-            chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
-            alpha = r'$\alpha={:.2f}$'.format(sersic['alpha'])
-            beta = r'$\beta={:.2f}$'.format(sersic['beta'])
-            nref = r'{:.2f}\pm{:.2f}'.format(sersic['nref'], sersic['nref_err'])
-            r50ref = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref'], sersic['r50ref_err'])
-            n = r'$n = {nref}$'.format(nref=nref)
-            r50 = r'$r_{{50}} = {r50ref}\, arcsec$'.format(r50ref=r50ref)
-            txt = chi2+'\n'+alpha+', '+beta+'\n'+n+'\n'+r50
-            #alpha = r'$\alpha={:.2f}$'.format(sersic['alpha'])
-            #beta = r'$\beta={:.2f}$'.format(sersic['beta'])
-            #nref = r'$n_{{ref}}={:.2f}\pm{:.2f}$'.format(sersic['nref'], sersic['nref_err'])
-            #r50ref = r'$r_{{50,ref}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref'], sersic['r50ref_err'])
-            #txt = chi2+'\n'+alpha+', '+beta+'\n'+nref+'\n'+r50ref
+            alphabeta = r'$\alpha={:.2f},\ \beta={:.2f}$'.format(sersic['alpha'], sersic['beta'])
+            if sersic['converged']:
+                nref = r'{:.2f}\pm{:.2f}'.format(sersic['nref'], sersic['nref_err'])
+                r50ref = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref'], sersic['r50ref_err'])
+                n = r'$n = {nref}$'.format(nref=nref)
+                r50 = r'$r_{{50}} = {r50ref}\ arcsec$'.format(r50ref=r50ref)
+            else:
+                nref = r'{:.2f}'.format(sersic['nref'])
+                r50ref = r'{:.2f}'.format(sersic['r50ref'])
+                n = r'$n = {nref}$'.format(nref=nref)
+                r50 = r'$r_{{50}} = {r50ref}\ arcsec$'.format(r50ref=r50ref)
+            txt = chi2+'\n'+alphabeta+'\n'+n+'\n'+r50
         elif modeltype == 'double':
-            chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
-            alpha1 = r'$\alpha_1={:.2f}\pm{:.2f}$'.format(sersic['alpha1'], sersic['alpha1_err'])
-            alpha2 = r'$\alpha_2={:.2f}\pm{:.2f}$'.format(sersic['alpha2'], sersic['alpha2_err'])
-            beta1 = r'$\beta_1={:.2f}\pm{:.2f}$'.format(sersic['beta1'], sersic['beta1_err'])
-            beta2 = r'$\beta_2={:.2f}\pm{:.2f}$'.format(sersic['beta2'], sersic['beta2_err'])
-            nref1 = r'$n_{{ref,1}}={:.2f}\pm{:.2f}$'.format(sersic['nref1'], sersic['nref1_err'])
-            nref2 = r'$n_{{ref,2}}={:.2f}\pm{:.2f}$'.format(sersic['nref2'], sersic['nref2_err'])
-            r50ref1 = r'$r_{{50,ref,1}}={:.2f}\pm{:.2f}$'.format(sersic['r50ref1'], sersic['r50ref1_err'])
-            r50ref2 = r'$r_{{50,ref,2}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref2'], sersic['r50ref2_err'])
-            txt = chi2+'\n'+alpha1+' '+alpha2+'\n'+beta1+' '+beta2+'\n'+nref1+' '+nref2+'\n'+r50ref1+' '+r50ref2
+            if sersic['converged']:
+                alpha1 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha1'], sersic['alpha1_err'])
+                alpha2 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha2'], sersic['alpha2_err'])
+                beta1 = r'{:.2f}\pm{:.2f}'.format(sersic['beta1'], sersic['beta1_err'])
+                beta2 = r'{:.2f}\pm{:.2f}'.format(sersic['beta2'], sersic['beta2_err'])
+                nref1 = r'{:.2f}\pm{:.2f}'.format(sersic['nref1'], sersic['nref1_err'])
+                nref2 = r'{:.2f}\pm{:.2f}'.format(sersic['nref2'], sersic['nref2_err'])
+                r50ref1 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref1'], sersic['r50ref1_err'])
+                r50ref2 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref2'], sersic['r50ref2_err'])
+                n1 = r'$n_1(\lambda) = ({nref1})(\lambda/{lambdaref})^{{{alpha1}}}$'.format(
+                    nref1=nref1, lambdaref=lambdaref, alpha1=alpha1)
+                n2 = r'$n_2(\lambda) = ({nref2})(\lambda/{lambdaref})^{{{alpha2}}}$'.format(
+                    nref2=nref2, lambdaref=lambdaref, alpha2=alpha2)
+                r50_1 = r'$r_{{50,1}}(\lambda) = ({r50ref1})(\lambda/{lambdaref})^{{{beta1}}}\ arcsec$'.format(
+                    r50ref1=r50ref1, lambdaref=lambdaref, beta1=beta1)
+                r50_2 = r'$r_{{50,2}}(\lambda) = ({r50ref2})(\lambda/{lambdaref})^{{{beta2}}}\ arcsec$'.format(
+                    r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
+            else:
+                alpha1 = r'{:.2f}'.format(sersic['alpha1'])
+                alpha2 = r'{:.2f}'.format(sersic['alpha2'])
+                beta1 = r'{:.2f}'.format(sersic['beta1'])
+                beta2 = r'{:.2f}'.format(sersic['beta2'])
+                nref1 = r'{:.2f}'.format(sersic['nref1'])
+                nref2 = r'{:.2f}'.format(sersic['nref2'])
+                r50ref1 = r'{:.2f}'.format(sersic['r50ref1'])
+                r50ref2 = r'{:.2f}'.format(sersic['r50ref2'])
+                n1 = r'$n_1(\lambda) = {nref1}\ (\lambda/{lambdaref})^{{{alpha1}}}$'.format(
+                    nref1=nref1, lambdaref=lambdaref, alpha1=alpha1)
+                n2 = r'$n_2(\lambda) = {nref2}\ (\lambda/{lambdaref})^{{{alpha2}}}$'.format(
+                    nref2=nref2, lambdaref=lambdaref, alpha2=alpha2)
+                r50_1 = r'$r_{{50,1}}(\lambda) = {r50ref1}\ (\lambda/{lambdaref})^{{{beta1}}}\ arcsec$'.format(
+                    r50ref1=r50ref1, lambdaref=lambdaref, beta1=beta1)
+                r50_2 = r'$r_{{50,2}}(\lambda) = {r50ref2}\ (\lambda/{lambdaref})^{{{beta2}}}\ arcsec$'.format(
+                    r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
+                
+            txt = chi2+'\n'+n1+'\n'+n2+'\n'+r50_1+'\n'+r50_2
         elif modeltype == 'double-nowavepower':
-                txt = 'Working on it'
+            alpha = r'$\alpha_1=\alpha_2={:.2f}$'.format(sersic['alpha1'])
+            beta = r'$\beta_1=\beta_2={:.2f}$'.format(sersic['beta1'])
+            if sersic['converged']:
+                nref1 = r'{:.2f}\pm{:.2f}'.format(sersic['nref1'], sersic['nref1_err'])
+                nref2 = r'{:.2f}\pm{:.2f}'.format(sersic['nref2'], sersic['nref2_err'])
+                r50ref1 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref1'], sersic['r50ref1_err'])
+                r50ref2 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref2'], sersic['r50ref2_err'])
+            else:
+                nref1 = r'{:.2f}'.format(sersic['nref1'])
+                nref2 = r'{:.2f}'.format(sersic['nref2'])
+                r50ref1 = r'{:.2f}'.format(sersic['r50ref1'])
+                r50ref2 = r'{:.2f}'.format(sersic['r50ref2'])
+            n = r'$n_1 = {nref1},\ n_2 = {nref2}$'.format(nref1=nref1, nref2=nref2)
+            r50 = r'$r_{{50,1}} = {r50ref1}\ r_{{50,2}} = {r50ref2}\ arcsec$'.format(r50ref1=r50ref1, r50ref2=r50ref2)
+            txt = chi2+'\n'+alpha+'\n'+beta+'\n'+n+'\n'+r50
                 
         ax.text(0.1, 0.1, txt, ha='left', va='bottom', linespacing=1.3,
                 transform=ax.transAxes, fontsize=12)
 
-    ax.set_xlabel('Galactocentric radius (arcsec)')
-    ax.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
+    ax.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
+    ax.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
 
     ax.set_ylim(ymnmax[0]-0.5, ymnmax[1]+0.5)
     ax.invert_yaxis()
@@ -372,9 +416,9 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
 
     ax1.set_ylabel(r'Ellipticity $\epsilon$')
     ax2.set_ylabel('Position Angle (deg)')
-    ax3.set_xlabel('Semimajor Axis (arcsec)')
+    ax3.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
     ax3.set_ylabel(r'$x$ Center')
-    ax4.set_xlabel('Semimajor Axis (arcsec)')
+    ax4.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
     ax4.set_ylabel(r'$y$ Center')
     
     if xlog:
@@ -437,14 +481,14 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.02, sersicfit=None,
                     sersicfit[filt].n) )
                 ax1.plot(rad, sbmodel, lw=2, ls='--', alpha=1, color=col)
             
-    ax1.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
-    ax1.set_ylim(30, 17)
+    ax1.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
+    ax1.set_ylim(32, 17)
     ax1.set_xlim(xmin=0)
 
     xlim = ax1.get_xlim()
     ax1_twin = ax1.twiny()
     ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
-    ax1_twin.set_xlabel('Galactocentric radius (kpc)')
+    ax1_twin.set_xlabel(r'Galactocentric radius $r$ (kpc)')
     
     #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
     #ax1.set_ylim(31.99, 18)
@@ -464,19 +508,23 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.02, sersicfit=None,
                          label=r'$r - z$', color=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
-        ax2.set_xlabel('Semimajor Axis (arcsec)', alpha=0.75)
-        ax2.legend(loc='upper right')
+        ax2.set_xlabel(r'Galactocentric radius $r$ (arcsec)', alpha=0.75)
+        #ax2.legend(loc='upper left')
+        ax2.legend(bbox_to_anchor=(0.25, 0.98))
     else:
-        ax2.set_xlabel('Semimajor Axis', alpha=0.75)
+        ax2.set_xlabel(r'Galactocentric radius $r$', alpha=0.75)
         
     ax2.set_ylabel('Color (mag)')
-    ax2.set_ylim(-0.1, 2.5)
+    ax2.set_ylim(-0.1, 2.7)
 
     if ellipsefit['success']:
         for xx in (ax1, ax2):
             ylim = xx.get_ylim()
             xx.fill_between([0, 3*ellipsefit['psfsigma_r']], [ylim[0], ylim[0]],
                             [ylim[1], ylim[1]], color='grey', alpha=0.1)
+            
+        ax2.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
+            transform=ax2.transAxes, fontsize=10)
 
     fig.subplots_adjust(hspace=0.0)
 
@@ -554,7 +602,7 @@ def display_mge_sbprofile(mgefit, indx=None, png=None, verbose=True):
     #                 sbprofile['gr']+sbprofile['gr_err'],
     #                 label=r'$g - r$', color=next(colors), alpha=0.75)
 
-    ax2.set_xlabel('Semimajor Axis ({})'.format(smaunit), alpha=0.75)
+    ax2.set_xlabel('Galactocentric radius $r$ ({})'.format(smaunit), alpha=0.75)
     ax2.set_ylabel('Color')
     ax2.set_ylim(-0.5, 2.5)
     #ax2.legend(loc='upper left')
@@ -649,7 +697,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
         ax1.set_xlim(xlim)
         ax1.set_ylim(0, 2.5)
         ax1.set_ylabel(r'{}'.format(label))
-        ax1.set_xlabel('Semimajor Axis (kpc)')
+        ax1.set_xlabel('Galactocentric radius $r$ (kpc)')
 
         fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
 
@@ -691,7 +739,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
         ax1.set_xlim(xlim)
         ax1.set_ylim(0, 0.5)
         ax1.set_ylabel('Ellipticity')
-        ax1.set_xlabel('Semimajor Axis (kpc)')
+        ax1.set_xlabel('Galactocentric radius $r$ (kpc)')
 
         fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
 

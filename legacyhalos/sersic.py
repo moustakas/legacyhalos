@@ -331,6 +331,7 @@ class SersicWaveFit(object):
         # initialize the output dictionary
         result = {
             'success': False,
+            'converged': False,
             'redshift': self.redshift,
             'radius': self.radius,
             'wave': self.wave,
@@ -394,6 +395,7 @@ class SersicWaveFit(object):
         if self.fitter.fit_info['param_cov'] is not None:
             cov = self.fitter.fit_info['param_cov']
             unc = np.diag(cov)**0.5
+            result['converged'] = True
         else:
             cov = np.zeros( (nparams, nparams) )
             unc = np.zeros(nparams)
