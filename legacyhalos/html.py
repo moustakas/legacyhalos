@@ -106,6 +106,20 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
     from legacyhalos.io import read_sersic
     from legacyhalos.qa import display_sersic
 
+    # Sersic-exponential
+    serexp = read_sersic(objid, objdir, model='exponential')
+    if bool(serexp):
+        serexpfile = os.path.join(htmlobjdir, '{}-sersic-exponential.png'.format(objid))
+        if not os.path.isfile(serexpfile) or clobber:
+            display_sersic(serexp, modeltype='exponential', png=serexpfile, verbose=verbose)
+
+    # Sersic-exponential, no wavelength dependence
+    serexp = read_sersic(objid, objdir, model='exponential-nowavepower')
+    if bool(serexp):
+        serexpfile = os.path.join(htmlobjdir, '{}-sersic-exponential-nowavepower.png'.format(objid))
+        if not os.path.isfile(serexpfile) or clobber:
+            display_sersic(serexp, modeltype='exponential-nowavepower', png=serexpfile, verbose=verbose)
+
     # Double Sersic
     double = read_sersic(objid, objdir, model='double')
     if bool(double):
@@ -151,13 +165,13 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
 
+        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
+                          clobber=clobber, verbose=verbose)
+        
         # Build the ellipse plots.
         qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
                            clobber=clobber, verbose=verbose)
 
-        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
-                          clobber=clobber, verbose=verbose)
-        
         # Build the montage coadds.
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)
 
@@ -396,6 +410,15 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             html.write('<tr>\n')
             html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
             html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('</tr>\n')
+
+            # Sersic+exponential
+            html.write('<tr>\n')
+            html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td><a href="{}-sersic-exponential-nowavepower.png"><img src="{}-sersic-exponential-nowavepower.png" alt="Missing file {}-sersic-exponential-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td><a href="{}-sersic-exponential.png"><img src="{}-sersic-exponential.png" alt="Missing file {}-sersic-exponential.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
             html.write('</tr>\n')
 
             # double-sersic

@@ -18,9 +18,6 @@ from astropy.modeling import Fittable2DModel
 
 import legacyhalos.io
 
-import seaborn as sns
-sns.set(style='ticks', font_scale=1.4, palette='Set2')
-
 class SersicSingleWaveModel(Fittable2DModel):
     """
     Define a surface brightness profile model which is three single Sersic
@@ -119,6 +116,109 @@ class SersicSingleWaveModel(Fittable2DModel):
         
         return mu
     
+class SersicExponentialWaveModel(Fittable2DModel):
+    """Define a surface brightness profile model which is three Sersic+exponential
+    models connected by two Sersic indices and half-light radiii which vary as a
+    power-law function of wavelength.
+
+    """
+    from astropy.modeling import Parameter
+    
+    nref1 = Parameter(default=3, bounds=(0.1, 8))
+    nref2 = Parameter(default=1, fixed=True) # fixed exponential
+
+    r50ref1 = Parameter(default=3, bounds=(1e-3, 30)) # [arcsec]
+    r50ref2 = Parameter(default=10, bounds=(1e-3, 30)) # [arcsec]
+
+    alpha1 = Parameter(default=0.0, bounds=(-1, 1))
+
+    beta1 = Parameter(default=0.0, bounds=(-1, 1))
+    beta2 = Parameter(default=0.0, bounds=(-1, 1))
+
+    mu50_g1 = Parameter(default=1.0, bounds=(0, 1e4))
+    mu50_r1 = Parameter(default=1.0, bounds=(0, 1e4))
+    mu50_z1 = Parameter(default=1.0, bounds=(0, 1e4))
+
+    mu50_g2 = Parameter(default=0.1, bounds=(0, 1e4))
+    mu50_r2 = Parameter(default=0.1, bounds=(0, 1e4))
+    mu50_z2 = Parameter(default=0.1, bounds=(0, 1e4))
+
+    linear = False
+    
+    def __init__(self, nref1=nref1.default, nref2=nref2.default, 
+                 r50ref1=r50ref1.default, r50ref2=r50ref2.default, 
+                 alpha1=alpha1.default, 
+                 beta1=beta1.default, beta2=beta2.default, 
+                 mu50_g1=mu50_g1.default, mu50_r1=mu50_r1.default, mu50_z1=mu50_z1.default, 
+                 mu50_g2=mu50_g2.default, mu50_r2=mu50_r2.default, mu50_z2=mu50_z2.default, 
+                 psfsigma_g=0.0, psfsigma_r=0.0, psfsigma_z=0.0, 
+                 lambda_ref=6470, lambda_g=4890, lambda_r=6470, lambda_z=9196, 
+                 **kwargs):
+
+        self.band = ('g', 'r', 'z')
+        
+        #from speclite import filters
+        #filt = filters.load_filters('decam2014-g', 'decam2014-r', 'decam2014-z')
+        #print(filt.effective_wavelengths.value)
+        
+        self.lambda_g = lambda_g
+        self.lambda_r = lambda_r
+        self.lambda_z = lambda_z
+        self.lambda_ref = lambda_ref
+        
+        self.psfsigma_g = psfsigma_g
+        self.psfsigma_r = psfsigma_r
+        self.psfsigma_z = psfsigma_z
+        
+        super(SersicExponentialWaveModel, self).__init__(nref1=nref1, nref2=nref2, r50ref1=r50ref1, r50ref2=r50ref2,
+                                                         alpha1=alpha1, beta1=beta1, beta2=beta2,
+                                                         mu50_g1=mu50_g1, mu50_r1=mu50_r1, mu50_z1=mu50_z1,
+                                                         mu50_g2=mu50_g2, mu50_r2=mu50_r2, mu50_z2=mu50_z2,
+                                                         **kwargs)
+        
+    def get_sersicn(self, nref, lam, alpha):
+        return nref * (lam / self.lambda_ref)**alpha
+    
+    def get_r50(self, r50ref, lam, beta):
+        return r50ref * (lam / self.lambda_ref)**beta
+    
+    def evaluate(self, r, w, nref1, nref2, r50ref1, r50ref2, alpha1, beta1, beta2,
+                 mu50_g1, mu50_r1, mu50_z1, mu50_g2, mu50_r2, mu50_z2):
+        """Evaluate the wavelength-dependent Sersic-exponential model.
+        
+        """
+        from scipy.special import gammaincinv
+        from astropy.convolution import Gaussian1DKernel, convolve
+        
+        mu = np.zeros_like(r)
+        n2 = nref2 # fixed exponential
+        
+        # Build the surface brightness profile at each wavelength.
+        for lam, psfsig, mu50_1, mu50_2 in zip( (self.lambda_g, self.lambda_r, self.lambda_z),
+                                                (self.psfsigma_g, self.psfsigma_r, self.psfsigma_z),
+                                                (mu50_g1, mu50_r1, mu50_z1), (mu50_g2, mu50_r2, mu50_z2)  ):
+            
+            n1 = self.get_sersicn(nref1, lam, alpha1)
+            r50_1 = self.get_r50(r50ref1, lam, beta1)
+            r50_2 = self.get_r50(r50ref2, lam, beta2)
+            
+            indx = w == lam
+            if np.sum(indx) > 0:
+                mu_int = ( mu50_1 * np.exp(-gammaincinv(2 * n1, 0.5) * ((r[indx] / r50_1) ** (1 / n1) - 1)) +
+                           mu50_2 * np.exp(-gammaincinv(2 * n2, 0.5) * ((r[indx] / r50_2) ** (1 / n2) - 1)) )
+            
+                # smooth with the PSF
+                if psfsig > 0:
+                    g = Gaussian1DKernel(stddev=psfsig)#, mode='linear_interp')
+                    mu_smooth = convolve(mu_int, g, normalize_kernel=True, boundary='extend')
+                    fix = (r[indx] > 5 * psfsig)
+                    mu_smooth[fix] = mu_int[fix] # replace with original values
+                    mu[indx] = mu_smooth
+                else:
+                    mu[indx] = mu_int
+        
+        return mu
+
 class SersicDoubleWaveModel(Fittable2DModel):
     """
     Define a surface brightness profile model which is three double Sersic
@@ -443,6 +543,25 @@ class SersicSingleWaveFit(SersicWaveFit):
 
         return self._fit(nball=10, chi2fail=1e6, verbose=verbose, model='single')
 
+class SersicExponentialWaveFit(SersicWaveFit):
+    """Fit surface brightness profiles with the SersicExponentialWaveModel model."""
+    
+    def __init__(self, sbprofile, fix_alpha=False, fix_beta=False, seed=None):
+        """sbprofile is the output of legacyhalos.util.ellipse_sbprofile
+        
+        """
+        self.fixed = {'alpha1': fix_alpha, 'beta1': fix_beta, 'beta2': fix_beta}
+        self.initfit = SersicExponentialWaveModel(fixed=self.fixed,
+                                             psfsigma_g=sbprofile['psfsigma_g'],
+                                             psfsigma_r=sbprofile['psfsigma_r'],
+                                             psfsigma_z=sbprofile['psfsigma_z'])
+
+        super(SersicExponentialWaveFit, self).__init__(sbprofile, seed=seed)
+
+    def fit(self, nball=10, chi2fail=1e6, verbose=False):
+
+        return self._fit(nball=10, chi2fail=1e6, verbose=verbose, model='exponential')
+
 class SersicDoubleWaveFit(SersicWaveFit):
     """Fit surface brightness profiles with the SersicDoubleWaveModel model."""
     
@@ -476,6 +595,29 @@ def sersic_single(objid, objdir, sbprofile, seed=None, nowavepower=False,
     else:
         model = 'single'
         sersic = SersicSingleWaveFit(sbprofile, fix_alpha=False, fix_beta=False, seed=seed)
+        
+    sersic = sersic.fit(verbose=verbose)
+
+    if not nowrite:
+        legacyhalos.io.write_sersic(objid, objdir, sersic, model=model, verbose=verbose)
+
+    return sersic
+
+def sersic_exponential(objid, objdir, sbprofile, seed=None, nowavepower=False,
+                       nowrite=False, verbose=False):
+    """Wrapper to fit a Sersic+exponential model to an input surface brightness
+    profile.
+
+    nowavepower : no wavelength-dependent variation in the Sersic index or
+      half-light radius
+
+    """
+    if nowavepower:
+        model = 'exponential-nowavepower'
+        sersic = SersicExponentialWaveFit(sbprofile, fix_alpha=True, fix_beta=True, seed=seed)
+    else:
+        model = 'exponential'
+        sersic = SersicExponentialWaveFit(sbprofile, fix_alpha=False, fix_beta=False, seed=seed)
         
     sersic = sersic.fit(verbose=verbose)
 
@@ -521,6 +663,10 @@ def legacyhalos_sersic(sample, objid=None, objdir=None, verbose=False, debug=Fal
     if bool(ellipsefit):
         if ellipsefit['success']:
             sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.03)
+
+            # Sersic-exponential fit with and without wavelength dependence
+            serexp = sersic_exponential(objid, objdir, sbprofile, verbose=verbose)
+            serexp_nowave = sersic_exponential(objid, objdir, sbprofile, verbose=verbose, nowavepower=True)
 
             # single Sersic fit with and without wavelength dependence
             single = sersic_single(objid, objdir, sbprofile, verbose=verbose)

@@ -73,6 +73,13 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 r50 = r'$r_{{50}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref, lam=lam, beta=model.beta) * smascale)
                 label = '{} {}, {}'.format(filt, n, r50)
                 labelfont = 14
+            elif 'exponential' in modeltype:
+                n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
+                n2 = r'$n_{{2}}={:.2f}$'.format(model.nref2.value)
+                r50_1 = r'$r_{{50,1}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
+                r50_2 = r'$r_{{50,2}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
+                label = '{} {}, {}, {}, {}'.format(filt, n1, n2, r50_1, r50_2)
+                labelfont = 12
             elif 'double' in modeltype:
                 n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
                 n2 = r'$n_{{2}}={:.2f}$'.format(model.get_sersicn(nref=model.nref2, lam=lam, alpha=model.alpha2))
@@ -142,6 +149,55 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 n = r'$n = {nref}$'.format(nref=nref)
                 r50 = r'$r_{{50}} = {r50ref}\ arcsec$'.format(r50ref=r50ref)
             txt = chi2+'\n'+alphabeta+'\n'+n+'\n'+r50
+        elif modeltype == 'exponential':
+            if sersic['converged']:
+                alpha1 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha1'], sersic['alpha1_err'])
+                beta1 = r'{:.2f}\pm{:.2f}'.format(sersic['beta1'], sersic['beta1_err'])
+                beta2 = r'{:.2f}\pm{:.2f}'.format(sersic['beta2'], sersic['beta2_err'])
+                nref1 = r'{:.2f}\pm{:.2f}'.format(sersic['nref1'], sersic['nref1_err'])
+                nref2 = r'{:.2f}'.format(sersic['nref2'])
+                r50ref1 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref1'], sersic['r50ref1_err'])
+                r50ref2 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref2'], sersic['r50ref2_err'])
+                n1 = r'$n_1(\lambda) = ({nref1})(\lambda/{lambdaref})^{{{alpha1}}}$'.format(
+                    nref1=nref1, lambdaref=lambdaref, alpha1=alpha1)
+                n2 = r'$n_2 = {nref2}$'.format(nref2=nref2)
+                r50_1 = r'$r_{{50,1}}(\lambda) = ({r50ref1})(\lambda/{lambdaref})^{{{beta1}}}\ arcsec$'.format(
+                    r50ref1=r50ref1, lambdaref=lambdaref, beta1=beta1)
+                r50_2 = r'$r_{{50,2}}(\lambda) = ({r50ref2})(\lambda/{lambdaref})^{{{beta2}}}\ arcsec$'.format(
+                    r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
+            else:
+                alpha1 = r'{:.2f}'.format(sersic['alpha1'])
+                beta1 = r'{:.2f}'.format(sersic['beta1'])
+                beta2 = r'{:.2f}'.format(sersic['beta2'])
+                nref1 = r'{:.2f}'.format(sersic['nref1'])
+                nref2 = r'{:.2f}'.format(sersic['nref2'])
+                r50ref1 = r'{:.2f}'.format(sersic['r50ref1'])
+                r50ref2 = r'{:.2f}'.format(sersic['r50ref2'])
+                n1 = r'$n_1(\lambda) = {nref1}\ (\lambda/{lambdaref})^{{{alpha1}}}$'.format(
+                    nref1=nref1, lambdaref=lambdaref, alpha1=alpha1)
+                n2 = r'$n_2 = {nref2}$'.format(nref2=nref2)
+                r50_1 = r'$r_{{50,1}}(\lambda) = {r50ref1}\ (\lambda/{lambdaref})^{{{beta1}}}\ arcsec$'.format(
+                    r50ref1=r50ref1, lambdaref=lambdaref, beta1=beta1)
+                r50_2 = r'$r_{{50,2}}(\lambda) = {r50ref2}\ (\lambda/{lambdaref})^{{{beta2}}}\ arcsec$'.format(
+                    r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
+            txt = chi2+'\n'+n1+'\n'+n2+'\n'+r50_1+'\n'+r50_2
+        elif modeltype == 'exponential-nowavepower':
+            alpha = r'$\alpha_1={:.2f}$'.format(sersic['alpha1'])
+            beta = r'$\beta_1=\beta_2={:.2f}$'.format(sersic['beta1'])
+            if sersic['converged']:
+                nref1 = r'{:.2f}\pm{:.2f}'.format(sersic['nref1'], sersic['nref1_err'])
+                nref2 = r'{:.2f}'.format(sersic['nref2'])
+                r50ref1 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref1'], sersic['r50ref1_err'])
+                r50ref2 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref2'], sersic['r50ref2_err'])
+            else:
+                nref1 = r'{:.2f}'.format(sersic['nref1'])
+                nref2 = r'{:.2f}'.format(sersic['nref2'])
+                r50ref1 = r'{:.2f}'.format(sersic['r50ref1'])
+                r50ref2 = r'{:.2f}'.format(sersic['r50ref2'])
+            n = r'$n_1 = {nref1},\ n_2 = {nref2}$'.format(nref1=nref1, nref2=nref2)
+            r50 = r'$r_{{50,1}} = {r50ref1}\ r_{{50,2}} = {r50ref2}\ arcsec$'.format(r50ref1=r50ref1, r50ref2=r50ref2)
+            txt = chi2+'\n'+alpha+'\n'+beta+'\n'+n+'\n'+r50
+            
         elif modeltype == 'double':
             if sersic['converged']:
                 alpha1 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha1'], sersic['alpha1_err'])
