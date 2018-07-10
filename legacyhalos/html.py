@@ -167,6 +167,8 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
 
         qa_sersic_results(objid, objdir, htmlobjdir, band=band,
                           clobber=clobber, verbose=verbose)
+
+        pdb.set_trace()
         
         # Build the ellipse plots.
         qa_ellipse_results(objid, objdir, htmlobjdir, band=band,

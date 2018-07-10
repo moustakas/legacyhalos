@@ -101,10 +101,10 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         muerr = 2.5 * sberr / np.log(10) / sb
         ax.fill_between(rad, mu-muerr, mu+muerr, color=col, label=label, alpha=0.9)
 
-        if np.min(mu-muerr) < ymnmax[0]:
-            ymnmax[0] = np.min(mu-muerr)
-        if np.max(mu+muerr) > ymnmax[1]:
-            ymnmax[1] = np.max(mu+muerr)
+        if np.nanmin(mu-muerr) < ymnmax[0]:
+            ymnmax[0] = np.nanmin(mu-muerr)
+        if np.nanmax(mu+muerr) > ymnmax[1]:
+            ymnmax[1] = np.nanmax(mu+muerr)
         
         # optionally overplot the model
         if model is not None:
