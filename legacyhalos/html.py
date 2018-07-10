@@ -113,6 +113,15 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         if not os.path.isfile(doublefile) or clobber:
             display_sersic(double, modeltype='double', png=doublefile, verbose=verbose)
 
+    pdb.set_trace()
+
+    # Single Sersic, no wavelength dependence
+    single = read_sersic(objid, objdir, model='single-nowavepower')
+    if bool(single):
+        singlefile = os.path.join(htmlobjdir, '{}-sersic-single-nowavepower.png'.format(objid))
+        if not os.path.isfile(singlefile) or clobber:
+            display_sersic(single, modeltype='single-nowavepower', png=singlefile, verbose=verbose)
+
     # Single Sersic
     single = read_sersic(objid, objdir, model='single')
     if bool(single):
@@ -375,13 +384,25 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             
             html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
             html.write('<table width="90%">\n')
+
+            # single-sersic
             html.write('<tr>\n')
-            html.write('<th>Single-Sersic</th><th>Double-Sersic</th>\n')
+            html.write('<th>Single Sersic</th><th>Single Sersic (No Wavelength Dependence)</th>\n')
             html.write('</tr>\n')
             html.write('<tr>\n')
             html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
-            html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
             html.write('</tr>\n')
+
+            # double-sersic
+            html.write('<tr>\n')
+            html.write('<th>Double Sersic</th><th>Double Sersic (No Wavelength Dependence)</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td><a href="{}-sersic-double-nowavepower.png"><img src="{}-sersic-double-nowavepower.png" alt="Missing file {}-sersic-double-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('</tr>\n')
+
             html.write('</table>\n')
 
             html.write('<br />\n')

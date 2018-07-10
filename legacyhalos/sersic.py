@@ -337,6 +337,7 @@ class SersicWaveFit(object):
             'sb': self.sb,
             'sberr': self.sberr,
             'band': self.initfit.band,
+            'lambda_ref': self.initfit.lambda_ref,
             'lambda_g': self.initfit.lambda_g,
             'lambda_r': self.initfit.lambda_r,
             'lambda_z': self.initfit.lambda_z}
@@ -397,10 +398,15 @@ class SersicWaveFit(object):
             cov = np.zeros( (nparams, nparams) )
             unc = np.zeros(nparams)
 
-        for ii in range(nparams):
-            result.update({
-                bestfit.param_names[ii]: bestfit.parameters[ii],
-                bestfit.param_names[ii]+'_err': unc[ii]})
+        count = 0
+        for ii, pp in enumerate(bestfit.param_names):
+            pinfo = getattr(bestfit, pp)
+            result.update({bestfit.param_names[ii]: bestfit.parameters[ii]})
+            if pinfo.fixed:
+                result.update({bestfit.param_names[ii]+'_err': 0.0})
+            else:
+                result.update({bestfit.param_names[ii]+'_err': unc[count]})
+                count += 1
 
         result.update({
             'params': bestfit.param_names,
@@ -462,23 +468,39 @@ def sersic_single(objid, objdir, sbprofile, seed=None, nowavepower=False,
       half-light radius
 
     """
-    sersic = SersicSingleWaveFit(sbprofile, fix_alpha=False, fix_beta=False, seed=seed)
+    if nowavepower:
+        model = 'single-nowavepower'
+        sersic = SersicSingleWaveFit(sbprofile, fix_alpha=True, fix_beta=True, seed=seed)
+    else:
+        model = 'single'
+        sersic = SersicSingleWaveFit(sbprofile, fix_alpha=False, fix_beta=False, seed=seed)
+        
     sersic = sersic.fit(verbose=verbose)
 
     if not nowrite:
-        legacyhalos.io.write_sersic(objid, objdir, sersic, model='single', verbose=verbose)
+        legacyhalos.io.write_sersic(objid, objdir, sersic, model=model, verbose=verbose)
 
     return sersic
 
-def sersic_double(objid, objdir, sbprofile, seed=None, nowrite=False, verbose=False):
+def sersic_double(objid, objdir, sbprofile, seed=None, nowavepower=False,
+                  nowrite=False, verbose=False):
     """Wrapper to fit a double Sersic model to an input surface brightness profile. 
 
+    nowavepower : no wavelength-dependent variation in the Sersic index or
+      half-light radius
+
     """
-    sersic = SersicDoubleWaveFit(sbprofile, fix_alpha=True, fix_beta=True, seed=2) # seed)
+    if nowavepower:
+        model = 'double-nowavepower'
+        sersic = SersicDoubleWaveFit(sbprofile, fix_alpha=True, fix_beta=True, seed=None)
+    else:
+        model = 'double'
+        sersic = SersicDoubleWaveFit(sbprofile, fix_alpha=False, fix_beta=False, seed=None)
+        
     sersic = sersic.fit(verbose=verbose)
 
     if not nowrite:
-        legacyhalos.io.write_sersic(objid, objdir, sersic, model='double', verbose=verbose)
+        legacyhalos.io.write_sersic(objid, objdir, sersic, model=model, verbose=verbose)
 
     return sersic
 
@@ -498,12 +520,15 @@ def legacyhalos_sersic(sample, objid=None, objdir=None, verbose=False, debug=Fal
         if ellipsefit['success']:
             sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.03)
 
-            # double Sersic fit
-            double = sersic_double(objid, objdir, sbprofile, verbose=verbose)
-            # pdb.set_trace()
-
-            # single Sersic fit
+            # single Sersic fit with and without wavelength dependence
             single = sersic_single(objid, objdir, sbprofile, verbose=verbose)
+            single_nowave = sersic_single(objid, objdir, sbprofile, verbose=verbose, nowavepower=True)
+
+            # double Sersic fit with and without wavelength dependence
+            double = sersic_double(objid, objdir, sbprofile, verbose=verbose)
+            double_nowave = sersic_double(objid, objdir, sbprofile, verbose=verbose, nowavepower=True)
+
+            # pdb.set_trace()
 
             if single['success']:
                 return 1

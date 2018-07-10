@@ -68,17 +68,17 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
 
         if model is not None:
             filt = '${}:\ $'.format(band)
-            if modeltype == 'single':
+            if 'single' in modeltype:
                 n = r'$n={:.2f}$'.format(model.get_sersicn(nref=model.nref, lam=lam, alpha=model.alpha))
-                r50 = r'$r_{{50}}={:.2f}$ kpc'.format(model.get_r50(r50ref=model.r50ref, lam=lam, beta=model.beta) * smascale)
-                label = '{} {} {}'.format(filt, n, r50)
+                r50 = r'$r_{{50}}={:.2f}\, kpc$'.format(model.get_r50(r50ref=model.r50ref, lam=lam, beta=model.beta) * smascale)
+                label = '{} {}, {}'.format(filt, n, r50)
                 labelfont = 14
-            elif modeltype == 'double':
+            elif 'double' in modeltype:
                 n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
                 n2 = r'$n_{{2}}={:.2f}$'.format(model.get_sersicn(nref=model.nref2, lam=lam, alpha=model.alpha2))
-                r50_1 = r'$r_{{50}}={:.2f}$ kpc'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
-                r50_2 = r'$r_{{50}}={:.2f}$ kpc'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
-                label = '{} {} {} {} {}'.format(filt, n1, n2, r50_1, r50_2)
+                r50_1 = r'$r_{{50}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
+                r50_2 = r'$r_{{50}}={:.2f}\,kpc$'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
+                label = '{} {}, {}, {}, {}'.format(filt, n1, n2, r50_1, r50_2)
                 labelfont = 12
             else:
                 raise ValueError('Unrecognized model type {}'.format(modeltype))
@@ -104,32 +104,61 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
             sb_model = model(rad, wave)
             ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
                         ls='--', lw=2, alpha=1)
-            if modeltype == 'single':
-                chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
-                alpha = r'$\alpha={:.2f}\pm{:.2f}$'.format(sersic['alpha'], sersic['alpha_err'])
-                beta = r'$\beta={:.2f}\pm{:.2f}$'.format(sersic['beta'], sersic['beta_err'])
-                nref = r'$n_{{ref}}={:.2f}\pm{:.2f}$'.format(sersic['nref'], sersic['nref_err'])
-                r50ref = r'$r_{{50,ref}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref'], sersic['r50ref_err'])
-                txt = chi2+'\n'+alpha+'\n'+beta+'\n'+nref+'\n'+r50ref
-            elif modeltype == 'double':
-                chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
-                alpha1 = r'$\alpha_1={:.2f}\pm{:.2f}$'.format(sersic['alpha1'], sersic['alpha1_err'])
-                alpha2 = r'$\alpha_2={:.2f}\pm{:.2f}$'.format(sersic['alpha2'], sersic['alpha2_err'])
-                beta1 = r'$\beta_1={:.2f}\pm{:.2f}$'.format(sersic['beta1'], sersic['beta1_err'])
-                beta2 = r'$\beta_2={:.2f}\pm{:.2f}$'.format(sersic['beta2'], sersic['beta2_err'])
-                nref1 = r'$n_{{ref,1}}={:.2f}\pm{:.2f}$'.format(sersic['nref1'], sersic['nref1_err'])
-                nref2 = r'$n_{{ref,2}}={:.2f}\pm{:.2f}$'.format(sersic['nref2'], sersic['nref2_err'])
-                r50ref1 = r'$r_{{50,ref,1}}={:.2f}\pm{:.2f}$'.format(sersic['r50ref1'], sersic['r50ref1_err'])
-                r50ref2 = r'$r_{{50,ref,2}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref2'], sersic['r50ref2_err'])
-                txt = chi2+'\n'+alpha1+' '+alpha2+'\n'+beta1+' '+beta2+'\n'+nref1+' '+nref2+'\n'+r50ref1+' '+r50ref2
+
+    # legend with the best-fitting parameters
+    if model is not None:
+        if modeltype == 'single':
+            chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
+            #alpha = r'$\alpha={:.1f}\pm{:.2f}$'.format(sersic['alpha'], sersic['alpha_err'])
+            #beta = r'$\beta={:.1f}\pm{:.2f}$'.format(sersic['beta'], sersic['beta_err'])
+            #nref = r'$n_{{ref}}={:.2f}\pm{:.2f}$'.format(sersic['nref'], sersic['nref_err'])
+            #r50ref = r'$r_{{50,ref}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref'], sersic['r50ref_err'])
+            #txt = chi2+'\n'+alpha+'\n'+beta+'\n'+nref+'\n'+r50ref
+            alpha = '{:.2f}\pm{:.2f}'.format(sersic['alpha'], sersic['alpha_err'])
+            beta = '{:.2f}\pm{:.2f}'.format(sersic['beta'], sersic['beta_err'])
+            nref = '{:.2f}\pm{:.2f}'.format(sersic['nref'], sersic['nref_err'])
+            r50ref = '{:.2f}\pm{:.2f}'.format(sersic['r50ref'], sersic['r50ref_err'])
+            lambdaref = '{}'.format(sersic['lambda_ref'])
+            n = r'$n(\lambda) = ({nref})(\lambda/{lambdaref})^{{{alpha}}}$'.format(
+                nref=nref, lambdaref=lambdaref, alpha=alpha)
+            r50 = r'$r_{{50}}(\lambda) = ({r50ref})(\lambda/{lambdaref})^{{{beta}}}\, arcsec$'.format(
+                r50ref=r50ref, lambdaref=lambdaref, beta=beta)
+            txt = chi2+'\n'+n+'\n'+r50
+        elif modeltype == 'single-nowavepower':
+            chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
+            alpha = r'$\alpha={:.2f}$'.format(sersic['alpha'])
+            beta = r'$\beta={:.2f}$'.format(sersic['beta'])
+            nref = r'{:.2f}\pm{:.2f}'.format(sersic['nref'], sersic['nref_err'])
+            r50ref = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref'], sersic['r50ref_err'])
+            n = r'$n = {nref}$'.format(nref=nref)
+            r50 = r'$r_{{50}} = {r50ref}\, arcsec$'.format(r50ref=r50ref)
+            txt = chi2+'\n'+alpha+', '+beta+'\n'+n+'\n'+r50
+            #alpha = r'$\alpha={:.2f}$'.format(sersic['alpha'])
+            #beta = r'$\beta={:.2f}$'.format(sersic['beta'])
+            #nref = r'$n_{{ref}}={:.2f}\pm{:.2f}$'.format(sersic['nref'], sersic['nref_err'])
+            #r50ref = r'$r_{{50,ref}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref'], sersic['r50ref_err'])
+            #txt = chi2+'\n'+alpha+', '+beta+'\n'+nref+'\n'+r50ref
+        elif modeltype == 'double':
+            chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
+            alpha1 = r'$\alpha_1={:.2f}\pm{:.2f}$'.format(sersic['alpha1'], sersic['alpha1_err'])
+            alpha2 = r'$\alpha_2={:.2f}\pm{:.2f}$'.format(sersic['alpha2'], sersic['alpha2_err'])
+            beta1 = r'$\beta_1={:.2f}\pm{:.2f}$'.format(sersic['beta1'], sersic['beta1_err'])
+            beta2 = r'$\beta_2={:.2f}\pm{:.2f}$'.format(sersic['beta2'], sersic['beta2_err'])
+            nref1 = r'$n_{{ref,1}}={:.2f}\pm{:.2f}$'.format(sersic['nref1'], sersic['nref1_err'])
+            nref2 = r'$n_{{ref,2}}={:.2f}\pm{:.2f}$'.format(sersic['nref2'], sersic['nref2_err'])
+            r50ref1 = r'$r_{{50,ref,1}}={:.2f}\pm{:.2f}$'.format(sersic['r50ref1'], sersic['r50ref1_err'])
+            r50ref2 = r'$r_{{50,ref,2}}={:.2f}\pm{:.2f}$ arcsec'.format(sersic['r50ref2'], sersic['r50ref2_err'])
+            txt = chi2+'\n'+alpha1+' '+alpha2+'\n'+beta1+' '+beta2+'\n'+nref1+' '+nref2+'\n'+r50ref1+' '+r50ref2
+        elif modeltype == 'double-nowavepower':
+                txt = 'Working on it'
                 
-            ax.text(0.1, 0.1, txt, ha='left', va='bottom',
-                    transform=ax.transAxes, fontsize=12)
+        ax.text(0.1, 0.1, txt, ha='left', va='bottom', linespacing=1.3,
+                transform=ax.transAxes, fontsize=12)
 
     ax.set_xlabel('Galactocentric radius (arcsec)')
     ax.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
 
-    ax.set_ylim(ymnmax[0]-0.2, ymnmax[1]+0.2)
+    ax.set_ylim(ymnmax[0]-0.5, ymnmax[1]+0.5)
     ax.invert_yaxis()
     ax.margins(ymargins=0)
     #ax.set_yscale('log')
