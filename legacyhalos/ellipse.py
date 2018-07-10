@@ -81,10 +81,13 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
     with warnings.catch_warnings():
         warnings.simplefilter(warnvalue)
         for sma0 in (1, 3, 6, 9, 12): # try a few different starting minor axes
-            print('  Trying minimum sma = {:.1f} pixels.'.format(sma0))
-            isophot = ellipse.fit_image(sma0, minsma=1, maxsma=2*mgefit['majoraxis'],
-                                        integrmode=integrmode, sclip=sclip, nclip=nclip,
-                                        step=step, fflag=fflag)
+            print('  Trying sma0 = {:.1f} pixels.'.format(sma0))
+            try:
+                isophot = ellipse.fit_image(sma0, minsma=1, maxsma=2*mgefit['majoraxis'],
+                                            integrmode=integrmode, sclip=sclip, nclip=nclip,
+                                            step=step, fflag=fflag)
+            except:
+                isophot = []
             if len(isophot) > 0:
                 break
     if verbose:

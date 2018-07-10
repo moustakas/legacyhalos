@@ -206,7 +206,8 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
         invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))
 
         # Mask pixels with ivar<=0. Also build an object mask from the model
-        # image, to handle systematic residuals.
+        # image, to handle systematic residuals.  However, don't mask too
+        # aggressively near the center of the galaxy.
         sig1 = 1.0 / np.sqrt(np.median(invvar[invvar > 0]))
 
         mask = (invvar <= 0)*1 # 1=bad, 0=good
@@ -256,8 +257,9 @@ def read_sample(first=None, last=None):
     sample = hstack( (sample, rm) )
     sample = hstack( (sample, sdss) )
 
-    if first > last:
-        print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+    if first and last:
+        if first > last:
+            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
 
     if first is None:
         first = 0

@@ -273,10 +273,11 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     ax.legend(loc='upper right', fontsize=labelfont)
 
     ylim = ax.get_ylim()
-    ax.fill_between([0, 3*model.psfsigma_r], [ylim[0], ylim[0]],
-                    [ylim[1], ylim[1]], color='grey', alpha=0.1)
-    ax.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
-            transform=ax.transAxes, fontsize=10)
+    if sersic['success']:
+        ax.fill_between([0, 3*model.psfsigma_r], [ylim[0], ylim[0]],
+                        [ylim[1], ylim[1]], color='grey', alpha=0.1)
+        ax.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
+                transform=ax.transAxes, fontsize=10)
 
     fig.subplots_adjust(bottom=0.15, top=0.85, right=0.95, left=0.12)
 
