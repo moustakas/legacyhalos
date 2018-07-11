@@ -76,7 +76,17 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
     img = data['{}_masked'.format(refband)]
     ellipse = Ellipse(img, geometry=geometry)
 
+    def _unmask_center(img):
+        # https://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
+        nn = img.shape[0]
+        x0, y0 = geometry.x0, geometry.y0
+        rad = geometry.sma # [pixels]
+        yy, xx = np.ogrid[-x0:nn-x0, -y0:nn-y0]
+        img.mask[xx**2 + yy**2 <= rad**2] = ma.nomask
+        return img
+
     # First fit with the default parameters.
+    newmask = None
     t0 = time.time()
     with warnings.catch_warnings():
         warnings.simplefilter(warnvalue)
@@ -90,6 +100,25 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
                 isophot = []
             if len(isophot) > 0:
                 break
+            
+        if len(isophot) == 0:
+            print('First iteration of ellipse-fitting failed.')
+            # try unmasking the image centered on the galaxy
+            img = _unmask_center(img)
+            newmask = img.mask
+            ellipse = Ellipse(img, geometry=geometry)
+
+            for sma0 in (1, 3, 6, 9, 12): # try a few different starting minor axes
+                print('  Second iteration: trying sma0 = {:.1f} pixels.'.format(sma0))
+                try:
+                    isophot = ellipse.fit_image(sma0, minsma=1, maxsma=2*mgefit['majoraxis'],
+                                                integrmode=integrmode, sclip=sclip, nclip=nclip,
+                                                step=step, fflag=fflag)
+                except:
+                    isophot = []
+                if len(isophot) > 0:
+                    break
+
     if verbose:
         print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
 
@@ -110,6 +139,8 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
                 print('Ellipse-fitting {}-band image.'.format(filt))
 
             img = data['{}_masked'.format(filt)]
+            if newmask is not None:
+                img.mask = newmask
 
             # Loop on the reference band isophotes but skip the first isophote,
             # which is a CentralEllipseSample object (see below).
