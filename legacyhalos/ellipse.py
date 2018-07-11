@@ -153,7 +153,7 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
 
     return ellipsefit
 
-def ellipse_sbprofile(ellipsefit, minerr=0.02):
+def ellipse_sbprofile(ellipsefit, minerr=0.0):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
 
@@ -181,8 +181,6 @@ def ellipse_sbprofile(ellipsefit, minerr=0.02):
             sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err[indx] / \
               ellipsefit[filt].intens[indx] / np.log(10)
             sbprofile['mu_{}_err'.format(filt)] = np.sqrt(sbprofile['mu_{}_err'.format(filt)]**2 + minerr**2)
-
-            #sbprofile['mu_{}'.format(filt)] = sbprofile[filt] + 2.5 * np.log10(area)
 
             # Just for the plot use a minimum uncertainty
             #sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr

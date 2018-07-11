@@ -359,7 +359,7 @@ class SersicWaveFit(object):
         """Convert surface brightness mu to linear flux in nanomaggies."""
         flux = 10**( -0.4 * (mu - 22.5) )
         if muerr is not None:
-            ferr = 0.4 * np.log(10) * flux * muerr
+            ferr = 0.4 * np.log(10) * np.abs(flux) * muerr
             return flux, ferr
         else:
             return flux
@@ -394,7 +394,7 @@ class SersicWaveFit(object):
                                                   self.initfit.lambda_r, 
                                                   self.initfit.lambda_z) ):
             wave = np.repeat(lam, nrad)
-            indx = self.wave == lam
+            indx = (self.wave == lam) * np.isfinite(self.sb)
             
             rad = self.radius[indx]
             sb = self.sb[indx]
@@ -664,13 +664,13 @@ def legacyhalos_sersic(sample, objid=None, objdir=None, verbose=False, debug=Fal
         if ellipsefit['success']:
             sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.03)
 
-            # Sersic-exponential fit with and without wavelength dependence
-            serexp = sersic_exponential(objid, objdir, sbprofile, verbose=verbose)
-            serexp_nowave = sersic_exponential(objid, objdir, sbprofile, verbose=verbose, nowavepower=True)
-
             # single Sersic fit with and without wavelength dependence
             single = sersic_single(objid, objdir, sbprofile, verbose=verbose)
             single_nowave = sersic_single(objid, objdir, sbprofile, verbose=verbose, nowavepower=True)
+
+            # Sersic-exponential fit with and without wavelength dependence
+            serexp = sersic_exponential(objid, objdir, sbprofile, verbose=verbose)
+            serexp_nowave = sersic_exponential(objid, objdir, sbprofile, verbose=verbose, nowavepower=True)
 
             # double Sersic fit with and without wavelength dependence
             double = sersic_double(objid, objdir, sbprofile, verbose=verbose)

@@ -64,7 +64,7 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         
         sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
         if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, png=sbprofilefile, verbose=verbose)
+            display_ellipse_sbprofile(ellipsefit, png=sbprofilefile, verbose=verbose, minerr=0.0)
         
 def qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=('g', 'r', 'z'),
                    pixscale=0.262, clobber=False, verbose=True):
@@ -165,14 +165,12 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
 
-        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
-                          clobber=clobber, verbose=verbose)
-
-        pdb.set_trace()
-        
         # Build the ellipse plots.
         qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
                            clobber=clobber, verbose=verbose)
+
+        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
+                          clobber=clobber, verbose=verbose)
 
         # Build the montage coadds.
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)
@@ -447,8 +445,16 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
                 html.write('<td><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" alt="Missing file {}-mge-sbprofile.png" height="auto" width="50%"></a></td>\n'.format(objid1, objid1, objid1))
                 html.write('</tr>\n')
                 html.write('</table>\n')
-            
+
+            html.write('<a href="../{}">Home</a>\n'.format(homehtml))
+            html.write('<br />\n')
+            html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlobjdir, nextobjid))
+            html.write('<br />\n')
+            html.write('<a href="{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlobjdir, prevobjid))
+            html.write('<br />\n')
+
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
+            html.write('<br />\n')
             html.write('</html></body>\n')
             html.close()
 

@@ -57,7 +57,8 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     for band, lam in zip( sersic['band'], (sersic['lambda_g'],
                                            sersic['lambda_r'],
                                            sersic['lambda_z']) ):
-        good = lam == sersic['wave']
+        with np.errstate(invalid='ignore'):
+            good = (lam == sersic['wave']) * np.isfinite(sersic['sb']) * (sersic['sb'] / sersic['sberr'] > 1)
         wave = sersic['wave'][good]
         rad = sersic['radius'][good]
         sb = sersic['sb'][good]
@@ -99,6 +100,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         #           alpha=1, s=50, label=label, marker=next(markers))
         mu = 22.5 - 2.5 * np.log10(sb)
         muerr = 2.5 * sberr / np.log(10) / sb
+            
         ax.fill_between(rad, mu-muerr, mu+muerr, color=col, label=label, alpha=0.9)
 
         if np.nanmin(mu-muerr) < ymnmax[0]:
@@ -258,7 +260,10 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     ax.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
     ax.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
 
-    ax.set_ylim(ymnmax[0]-0.5, ymnmax[1]+0.5)
+    ylim = [ymnmax[0]-0.5, ymnmax[1]+0.5]
+    if ylim[1] > 32.5:
+        ylim[1] = 32.5
+    ax.set_ylim(ylim)
     ax.invert_yaxis()
     ax.margins(ymargins=0)
     #ax.set_yscale('log')
@@ -492,8 +497,7 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
     else:
         plt.show()
         
-def display_ellipse_sbprofile(ellipsefit, minerr=0.02, sersicfit=None,
-                              png=None, verbose=True):
+def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
     """Display the multi-band surface brightness profile.
 
     """
@@ -510,16 +514,22 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.02, sersicfit=None,
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     for filt in band:
         if ellipsefit['success']:
-            good = (ellipsefit[filt].stop_code < 4)
-            bad = ~good
+            sma = sbprofile['sma']
+            mu = sbprofile['mu_{}'.format(filt)]
+            muerr = sbprofile['mu_{}_err'.format(filt)]
 
+            #good = (ellipsefit[filt].stop_code < 4)
+            #bad = ~good
+            
+            #with np.errstate(invalid='ignore'):
+            #    good = np.isfinite(mu) * (mu / muerr > 3)
+            #sma = sma[good]
+            #mu = mu[good]
+            #muerr = muerr[good]
+                
             col = next(colors)
-            ax1.fill_between(sbprofile['sma'], 
-                sbprofile['mu_{}'.format(filt)] - sbprofile['mu_{}_err'.format(filt)],
-                sbprofile['mu_{}'.format(filt)] + sbprofile['mu_{}_err'.format(filt)],
-                #sbprofile['{}'.format(filt)] - sbprofile['{}_err'.format(filt)],
-                #sbprofile['{}'.format(filt)] + sbprofile['{}_err'.format(filt)],
-                label=r'${}$'.format(filt), color=col, alpha=0.75, edgecolor='k', lw=2)
+            ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color=col,
+                             alpha=0.75, edgecolor='k', lw=2)
             #if np.count_nonzero(bad) > 0:
             #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
             #                s=40, edgecolor='k', lw=2, alpha=0.75)
@@ -529,15 +539,6 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.02, sersicfit=None,
                 ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
                 ax1.axhline(y=ysky, color=col, ls='--')
 
-            # Overplot the best-fitting model.
-            if sersicfit:
-                from astropy.modeling.models import Sersic1D
-                rad = np.arange(0, sbprofile['sma'].max(), 0.1)
-                sbmodel = -2.5 * np.log10( Sersic1D.evaluate(
-                    rad, sersicfit[filt].amplitude, sersicfit[filt].r_eff,
-                    sersicfit[filt].n) )
-                ax1.plot(rad, sbmodel, lw=2, ls='--', alpha=1, color=col)
-            
     ax1.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
     ax1.set_ylim(32, 17)
     ax1.set_xlim(xmin=0)
