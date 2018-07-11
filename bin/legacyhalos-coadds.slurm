@@ -6,15 +6,15 @@
 #SBATCH --mail-user=jmoustakas@siena.edu
 #SBATCH --mail-type=ALL
 
-#SBATCH -p regular
-#SBATCH -N 32
-#SBATCH -n 48
-#SBATCH -t 06:00:00
-
-# #SBATCH -p debug
+# #SBATCH -p regular
 # #SBATCH -N 32
 # #SBATCH -n 48
-# #SBATCH -t 00:30:00
+# #SBATCH -t 02:00:00
+
+#SBATCH -p debug
+#SBATCH -N 32
+#SBATCH -n 48
+#SBATCH -t 00:30:00
 
 # for cori only
 # #SBATCH -C haswell
