@@ -79,7 +79,7 @@ def write_ellipsefit(objid, objdir, ellipsefit, verbose=False):
     with open(ellipsefitfile, 'wb') as ell:
         pickle.dump(ellipsefit, ell)
 
-def read_ellipsefit(objid, objdir):
+def read_ellipsefit(objid, objdir, verbose=True):
     """Read the output of write_ellipsefit."""
 
     ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
@@ -88,7 +88,8 @@ def read_ellipsefit(objid, objdir):
             ellipsefit = pickle.load(ell)
     except:
         #raise IOError
-        print('File {} not found!'.format(ellipsefitfile))
+        if verbose:
+            print('File {} not found!'.format(ellipsefitfile))
         ellipsefit = dict()
 
     return ellipsefit
@@ -104,7 +105,7 @@ def write_sersic(objid, objdir, sersic, model='single', verbose=False):
     with open(sersicfile, 'wb') as ell:
         pickle.dump(sersic, ell)
 
-def read_sersic(objid, objdir, model='single'):
+def read_sersic(objid, objdir, model='single', verbose=True):
     """Read the output of write_sersic."""
 
     sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, model))
@@ -113,7 +114,8 @@ def read_sersic(objid, objdir, model='single'):
             sersic = pickle.load(ell)
     except:
         #raise IOError
-        print('File {} not found!'.format(sersicfile))
+        if verbose:
+            print('File {} not found!'.format(sersicfile))
         sersic = dict()
 
     return sersic
@@ -128,7 +130,7 @@ def write_mgefit(objid, objdir, mgefit, band='r', verbose=False):
     with open(mgefitfile, 'wb') as mge:
         pickle.dump(mgefit, mge)
 
-def read_mgefit(objid, objdir):
+def read_mgefit(objid, objdir, verbose=True):
     """Read the output of write_mgefit."""
 
     mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
@@ -137,7 +139,8 @@ def read_mgefit(objid, objdir):
             mgefit = pickle.load(mge)
     except:
         #raise IOError
-        print('File {} not found!'.format(mgefitfile))
+        if verbose:
+            print('File {} not found!'.format(mgefitfile))
         mgefit = dict()
 
     return mgefit

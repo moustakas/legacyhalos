@@ -191,7 +191,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
     """
     band, refband = ellipsefit['band'], ellipsefit['refband']
     pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
-    
+
     indx = np.ones(len(ellipsefit[refband]), dtype=bool)
 
     sbprofile = dict()
@@ -199,6 +199,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
         sbprofile['psfsigma_{}'.format(filt)] = ellipsefit['psfsigma_{}'.format(filt)]
     sbprofile['redshift'] = redshift
     
+    sbprofile['minerr'] = minerr
     sbprofile['smaunit'] = 'arcsec'
     sbprofile['sma'] = ellipsefit['r'].sma[indx] * pixscale # [arcsec]
 

@@ -39,22 +39,24 @@ def main():
     allobjid, allobjdir = legacyhalos.io.get_objid(sample)
     for ii, (objid, objdir) in enumerate( zip(allobjid, allobjdir) ):
 
-        ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir)
+        ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir, verbose=verbose)
         if bool(ellipsefit):
             if ellipsefit['success']:
                 results['ellipse'][ii] = 1
 
-        sersic_single = legacyhalos.io.read_sersic(objid, objdir, model='single')
+        sersic_single = legacyhalos.io.read_sersic(objid, objdir, model='single', verbose=verbose)
         if bool(sersic_single):
             if sersic_single['success']:
                 results['sersic_single'][ii] = 1
+
+        pdb.set_trace()
                 
-        sersic_double = legacyhalos.io.read_sersic(objid, objdir, model='double')
+        sersic_double = legacyhalos.io.read_sersic(objid, objdir, model='double', verbose=verbose)
         if bool(sersic_double):
             if sersic_double['success']:
                 results['sersic_double'][ii] = 1
                 
-        sersic_exponential = legacyhalos.io.read_sersic(objid, objdir, model='exponential')
+        sersic_exponential = legacyhalos.io.read_sersic(objid, objdir, model='exponential', verbose=verbose)
         if bool(sersic_exponential):
             if sersic_exponential['success']:
                 results['sersic_exponential'][ii] = 1

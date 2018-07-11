@@ -301,12 +301,21 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
     either MGE and/or Ellipse.
 
     """
-    from astropy.visualization import ZScaleInterval as Interval
     from astropy.visualization import AsinhStretch as Stretch
     from astropy.visualization import ImageNormalize
 
     band = data['band']
     nband = len(band)
+
+    #cmap = 'RdBu_r'
+    #from astropy.visualization import PercentileInterval as Interval
+    #interval = Interval(0.9)
+
+    cmap = 'viridis'
+    from astropy.visualization import ZScaleInterval as Interval
+    interval = Interval(contrast=0.9)
+
+    stretch = Stretch(a=0.95)
 
     fig, ax = plt.subplots(1, 3, figsize=(inchperband*nband, nband))
     for filt, ax1 in zip(band, ax):
@@ -314,12 +323,11 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
         img = data['{}_masked'.format(filt)]
         #img = data[filt]
 
-        norm = ImageNormalize(img, interval=Interval(contrast=0.95),
-                              stretch=Stretch(a=0.95))
+        norm = ImageNormalize(img, interval=interval, stretch=stretch)
 
-        im = ax1.imshow(img, origin='lower', norm=norm, cmap='viridis',
+        im = ax1.imshow(img, origin='lower', norm=norm, cmap=cmap,
                         interpolation='nearest')
-        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
+        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
                  ha='center', va='center', color='k', fontsize=14)
 
         if mgefit:
@@ -340,14 +348,14 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
             extent = [0, s[1], 0, s[0]]
 
             ax1.contour(model, levels, colors='k', linestyles='solid',
-                        extent=extent, alpha=0.75, lw=1)
+                        extent=extent, alpha=0.5, lw=1)
 
         if geometry:
             from photutils import EllipticalAperture
             
             ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
                                          geometry.sma*(1 - geometry.eps), geometry.pa)
-            ellaper.plot(color='k', lw=1, ax=ax1)
+            ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.75)
 
         if ellipsefit:
             if ellipsefit['success']:
@@ -362,13 +370,13 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                     for sma in smas:
                         efit = ellipsefit[filt].get_closest(sma)
                         x, y, = efit.sampled_coordinates()
-                        ax1.plot(x, y, color='k', alpha=0.75)
+                        ax1.plot(x, y, color='k', lw=1, alpha=0.5)
             else:
                 from photutils import EllipticalAperture
                 geometry = ellipsefit['geometry']
                 ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
                                              geometry.sma*(1 - geometry.eps), geometry.pa)
-                ellaper.plot(color='k', lw=1, ax=ax1)
+                ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.5)
 
         ax1.get_xaxis().set_visible(False)
         ax1.get_yaxis().set_visible(False)
@@ -512,6 +520,8 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
         band, refband, redshift = ellipsefit['band'], ellipsefit['refband'], ellipsefit['redshift']
         smascale = arcsec2kpc(redshift) # [kpc/arcsec]
 
+        ymnmax = [40, 0]
+
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
         for filt in band:
             sma = sbprofile['sma']
@@ -534,13 +544,23 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
             #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
             #                s=40, edgecolor='k', lw=2, alpha=0.75)
 
+            if np.nanmin(mu-muerr) < ymnmax[0]:
+                ymnmax[0] = np.nanmin(mu-muerr)
+            if np.nanmax(mu+muerr) > ymnmax[1]:
+                ymnmax[1] = np.nanmax(mu+muerr)
+
             #ax1.axhline(y=ellipsefit['mu_{}_sky'.format(filt)], color=col, ls='--')
             if filt == refband:
                 ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
                 ax1.axhline(y=ysky, color=col, ls='--')
 
         ax1.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
-        ax1.set_ylim(32, 17)
+
+        ylim = [ymnmax[0]-0.5, ymnmax[1]+0.5]
+        if ylim[1] > 32.5:
+            ylim[1] = 32.5
+        ax1.set_ylim(ylim)
+        ax1.invert_yaxis()
         ax1.set_xlim(xmin=0)
 
         xlim = ax1.get_xlim()
