@@ -191,7 +191,7 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
 
     found_data = True
     for filt in band:
-        for imtype in ('image', 'model', 'invvar'):
+        for imtype in ('image', 'model-nocentral', 'invvar'):
             imfile = os.path.join(objdir, '{}-{}-{}.fits.fz'.format(objid, imtype, filt))
             if not os.path.isfile(imfile):
                 print('File {} not found.'.format(imfile))
