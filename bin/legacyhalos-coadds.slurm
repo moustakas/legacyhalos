@@ -1,21 +1,65 @@
 #! /bin/bash
+
 #SBATCH -A cosmo
+#SBATCH -L SCRATCH,project
+#SBATCH -o coadds.log.%j
+#SBATCH --mail-user=jmoustakas@siena.edu
+#SBATCH --mail-type=ALL
+
+# #SBATCH -p regular
+# #SBATCH -N 32
+# #SBATCH -n 48
+# #SBATCH -t 02:00:00
+
 #SBATCH -p debug
-#SBATCH -C haswell
-#SBATCH -N 2
-#SBATCH -n 14
+#SBATCH -N 32
+#SBATCH -n 48
 #SBATCH -t 00:30:00
+
+# for cori only
+# #SBATCH -C haswell
 
 # sbatch ~/scratch/repos/legacyhalos/bin/legacyhalos-coadds.slurm
 
-# On Cori:   20 tasks: -c 4 -n 20 -N 20*4/32=2.5
-# On Edison: 20 tasks: -c 4 -n 20 -N 20*4/24=3.3
+# Example calculation of how many nodes I need, given a number of MPI tasks:
+  # On Cori:   20 tasks: -c 4 -n 20 -N 20*4/32=2.5
+  # On Edison: 20 tasks: -c 4 -n 20 -N 20*4/24=3.3
+
+# Example calculation of scaling to the full sample on edison.  Edison limits
+# the number of tasks (processes per node) to 48, so we have to increase the
+# number of nodes until the total time is a reasonable number:
+#
+#   ngal = 1562      # [number of galaxies]
+#   hourpergal = 0.5 # [hours per galaxy]
+#   ntask = 48
+#   ncpu = 4
+#   nnode = 32
+#   totaltime = int(ngal*hourpergal*ncpu/nnode/24)
+# 
+#     print('Edison: -n {} -N {:.0f} -c {} -t 00:{:02d}:00'.format(ntask, nnode, ncpu, totaltime))
+#       Edison: -n 48 -N 32 -c 4 -t 00:04:00
+#
+# Some notes: Running over 1562 galaxies with "-n 48 -N 32 -c 4 -t 00:04:00" left 917/1562 galaxies.
+#
+# Example calculation of scaling to the full sample on cori.  Here, we simply 
+# increase the number of tasks (as multiples of 32) until the total time is a
+# reasonable number:
+#
+#   ngal = 1562      # [number of galaxies]
+#   hourpergal = 0.5 # [hours per galaxy]
+#   ntask = 32*5
+#   ncpu = 4
+#   nnode = ntask*ncpu//32
+#   totaltime = int(ngal/ntask*hourpergal)
+#
+#     print('Cori: -n {} -N {:.0f} -c {} -t 00:{:02d}:00'.format(ntask, nnode, ncpu, totaltime))
+#       Cori: -n 160 -N 20 -c 4 -t 00:04:00
 
 export IMPY_DIR=$HOME/repos/git/impy
 source $IMPY_DIR/bin/legacyhalos-env-nersc
 
-time srun -N 2 -n 14 -c 4 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 31 \
-    --coadds --ncpu 4 --mpi --clobber
+# do the whole sample!
+time srun -N 32 -n 48 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --ncpu 4 --mpi
 
 # time $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 4 --last 4 --custom-coadds --ncpu 12 --clobber
 

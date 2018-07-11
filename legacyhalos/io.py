@@ -93,6 +93,31 @@ def read_ellipsefit(objid, objdir):
 
     return ellipsefit
 
+def write_sersic(objid, objdir, sersic, model='single', verbose=False):
+    """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
+    e.g., ellipse.fit_multiband).
+
+    """
+    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, model))
+    if verbose:
+        print('Writing {}'.format(sersicfile))
+    with open(sersicfile, 'wb') as ell:
+        pickle.dump(sersic, ell)
+
+def read_sersic(objid, objdir, model='single'):
+    """Read the output of write_sersic."""
+
+    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, model))
+    try:
+        with open(sersicfile, 'rb') as ell:
+            sersic = pickle.load(ell)
+    except:
+        #raise IOError
+        print('File {} not found!'.format(sersicfile))
+        sersic = dict()
+
+    return sersic
+
 def write_mgefit(objid, objdir, mgefit, band='r', verbose=False):
     """Pickle an XXXXX object (see, e.g., ellipse.mgefit_multiband).
 
@@ -141,6 +166,18 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
 
     return cat
 
+def write_results(results, clobber=False):
+    """Write out the output of legacyhalos-results
+
+    """
+    lsdir = legacyhalos_dir()
+    resultsfilt = os.path.join(lsdir, 'legacyhalos-results.fits')
+    if not os.path.isfile(resultsfilt) or clobber:
+        print('Writing {}'.format(resultsfilt))
+        results.write(resultsfilt, overwrite=True)
+    else:
+        print('File {} exists.'.format(resultsfilt))
+
 def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
@@ -154,7 +191,7 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
 
     found_data = True
     for filt in band:
-        for imtype in ('image', 'model', 'invvar'):
+        for imtype in ('image', 'model-nocentral', 'invvar'):
             imfile = os.path.join(objdir, '{}-{}-{}.fits.fz'.format(objid, imtype, filt))
             if not os.path.isfile(imfile):
                 print('File {} not found.'.format(imfile))
@@ -169,7 +206,8 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
         invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))
 
         # Mask pixels with ivar<=0. Also build an object mask from the model
-        # image, to handle systematic residuals.
+        # image, to handle systematic residuals.  However, don't mask too
+        # aggressively near the center of the galaxy.
         sig1 = 1.0 / np.sqrt(np.median(invvar[invvar > 0]))
 
         mask = (invvar <= 0)*1 # 1=bad, 0=good
@@ -219,12 +257,14 @@ def read_sample(first=None, last=None):
     sample = hstack( (sample, rm) )
     sample = hstack( (sample, sdss) )
 
+    if first and last:
+        if first > last:
+            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+
     if first is None:
         first = 0
     if last is None:
-        last = len(sample)
-    elif last == first:
-        last = last
+        last = len(sample)-1
 
     sample = sample[first:last+1]
     print('Sample contains {} objects with first, last indices {}, {}'.format(

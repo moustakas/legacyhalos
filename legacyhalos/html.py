@@ -3,8 +3,11 @@ from __future__ import (absolute_import, division)
 import os, subprocess, pdb
 import numpy as np
 
-import seaborn as sns
-sns.set(style='ticks', font_scale=1.4, palette='Set2')
+from legacyhalos.misc import legacyhalos_plot_style
+sns = legacyhalos_plot_style()
+
+#import seaborn as sns
+#sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
 def qa_montage_coadds(objid, objdir, htmlobjdir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
@@ -57,11 +60,11 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
 
         ellipsefitfile = os.path.join(htmlobjdir, '{}-ellipse-ellipsefit.png'.format(objid))
         if not os.path.isfile(ellipsefitfile) or clobber:
-            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=True, verbose=verbose)
+            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
         
         sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
         if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, png=sbprofilefile, verbose=verbose)
+            display_ellipse_sbprofile(ellipsefit, png=sbprofilefile, verbose=verbose, minerr=0.0)
         
 def qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=('g', 'r', 'z'),
                    pixscale=0.262, clobber=False, verbose=True):
@@ -95,6 +98,56 @@ def qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=('g', 'r', 'z'),
             display_mge_sbprofile(mgefit, band=band, refband=refband, pixscale=pixscale,
                                   png=sbprofilefile, verbose=verbose)
         
+def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
+                      clobber=False, verbose=True):
+    """Generate QAplots from the Sersic modeling.
+
+    """
+    from legacyhalos.io import read_sersic
+    from legacyhalos.qa import display_sersic
+
+    # Sersic-exponential
+    serexp = read_sersic(objid, objdir, model='exponential')
+    if bool(serexp):
+        serexpfile = os.path.join(htmlobjdir, '{}-sersic-exponential.png'.format(objid))
+        if not os.path.isfile(serexpfile) or clobber:
+            display_sersic(serexp, modeltype='exponential', png=serexpfile, verbose=verbose)
+
+    # Sersic-exponential, no wavelength dependence
+    serexp = read_sersic(objid, objdir, model='exponential-nowavepower')
+    if bool(serexp):
+        serexpfile = os.path.join(htmlobjdir, '{}-sersic-exponential-nowavepower.png'.format(objid))
+        if not os.path.isfile(serexpfile) or clobber:
+            display_sersic(serexp, modeltype='exponential-nowavepower', png=serexpfile, verbose=verbose)
+
+    # Double Sersic
+    double = read_sersic(objid, objdir, model='double')
+    if bool(double):
+        doublefile = os.path.join(htmlobjdir, '{}-sersic-double.png'.format(objid))
+        if not os.path.isfile(doublefile) or clobber:
+            display_sersic(double, modeltype='double', png=doublefile, verbose=verbose)
+
+    # Double Sersic, no wavelength dependence
+    double = read_sersic(objid, objdir, model='double-nowavepower')
+    if bool(double):
+        doublefile = os.path.join(htmlobjdir, '{}-sersic-double-nowavepower.png'.format(objid))
+        if not os.path.isfile(doublefile) or clobber:
+            display_sersic(double, modeltype='double-nowavepower', png=doublefile, verbose=verbose)
+
+    # Single Sersic, no wavelength dependence
+    single = read_sersic(objid, objdir, model='single-nowavepower')
+    if bool(single):
+        singlefile = os.path.join(htmlobjdir, '{}-sersic-single-nowavepower.png'.format(objid))
+        if not os.path.isfile(singlefile) or clobber:
+            display_sersic(single, modeltype='single-nowavepower', png=singlefile, verbose=verbose)
+
+    # Single Sersic
+    single = read_sersic(objid, objdir, model='single')
+    if bool(single):
+        singlefile = os.path.join(htmlobjdir, '{}-sersic-single.png'.format(objid))
+        if not os.path.isfile(singlefile) or clobber:
+            display_sersic(single, modeltype='single', png=singlefile, verbose=verbose)
+
 def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False, verbose=True):
     """Make QA plots.
@@ -103,8 +156,7 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
     from legacyhalos.io import get_objid
     from legacyhalos.qa import sample_trends
 
-    sample_trends(sample, htmldir, analysisdir=analysisdir,
-                  refband=refband, verbose=verbose)
+    sample_trends(sample, htmldir, analysisdir=analysisdir, verbose=verbose)
 
     for gal in sample:
         objid, objdir = get_objid(gal, analysisdir=analysisdir)
@@ -113,17 +165,19 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
 
+        # Build the ellipse plots.
+        qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
+                           clobber=clobber, verbose=verbose)
+
+        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
+                          clobber=clobber, verbose=verbose)
+
         # Build the montage coadds.
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)
 
         # Build the MGE plots.
         #qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=band,
         #               clobber=clobber, verbose=verbose)
-
-        # Build the ellipse plots.
-        qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
-                           clobber=clobber, verbose=verbose)
-
 
 def _javastring():
     """Return a string that embeds a date in a webpage."""
@@ -252,8 +306,9 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
 
         html.write('<h1>LegacyHalos: Sample Trends</h1>\n')
         html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
-        html.write('<a href="trends/sma_vs_ellipticity.png"><img src="trends/sma_vs_ellipticity.png" height="auto" width="50%"></a>')
-        html.write('<a href="trends/color_vs_ellipticity.png"><img src="trends/color_vs_ellipticity.png" height="auto" width="50%"></a>')
+        html.write('<a href="trends/ellipticity_vs_sma.png"><img src="trends/ellipticity_vs_sma.png" alt="Missing file ellipticity_vs_sma.png" height="auto" width="50%"></a>')
+        html.write('<a href="trends/gr_vs_sma.png"><img src="trends/gr_vs_sma.png" alt="Missing file gr_vs_sma.png" height="auto" width="50%"></a>')
+        html.write('<a href="trends/rz_vs_sma.png"><img src="trends/rz_vs_sma.png" alt="Missing file rz_vs_sma.png" height="auto" width="50%"></a>')
 
         html.write('<br /><br />\n')
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
@@ -331,7 +386,7 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             html.write('</table>\n')
             #html.write('<br />\n')
             
-            html.write('<h2>Elliptical Isophote Modeling</h2>\n')
+            html.write('<h2>Elliptical Isophote Analysis</h2>\n')
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
             html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" alt="Missing file {}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
@@ -345,6 +400,38 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
             html.write('</tr>\n')
             html.write('</table>\n')
             
+            html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
+            html.write('<table width="90%">\n')
+
+            # single-sersic
+            html.write('<tr>\n')
+            html.write('<th>Single Sersic (No Wavelength Dependence)</th><th>Single Sersic</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('</tr>\n')
+
+            # Sersic+exponential
+            html.write('<tr>\n')
+            html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td><a href="{}-sersic-exponential-nowavepower.png"><img src="{}-sersic-exponential-nowavepower.png" alt="Missing file {}-sersic-exponential-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td><a href="{}-sersic-exponential.png"><img src="{}-sersic-exponential.png" alt="Missing file {}-sersic-exponential.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('</tr>\n')
+
+            # double-sersic
+            html.write('<tr>\n')
+            html.write('<th>Double Sersic (No Wavelength Dependence)</th><th>Double Sersic</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td><a href="{}-sersic-double-nowavepower.png"><img src="{}-sersic-double-nowavepower.png" alt="Missing file {}-sersic-double-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('</tr>\n')
+
+            html.write('</table>\n')
+
             html.write('<br />\n')
 
             if False:
@@ -358,8 +445,16 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
                 html.write('<td><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" alt="Missing file {}-mge-sbprofile.png" height="auto" width="50%"></a></td>\n'.format(objid1, objid1, objid1))
                 html.write('</tr>\n')
                 html.write('</table>\n')
-            
+
+            html.write('<a href="../{}">Home</a>\n'.format(homehtml))
+            html.write('<br />\n')
+            html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlobjdir, nextobjid))
+            html.write('<br />\n')
+            html.write('<a href="{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlobjdir, prevobjid))
+            html.write('<br />\n')
+
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
+            html.write('<br />\n')
             html.write('</html></body>\n')
             html.close()
 

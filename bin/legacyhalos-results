@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+
+"""
+legacyhalos-results --clobber
+
+Gather all the results into a single multi-extension FITS file.
+
+"""
+from __future__ import print_function, division
+
+import os, argparse, pdb
+import numpy as np
+from astropy.table import Table, Column
+import legacyhalos.io
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--first', type=int, help='Index of first object to process.')
+    parser.add_argument('--last', type=int, help='Index of last object to process.')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite an existing file.')
+    parser.add_argument('--quiet', action='store_true', help='Be (more) quiet.')
+
+    args = parser.parse_args()
+
+    verbose = not args.quiet
+
+    # Read the sample
+    sample = legacyhalos.io.read_sample(first=args.first, last=args.last)
+    ngal = len(sample)
+
+    # Initialize the output table
+    results = Table()
+    results.add_column(Column(name='ellipse', dtype=np.bool_, length=ngal))
+    results.add_column(Column(name='sersic_single', dtype=np.bool_, length=ngal))
+    results.add_column(Column(name='sersic_double', dtype=np.bool_, length=ngal))
+    results.add_column(Column(name='sersic_exponential', dtype=np.bool_, length=ngal))
+    
+    allobjid, allobjdir = legacyhalos.io.get_objid(sample)
+    for ii, (objid, objdir) in enumerate( zip(allobjid, allobjdir) ):
+
+        ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir)
+        if bool(ellipsefit):
+            if ellipsefit['success']:
+                results['ellipse'][ii] = 1
+
+        sersic_single = legacyhalos.io.read_sersic(objid, objdir, model='single')
+        if bool(sersic_single):
+            if sersic_single['success']:
+                results['sersic_single'][ii] = 1
+                
+        sersic_double = legacyhalos.io.read_sersic(objid, objdir, model='double')
+        if bool(sersic_double):
+            if sersic_double['success']:
+                results['sersic_double'][ii] = 1
+                
+        sersic_exponential = legacyhalos.io.read_sersic(objid, objdir, model='exponential')
+        if bool(sersic_exponential):
+            if sersic_exponential['success']:
+                results['sersic_exponential'][ii] = 1
+                
+        #pdb.set_trace()
+
+    # Write out some summary statistics
+    print('Summary statistics:')
+    print('  Number of galaxies: {} '.format(ngal))
+    print('  Ellipse-fitting done:: {}/{} ({:.1f}%) '.format(
+        np.sum(results['ellipse']), ngal, 100*np.sum(results['ellipse'])/ngal))
+    print('  Single-Sersic done:: {}/{} ({:.1f}%) '.format(
+        np.sum(results['sersic_single']), ngal, 100*np.sum(results['sersic_single'])/ngal))
+    print('  Double-Sersic done:: {}/{} ({:.1f}%) '.format(
+        np.sum(results['sersic_double']), ngal, 100*np.sum(results['sersic_double'])/ngal))
+    print('  Sersic-Exponential done:: {}/{} ({:.1f}%) '.format(
+        np.sum(results['sersic_exponential']), ngal, 100*np.sum(results['sersic_exponential'])/ngal))
+    #print(results)
+
+    # Write out
+    legacyhalos.io.write_results(results, clobber=args.clobber)
+
+if __name__ == '__main__':
+    main()
