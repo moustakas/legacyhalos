@@ -392,110 +392,111 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
 
     colors = iter(sns.color_palette())
 
-    band, refband = ellipsefit['band'], ellipsefit['refband']
-    pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
-    smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+    if ellipsefit['success']:
+        
+        band, refband = ellipsefit['band'], ellipsefit['refband']
+        pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
+        smascale = arcsec2kpc(redshift) # [kpc/arcsec]
 
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
-    for filt in np.atleast_1d(refband):
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
+        
+        good = (ellipsefit[refband].stop_code < 4)
+        bad = ~good
 
-        if ellipsefit['success']:
+        ax1.fill_between(ellipsefit[refband].sma[good] * pixscale,
+                         ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
+                         ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good])#,
+                         #edgecolor='k', lw=2)
+        if np.count_nonzero(bad) > 0:
+            ax1.scatter(ellipsefit[refband].sma[bad] * pixscale, ellipsefit[refband].eps[bad],
+                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+
+        #ax1.errorbar(ellipsefit[refband].sma[good] * smascale,
+        #             ellipsefit[refband].eps[good],
+        #             ellipsefit[refband].ellip_err[good], fmt='o',
+        #             markersize=4)#, color=color[refband])
+        #ax1.set_ylim(0, 0.5)
+        ax1.xaxis.set_major_formatter(ScalarFormatter())
+
+        ax2.fill_between(ellipsefit[refband].sma[good] * pixscale, 
+                         np.degrees(ellipsefit[refband].pa[good]-ellipsefit[refband].pa_err[good]),
+                         np.degrees(ellipsefit[refband].pa[good]+ellipsefit[refband].pa_err[good]))#,
+                         #edgecolor='k', lw=2)
+        if np.count_nonzero(bad) > 0:
+            ax2.scatter(ellipsefit[refband].sma[bad] * pixscale, np.degrees(ellipsefit[refband].pa[bad]),
+                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+        #ax2.errorbar(ellipsefit[refband].sma[good] * smascale,
+        #             np.degrees(ellipsefit[refband].pa[good]),
+        #             np.degrees(ellipsefit[refband].pa_err[good]), fmt='o',
+        #             markersize=4)#, color=color[refband])
+        #ax2.set_ylim(0, 180)
+
+        ax3.fill_between(ellipsefit[refband].sma[good] * pixscale,
+                         ellipsefit[refband].x0[good]-ellipsefit[refband].x0_err[good],
+                         ellipsefit[refband].x0[good]+ellipsefit[refband].x0_err[good])#,
+                         #edgecolor='k', lw=2)
+        if np.count_nonzero(bad) > 0:
+            ax3.scatter(ellipsefit[refband].sma[bad] * pixscale, ellipsefit[refband].x0[bad],
+                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+        #ax3.errorbar(ellipsefit[refband].sma[good] * smascale, ellipsefit[refband].x0[good],
+        #             ellipsefit[refband].x0_err[good], fmt='o',
+        #             markersize=4)#, color=color[refband])
+        ax3.xaxis.set_major_formatter(ScalarFormatter())
+        ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+
+        ax4.fill_between(ellipsefit[refband].sma[good] * pixscale, 
+                         ellipsefit[refband].y0[good]-ellipsefit[refband].y0_err[good],
+                         ellipsefit[refband].y0[good]+ellipsefit[refband].y0_err[good])#,
+                         #edgecolor='k', lw=2)
+        if np.count_nonzero(bad) > 0:
+            ax4.scatter(ellipsefit[refband].sma[bad] * pixscale, ellipsefit[refband].y0[bad],
+                        marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
+        #ax4.errorbar(ellipsefit[refband].sma[good] * smascale, ellipsefit[refband].y0[good],
+        #             ellipsefit[refband].y0_err[good], fmt='o',
+        #             markersize=4)#, color=color[refband])
             
-            good = (ellipsefit[filt].stop_code < 4)
-            bad = ~good
+        ax2.yaxis.tick_right()
+        ax2.yaxis.set_label_position('right')
+        ax2.yaxis.set_major_formatter(ScalarFormatter())
+        ax4.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
-            ax1.fill_between(ellipsefit[filt].sma[good] * pixscale,
-                             ellipsefit[filt].eps[good]-ellipsefit[filt].ellip_err[good],
-                             ellipsefit[filt].eps[good]+ellipsefit[filt].ellip_err[good])#,
-                             #edgecolor='k', lw=2)
-            if np.count_nonzero(bad) > 0:
-                ax1.scatter(ellipsefit[filt].sma[bad] * pixscale, ellipsefit[filt].eps[bad],
-                            marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
-
-            #ax1.errorbar(ellipsefit[filt].sma[good] * smascale,
-            #             ellipsefit[filt].eps[good],
-            #             ellipsefit[filt].ellip_err[good], fmt='o',
-            #             markersize=4)#, color=color[filt])
-            #ax1.set_ylim(0, 0.5)
-            ax1.xaxis.set_major_formatter(ScalarFormatter())
-
-            ax2.fill_between(ellipsefit[filt].sma[good] * pixscale, 
-                             np.degrees(ellipsefit[filt].pa[good]-ellipsefit[filt].pa_err[good]),
-                             np.degrees(ellipsefit[filt].pa[good]+ellipsefit[filt].pa_err[good]))#,
-                             #edgecolor='k', lw=2)
-            if np.count_nonzero(bad) > 0:
-                ax2.scatter(ellipsefit[filt].sma[bad] * pixscale, np.degrees(ellipsefit[filt].pa[bad]),
-                            marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
-            #ax2.errorbar(ellipsefit[filt].sma[good] * smascale,
-            #             np.degrees(ellipsefit[filt].pa[good]),
-            #             np.degrees(ellipsefit[filt].pa_err[good]), fmt='o',
-            #             markersize=4)#, color=color[filt])
-            ax2.yaxis.tick_right()
-            ax2.yaxis.set_label_position('right')
-            ax2.xaxis.set_major_formatter(ScalarFormatter())
-            #ax2.set_ylim(0, 180)
-
-            ax3.fill_between(ellipsefit[filt].sma[good] * pixscale,
-                             ellipsefit[filt].x0[good]-ellipsefit[filt].x0_err[good],
-                             ellipsefit[filt].x0[good]+ellipsefit[filt].x0_err[good])#,
-                             #edgecolor='k', lw=2)
-            if np.count_nonzero(bad) > 0:
-                ax3.scatter(ellipsefit[filt].sma[bad] * pixscale, ellipsefit[filt].x0[bad],
-                            marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
-            #ax3.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].x0[good],
-            #             ellipsefit[filt].x0_err[good], fmt='o',
-            #             markersize=4)#, color=color[filt])
-            ax3.xaxis.set_major_formatter(ScalarFormatter())
-            ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-
-            ax4.fill_between(ellipsefit[filt].sma[good] * pixscale, 
-                             ellipsefit[filt].y0[good]-ellipsefit[filt].y0_err[good],
-                             ellipsefit[filt].y0[good]+ellipsefit[filt].y0_err[good])#,
-                             #edgecolor='k', lw=2)
-            if np.count_nonzero(bad) > 0:
-                ax4.scatter(ellipsefit[filt].sma[bad] * pixscale, ellipsefit[filt].y0[bad],
-                            marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
-            #ax4.errorbar(ellipsefit[filt].sma[good] * smascale, ellipsefit[filt].y0[good],
-            #             ellipsefit[filt].y0_err[good], fmt='o',
-            #             markersize=4)#, color=color[filt])
-            
         ax4.yaxis.tick_right()
         ax4.yaxis.set_label_position('right')
         ax4.xaxis.set_major_formatter(ScalarFormatter())
         ax4.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
-    for xx in (ax1, ax2, ax3, ax4):
-        xx.set_xlim(xmin=0)
-        
-    xlim = ax1.get_xlim()
-    ax1_twin = ax1.twiny()
-    ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
-    ax1_twin.set_xlabel('Galactocentric radius (kpc)')
-
-    ax2_twin = ax2.twiny()
-    ax2_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
-    ax2_twin.set_xlabel('Galactocentric radius (kpc)')
-
-    ax1.set_ylabel(r'Ellipticity $\epsilon$')
-    ax2.set_ylabel('Position Angle (deg)')
-    ax3.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
-    ax3.set_ylabel(r'$x$ Center')
-    ax4.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
-    ax4.set_ylabel(r'$y$ Center')
-    
-    if xlog:
         for xx in (ax1, ax2, ax3, ax4):
-            xx.set_xscale('log')
+            xx.set_xlim(xmin=0)
+        
+        xlim = ax1.get_xlim()
+        ax1_twin = ax1.twiny()
+        ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
+        ax1_twin.set_xlabel('Galactocentric radius (kpc)')
 
-    fig.subplots_adjust(hspace=0.03, wspace=0.03, bottom=0.15, right=0.85, left=0.15)
+        ax2_twin = ax2.twiny()
+        ax2_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
+        ax2_twin.set_xlabel('Galactocentric radius (kpc)')
 
-    if png:
-        if verbose:
-            print('Writing {}'.format(png))
-        fig.savefig(png)
-        plt.close(fig)
-    else:
-        plt.show()
+        ax1.set_ylabel(r'Ellipticity $\epsilon$')
+        ax2.set_ylabel('Position Angle (deg)')
+        ax3.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
+        ax3.set_ylabel(r'$x$ Center')
+        ax4.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
+        ax4.set_ylabel(r'$y$ Center')
+
+        if xlog:
+            for xx in (ax1, ax2, ax3, ax4):
+                xx.set_xscale('log')
+
+        fig.subplots_adjust(hspace=0.03, wspace=0.03, bottom=0.15, right=0.85, left=0.15)
+
+        if png:
+            if verbose:
+                print('Writing {}'.format(png))
+            fig.savefig(png)
+            plt.close(fig)
+        else:
+            plt.show()
         
 def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
     """Display the multi-band surface brightness profile.
@@ -503,17 +504,16 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
     """
     from legacyhalos.ellipse import ellipse_sbprofile
 
-    band, refband, redshift = ellipsefit['band'], ellipsefit['refband'], ellipsefit['redshift']
-    smascale = arcsec2kpc(redshift) # [kpc/arcsec]
-
     if ellipsefit['success']:
         sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr)
 
-    colors = _sbprofile_colors()
+        colors = _sbprofile_colors()
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-    for filt in band:
-        if ellipsefit['success']:
+        band, refband, redshift = ellipsefit['band'], ellipsefit['refband'], ellipsefit['redshift']
+        smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+        for filt in band:
             sma = sbprofile['sma']
             mu = sbprofile['mu_{}'.format(filt)]
             muerr = sbprofile['mu_{}_err'.format(filt)]
@@ -539,19 +539,18 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
                 ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
                 ax1.axhline(y=ysky, color=col, ls='--')
 
-    ax1.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
-    ax1.set_ylim(32, 17)
-    ax1.set_xlim(xmin=0)
+        ax1.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
+        ax1.set_ylim(32, 17)
+        ax1.set_xlim(xmin=0)
 
-    xlim = ax1.get_xlim()
-    ax1_twin = ax1.twiny()
-    ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
-    ax1_twin.set_xlabel(r'Galactocentric radius $r$ (kpc)')
-    
-    #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
-    #ax1.set_ylim(31.99, 18)
+        xlim = ax1.get_xlim()
+        ax1_twin = ax1.twiny()
+        ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
+        ax1_twin.set_xlabel(r'Galactocentric radius $r$ (kpc)')
 
-    if ellipsefit['success']:
+        #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
+        #ax1.set_ylim(31.99, 18)
+
         ax1.legend(loc='upper right')
 
         ax2.fill_between(sbprofile['sma'],
@@ -569,13 +568,10 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
         ax2.set_xlabel(r'Galactocentric radius $r$ (arcsec)', alpha=0.75)
         #ax2.legend(loc='upper left')
         ax2.legend(bbox_to_anchor=(0.25, 0.98))
-    else:
-        ax2.set_xlabel(r'Galactocentric radius $r$', alpha=0.75)
         
-    ax2.set_ylabel('Color (mag)')
-    ax2.set_ylim(-0.1, 2.7)
+        ax2.set_ylabel('Color (mag)')
+        ax2.set_ylim(-0.1, 2.7)
 
-    if ellipsefit['success']:
         for xx in (ax1, ax2):
             ylim = xx.get_ylim()
             xx.fill_between([0, 3*ellipsefit['psfsigma_r']], [ylim[0], ylim[0]],
@@ -584,15 +580,15 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
         ax2.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
             transform=ax2.transAxes, fontsize=10)
 
-    fig.subplots_adjust(hspace=0.0)
+        fig.subplots_adjust(hspace=0.0)
 
-    if png:
-        if verbose:
-            print('Writing {}'.format(png))
-        fig.savefig(png)
-        plt.close(fig)
-    else:
-        plt.show()
+        if png:
+            if verbose:
+                print('Writing {}'.format(png))
+            fig.savefig(png)
+            plt.close(fig)
+        else:
+            plt.show()
         
 def display_mge_sbprofile(mgefit, indx=None, png=None, verbose=True):
     """Display the multi-band surface brightness profile."""
@@ -689,6 +685,8 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
         os.makedirs(trendsdir, exist_ok=True)
 
     ngal = len(sample)
+    if ngal < 3:
+        return
 
     # color vs semi-major axis
     def __color_vs_sma(color, label):
