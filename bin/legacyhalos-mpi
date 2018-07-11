@@ -51,7 +51,6 @@ def _missing(sample, size=1, filetype='coadds', clobber=False):
         return list()
     else:
         indices = indices[todo]
-
     return np.array_split(indices, size)
 
 def missing_coadds(sample, size=1, clobber=False):

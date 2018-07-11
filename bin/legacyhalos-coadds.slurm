@@ -9,7 +9,12 @@
 #SBATCH -p regular
 #SBATCH -N 32
 #SBATCH -n 48
-#SBATCH -t 04:00:00
+#SBATCH -t 06:00:00
+
+# #SBATCH -p debug
+# #SBATCH -N 32
+# #SBATCH -n 48
+# #SBATCH -t 00:30:00
 
 # for cori only
 # #SBATCH -C haswell
@@ -33,6 +38,8 @@
 # 
 #     print('Edison: -n {} -N {:.0f} -c {} -t 00:{:02d}:00'.format(ntask, nnode, ncpu, totaltime))
 #       Edison: -n 48 -N 32 -c 4 -t 00:04:00
+#
+# Some notes: Running over 1562 galaxies with "-n 48 -N 32 -c 4 -t 00:04:00" left 917/1562 galaxies.
 #
 # Example calculation of scaling to the full sample on cori.  Here, we simply 
 # increase the number of tasks (as multiples of 32) until the total time is a
