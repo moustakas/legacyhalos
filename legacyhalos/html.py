@@ -39,11 +39,12 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
     """Generate QAplots from the ellipse-fitting.
 
     """
-    from legacyhalos.io import read_multiband, read_ellipsefit
+    from legacyhalos.io import read_multiband, read_ellipsefit, read_sky_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile)
 
     ellipsefit = read_ellipsefit(objid, objdir)
+    skyellipsefit = read_sky_ellipsefit(objid, objdir)
 
     if len(ellipsefit) > 0:
 
@@ -52,6 +53,13 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
         #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
 
+        sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
+        if not os.path.isfile(sbprofilefile) or clobber:
+            display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
+                                      png=sbprofilefile, verbose=verbose, minerr=0.0)
+
+        pdb.set_trace()
+        
         multibandfile = os.path.join(htmlobjdir, '{}-ellipse-multiband.png'.format(objid))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(objid, objdir, band=band)
@@ -61,10 +69,6 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         ellipsefitfile = os.path.join(htmlobjdir, '{}-ellipse-ellipsefit.png'.format(objid))
         if not os.path.isfile(ellipsefitfile) or clobber:
             display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
-        
-        sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
-        if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, png=sbprofilefile, verbose=verbose, minerr=0.0)
         
 def qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=('g', 'r', 'z'),
                    pixscale=0.262, clobber=False, verbose=True):
@@ -165,12 +169,12 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
 
-        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
-                          clobber=clobber, verbose=verbose)
-
         # Build the ellipse plots.
         qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
                            clobber=clobber, verbose=verbose)
+
+        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
+                          clobber=clobber, verbose=verbose)
 
         # Build the montage coadds.
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)

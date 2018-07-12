@@ -104,7 +104,7 @@ def write_sky_ellipsefit(objid, objdir, skyellipsefit, verbose=False):
     with open(skyellipsefitfile, 'wb') as ell:
         pickle.dump(skyellipsefit, ell)
 
-def read_skyellipsefit(objid, objdir, verbose=True):
+def read_sky_ellipsefit(objid, objdir, verbose=True):
     """Read the output of write_skyellipsefit."""
 
     skyellipsefitfile = os.path.join(objdir, '{}-ellipsefit-sky.p'.format(objid))

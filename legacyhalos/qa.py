@@ -506,7 +506,8 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         else:
             plt.show()
         
-def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
+def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
+                              png=None, verbose=True):
     """Display the multi-band surface brightness profile.
 
     """
@@ -517,10 +518,13 @@ def display_ellipse_sbprofile(ellipsefit, minerr=0.0, png=None, verbose=True):
 
         colors = _sbprofile_colors()
 
-        band, refband, redshift = ellipsefit['band'], ellipsefit['refband'], ellipsefit['redshift']
+        band, refband = ellipsefit['band'], ellipsefit['refband']
+        redshift = ellipsefit['redshift']
         smascale = arcsec2kpc(redshift) # [kpc/arcsec]
 
         ymnmax = [40, 0]
+
+        pdb.set_trace()
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
         for filt in band:
