@@ -145,8 +145,8 @@ def read_mgefit(objid, objdir, verbose=True):
 
     return mgefit
 
-def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
-    """Read the various catalogs.
+def read_parent(extname='LSPHOT', upenn=True, isedfit=False, columns=None, verbose=False):
+    """Read the various parent catalogs.
 
     Args:
       upenn - Restrict to the UPenn-matched catalogs.
@@ -165,13 +165,14 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     catfile = os.path.join(lsdir, 'legacyhalos-parent{}.fits'.format(suffix))
     
     cat = Table(fitsio.read(catfile, ext=extname, columns=columns, lower=True))
-    print('Read {} objects from {} [{}]'.format(len(cat), catfile, extname))
+    if verbose:
+        print('Read {} objects from {} [{}]'.format(len(cat), catfile, extname))
 
     return cat
 
 def write_results(results, sersic_single=None, sersic_double=None, sersic_exponential=None,
                   sersic_single_nowavepower=None, sersic_double_nowavepower=None,
-                  sersic_exponential_nowavepower=None, clobber=False):
+                  sersic_exponential_nowavepower=None, clobber=False, verbose=False):
     """Write out the output of legacyhalos-results
 
     """
@@ -196,7 +197,8 @@ def write_results(results, sersic_single=None, sersic_double=None, sersic_expone
             hdu.header['EXTNAME'] = name.upper()
             hx.append(hdu)
 
-        print('Writing {}'.format(resultsfile))
+        if verbose:
+            print('Writing {}'.format(resultsfile))
         hx.writeto(resultsfile, overwrite=True)
     else:
         print('File {} exists.'.format(resultsfile))
@@ -249,7 +251,26 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
 
     return data
 
-def read_sample(first=None, last=None):
+def read_results(first=None, last=None, verbose=False, extname='RESULTS'):
+    """Read the output of io.write_results.
+
+    """
+    import fitsio
+    from astropy.table import Table
+
+    lsdir = legacyhalos_dir()
+    resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
+
+    if not os.path.isfile(resultsfile):
+        print('File {} not found.'.format(resultsfile))
+        return None
+    else:
+        if verbose:
+            print('Reading {}'.format(resultsfile))
+        results = Table(fitsio.read(resultsfile, extname=extname))
+        return results
+
+def read_sample(first=None, last=None, verbose=False):
     """Read the sample.
 
     Temporary hack to add the DR to the catalog.
@@ -266,23 +287,26 @@ def read_sample(first=None, last=None):
     rmcols = ('mem_match_id', 'z', 'r_lambda', 'lambda_chisq', 'p_cen')
     sdsscols = ('objid')
         
-    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
-                                         columns=tractorcols)
+    sample = legacyhalos.io.read_parent(extname='LSPHOT', upenn=True,
+                                        columns=tractorcols, verbose=verbose)
     
-    rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
-                                     columns=rmcols)
+    rm = legacyhalos.io.read_parent(extname='REDMAPPER', upenn=True,
+                                    columns=rmcols, verbose=verbose)
     
-    sdss = legacyhalos.io.read_catalog(extname='SDSSPHOT', upenn=True,
-                                       columns=np.atleast_1d(sdsscols))
+    sdss = legacyhalos.io.read_parent(extname='SDSSPHOT', upenn=True,
+                                      columns=np.atleast_1d(sdsscols),
+                                      verbose=verbose)
     
     sdss.rename_column('objid', 'sdss_objid')
-    print('Renaming column objid-->sdss_objid in [SDSSPHOT] extension.')
+    if verbose:
+        print('Renaming column objid-->sdss_objid in [SDSSPHOT] extension.')
     sample = hstack( (sample, rm) )
     sample = hstack( (sample, sdss) )
 
     if first and last:
         if first > last:
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+            raise ValueError()
 
     if first is None:
         first = 0
@@ -290,7 +314,8 @@ def read_sample(first=None, last=None):
         last = len(sample)-1
 
     sample = sample[first:last+1]
-    print('Sample contains {} objects with first, last indices {}, {}'.format(
-        len(sample), first, last))
+    if verbose:
+        print('Sample contains {} objects with first, last indices {}, {}'.format(
+            len(sample), first, last))
 
     return sample

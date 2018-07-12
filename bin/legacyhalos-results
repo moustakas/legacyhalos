@@ -54,7 +54,7 @@ def main():
     verbose = not args.quiet
 
     # Read the sample
-    sample = legacyhalos.io.read_sample(first=args.first, last=args.last)
+    sample = legacyhalos.io.read_sample(first=args.first, last=args.last, verbose=verbose)
     ngal = len(sample)
 
     chi2fail = 1e6
@@ -107,17 +107,18 @@ def main():
                     locals()[colname] = data
                     
     # Write out summary statistics
-    print('Summary statistics:')
-    print('  Number of galaxies: {} '.format(ngal))
-    print('  Ellipse-fitting: {}/{} ({:.1f}%) '.format(
-        np.sum(results['ellipse']), ngal, 100*np.sum(results['ellipse'])/ngal))
-    for wavepower in ('-nowavepower', ''):
-        for modeltype in ('single', 'exponential', 'double'):
-            modelname = '{}{}'.format(modeltype, wavepower)
-            colname = 'chi2_sersic_{}'.format(modelname).replace('-', '_')
-            ndone = np.sum(results[colname] < chi2fail)
-            fracdone = 100 * ndone / ngal
-            print('  {}: {}/{} ({:.1f}%) '.format(modelname, ndone, ngal, fracdone))
+    if verbose:
+        print('Summary statistics:')
+        print('  Number of galaxies: {} '.format(ngal))
+        print('  Ellipse-fitting: {}/{} ({:.1f}%) '.format(
+            np.sum(results['ellipse']), ngal, 100*np.sum(results['ellipse'])/ngal))
+        for wavepower in ('-nowavepower', ''):
+            for modeltype in ('single', 'exponential', 'double'):
+                modelname = '{}{}'.format(modeltype, wavepower)
+                colname = 'chi2_sersic_{}'.format(modelname).replace('-', '_')
+                ndone = np.sum(results[colname] < chi2fail)
+                fracdone = 100 * ndone / ngal
+                print('  {}: {}/{} ({:.1f}%) '.format(modelname, ndone, ngal, fracdone))
     #print(results)
 
     # Write out
@@ -125,7 +126,8 @@ def main():
                                  sersic_double=sersic_double, sersic_exponential=sersic_exponential,
                                  sersic_single_nowavepower=sersic_single_nowavepower,
                                  sersic_double_nowavepower=sersic_double_nowavepower,
-                                 sersic_exponential_nowavepower=sersic_exponential_nowavepower)
+                                 sersic_exponential_nowavepower=sersic_exponential_nowavepower,
+                                 verbose=verbose)
 
 if __name__ == '__main__':
     main()
