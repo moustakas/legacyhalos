@@ -13,6 +13,35 @@ import numpy as np
 from astropy.table import Table, Column
 import legacyhalos.io
 
+def _init_sersic(ngal=1, mem_match_id=0, modeltype='single', band=('g', 'r', 'z'),
+                 nowavepower=True):
+    if modeltype == 'single':
+        params = ('alpha', 'beta', 'nref', 'r50ref', 'mu50_g', 'mu50_r', 'mu50_z')
+    elif modeltype == 'exponential':
+        params = ('alpha1', 'beta1', 'beta2', 'nref1', 'nref2', 'r50ref1', 'r50ref2',
+                  'mu50_g1', 'mu50_r1', 'mu50_z1', 'mu50_g2', 'mu50_r2', 'mu50_z2')
+    elif modeltype == 'double':
+        params = ('alpha1', 'alpha2', 'beta1', 'beta2', 'nref1', 'nref2', 'r50ref1', 'r50ref2',
+                  'mu50_g1', 'mu50_r1', 'mu50_z1', 'mu50_g2', 'mu50_r2', 'mu50_z2')
+
+    out = Table()
+    out.add_column(Column(name='mem_match_id', data=np.zeros(ngal).astype(np.int32)))
+    out.add_column(Column(name='success', data=np.zeros(ngal).astype(np.bool_)))
+    out.add_column(Column(name='converged', data=np.zeros(ngal).astype(np.bool_)))
+    for param in params:
+        out.add_column(Column(name=param, data=np.zeros(ngal).astype('f4')))
+        out.add_column(Column(name='{}_err'.format(param), data=np.zeros(ngal).astype('f4')))
+
+    [out.add_column(Column(name='flux_obs_{}'.format(bb), data=np.zeros(ngal).astype('f4'))) for bb in band]
+    [out.add_column(Column(name='flux_{}'.format(bb), data=np.zeros(ngal).astype('f4'))) for bb in band]
+    [out.add_column(Column(name='dm_in_{}'.format(bb), data=np.zeros(ngal).astype('f4'))) for bb in band]
+    [out.add_column(Column(name='dm_out_{}'.format(bb), data=np.zeros(ngal).astype('f4'))) for bb in band]
+    [out.add_column(Column(name='dm_{}'.format(bb), data=np.zeros(ngal).astype('f4'))) for bb in band]
+
+    out['mem_match_id'] = mem_match_id
+
+    return out
+    
 def main():
 
     parser = argparse.ArgumentParser()
@@ -20,7 +49,6 @@ def main():
     parser.add_argument('--last', type=int, help='Index of last object to process.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite an existing file.')
     parser.add_argument('--quiet', action='store_true', help='Be (more) quiet.')
-
     args = parser.parse_args()
 
     verbose = not args.quiet
@@ -29,55 +57,75 @@ def main():
     sample = legacyhalos.io.read_sample(first=args.first, last=args.last)
     ngal = len(sample)
 
-    # Initialize the output table
-    results = Table()
-    results.add_column(Column(name='ellipse', dtype=np.bool_, length=ngal))
-    results.add_column(Column(name='sersic_single', dtype=np.bool_, length=ngal))
-    results.add_column(Column(name='sersic_double', dtype=np.bool_, length=ngal))
-    results.add_column(Column(name='sersic_exponential', dtype=np.bool_, length=ngal))
+    chi2fail = 1e6
+
+    # Initialize the top-level output table
+    results = sample.copy()[['mem_match_id']]
+    results.add_column(Column(name='ellipse', data=np.repeat(0, ngal).astype(np.bool_)))
+    for wavepower in ('-nowavepower', ''):
+        for modeltype in ('single', 'exponential', 'double'):
+            colname = 'chi2_sersic_{}{}'.format(modeltype, wavepower).replace('-', '_')
+            results.add_column(Column(name=colname, data=np.repeat(chi2fail, ngal).astype('f4')))
     
     allobjid, allobjdir = legacyhalos.io.get_objid(sample)
-    for ii, (objid, objdir) in enumerate( zip(allobjid, allobjdir) ):
+
+    sersic_single = _init_sersic(ngal, mem_match_id=sample['mem_match_id'].data, modeltype='single')
+    sersic_double = _init_sersic(ngal, mem_match_id=sample['mem_match_id'].data, modeltype='double')
+    sersic_exponential = _init_sersic(ngal, mem_match_id=sample['mem_match_id'].data, modeltype='exponential')
+
+    sersic_single_nowavepower = _init_sersic(ngal, modeltype='single')
+    sersic_double_nowavepower = _init_sersic(ngal, modeltype='double')
+    sersic_exponential_nowavepower = _init_sersic(ngal, modeltype='exponential')
+    
+    for ii, (objid, objdir) in enumerate( zip(np.atleast_1d(allobjid), np.atleast_1d(allobjdir)) ):
 
         ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir, verbose=verbose)
         if bool(ellipsefit):
             if ellipsefit['success']:
                 results['ellipse'][ii] = 1
 
-        sersic_single = legacyhalos.io.read_sersic(objid, objdir, model='single', verbose=verbose)
-        if bool(sersic_single):
-            if sersic_single['success']:
-                results['sersic_single'][ii] = 1
+        # Sersic modeling
+        for wavepower in ('-nowavepower', ''):
+            for modeltype in ('single', 'exponential', 'double'):
+                modelname = '{}{}'.format(modeltype, wavepower)
+                colname = 'sersic_{}'.format(modelname).replace('-', '_')
+            
+                sersic = legacyhalos.io.read_sersic(objid, objdir, model=modelname, verbose=verbose)
+                if bool(sersic):
+                    results['chi2_{}'.format(colname)][ii] = sersic['chi2']
 
-        pdb.set_trace()
-                
-        sersic_double = legacyhalos.io.read_sersic(objid, objdir, model='double', verbose=verbose)
-        if bool(sersic_double):
-            if sersic_double['success']:
-                results['sersic_double'][ii] = 1
-                
-        sersic_exponential = legacyhalos.io.read_sersic(objid, objdir, model='exponential', verbose=verbose)
-        if bool(sersic_exponential):
-            if sersic_exponential['success']:
-                results['sersic_exponential'][ii] = 1
-                
-        #pdb.set_trace()
-
-    # Write out some summary statistics
+                    data = locals()[colname]
+                    data['success'][ii] = sersic['success']
+                    data['converged'][ii] = sersic['converged']
+                    for param in sersic['params']:
+                        data[param][ii] = sersic[param]
+                        data['{}_err'.format(param)][ii] = sersic['{}_err'.format(param)]
+                    if sersic['success']:
+                        for col in sersic['phot'].colnames:
+                            data[col][ii] = sersic['phot'][col]
+                        
+                    locals()[colname] = data
+                    
+    # Write out summary statistics
     print('Summary statistics:')
     print('  Number of galaxies: {} '.format(ngal))
-    print('  Ellipse-fitting done:: {}/{} ({:.1f}%) '.format(
+    print('  Ellipse-fitting: {}/{} ({:.1f}%) '.format(
         np.sum(results['ellipse']), ngal, 100*np.sum(results['ellipse'])/ngal))
-    print('  Single-Sersic done:: {}/{} ({:.1f}%) '.format(
-        np.sum(results['sersic_single']), ngal, 100*np.sum(results['sersic_single'])/ngal))
-    print('  Double-Sersic done:: {}/{} ({:.1f}%) '.format(
-        np.sum(results['sersic_double']), ngal, 100*np.sum(results['sersic_double'])/ngal))
-    print('  Sersic-Exponential done:: {}/{} ({:.1f}%) '.format(
-        np.sum(results['sersic_exponential']), ngal, 100*np.sum(results['sersic_exponential'])/ngal))
+    for wavepower in ('-nowavepower', ''):
+        for modeltype in ('single', 'exponential', 'double'):
+            modelname = '{}{}'.format(modeltype, wavepower)
+            colname = 'chi2_sersic_{}'.format(modelname).replace('-', '_')
+            ndone = np.sum(results[colname] < chi2fail)
+            fracdone = 100 * ndone / ngal
+            print('  {}: {}/{} ({:.1f}%) '.format(modelname, ndone, ngal, fracdone))
     #print(results)
 
     # Write out
-    legacyhalos.io.write_results(results, clobber=args.clobber)
+    legacyhalos.io.write_results(results, clobber=args.clobber, sersic_single=sersic_single,
+                                 sersic_double=sersic_double, sersic_exponential=sersic_exponential,
+                                 sersic_single_nowavepower=sersic_single_nowavepower,
+                                 sersic_double_nowavepower=sersic_double_nowavepower,
+                                 sersic_exponential_nowavepower=sersic_exponential_nowavepower)
 
 if __name__ == '__main__':
     main()

@@ -169,17 +169,37 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
 
     return cat
 
-def write_results(results, clobber=False):
+def write_results(results, sersic_single=None, sersic_double=None, sersic_exponential=None,
+                  sersic_single_nowavepower=None, sersic_double_nowavepower=None,
+                  sersic_exponential_nowavepower=None, clobber=False):
     """Write out the output of legacyhalos-results
 
     """
     lsdir = legacyhalos_dir()
-    resultsfilt = os.path.join(lsdir, 'legacyhalos-results.fits')
-    if not os.path.isfile(resultsfilt) or clobber:
-        print('Writing {}'.format(resultsfilt))
-        results.write(resultsfilt, overwrite=True)
+    resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
+    if not os.path.isfile(resultsfile) or clobber:
+        from astropy.io import fits
+
+        hx = fits.HDUList()
+
+        hdu = fits.table_to_hdu(results)
+        hdu.header['EXTNAME'] = 'RESULTS'
+        hx.append(hdu)
+
+        for tt, name in zip( (sersic_single, sersic_double, sersic_exponential,
+                              sersic_single_nowavepower, sersic_double_nowavepower,
+                              sersic_exponential_nowavepower),
+                              ('sersic_single', 'sersic_double, sersic_exponential',
+                              'sersic_single_nowavepower', 'sersic_double_nowavepower',
+                              'sersic_exponential_nowavepower') ):
+            hdu = fits.table_to_hdu(tt)
+            hdu.header['EXTNAME'] = name.upper()
+            hx.append(hdu)
+
+        print('Writing {}'.format(resultsfile))
+        hx.writeto(resultsfile, overwrite=True)
     else:
-        print('File {} exists.'.format(resultsfilt))
+        print('File {} exists.'.format(resultsfile))
 
 def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
     """Read the multi-band images, construct the residual image, and then create a

@@ -405,11 +405,12 @@ class SersicWaveFit(object):
             
             rad = self.radius[indx]
             sb = self.sb[indx]
-            phot['flux_obs_{}'.format(band)] = 2 * np.pi * integrate.simps(x=rad, y=rad*sb)
+            obsflux = 2 * np.pi * integrate.simps(x=rad, y=rad*sb)
+            phot['flux_obs_{}'.format(band)] = obsflux
             
             # now integrate inward and outward by evaluating the model
             rad_in = np.linspace(0, rad.min(), nrad)
-            sb_in = bestfit(rad_in, wave)
+            sb_in = bestfit(rad_in, wave) # no-convolution!!!
             dm_in = 2 * np.pi * integrate.simps(x=rad_in, y=rad_in*sb_in)
             
             rad_out = np.logspace(np.log10(rad.max()), 3, nrad)
@@ -419,10 +420,10 @@ class SersicWaveFit(object):
             dm = dm_in + dm_out
             phot['flux_{}'.format(band)] = phot['flux_obs_{}'.format(band)] + dm
             
-            phot['dm_in_{}'.format(band)] = 22.5 - 2.5 * np.log10(dm_in)
-            phot['dm_out_{}'.format(band)] = 22.5 - 2.5 * np.log10(dm_out)
-            phot['dm_{}'.format(band)] = 22.5 - 2.5 * np.log10(dm)
-            
+            phot['dm_in_{}'.format(band)] = - 2.5 * np.log10(1 - dm_in / obsflux)
+            phot['dm_out_{}'.format(band)] = - 2.5 * np.log10(1 - dm_out / obsflux)
+            phot['dm_{}'.format(band)] = - 2.5 * np.log10(1 - dm / obsflux)
+
         return phot
 
     def _fit(self, nball=10, chi2fail=1e6, verbose=False, model='single'):
