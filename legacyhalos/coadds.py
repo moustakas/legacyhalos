@@ -14,11 +14,7 @@ import shutil
 import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 
-def custom_brickname(sample, prefix='custom-'):
-    brickname = 'custom-{:06d}{}{:05d}'.format(
-        int(1000*sample['ra']), 'm' if sample['dec'] < 0 else 'p',
-        int(1000*np.abs(sample['dec'])))
-    return brickname
+from legacyhalos.misc import custom_brickname
 
 def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
                   pixscale=0.262, log=None, force=False):
@@ -45,7 +41,7 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
 
     # Move (rename) files into the desired output directory and clean up.
-    brickname = custom_brickname(sample, prefix='custom-')
+    brickname = custom_brickname(sample['ra'], sample['dec'], prefix='custom-')
 
     # tractor catalog
     shutil.copy(
@@ -261,7 +257,7 @@ def legacyhalos_custom_coadds(sample, survey=None, objid=None, objdir=None,
     
     if objid is None and objdir is None:
         objid, objdir = get_objid(sample)
-    brickname = custom_brickname(sample, prefix='')
+    brickname = custom_brickname(sample['ra'], sample['dec'], prefix='')
 
     survey.output_dir = objdir
 

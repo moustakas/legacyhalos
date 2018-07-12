@@ -85,6 +85,7 @@ def main():
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
+    parser.add_argument('--seed', type=int, default=None, help='Random seed (used with --sky).')
 
     parser.add_argument('--coadds', action='store_true', help='Build the custom coadds')
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
@@ -259,8 +260,9 @@ def main():
         if args.sky:
             from legacyhalos.sky import legacyhalos_sky
             if args.debug:
-                result = legacyhalos_sky(sample[ii], objid=objid, objdir=objdir, 
-                    debug=args.debug, verbose=args.verbose)
+                result = legacyhalos_sky(sample[ii], survey=survey, objid=objid, objdir=objdir,
+                                         ncpu=args.ncpu, pixscale=args.pixscale, seed=args.seed,
+                                         debug=args.debug, verbose=args.verbose, force=args.force)
                 if result == 0:
                     print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                 print('Finished objid {} in {:.3f} minutes.'.format(
@@ -270,8 +272,10 @@ def main():
                     with redirect_stdout(log), redirect_stderr(log):
                         print('Rank {} started working on objid {} at {}'.format(
                             rank, objid, time.asctime()), flush=True)
-                        result = legacyhalos_sky(sample[ii], objid=objid, objdir=objdir, 
-                                                    debug=args.debug, verbose=args.verbose)
+                        result = legacyhalos_sky(sample[ii], survey=survey, objid=objid, objdir=objdir,
+                                                 ncpu=args.ncpu, pixscale=args.pixscale, seed=args.seed,
+                                                 debug=args.debug, verbose=args.verbose, log=log,
+                                                 force=args.force)
                         if result == 0:
                             print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                         print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(

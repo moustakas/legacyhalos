@@ -83,7 +83,7 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
         radius[radius < rmin] = rmin
         radius[radius > rmax] = rmax
 
-    return radius
+    return radius # [pixels]
 
 def arcsec2kpc(redshift):
     """Compute and return the scale factor to convert a physical axis in arcseconds
@@ -126,6 +126,12 @@ def medxbin(xx, yy, binsize, minpts=20, xmin=None, xmax=None):
     stats = stats[good]
 
     return bins[good], stats
+
+def custom_brickname(ra, dec, prefix='custom-'):
+    brickname = 'custom-{:06d}{}{:05d}'.format(
+        int(1000*ra), 'm' if dec < 0 else 'p',
+        int(1000*np.abs(dec)))
+    return brickname
 
 def lambda2mhalo(richness, redshift=0.3, Saro=False):
     """
