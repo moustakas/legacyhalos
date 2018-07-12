@@ -42,6 +42,11 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
 
     # Default parameters
     integrmode, sclip, nclip, step, fflag = 'bilinear', 3, 0, 0.1, 0.5
+    ellipsefit['integrmode'] = integrmode
+    ellipsefit['sclip'] = sclip
+    ellipsefit['nclip'] = nclip
+    ellipsefit['step'] = step
+    ellipsefit['fflag'] = fflag
     #integrmode, sclip, nclip, step, fflag = 'median', 3, 0, 0.1, 0.5
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
