@@ -94,6 +94,31 @@ def read_ellipsefit(objid, objdir, verbose=True):
 
     return ellipsefit
 
+def write_sky_ellipsefit(objid, objdir, skyellipsefit, verbose=False):
+    """Pickle the sky ellipse-fitting results
+
+    """
+    skyellipsefitfile = os.path.join(objdir, '{}-ellipsefit-sky.p'.format(objid))
+    if verbose:
+        print('Writing {}'.format(skyellipsefitfile))
+    with open(skyellipsefitfile, 'wb') as ell:
+        pickle.dump(skyellipsefit, ell)
+
+def read_skyellipsefit(objid, objdir, verbose=True):
+    """Read the output of write_skyellipsefit."""
+
+    skyellipsefitfile = os.path.join(objdir, '{}-ellipsefit-sky.p'.format(objid))
+    try:
+        with open(skyellipsefitfile, 'rb') as ell:
+            skyellipsefit = pickle.load(ell)
+    except:
+        #raise IOError
+        if verbose:
+            print('File {} not found!'.format(skyellipsefitfile))
+        skyellipsefit = dict()
+
+    return skyellipsefit
+
 def write_sersic(objid, objdir, sersic, model='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).

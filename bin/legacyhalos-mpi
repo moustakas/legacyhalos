@@ -33,7 +33,7 @@ def _missing(sample, size=1, filetype='coadds', clobber=False):
     elif filetype == 'sersic':
         filesuffix = 'sersic-single.p'
     elif filetype == 'sky':
-        filesuffix = 'sky.p'
+        filesuffix = 'ellipsefit-sky.p'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -262,7 +262,7 @@ def main():
             if args.debug:
                 result = legacyhalos_sky(sample[ii], survey=survey, objid=objid, objdir=objdir,
                                          ncpu=args.ncpu, pixscale=args.pixscale, seed=args.seed,
-                                         debug=args.debug, verbose=args.verbose)
+                                         debug=args.debug, verbose=args.verbose, force=args.force)
                 if result == 0:
                     print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                 print('Finished objid {} in {:.3f} minutes.'.format(
@@ -274,7 +274,8 @@ def main():
                             rank, objid, time.asctime()), flush=True)
                         result = legacyhalos_sky(sample[ii], survey=survey, objid=objid, objdir=objdir,
                                                  ncpu=args.ncpu, pixscale=args.pixscale, seed=args.seed,
-                                                 debug=args.debug, verbose=args.verbose, log=log)
+                                                 debug=args.debug, verbose=args.verbose, log=log,
+                                                 force=args.force)
                         if result == 0:
                             print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                         print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(

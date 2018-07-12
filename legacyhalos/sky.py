@@ -9,6 +9,7 @@ from __future__ import absolute_import, division, print_function
 
 import os, pdb
 import time, warnings
+import shutil
 
 import numpy as np
 import numpy.ma as ma
@@ -16,8 +17,8 @@ import matplotlib.pyplot as plt
 
 import legacyhalos.io
 
-def sky_coadd(ra, dec, outdir='.', survey=None, ncpu=1, ellipsefit=None,
-              pixscale=0.262, log=None):
+def sky_coadd(ra, dec, outdir='.', size=100, prefix='', survey=None, ncpu=1, ellipsefit=None,
+              band=('g', 'r', 'z'), pixscale=0.262, log=None, force=False):
     """Run legacypipe to generate a coadd in a "blank" part of sky near / around a
     given central.
 
@@ -30,24 +31,29 @@ def sky_coadd(ra, dec, outdir='.', survey=None, ncpu=1, ellipsefit=None,
     # Check whether the coadd has already been generated.
     brickname = custom_brickname(ra, dec, prefix='custom-')
 
+    blobfile = os.path.join(outdir, '{}-blobs.fits.gz'.format(prefix))
+    imfiles = [os.path.join(outdir, '{}-{}.fits.fz'.format(prefix, filt)) for filt in band]
+
+    # Are we already done?
     alldone = True
-    for band in ('g', 'r', 'z'):
-        imfile = os.path.join(outdir, 'coadd', 'cus', brickname, 'legacysurvey-{}-image-{}.fits.fz'.format(brickname, band))
-        blobfile = os.path.join(outdir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname))
-        if not os.path.isfile(imfile) or not os.path.isfile(blobfile):
+    if not os.path.isfile(blobfile):
+        alldone = False
+    for imfile in imfiles:
+        if not os.path.isfile(imfile):
             alldone = False
 
     # Make the coadds, if necessary.
-    if not alldone:
-        # Set the size of the sky cutout to 2.2 times the length of the
-        # semi-major axis of the central galaxy.
-        size = np.ceil(2.2 * ellipsefit['geometry'].sma).astype('int')
+    if not alldone or force:
+         # Clean up any old coadd and metrics directories:
+        for dd in ('coadd', 'metrics'):
+            if os.path.isdir(os.path.join(outdir, dd)):
+                shutil.rmtree(os.path.join(outdir, dd))
 
         # Set up runbrick
         cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
         cmd += '--radec {ra} {dec} --width {size} --height {size} --pixscale {pixscale} '
         cmd += '--threads {threads} --outdir {outdir} '
-        cmd += '--skip-calibs --stage image_coadds --blob-image '
+        cmd += '--skip-calibs --no-write --stage image_coadds --blob-image '
 
         cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), 
                          ra=ra, dec=dec, size=size, pixscale=pixscale,
@@ -55,21 +61,34 @@ def sky_coadd(ra, dec, outdir='.', survey=None, ncpu=1, ellipsefit=None,
 
         print(cmd, flush=True, file=log)
         err = subprocess.call(cmd.split(), stdout=log, stderr=log)
-        
+
+        # Move the files we want and clean up.
+        shutil.copy(os.path.join(outdir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)), blobfile)
+        for filt, imfile in zip( band, imfiles ):
+            shutil.copy(os.path.join(outdir, 'coadd', 'cus', brickname,
+                                     'legacysurvey-{}-image-{}.fits.fz'.format(brickname, filt)),
+                                     imfile)
+
+        if os.path.isdir(os.path.join(outdir, dd)):
+            shutil.rmtree(os.path.join(outdir, dd))
+
     # Now measure the blank-sky surface brightness profile.
     refband = ellipsefit['refband']
     isophot = ellipsefit[refband]
+    print('Get these parameters from the ellipsefit dictionary!')
+    integrmode, sclip, nclip = 'bilinear', 3, 0
 
-    for band in ('g', 'r', 'z'):
-        imfile = os.path.join(outdir, 'coadd', 'cus', brickname, 'legacysurvey-{}-image-{}.fits.fz'.format(brickname, band))
-        blobfile = os.path.join(outdir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname, band))
+    skyellipsefit = dict()
 
+    print('Reading {}'.format(blobfile))
+    blobs = fitsio.read(blobfile)
+    for filt, imfile in zip( band, imfiles ):
         print('Reading {}'.format(imfile))
         image = fitsio.read(imfile)
-        print('Reading {}'.format(blobfile))
-        blobs = fitsio.read(blobfile)
 
-        img = ma.masked_array(image, (blobs != -1))
+        img = ma.masked_array(image, mask=(blobs != -1), fill_value=0)
+        #fitsio.write('junk.fits', img.filled(img.fill_value), clobber=True)
+        #fitsio.write('blobs.fits', blobs, clobber=True)
 
         # Loop on the reference band isophotes
         isobandfit = []
@@ -86,10 +105,13 @@ def sky_coadd(ra, dec, outdir='.', survey=None, ncpu=1, ellipsefit=None,
             isobandfit.append(Isophote(sample, 0, True, 0))
 
         # Build the IsophoteList instance with the result.
-        ellipsefit[filt] = IsophoteList(isobandfit)
+        skyellipsefit[filt] = IsophoteList(isobandfit)
 
-    if False:
-        shutil.rmtree(os.path.join(survey.outdir, 'coadd'))
+    # Clean up
+    for dd in ('coadd', 'metrics'):
+        shutil.rmtree(os.path.join(outdir, dd), ignore_errors=True)
+
+    return skyellipsefit
 
 def sky_positions(ra_cluster, dec_cluster, redshift, r_lambda, nsky, rand):
     """Choose sky positions that are a minimum physical distance away from the
@@ -120,8 +142,8 @@ def sky_positions(ra_cluster, dec_cluster, redshift, r_lambda, nsky, rand):
     return ra, dec
 
 def legacyhalos_sky(sample, survey=None, objid=None, objdir=None, ncpu=1, nsky=10,
-                    pixscale=0.262, log=None, seed=None, verbose=False,
-                    debug=False):
+                    pixscale=0.262, log=None, seed=None, verbose=False, band=('g', 'r', 'z'),
+                    debug=False, force=False):
     """Top-level wrapper script to measure the sky variance around a given galaxy.
 
     """
@@ -135,13 +157,41 @@ def legacyhalos_sky(sample, survey=None, objid=None, objdir=None, ncpu=1, nsky=1
     if bool(ellipsefit):
         if ellipsefit['success']:
 
-            # Get sky coordinates.
+            refband = ellipsefit['refband']
+
+            # Set the size of the sky cutout to 2.2 times the length of the
+            # semi-major axis of the central galaxy.
+            size = np.ceil(2.2 * ellipsefit['geometry'].sma).astype('int')
+
+            # get the (random) sky coordinates
             ra, dec = sky_positions(sample['ra'], sample['dec'], sample['z'],
                                     sample['r_lambda'], nsky, rand)
+
+            # initialize the output dictionary
+            sky = dict()
+            sky['seed'] = seed
+            sky['size'] = size
+            sky['ra'] = ra
+            sky['dec'] = dec
+            sky['sma'] = ellipsefit[refband].sma
+            nsma = len(sky['sma'])
+            for filt in band:
+                sky[filt] = np.zeros( (nsma, nsky) ).astype('f4')
 
             # Build each sky coadd and measure the null surface brightness
             # profile.
             for ii in range(nsky):
-                outdir = os.path.join(objdir.replace('analysis', 'analysis-archive'), 'sky-{:03d}'.format(ii))
-                sky_coadd(ra[ii], dec[ii], ellipsefit=ellipsefit, outdir=outdir,
-                          survey=survey, ncpu=ncpu, pixscale=pixscale, log=log)
+                prefix = 'sky-{:03d}'.format(ii)
+                outdir = os.path.join(objdir.replace('analysis', 'analysis-archive'))
+
+                # Do it!
+                skyellipsefit = sky_coadd(ra[ii], dec[ii], ellipsefit=ellipsefit,
+                                          size=size, outdir=outdir, prefix=prefix,
+                                          survey=survey, ncpu=ncpu, pixscale=pixscale,
+                                          log=log, force=force)
+
+                for filt in band:
+                    sky[filt][:, ii] = skyellipsefit[filt].intens
+
+            # write out!
+            legacyhalos.io.write_sky_ellipsefit(objid, objdir, sky, verbose=verbose)
