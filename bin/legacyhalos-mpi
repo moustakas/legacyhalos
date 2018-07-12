@@ -262,7 +262,7 @@ def main():
             if args.debug:
                 result = legacyhalos_sky(sample[ii], survey=survey, objid=objid, objdir=objdir,
                                          ncpu=args.ncpu, pixscale=args.pixscale, seed=args.seed,
-                                         debug=args.debug, verbose=args.verbose, force=args.force)
+                                         debug=args.debug, verbose=args.verbose)
                 if result == 0:
                     print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                 print('Finished objid {} in {:.3f} minutes.'.format(
@@ -274,8 +274,7 @@ def main():
                             rank, objid, time.asctime()), flush=True)
                         result = legacyhalos_sky(sample[ii], survey=survey, objid=objid, objdir=objdir,
                                                  ncpu=args.ncpu, pixscale=args.pixscale, seed=args.seed,
-                                                 debug=args.debug, verbose=args.verbose, log=log,
-                                                 force=args.force)
+                                                 debug=args.debug, verbose=args.verbose, log=log)
                         if result == 0:
                             print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                         print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
