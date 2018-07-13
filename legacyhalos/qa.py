@@ -52,13 +52,16 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         model = None
 
     ymnmax = [40, 0]
+    rad_model = np.linspace(0.1, sersic['radius'].max()*1.1, 50)
 
     fig, ax = plt.subplots(figsize=(7, 5))
     for band, lam in zip( sersic['band'], (sersic['lambda_g'],
                                            sersic['lambda_r'],
                                            sersic['lambda_z']) ):
         with np.errstate(invalid='ignore'):
+            #good = (lam == sersic['wave']) * np.isfinite(sersic['sb'])
             good = (lam == sersic['wave']) * np.isfinite(sersic['sb']) * (sersic['sb'] / sersic['sberr'] > 1)
+
         wave = sersic['wave'][good]
         rad = sersic['radius'][good]
         sb = sersic['sb'][good]
@@ -110,8 +113,10 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         
         # optionally overplot the model
         if model is not None:
-            sb_model = model(rad, wave)
-            ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
+            #wave_model = np.zeros_like(rad_model) + lam
+            wave_model = wave ; rad_model = rad
+            sb_model = model(rad_model, wave_model)
+            ax.plot(rad_model, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
                         ls='--', lw=2, alpha=1)
             if model.__class__.__name__ == 'SersicDoubleWaveModel' and band == 'r':
                 from legacyhalos.sersic import SersicSingleWaveModel
@@ -123,9 +128,9 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                                                alpha=model.alpha2.value, beta=model.beta2.value,
                                                mu50_g=model.mu50_g2.value, mu50_r=model.mu50_r2.value,
                                                mu50_z=model.mu50_z2.value)
-                ax.plot(rad, 22.5-2.5*np.log10(model1(rad, wave)), color='gray', alpha=0.5,
+                ax.plot(rad_model, 22.5-2.5*np.log10(model1(rad_model, wave_model)), color='gray', alpha=0.5,
                         ls='--', lw=2)
-                ax.plot(rad, 22.5-2.5*np.log10(model2(rad, wave)), color='gray', alpha=0.5,
+                ax.plot(rad_model, 22.5-2.5*np.log10(model2(rad_model, wave_model)), color='gray', alpha=0.5,
                         ls='--', lw=2)
             
     # legend with the best-fitting parameters
