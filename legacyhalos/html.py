@@ -58,8 +58,6 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
             display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
                                       png=sbprofilefile, verbose=verbose, minerr=0.0)
 
-        pdb.set_trace()
-        
         multibandfile = os.path.join(htmlobjdir, '{}-ellipse-multiband.png'.format(objid))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(objid, objdir, band=band)

@@ -511,6 +511,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
     """Display the multi-band surface brightness profile.
 
     """
+    import astropy.stats
     from legacyhalos.ellipse import ellipse_sbprofile
 
     if ellipsefit['success']:
@@ -523,8 +524,6 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
         smascale = arcsec2kpc(redshift) # [kpc/arcsec]
 
         ymnmax = [40, 0]
-
-        pdb.set_trace()
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
         for filt in band:
@@ -544,9 +543,11 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             col = next(colors)
             ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color=col,
                              alpha=0.75, edgecolor='k', lw=2)
-            #if np.count_nonzero(bad) > 0:
-            #    ax1.scatter(sbprofile['sma'][bad], sbprofile[filt][bad], marker='s',
-            #                s=40, edgecolor='k', lw=2, alpha=0.75)
+            if bool(skyellipsefit):
+                skysma = skyellipsefit['sma'] * ellipsefit['pixscale']
+                sky = astropy.stats.mad_std(skyellipsefit[filt], axis=1, ignore_nan=True)
+                # sky = np.nanstd(skyellipsefit[filt], axis=1) # / np.sqrt(skyellipsefit[
+                ax1.plot( skysma, 22.5 - 2.5 * np.log10(sky) , color=col, ls='--', alpha=0.5)
 
             if np.nanmin(mu-muerr) < ymnmax[0]:
                 ymnmax[0] = np.nanmin(mu-muerr)
@@ -554,13 +555,15 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                 ymnmax[1] = np.nanmax(mu+muerr)
 
             #ax1.axhline(y=ellipsefit['mu_{}_sky'.format(filt)], color=col, ls='--')
-            if filt == refband:
-                ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
-                ax1.axhline(y=ysky, color=col, ls='--')
+            #if filt == refband:
+            #    ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
+            #    ax1.axhline(y=ysky, color=col, ls='--')
 
         ax1.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
 
         ylim = [ymnmax[0]-0.5, ymnmax[1]+0.5]
+        if ylim[0] < 17:
+            ylim[0] = 17
         if ylim[1] > 32.5:
             ylim[1] = 32.5
         ax1.set_ylim(ylim)
@@ -570,7 +573,8 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
         xlim = ax1.get_xlim()
         ax1_twin = ax1.twiny()
         ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
-        ax1_twin.set_xlabel(r'Galactocentric radius $r$ (kpc)')
+        #ax1_twin.set_xlabel(r'Galactocentric radius $r$ (kpc)')
+        ax1_twin.set_xlabel(r'Semi-major Axis $a$ (kpc)')
 
         #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
         #ax1.set_ylim(31.99, 18)
@@ -589,7 +593,8 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                          label=r'$r - z$', color=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
-        ax2.set_xlabel(r'Galactocentric radius $r$ (arcsec)', alpha=0.75)
+        ax2.set_xlabel(r'Semi-major Axis $a$ (arcsec)')
+        #ax2.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
         #ax2.legend(loc='upper left')
         ax2.legend(bbox_to_anchor=(0.25, 0.98))
         

@@ -341,7 +341,8 @@ class SersicWaveFit(object):
                                                   self.initfit.lambda_r, 
                                                   self.initfit.lambda_z) ):
             # any quality cuts on stop_code here?!?
-            rad = ellipsefit[band].sma * pixscale # semi-major axis [arcsec]
+            #rad = ellipsefit[band].sma * pixscale # semi-major axis [arcsec]
+            rad = np.sqrt( ellipsefit[band].sma**2 * (1 - ellipsefit[band].eps) ) * pixscale # circularized radius [arcsec]
             flux = ellipsefit[band].intens
             ferr = np.sqrt( ellipsefit[band].int_err**2 + (0.4 * np.log(10) * flux * minerr)**2 ) # minimum uncertainty
             #flux, ferr = self.mu2flux(mu=sbprofile['mu_{}'.format(band)],
