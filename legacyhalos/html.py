@@ -108,6 +108,22 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
     from legacyhalos.io import read_sersic
     from legacyhalos.qa import display_sersic
 
+    # Double Sersic
+    double = read_sersic(objid, objdir, model='double')
+    if bool(double):
+        doublefile = os.path.join(htmlobjdir, '{}-sersic-double.png'.format(objid))
+        if not os.path.isfile(doublefile) or clobber:
+            display_sersic(double, modeltype='double', png=doublefile, verbose=verbose)
+
+    # Double Sersic, no wavelength dependence
+    double = read_sersic(objid, objdir, model='double-nowavepower')
+    if bool(double):
+        doublefile = os.path.join(htmlobjdir, '{}-sersic-double-nowavepower.png'.format(objid))
+        if not os.path.isfile(doublefile) or clobber:
+            display_sersic(double, modeltype='double-nowavepower', png=doublefile, verbose=verbose)
+
+    pdb.set_trace()
+
     # Single Sersic, no wavelength dependence
     single = read_sersic(objid, objdir, model='single-nowavepower')
     if bool(single):
@@ -136,20 +152,6 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         if not os.path.isfile(serexpfile) or clobber:
             display_sersic(serexp, modeltype='exponential-nowavepower', png=serexpfile, verbose=verbose)
 
-    # Double Sersic
-    double = read_sersic(objid, objdir, model='double')
-    if bool(double):
-        doublefile = os.path.join(htmlobjdir, '{}-sersic-double.png'.format(objid))
-        if not os.path.isfile(doublefile) or clobber:
-            display_sersic(double, modeltype='double', png=doublefile, verbose=verbose)
-
-    # Double Sersic, no wavelength dependence
-    double = read_sersic(objid, objdir, model='double-nowavepower')
-    if bool(double):
-        doublefile = os.path.join(htmlobjdir, '{}-sersic-double-nowavepower.png'.format(objid))
-        if not os.path.isfile(doublefile) or clobber:
-            display_sersic(double, modeltype='double-nowavepower', png=doublefile, verbose=verbose)
-
 def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False, verbose=True):
     """Make QA plots.
@@ -167,12 +169,12 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
 
+        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
+                          clobber=clobber, verbose=verbose)
+
         # Build the ellipse plots.
         qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
                            clobber=clobber, verbose=verbose)
-
-        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
-                          clobber=clobber, verbose=verbose)
 
         # Build the montage coadds.
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)

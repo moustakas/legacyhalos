@@ -113,7 +113,21 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
             sb_model = model(rad, wave)
             ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
                         ls='--', lw=2, alpha=1)
-
+            if model.__class__.__name__ == 'SersicDoubleWaveModel' and band == 'r':
+                from legacyhalos.sersic import SersicSingleWaveModel
+                model1 = SersicSingleWaveModel(nref=model.nref1.value, r50ref=model.r50ref1.value,
+                                               alpha=model.alpha1.value, beta=model.beta1.value,
+                                               mu50_g=model.mu50_g1.value, mu50_r=model.mu50_r1.value,
+                                               mu50_z=model.mu50_z1.value)
+                model2 = SersicSingleWaveModel(nref=model.nref2.value, r50ref=model.r50ref2.value,
+                                               alpha=model.alpha2.value, beta=model.beta2.value,
+                                               mu50_g=model.mu50_g2.value, mu50_r=model.mu50_r2.value,
+                                               mu50_z=model.mu50_z2.value)
+                ax.plot(rad, 22.5-2.5*np.log10(model1(rad, wave)), color='gray', alpha=0.5,
+                        ls='--', lw=2)
+                ax.plot(rad, 22.5-2.5*np.log10(model2(rad, wave)), color='gray', alpha=0.5,
+                        ls='--', lw=2)
+            
     # legend with the best-fitting parameters
     if model is not None:
         chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
@@ -279,7 +293,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
 
     ylim = ax.get_ylim()
     if sersic['success']:
-        ax.fill_between([0, 3*model.psfsigma_r], [ylim[0], ylim[0]],
+        ax.fill_between([0, 3*model.psfsigma_r*sersic['pixscale']], [ylim[0], ylim[0]], # [arcsec]
                         [ylim[1], ylim[1]], color='grey', alpha=0.1)
         ax.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10)
@@ -603,7 +617,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         for xx in (ax1, ax2):
             ylim = xx.get_ylim()
-            xx.fill_between([0, 3*ellipsefit['psfsigma_r']], [ylim[0], ylim[0]],
+            xx.fill_between([0, 3*ellipsefit['psfsigma_r']*ellipsefit['pixscale']], [ylim[0], ylim[0]],
                             [ylim[1], ylim[1]], color='grey', alpha=0.1)
             
         ax2.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',

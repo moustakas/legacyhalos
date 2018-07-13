@@ -37,8 +37,9 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
     ellipsefit['band'] = band
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
-    for filt in band:
-        ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)] / 2.355 # [Gaussian sigma, arcsec]
+    for filt in band: # [Gaussian sigma]
+        ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)] / np.sqrt(8*np.log(2)) # [arcsec]
+        ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
 
     # Default parameters
     integrmode, sclip, nclip, step, fflag = 'bilinear', 2, 3, 0.1, 0.5

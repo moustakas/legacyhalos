@@ -45,7 +45,7 @@ class SersicSingleWaveModel(Fittable2DModel):
                  mu50_g=mu50_g.default, mu50_r=mu50_r.default, mu50_z=mu50_z.default, 
                  psfsigma_g=0.0, psfsigma_r=0.0, psfsigma_z=0.0, 
                  lambda_ref=6470, lambda_g=4890, lambda_r=6470, lambda_z=9196, 
-                 **kwargs):
+                 pixscale=0.262, **kwargs):
 
         self.band = ('g', 'r', 'z')
         
@@ -61,6 +61,8 @@ class SersicSingleWaveModel(Fittable2DModel):
         self.psfsigma_g = psfsigma_g
         self.psfsigma_r = psfsigma_r
         self.psfsigma_z = psfsigma_z
+
+        self.pixscale = pixscale
         
         super(SersicSingleWaveModel, self).__init__(nref=nref, r50ref=r50ref, alpha=alpha, 
                                                     beta=beta, mu50_g=mu50_g, mu50_r=mu50_r, 
@@ -107,8 +109,8 @@ class SersicSingleWaveModel(Fittable2DModel):
                 # smooth with the PSF
                 if psfsig > 0:
                     g = Gaussian1DKernel(stddev=psfsig)#, mode='linear_interp')
-                    mu_smooth = convolve(mu_int, g, normalize_kernel=True, boundary='extend')
-                    fix = (r[indx] > 5 * psfsig)
+                    mu_smooth = convolve(mu_int, g, normalize_kernel=True)#, boundary='extend')
+                    fix = (r[indx] > 5 * psfsig * self.pixscale)
                     mu_smooth[fix] = mu_int[fix] # replace with original values
                     mu[indx] = mu_smooth
                 else:
@@ -153,7 +155,7 @@ class SersicExponentialWaveModel(Fittable2DModel):
                  mu50_g2=mu50_g2.default, mu50_r2=mu50_r2.default, mu50_z2=mu50_z2.default, 
                  psfsigma_g=0.0, psfsigma_r=0.0, psfsigma_z=0.0, 
                  lambda_ref=6470, lambda_g=4890, lambda_r=6470, lambda_z=9196,
-                 **kwargs):
+                 pixscale=0.262, **kwargs):
 
         self.band = ('g', 'r', 'z')
         
@@ -169,6 +171,8 @@ class SersicExponentialWaveModel(Fittable2DModel):
         self.psfsigma_g = psfsigma_g
         self.psfsigma_r = psfsigma_r
         self.psfsigma_z = psfsigma_z
+
+        self.pixscale = pixscale
         
         super(SersicExponentialWaveModel, self).__init__(nref1=nref1, nref2=nref2, r50ref1=r50ref1, r50ref2=r50ref2,
                                                          alpha1=alpha1, beta1=beta1, beta2=beta2,
@@ -210,8 +214,8 @@ class SersicExponentialWaveModel(Fittable2DModel):
                 # smooth with the PSF
                 if psfsig > 0:
                     g = Gaussian1DKernel(stddev=psfsig)#, mode='linear_interp')
-                    mu_smooth = convolve(mu_int, g, normalize_kernel=True, boundary='extend')
-                    fix = (r[indx] > 5 * psfsig)
+                    mu_smooth = convolve(mu_int, g, normalize_kernel=True)#, boundary='extend')
+                    fix = (r[indx] > 5 * psfsig * self.pixscale)
                     mu_smooth[fix] = mu_int[fix] # replace with original values
                     mu[indx] = mu_smooth
                 else:
@@ -257,8 +261,8 @@ class SersicDoubleWaveModel(Fittable2DModel):
                  mu50_g1=mu50_g1.default, mu50_r1=mu50_r1.default, mu50_z1=mu50_z1.default, 
                  mu50_g2=mu50_g2.default, mu50_r2=mu50_r2.default, mu50_z2=mu50_z2.default, 
                  psfsigma_g=0.0, psfsigma_r=0.0, psfsigma_z=0.0, 
-                 lambda_ref=6470, lambda_g=4890, lambda_r=6470, lambda_z=9196, 
-                 **kwargs):
+                 lambda_ref=6470, lambda_g=4890, lambda_r=6470, lambda_z=9196,
+                 pixscale=0.262, **kwargs):
 
         self.band = ('g', 'r', 'z')
         
@@ -274,6 +278,8 @@ class SersicDoubleWaveModel(Fittable2DModel):
         self.psfsigma_g = psfsigma_g
         self.psfsigma_r = psfsigma_r
         self.psfsigma_z = psfsigma_z
+
+        self.pixscale = pixscale
         
         super(SersicDoubleWaveModel, self).__init__(nref1=nref1, nref2=nref2, r50ref1=r50ref1, r50ref2=r50ref2,
                                                     alpha1=alpha1, alpha2=alpha2, beta1=beta1, beta2=beta2,
@@ -315,8 +321,8 @@ class SersicDoubleWaveModel(Fittable2DModel):
                 # smooth with the PSF
                 if psfsig > 0:
                     g = Gaussian1DKernel(stddev=psfsig)#, mode='linear_interp')
-                    mu_smooth = convolve(mu_int, g, normalize_kernel=True, boundary='extend')
-                    fix = (r[indx] > 5 * psfsig)
+                    mu_smooth = convolve(mu_int, g, normalize_kernel=True)#, boundary='extend')
+                    fix = (r[indx] > 5 * psfsig * self.pixscale)
                     mu_smooth[fix] = mu_int[fix] # replace with original values
                     mu[indx] = mu_smooth
                 else:
@@ -364,10 +370,12 @@ class SersicWaveFit(object):
         self.radius = np.hstack(radius)
         self.redshift = redshift
         self.minerr = minerr
+        self.pixscale = pixscale
 
     def chi2(self, bestfit):
         dof = len(self.sb) - len(bestfit.parameters)
         chi2 = np.sum( (self.sb - bestfit(self.radius, self.wave, self.sb))**2 / self.sberr**2 ) / dof
+        #pdb.set_trace()
         return chi2
     
     def integrate(self, bestfit, nrad=50):
@@ -448,6 +456,7 @@ class SersicWaveFit(object):
             'chi2': chi2fail, # initial value
             'dof': len(self.sb) - len(self.initfit.parameters),
             'minerr': self.minerr,
+            'pixscale': self.pixscale,
             }
 
         # perturb the parameter values
@@ -529,9 +538,19 @@ class SersicWaveFit(object):
             result.update({bestfit.param_names[ii]: bestfit.parameters[ii]})
             if pinfo.fixed:
                 result.update({bestfit.param_names[ii]+'_err': 0.0})
+            elif pinfo.tied:
+                pass # hack! see 
             else:
                 result.update({bestfit.param_names[ii]+'_err': unc[count]})
                 count += 1
+
+        # Fix the uncertainties of tied parameters.  Very hacky here!
+        if 'alpha2' in bestfit.param_names and 'alpha1' in bestfit.param_names:
+            if bestfit.alpha2.tied is not False:
+                result.update({'alpha2_err': result['alpha1_err']})
+        if 'beta2' in bestfit.param_names and 'beta1' in bestfit.param_names:
+            if bestfit.beta2.tied is not False:
+                result.update({'beta2_err': result['beta1_err']})
 
         result['chi2'] = minchi2
         result.update({
@@ -553,7 +572,8 @@ class SersicSingleWaveFit(SersicWaveFit):
         self.initfit = SersicSingleWaveModel(fixed=self.fixed, 
                                              psfsigma_g=ellipsefit['psfsigma_g'],
                                              psfsigma_r=ellipsefit['psfsigma_r'],
-                                             psfsigma_z=ellipsefit['psfsigma_z'])
+                                             psfsigma_z=ellipsefit['psfsigma_z'],
+                                             pixscale=ellipsefit['pixscale'])
 
         super(SersicSingleWaveFit, self).__init__(ellipsefit, seed=seed)
 
@@ -573,7 +593,8 @@ class SersicExponentialWaveFit(SersicWaveFit):
         self.initfit = SersicExponentialWaveModel(fixed=self.fixed, tied=tied,
                                              psfsigma_g=ellipsefit['psfsigma_g'],
                                              psfsigma_r=ellipsefit['psfsigma_r'],
-                                             psfsigma_z=ellipsefit['psfsigma_z'])
+                                             psfsigma_z=ellipsefit['psfsigma_z'],
+                                             pixscale=ellipsefit['pixscale'])
 
         super(SersicExponentialWaveFit, self).__init__(ellipsefit, seed=seed)
 
@@ -585,7 +606,6 @@ class SersicExponentialWaveFit(SersicWaveFit):
             return model.r50ref1*1.05
         
     def fit(self, nball=10, chi2fail=1e6, verbose=False):
-
         return self._fit(nball=10, chi2fail=1e6, verbose=verbose, model='exponential')
 
 class SersicDoubleWaveFit(SersicWaveFit):
@@ -599,7 +619,8 @@ class SersicDoubleWaveFit(SersicWaveFit):
         self.initfit = SersicDoubleWaveModel(fixed=self.fixed, tied=tied,
                                              psfsigma_g=ellipsefit['psfsigma_g'],
                                              psfsigma_r=ellipsefit['psfsigma_r'],
-                                             psfsigma_z=ellipsefit['psfsigma_z'])
+                                             psfsigma_z=ellipsefit['psfsigma_z'],
+                                             pixscale=ellipsefit['pixscale'])
 
         super(SersicDoubleWaveFit, self).__init__(ellipsefit, seed=seed)
 
@@ -705,6 +726,9 @@ def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.03, seed=None,
             # Sersic-exponential fit with and without wavelength dependence
             serexp = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr,
                                         verbose=verbose, seed=seed)
+
+            pdb.set_trace()
+            
             serexp_nowave = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr,
                                                verbose=verbose, nowavepower=True, seed=seed)
 
