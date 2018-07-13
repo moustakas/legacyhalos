@@ -30,13 +30,13 @@ class SersicSingleWaveModel(Fittable2DModel):
     """
     from astropy.modeling import Parameter
     
-    nref = Parameter(default=4, bounds=(0.1, 8))
-    r50ref = Parameter(default=10, bounds=(1e-3, 30)) # [arcsec]
+    nref = Parameter(default=4, bounds=(0.1, 10))
+    r50ref = Parameter(default=10, bounds=(0.1, 100)) # [arcsec]
     alpha = Parameter(default=0.0, bounds=(-1, 1))
     beta = Parameter(default=0.0, bounds=(-1, 1))
-    mu50_g = Parameter(default=1.0)#, bounds=(1e-3, 1e3)) # [nanomaggies at r50] [mag=15-30]
-    mu50_r = Parameter(default=1.0)#, bounds=(1e-3, 1e3))
-    mu50_z = Parameter(default=1.0)#, bounds=(1e-3, 1e3))
+    mu50_g = Parameter(default=1.0, bounds=(0, 1e4)) # [nanomaggies at r50] [mag=15-30]
+    mu50_r = Parameter(default=1.0, bounds=(0, 1e4))
+    mu50_z = Parameter(default=1.0, bounds=(0, 1e4))
 
     linear = False
     
@@ -115,7 +115,7 @@ class SersicSingleWaveModel(Fittable2DModel):
                     mu[indx] = mu_int
         
         return mu
-    
+
 class SersicExponentialWaveModel(Fittable2DModel):
     """Define a surface brightness profile model which is three Sersic+exponential
     models connected by two Sersic indices and half-light radiii which vary as a
@@ -124,16 +124,16 @@ class SersicExponentialWaveModel(Fittable2DModel):
     """
     from astropy.modeling import Parameter
     
-    nref1 = Parameter(default=3, bounds=(0.1, 8))
+    nref1 = Parameter(default=3, bounds=(0.1, 10))
     nref2 = Parameter(default=1, fixed=True) # fixed exponential
 
-    r50ref1 = Parameter(default=3, bounds=(1e-3, 30)) # [arcsec]
-    r50ref2 = Parameter(default=10, bounds=(1e-3, 30)) # [arcsec]
+    r50ref1 = Parameter(default=3, bounds=(0.1, 100)) # [arcsec]
+    r50ref2 = Parameter(default=10, bounds=(0.1, 100)) # [arcsec]
 
     alpha1 = Parameter(default=0.0, bounds=(-1, 1))
 
     beta1 = Parameter(default=0.0, bounds=(-1, 1))
-    beta2 = Parameter(default=0.0, bounds=(-1, 1))
+    beta2 = Parameter(default=0.0) # , bounds=(-1, 1))
 
     mu50_g1 = Parameter(default=1.0, bounds=(0, 1e4))
     mu50_r1 = Parameter(default=1.0, bounds=(0, 1e4))
@@ -152,7 +152,7 @@ class SersicExponentialWaveModel(Fittable2DModel):
                  mu50_g1=mu50_g1.default, mu50_r1=mu50_r1.default, mu50_z1=mu50_z1.default, 
                  mu50_g2=mu50_g2.default, mu50_r2=mu50_r2.default, mu50_z2=mu50_z2.default, 
                  psfsigma_g=0.0, psfsigma_r=0.0, psfsigma_z=0.0, 
-                 lambda_ref=6470, lambda_g=4890, lambda_r=6470, lambda_z=9196, 
+                 lambda_ref=6470, lambda_g=4890, lambda_r=6470, lambda_z=9196,
                  **kwargs):
 
         self.band = ('g', 'r', 'z')
@@ -175,7 +175,7 @@ class SersicExponentialWaveModel(Fittable2DModel):
                                                          mu50_g1=mu50_g1, mu50_r1=mu50_r1, mu50_z1=mu50_z1,
                                                          mu50_g2=mu50_g2, mu50_r2=mu50_r2, mu50_z2=mu50_z2,
                                                          **kwargs)
-        
+
     def get_sersicn(self, nref, lam, alpha):
         return nref * (lam / self.lambda_ref)**alpha
     
@@ -231,14 +231,14 @@ class SersicDoubleWaveModel(Fittable2DModel):
     nref1 = Parameter(default=3, bounds=(0.1, 8))
     nref2 = Parameter(default=1, bounds=(0.1, 8))
 
-    r50ref1 = Parameter(default=3, bounds=(1e-3, 30)) # [arcsec]
-    r50ref2 = Parameter(default=10, bounds=(1e-3, 30)) # [arcsec]
+    r50ref1 = Parameter(default=3, bounds=(0.1, 100)) # [arcsec]
+    r50ref2 = Parameter(default=10, bounds=(0.1, 100)) # [arcsec]
 
     alpha1 = Parameter(default=0.0, bounds=(-1, 1))
-    alpha2 = Parameter(default=0.0, bounds=(-1, 1))
+    alpha2 = Parameter(default=0.0)#, bounds=(-1, 1))
 
     beta1 = Parameter(default=0.0, bounds=(-1, 1))
-    beta2 = Parameter(default=0.0, bounds=(-1, 1))
+    beta2 = Parameter(default=0.0)#, bounds=(-1, 1))
 
     mu50_g1 = Parameter(default=1.0, bounds=(0, 1e4))
     mu50_r1 = Parameter(default=1.0, bounds=(0, 1e4))
@@ -342,9 +342,16 @@ class SersicWaveFit(object):
                                                   self.initfit.lambda_z) ):
             # any quality cuts on stop_code here?!?
             #rad = ellipsefit[band].sma * pixscale # semi-major axis [arcsec]
-            rad = np.sqrt( ellipsefit[band].sma**2 * (1 - ellipsefit[band].eps) ) * pixscale # circularized radius [arcsec]
+            
+            rad = ellipsefit[band].sma * np.sqrt(1 - ellipsefit[band].eps) * pixscale # circularized radius [arcsec]
             flux = ellipsefit[band].intens
             ferr = np.sqrt( ellipsefit[band].int_err**2 + (0.4 * np.log(10) * flux * minerr)**2 ) # minimum uncertainty
+
+            #_sb = 22.5 - 2.5 * np.log10(flux) 
+            #keep = _sb < 29
+            #rad = rad[keep]
+            #flux = flux[keep]
+            #ferr = ferr[keep]
             
             wave.append(np.repeat(lam, len(rad)))
             radius.append(rad)
@@ -450,10 +457,26 @@ class SersicWaveFit(object):
             pinfo = getattr(self.initfit, pp)
             if not pinfo.fixed: # don't touch fixed parameters
                 if pinfo.bounds[0] is not None:
-                    params[ii, :] = self.rand.uniform(pinfo.bounds[0], pinfo.bounds[1], nball)
+                    #params[ii, :] = self.rand.uniform(pinfo.bounds[0], pinfo.bounds[1], nball)
+                    if pinfo.default == 0:
+                        scale = 0.1 * (pinfo.bounds[1] - pinfo.bounds[0])
+                    else:
+                        scale = 0.2 * pinfo.default
+                    params[ii, :] += self.rand.normal(scale=scale, size=nball)
+                    toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
+                    if len(toosmall) > 0:
+                        params[ii, toosmall] = pinfo.default
+                    toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
+                    if len(toobig) > 0:
+                        params[ii, toobig] = pinfo.default
+                    #if ii == 2:
+                    #    print(params[ii, :])
+                    #    pdb.set_trace()                              
                 else:
-                    params[ii, :] += self.rand.normal(scale=0.1*params[ii, :], size=nball)
-        
+                    params[ii, :] += self.rand.normal(scale=0.2 * pinfo.default, size=nball)
+        #print(params)
+        #pdb.set_trace()
+            
         # perform the fit several times
         with warnings.catch_warnings():
             warnings.simplefilter(warnvalue)
@@ -542,14 +565,25 @@ class SersicExponentialWaveFit(SersicWaveFit):
     """Fit surface brightness profiles with the SersicExponentialWaveModel model."""
     
     def __init__(self, ellipsefit, minerr=0.01, fix_alpha=False, fix_beta=False, seed=None):
+
         self.fixed = {'alpha1': fix_alpha, 'beta1': fix_beta, 'beta2': fix_beta}
-        self.initfit = SersicExponentialWaveModel(fixed=self.fixed, 
+        #tied = {'r50ref2': self.tie_r50ref2}
+        tied = {'beta2': self.tie_beta2}
+        
+        self.initfit = SersicExponentialWaveModel(fixed=self.fixed, tied=tied,
                                              psfsigma_g=ellipsefit['psfsigma_g'],
                                              psfsigma_r=ellipsefit['psfsigma_r'],
                                              psfsigma_z=ellipsefit['psfsigma_z'])
 
         super(SersicExponentialWaveFit, self).__init__(ellipsefit, seed=seed)
 
+    def tie_beta2(self, model):
+        return model.beta1
+        
+    def tie_r50ref2(self, model):
+        if model.r50ref2 < model.r50ref1:
+            return model.r50ref1*1.05
+        
     def fit(self, nball=10, chi2fail=1e6, verbose=False):
 
         return self._fit(nball=10, chi2fail=1e6, verbose=verbose, model='exponential')
@@ -558,14 +592,23 @@ class SersicDoubleWaveFit(SersicWaveFit):
     """Fit surface brightness profiles with the SersicDoubleWaveModel model."""
     
     def __init__(self, ellipsefit, minerr=0.01, fix_alpha=False, fix_beta=False, seed=None):
+
         self.fixed = {'alpha1': fix_alpha, 'alpha2': fix_alpha, 'beta1': fix_beta, 'beta2': fix_beta}
-        self.initfit = SersicDoubleWaveModel(fixed=self.fixed, 
+        tied = {'alpha2': self.tie_alpha2, 'beta2': self.tie_beta2}
+
+        self.initfit = SersicDoubleWaveModel(fixed=self.fixed, tied=tied,
                                              psfsigma_g=ellipsefit['psfsigma_g'],
                                              psfsigma_r=ellipsefit['psfsigma_r'],
                                              psfsigma_z=ellipsefit['psfsigma_z'])
 
         super(SersicDoubleWaveFit, self).__init__(ellipsefit, seed=seed)
 
+    def tie_alpha2(self, model):
+        return model.alpha1
+        
+    def tie_beta2(self, model):
+        return model.beta1
+        
     def fit(self, nball=10, chi2fail=1e6, verbose=False):
 
         return self._fit(nball=10, chi2fail=1e6, verbose=verbose, model='double')
@@ -643,7 +686,7 @@ def sersic_double(objid, objdir, ellipsefit, minerr=0.01, seed=None,
 
     return sersic
 
-def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.01,
+def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.03, seed=None,
                        verbose=False, debug=False):
     """Top-level wrapper script to model the measured surface-brightness profiles
     with various Sersic models.
@@ -659,26 +702,23 @@ def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.01,
     if bool(ellipsefit):
         if ellipsefit['success']:
 
-            #sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.03)
-
-            # single Sersic fit with and without wavelength dependence
-            single = sersic_single(objid, objdir, ellipsefit, minerr=minerr, verbose=verbose)
-            single_nowave = sersic_single(objid, objdir, ellipsefit, minerr=minerr,
-                                          verbose=verbose, nowavepower=True)
-
             # Sersic-exponential fit with and without wavelength dependence
             serexp = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr,
-                                        verbose=verbose)
+                                        verbose=verbose, seed=seed)
             serexp_nowave = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr,
-                                               verbose=verbose, nowavepower=True)
+                                               verbose=verbose, nowavepower=True, seed=seed)
+
+            # single Sersic fit with and without wavelength dependence
+            single = sersic_single(objid, objdir, ellipsefit, minerr=minerr,
+                                   verbose=verbose, seed=seed)
+            single_nowave = sersic_single(objid, objdir, ellipsefit, minerr=minerr,
+                                          verbose=verbose, nowavepower=True, seed=seed)
 
             # double Sersic fit with and without wavelength dependence
             double = sersic_double(objid, objdir, ellipsefit, minerr=minerr,
-                                   verbose=verbose)
+                                   verbose=verbose, seed=seed)
             double_nowave = sersic_double(objid, objdir, ellipsefit, minerr=minerr,
-                                          verbose=verbose, nowavepower=True)
-
-            # pdb.set_trace()
+                                          verbose=verbose, nowavepower=True, seed=seed)
 
             if single['success']:
                 return 1

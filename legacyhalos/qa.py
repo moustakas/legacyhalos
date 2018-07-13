@@ -254,7 +254,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
             r50 = r'$r_{{50,1}} = {r50ref1}\ r_{{50,2}} = {r50ref2}\ arcsec$'.format(r50ref1=r50ref1, r50ref2=r50ref2)
             txt = chi2+'\n'+alpha+'\n'+beta+'\n'+n+'\n'+r50
                 
-        ax.text(0.1, 0.1, txt, ha='left', va='bottom', linespacing=1.3,
+        ax.text(0.08, 0.1, txt, ha='left', va='bottom', linespacing=1.3,
                 transform=ax.transAxes, fontsize=12)
 
     ax.set_xlabel(r'Galactocentric radius $r$ (arcsec)')

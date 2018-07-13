@@ -238,7 +238,8 @@ def main():
             from legacyhalos.sersic import legacyhalos_sersic
             if args.debug:
                 result = legacyhalos_sersic(sample[ii], objid=objid, objdir=objdir, 
-                    debug=args.debug, verbose=args.verbose)
+                                            debug=args.debug, verbose=args.verbose,
+                                            seed=args.seed)
                 if result == 0:
                     print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                 print('Finished objid {} in {:.3f} minutes.'.format(
@@ -249,7 +250,8 @@ def main():
                         print('Rank {} started working on objid {} at {}'.format(
                             rank, objid, time.asctime()), flush=True)
                         result = legacyhalos_sersic(sample[ii], objid=objid, objdir=objdir, 
-                                                    debug=args.debug, verbose=args.verbose)
+                                                    debug=args.debug, verbose=args.verbose,
+                                                    seed=args.seed)
                         if result == 0:
                             print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
                         print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(

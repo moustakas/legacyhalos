@@ -108,6 +108,20 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
     from legacyhalos.io import read_sersic
     from legacyhalos.qa import display_sersic
 
+    # Single Sersic, no wavelength dependence
+    single = read_sersic(objid, objdir, model='single-nowavepower')
+    if bool(single):
+        singlefile = os.path.join(htmlobjdir, '{}-sersic-single-nowavepower.png'.format(objid))
+        if not os.path.isfile(singlefile) or clobber:
+            display_sersic(single, modeltype='single-nowavepower', png=singlefile, verbose=verbose)
+
+    # Single Sersic
+    single = read_sersic(objid, objdir, model='single')
+    if bool(single):
+        singlefile = os.path.join(htmlobjdir, '{}-sersic-single.png'.format(objid))
+        if not os.path.isfile(singlefile) or clobber:
+            display_sersic(single, modeltype='single', png=singlefile, verbose=verbose)
+
     # Sersic-exponential
     serexp = read_sersic(objid, objdir, model='exponential')
     if bool(serexp):
@@ -135,20 +149,6 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         doublefile = os.path.join(htmlobjdir, '{}-sersic-double-nowavepower.png'.format(objid))
         if not os.path.isfile(doublefile) or clobber:
             display_sersic(double, modeltype='double-nowavepower', png=doublefile, verbose=verbose)
-
-    # Single Sersic, no wavelength dependence
-    single = read_sersic(objid, objdir, model='single-nowavepower')
-    if bool(single):
-        singlefile = os.path.join(htmlobjdir, '{}-sersic-single-nowavepower.png'.format(objid))
-        if not os.path.isfile(singlefile) or clobber:
-            display_sersic(single, modeltype='single-nowavepower', png=singlefile, verbose=verbose)
-
-    # Single Sersic
-    single = read_sersic(objid, objdir, model='single')
-    if bool(single):
-        singlefile = os.path.join(htmlobjdir, '{}-sersic-single.png'.format(objid))
-        if not os.path.isfile(singlefile) or clobber:
-            display_sersic(single, modeltype='single', png=singlefile, verbose=verbose)
 
 def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False, verbose=True):
