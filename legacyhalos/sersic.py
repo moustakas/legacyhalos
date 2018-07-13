@@ -345,8 +345,6 @@ class SersicWaveFit(object):
             rad = np.sqrt( ellipsefit[band].sma**2 * (1 - ellipsefit[band].eps) ) * pixscale # circularized radius [arcsec]
             flux = ellipsefit[band].intens
             ferr = np.sqrt( ellipsefit[band].int_err**2 + (0.4 * np.log(10) * flux * minerr)**2 ) # minimum uncertainty
-            #flux, ferr = self.mu2flux(mu=sbprofile['mu_{}'.format(band)],
-            #                          muerr=sbprofile['mu_{}_err'.format(band)])
             
             wave.append(np.repeat(lam, len(rad)))
             radius.append(rad)
@@ -360,18 +358,6 @@ class SersicWaveFit(object):
         self.redshift = redshift
         self.minerr = minerr
 
-    def mu2flux(self, mu, muerr=None):
-        """Convert surface brightness mu to linear flux in nanomaggies.
-
-        Obsolete...
-        """
-        flux = 10**( -0.4 * (mu - 22.5) )
-        if muerr is not None:
-            ferr = 0.4 * np.log(10) * np.abs(flux) * muerr
-            return flux, ferr
-        else:
-            return flux
-    
     def chi2(self, bestfit):
         dof = len(self.sb) - len(bestfit.parameters)
         chi2 = np.sum( (self.sb - bestfit(self.radius, self.wave, self.sb))**2 / self.sberr**2 ) / dof
