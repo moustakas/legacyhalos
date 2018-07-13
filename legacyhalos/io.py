@@ -261,7 +261,7 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
         sig1 = 1.0 / np.sqrt(np.median(invvar[invvar > 0]))
 
         mask = (invvar <= 0)*1 # 1=bad, 0=good
-        mask = np.logical_or( mask, ( model > (0.5 * sig1) )*1 )
+        mask = np.logical_or( mask, ( model > (1 * sig1) )*1 )
         mask = binary_dilation(mask, iterations=5) * 1
 
         data[filt] = (image - model) / pixscale**2 # [nanomaggies/arcsec**2]

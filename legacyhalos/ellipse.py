@@ -41,7 +41,7 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
         ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)] / 2.355 # [Gaussian sigma, arcsec]
 
     # Default parameters
-    integrmode, sclip, nclip, step, fflag = 'bilinear', 3, 0, 0.1, 0.5
+    integrmode, sclip, nclip, step, fflag = 'bilinear', 2, 3, 0.1, 0.5
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip
     ellipsefit['nclip'] = nclip
