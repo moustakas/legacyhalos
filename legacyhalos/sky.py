@@ -148,7 +148,7 @@ def legacyhalos_sky(sample, survey=None, objid=None, objdir=None, ncpu=1, nsky=1
 
     """
     if objid is None and objdir is None:
-        objid, objdir = get_objid(sample)
+        objid, objdir = legacyhalos.io.get_objid(sample)
         
     rand = np.random.RandomState(seed)
 
