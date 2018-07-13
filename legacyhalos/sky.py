@@ -141,7 +141,7 @@ def sky_positions(ra_cluster, dec_cluster, redshift, r_lambda, nsky, rand):
 
     return ra, dec
 
-def legacyhalos_sky(sample, survey=None, objid=None, objdir=None, ncpu=1, nsky=10,
+def legacyhalos_sky(sample, survey=None, objid=None, objdir=None, ncpu=1, nsky=30,
                     pixscale=0.262, log=None, seed=None, verbose=False, band=('g', 'r', 'z'),
                     debug=False, force=False):
     """Top-level wrapper script to measure the sky variance around a given galaxy.
