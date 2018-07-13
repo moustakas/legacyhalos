@@ -499,12 +499,34 @@ class SersicWaveFit(object):
         # perform the fit several times
         with warnings.catch_warnings():
             warnings.simplefilter(warnvalue)
-            
+
+            # interpolate!
+            nrr = 150
+            dr = 0.1
+            radius, wave, sb, sberr = [], [], [], []
+            for lam in (self.initfit.lambda_g, self.initfit.lambda_r, self.initfit.lambda_z):
+                ww = (self.wave == lam)
+                if np.sum(ww) > 0:
+                    rmin, rmax = self.radius[ww].min(), self.radius[ww].max()
+                    #nrr = ( (rmax - rmin) / dr + 1 ).astype('int')
+                    rr = np.linspace(rmin, rmax, nrr)
+                    #rr = np.logspace(np.log10(rmin), np.log10(rmax), nrr)
+                    radius.append(rr)
+                    wave.append(np.repeat(lam, nrr))
+                    sb.append( np.interp(rr, self.radius[ww], self.sb[ww]) )
+                    sberr.append( np.sqrt(np.interp(rr, self.radius[ww], self.sberr[ww]**2)) )
+
+            sb = np.hstack(sb)
+            sberr = np.hstack(sberr)
+            wave = np.hstack(wave)
+            radius = np.hstack(radius)
+
             chi2 = np.zeros(nball) + chi2fail
             for jj in range(nball):
                 self.initfit.parameters = params[:, jj]
-                ballfit = self.fitter(self.initfit, self.radius, self.wave, self.sb,
-                                      weights=1/self.sberr, maxiter=200)
+                ballfit = self.fitter(self.initfit, radius, wave, sb, weights=1/sberr, maxiter=200)
+                #ballfit = self.fitter(self.initfit, self.radius, self.wave, self.sb,
+                #                      weights=1/self.sberr, maxiter=200)
                 chi2[jj] = self.chi2(ballfit)
                 if self.fitter.fit_info['param_cov'] is None: # failed
                     if verbose:
@@ -524,8 +546,8 @@ class SersicWaveFit(object):
         mindx = np.argmin(chi2)
 
         self.initfit.parameters = params[:, mindx]
-        bestfit = self.fitter(self.initfit, self.radius, self.wave, 
-                              self.sb, weights= 1 / self.sberr)
+        bestfit = self.fitter(self.initfit, radius, wave, sb, weights= 1 / sberr)
+        #bestfit = self.fitter(self.initfit, self.radius, self.wave, self.sb, weights= 1 / self.sberr)
         minchi2 = chi2[mindx]
         print('{} Sersic fitting succeeded with a chi^2 minimum of {:.2f}'.format(model.upper(), minchi2))
 

@@ -119,7 +119,7 @@ def main():
                 ndone = np.sum(results[colname] < chi2fail)
                 fracdone = 100 * ndone / ngal
                 print('  {}: {}/{} ({:.1f}%) '.format(modelname, ndone, ngal, fracdone))
-    #print(results)
+    print(results)
 
     # Write out
     legacyhalos.io.write_results(results, clobber=args.clobber, sersic_single=sersic_single,

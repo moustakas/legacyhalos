@@ -10,7 +10,7 @@ https://xkcd.com/color/rgb/
 from __future__ import absolute_import, division, print_function
 
 import os, pdb
-import time
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -44,11 +44,11 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     markers = iter(['o', 's', 'D'])
     colors = _sbprofile_colors()
 
-    smascale = arcsec2kpc(sersic['redshift'])
-
     if sersic['success']:
+        smascale = arcsec2kpc(sersic['redshift'])
         model = sersic['bestfit']
     else:
+        smascale = 1
         model = None
 
     ymnmax = [40, 0]
@@ -58,7 +58,8 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     for band, lam in zip( sersic['band'], (sersic['lambda_g'],
                                            sersic['lambda_r'],
                                            sersic['lambda_z']) ):
-        with np.errstate(invalid='ignore'):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
             #good = (lam == sersic['wave']) * np.isfinite(sersic['sb'])
             good = (lam == sersic['wave']) * np.isfinite(sersic['sb']) * (sersic['sb'] / sersic['sberr'] > 1)
 
