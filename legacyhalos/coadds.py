@@ -153,9 +153,10 @@ def _read_tractor(sample, objid=None, targetwcs=None,
     # Find and remove the central.  For some reason, match_radec
     # occassionally returns two matches, even though nearest=True.
     m1, m2, d12 = match_radec(cat.ra, cat.dec, sample['ra'], sample['dec'],
-                              1/3600.0, nearest=True)
+                              3/3600.0, nearest=True)
     if len(d12) == 0:
-        raise ValueError('No matching central found -- definitely a problem.')
+        print('No matching central found -- definitely a problem.')
+        raise ValueError
     elif len(d12) > 1:
         m1 = m1[np.argmin(d12)]
 
