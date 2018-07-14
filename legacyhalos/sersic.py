@@ -423,7 +423,11 @@ class SersicWaveFit(object):
 
         phot = Table()
         [phot.add_column(Column(name='flux_obs_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
+        [phot.add_column(Column(name='flux_obs_ivar_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
+
         [phot.add_column(Column(name='flux_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
+        [phot.add_column(Column(name='flux_ivar_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
+        
         [phot.add_column(Column(name='dm_in_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
         [phot.add_column(Column(name='dm_out_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
         [phot.add_column(Column(name='dm_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
@@ -432,24 +436,38 @@ class SersicWaveFit(object):
                                                   self.initfit.lambda_r, 
                                                   self.initfit.lambda_z) ):
             wave = np.repeat(lam, nrad)
-            indx = (self.wave == lam) * np.isfinite(self.sb)
+            indx = (self.wave == lam) * np.isfinite(self.sb) * (self.sb > 0)
             
             rad = self.radius[indx]
             sb = self.sb[indx]
-            obsflux = 2 * np.pi * integrate.simps(x=rad, y=rad*sb)
-            phot['flux_obs_{}'.format(band)] = obsflux
+            sberr = self.sberr[indx]
             
+            obsflux = 2 * np.pi * integrate.simps(x=rad, y=rad*sb)
+            obsvar = 2 * np.pi * integrate.simps(x=rad, y=rad*sberr**2)
+
+            phot['flux_obs_{}'.format(band)] = obsflux
+            if obsvar > 0:
+                phot['flux_obs_ivar_{}'.format(band)] = 1/obsvar
+
             # now integrate inward and outward by evaluating the model
             rad_in = np.linspace(0, rad.min(), nrad)
             sb_in = bestfit(rad_in, wave) # no-convolution!!!
             dm_in = 2 * np.pi * integrate.simps(x=rad_in, y=rad_in*sb_in)
             
-            rad_out = np.logspace(np.log10(rad.max()), 3, nrad)
+            #rad_out = np.logspace(np.log10(rad.max()), 3, nrad)
+            rad_out = np.linspace(rad.max()*0.7, 200, 150) # nrad)
             sb_out = bestfit(rad_out, wave)
             dm_out = 2 * np.pi * integrate.simps(x=rad_out, y=rad_out*sb_out)
+
+            #plt.errorbar(rad, 22.5-2.5*np.log10(sb), 2.5*sberr/sb/np.log(10))
+            #plt.plot(rad_in, 22.5-2.5*np.log10(sb_in)) ; plt.scatter(rad_out, 22.5-2.5*np.log10(sb_out))
+            #plt.ylim(32, 15) ; plt.xlim(0, 30)
+            #plt.show()
+            #pdb.set_trace()
             
             dm = dm_in + dm_out
             phot['flux_{}'.format(band)] = phot['flux_obs_{}'.format(band)] + dm
+            phot['flux_ivar_{}'.format(band)] = phot['flux_obs_ivar_{}'.format(band)] + dm
             
             phot['dm_in_{}'.format(band)] = - 2.5 * np.log10(1 - dm_in / obsflux)
             phot['dm_out_{}'.format(band)] = - 2.5 * np.log10(1 - dm_out / obsflux)
@@ -569,8 +587,8 @@ class SersicWaveFit(object):
         minchi2 = chi2[mindx]
         print('{} Sersic fitting succeeded with a chi^2 minimum of {:.2f}'.format(model.upper(), minchi2))
 
-        # Integrate the data and model over various apertures.
-        phot = self.integrate(bestfit)
+        ## Integrate the data and model over various apertures.
+        #phot = self.integrate(bestfit)
         
         # Pack the results in a dictionary and return.
         # https://gist.github.com/eteq/1f3f0cec9e4f27536d52cd59054c55f2
@@ -609,7 +627,7 @@ class SersicWaveFit(object):
             'cov': cov,
             'bestfit': bestfit,
             'fit_message': self.fitter.fit_info['message'],
-            'phot': phot,
+            #'phot': phot,
         })
         
         return result
@@ -776,18 +794,18 @@ def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.02, seed=None,
     if bool(ellipsefit):
         if ellipsefit['success']:
 
-            # double Sersic fit with and without wavelength dependence
-            double = sersic_double(objid, objdir, ellipsefit, minerr=minerr,
-                                   verbose=verbose, seed=seed)
-            double_nowave = sersic_double(objid, objdir, ellipsefit, minerr=minerr,
-                                          verbose=verbose, nowavepower=True, seed=seed)
-
             # Sersic-exponential fit with and without wavelength dependence
             serexp = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr,
                                         verbose=verbose, seed=seed)
 
             serexp_nowave = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr,
                                                verbose=verbose, nowavepower=True, seed=seed)
+
+            # double Sersic fit with and without wavelength dependence
+            double = sersic_double(objid, objdir, ellipsefit, minerr=minerr,
+                                   verbose=verbose, seed=seed)
+            double_nowave = sersic_double(objid, objdir, ellipsefit, minerr=minerr,
+                                          verbose=verbose, nowavepower=True, seed=seed)
 
             # single Sersic fit with and without wavelength dependence
             single = sersic_single(objid, objdir, ellipsefit, minerr=minerr,
