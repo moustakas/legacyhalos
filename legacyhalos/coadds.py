@@ -31,7 +31,7 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
     cmd += '--threads {threads} --outdir {outdir} --unwise-coadds '
     #cmd += '--force-stage coadds '
     cmd += '--write-stage srcs --no-write --skip --skip-calibs --no-wise-ceres '
-    cmd += '--checkpoint {archivedir}/{objid}-runbrick-checkpoint.p --checkpoint-period 300 '
+    cmd += '--checkpoint {archivedir}/{objid}-runbrick-checkpoint.p --checkpoint-period 600 '
     cmd += '--pickle {archivedir}/{objid}-runbrick-%%(stage)s.p ' 
     if force:
         cmd += '--force-all '

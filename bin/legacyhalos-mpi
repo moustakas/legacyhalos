@@ -167,8 +167,9 @@ def main():
     if len(groups[rank]) == 0 or args.count:
         if len(groups[rank]) > 0 and args.debug:
             objid, objdir = legacyhalos.io.get_objid(sample[groups])
-            #[print('  {} {}'.format(ii, dd)) for ii, dd in zip(np.atleast_1d(groups), np.atleast_1d(objdir))]
-            [print('  {}'.format(dd)) for dd in np.atleast_1d(objdir)]
+            for ii, dd in zip(groups[rank], objdir):
+                print('  {} {}'.format(ii, dd))
+            #[print('  {}'.format(dd)) for dd in np.atleast_1d(objdir)]
         return
 
     # Loop on the remaining objects.
