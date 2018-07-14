@@ -115,8 +115,6 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         if not os.path.isfile(doublefile) or clobber:
             display_sersic(double, modeltype='double', png=doublefile, verbose=verbose)
 
-    pdb.set_trace()     
-
     # Double Sersic, no wavelength dependence
     double = read_sersic(objid, objdir, model='double-nowavepower')
     if bool(double):
@@ -169,14 +167,13 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         if not os.path.isdir(htmlobjdir):
             os.makedirs(htmlobjdir, exist_ok=True)
 
-        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
-                          clobber=clobber, verbose=verbose)
-
-        pdb.set_trace()
-        
         # Build the ellipse plots.
         qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
                            clobber=clobber, verbose=verbose)
+        pdb.set_trace()
+
+        qa_sersic_results(objid, objdir, htmlobjdir, band=band,
+                          clobber=clobber, verbose=verbose)
 
         # Build the montage coadds.
         qa_montage_coadds(objid, objdir, htmlobjdir, clobber=clobber, verbose=verbose)

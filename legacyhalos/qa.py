@@ -287,6 +287,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         ylim[1] = 32.5
     ax.set_ylim(ylim)
     ax.invert_yaxis()
+    #ax.margins()
     ax.margins(ymargins=0)
     #ax.set_yscale('log')
 
@@ -558,9 +559,10 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             
             #with np.errstate(invalid='ignore'):
             #    good = np.isfinite(mu) * (mu / muerr > 3)
-            #sma = sma[good]
-            #mu = mu[good]
-            #muerr = muerr[good]
+            good = np.isfinite(mu)
+            sma = sma[good]
+            mu = mu[good]
+            muerr = muerr[good]
                 
             col = next(colors)
             ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color=col,
@@ -569,7 +571,10 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                 skysma = skyellipsefit['sma'] * ellipsefit['pixscale']
                 sky = astropy.stats.mad_std(skyellipsefit[filt], axis=1, ignore_nan=True)
                 # sky = np.nanstd(skyellipsefit[filt], axis=1) # / np.sqrt(skyellipsefit[
-                ax1.plot( skysma, 22.5 - 2.5 * np.log10(sky) , color=col, ls='--', alpha=0.5)
+                skygood = np.isfinite(sky)
+                skysma = skysma[skygood]
+                skymu = 22.5 - 2.5 * np.log10(sky[skygood])
+                ax1.plot( skysma, skymu , color=col, ls='--', alpha=0.5)
 
             if np.nanmin(mu-muerr) < ymnmax[0]:
                 ymnmax[0] = np.nanmin(mu-muerr)
