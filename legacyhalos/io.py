@@ -79,7 +79,7 @@ def write_ellipsefit(objid, objdir, ellipsefit, verbose=False):
     with open(ellipsefitfile, 'wb') as ell:
         pickle.dump(ellipsefit, ell)
 
-def read_ellipsefit(objid, objdir):
+def read_ellipsefit(objid, objdir, verbose=True):
     """Read the output of write_ellipsefit."""
 
     ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
@@ -88,10 +88,36 @@ def read_ellipsefit(objid, objdir):
             ellipsefit = pickle.load(ell)
     except:
         #raise IOError
-        print('File {} not found!'.format(ellipsefitfile))
+        if verbose:
+            print('File {} not found!'.format(ellipsefitfile))
         ellipsefit = dict()
 
     return ellipsefit
+
+def write_sky_ellipsefit(objid, objdir, skyellipsefit, verbose=False):
+    """Pickle the sky ellipse-fitting results
+
+    """
+    skyellipsefitfile = os.path.join(objdir, '{}-ellipsefit-sky.p'.format(objid))
+    if verbose:
+        print('Writing {}'.format(skyellipsefitfile))
+    with open(skyellipsefitfile, 'wb') as ell:
+        pickle.dump(skyellipsefit, ell)
+
+def read_sky_ellipsefit(objid, objdir, verbose=True):
+    """Read the output of write_skyellipsefit."""
+
+    skyellipsefitfile = os.path.join(objdir, '{}-ellipsefit-sky.p'.format(objid))
+    try:
+        with open(skyellipsefitfile, 'rb') as ell:
+            skyellipsefit = pickle.load(ell)
+    except:
+        #raise IOError
+        if verbose:
+            print('File {} not found!'.format(skyellipsefitfile))
+        skyellipsefit = dict()
+
+    return skyellipsefit
 
 def write_sersic(objid, objdir, sersic, model='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
@@ -104,7 +130,7 @@ def write_sersic(objid, objdir, sersic, model='single', verbose=False):
     with open(sersicfile, 'wb') as ell:
         pickle.dump(sersic, ell)
 
-def read_sersic(objid, objdir, model='single'):
+def read_sersic(objid, objdir, model='single', verbose=True):
     """Read the output of write_sersic."""
 
     sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, model))
@@ -113,7 +139,8 @@ def read_sersic(objid, objdir, model='single'):
             sersic = pickle.load(ell)
     except:
         #raise IOError
-        print('File {} not found!'.format(sersicfile))
+        if verbose:
+            print('File {} not found!'.format(sersicfile))
         sersic = dict()
 
     return sersic
@@ -128,7 +155,7 @@ def write_mgefit(objid, objdir, mgefit, band='r', verbose=False):
     with open(mgefitfile, 'wb') as mge:
         pickle.dump(mgefit, mge)
 
-def read_mgefit(objid, objdir):
+def read_mgefit(objid, objdir, verbose=True):
     """Read the output of write_mgefit."""
 
     mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
@@ -137,13 +164,14 @@ def read_mgefit(objid, objdir):
             mgefit = pickle.load(mge)
     except:
         #raise IOError
-        print('File {} not found!'.format(mgefitfile))
+        if verbose:
+            print('File {} not found!'.format(mgefitfile))
         mgefit = dict()
 
     return mgefit
 
-def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
-    """Read the various catalogs.
+def read_parent(extname='LSPHOT', upenn=True, isedfit=False, columns=None, verbose=False):
+    """Read the various parent catalogs.
 
     Args:
       upenn - Restrict to the UPenn-matched catalogs.
@@ -162,21 +190,43 @@ def read_catalog(extname='LSPHOT', upenn=True, isedfit=False, columns=None):
     catfile = os.path.join(lsdir, 'legacyhalos-parent{}.fits'.format(suffix))
     
     cat = Table(fitsio.read(catfile, ext=extname, columns=columns, lower=True))
-    print('Read {} objects from {} [{}]'.format(len(cat), catfile, extname))
+    if verbose:
+        print('Read {} objects from {} [{}]'.format(len(cat), catfile, extname))
 
     return cat
 
-def write_results(results, clobber=False):
+def write_results(results, sersic_single=None, sersic_double=None, sersic_exponential=None,
+                  sersic_single_nowavepower=None, sersic_double_nowavepower=None,
+                  sersic_exponential_nowavepower=None, clobber=False, verbose=False):
     """Write out the output of legacyhalos-results
 
     """
     lsdir = legacyhalos_dir()
-    resultsfilt = os.path.join(lsdir, 'legacyhalos-results.fits')
-    if not os.path.isfile(resultsfilt) or clobber:
-        print('Writing {}'.format(resultsfilt))
-        results.write(resultsfilt, overwrite=True)
+    resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
+    if not os.path.isfile(resultsfile) or clobber:
+        from astropy.io import fits
+
+        hx = fits.HDUList()
+
+        hdu = fits.table_to_hdu(results)
+        hdu.header['EXTNAME'] = 'RESULTS'
+        hx.append(hdu)
+
+        for tt, name in zip( (sersic_single, sersic_double, sersic_exponential,
+                              sersic_single_nowavepower, sersic_double_nowavepower,
+                              sersic_exponential_nowavepower),
+                              ('sersic_single', 'sersic_double, sersic_exponential',
+                              'sersic_single_nowavepower', 'sersic_double_nowavepower',
+                              'sersic_exponential_nowavepower') ):
+            hdu = fits.table_to_hdu(tt)
+            hdu.header['EXTNAME'] = name.upper()
+            hx.append(hdu)
+
+        if verbose:
+            print('Writing {}'.format(resultsfile))
+        hx.writeto(resultsfile, overwrite=True)
     else:
-        print('File {} exists.'.format(resultsfilt))
+        print('File {} exists.'.format(resultsfile))
 
 def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
     """Read the multi-band images, construct the residual image, and then create a
@@ -211,7 +261,7 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
         sig1 = 1.0 / np.sqrt(np.median(invvar[invvar > 0]))
 
         mask = (invvar <= 0)*1 # 1=bad, 0=good
-        mask = np.logical_or( mask, ( model > (2 * sig1) )*1 )
+        mask = np.logical_or( mask, ( model > (1 * sig1) )*1 )
         mask = binary_dilation(mask, iterations=5) * 1
 
         data[filt] = (image - model) / pixscale**2 # [nanomaggies/arcsec**2]
@@ -226,7 +276,26 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
 
     return data
 
-def read_sample(first=None, last=None):
+def read_results(first=None, last=None, verbose=False, extname='RESULTS'):
+    """Read the output of io.write_results.
+
+    """
+    import fitsio
+    from astropy.table import Table
+
+    lsdir = legacyhalos_dir()
+    resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
+
+    if not os.path.isfile(resultsfile):
+        print('File {} not found.'.format(resultsfile))
+        return None
+    else:
+        if verbose:
+            print('Reading extension {} from {}'.format(extname, resultsfile))
+        results = Table(fitsio.read(resultsfile, ext=extname))
+        return results
+
+def read_sample(first=None, last=None, verbose=False):
     """Read the sample.
 
     Temporary hack to add the DR to the catalog.
@@ -243,23 +312,26 @@ def read_sample(first=None, last=None):
     rmcols = ('mem_match_id', 'z', 'r_lambda', 'lambda_chisq', 'p_cen')
     sdsscols = ('objid')
         
-    sample = legacyhalos.io.read_catalog(extname='LSPHOT', upenn=True,
-                                         columns=tractorcols)
+    sample = legacyhalos.io.read_parent(extname='LSPHOT', upenn=True,
+                                        columns=tractorcols, verbose=verbose)
     
-    rm = legacyhalos.io.read_catalog(extname='REDMAPPER', upenn=True,
-                                     columns=rmcols)
+    rm = legacyhalos.io.read_parent(extname='REDMAPPER', upenn=True,
+                                    columns=rmcols, verbose=verbose)
     
-    sdss = legacyhalos.io.read_catalog(extname='SDSSPHOT', upenn=True,
-                                       columns=np.atleast_1d(sdsscols))
+    sdss = legacyhalos.io.read_parent(extname='SDSSPHOT', upenn=True,
+                                      columns=np.atleast_1d(sdsscols),
+                                      verbose=verbose)
     
     sdss.rename_column('objid', 'sdss_objid')
-    print('Renaming column objid-->sdss_objid in [SDSSPHOT] extension.')
+    if verbose:
+        print('Renaming column objid-->sdss_objid in [SDSSPHOT] extension.')
     sample = hstack( (sample, rm) )
     sample = hstack( (sample, sdss) )
 
     if first and last:
         if first > last:
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+            raise ValueError()
 
     if first is None:
         first = 0
@@ -267,7 +339,31 @@ def read_sample(first=None, last=None):
         last = len(sample)-1
 
     sample = sample[first:last+1]
-    print('Sample contains {} objects with first, last indices {}, {}'.format(
-        len(sample), first, last))
+    if verbose:
+        print('Sample contains {} objects with first, last indices {}, {}'.format(
+            len(sample), first, last))
 
     return sample
+
+def literature(kravtsov=True, gonzalez=False):
+    """Assemble some data from the literature here."""
+
+    if kravtsov:
+        krav = dict()
+        krav['m500'] = np.log10(np.array([15.6,10.3,7,5.34,2.35,1.86,1.34,0.46,0.47])*1e14)
+        krav['mbcg'] = np.array([3.12,4.14,3.06,1.47,0.79,1.26,1.09,0.91,1.38])*1e12
+        krav['mbcg_err'] = np.array([0.36,0.3,0.3,0.13,0.05,0.11,0.06,0.05,0.14])*1e12
+        krav['mbcg_err'] = krav['mbcg_err'] / krav['mbcg'] / np.log(10)
+        krav['mbcg'] = np.log10(krav['mbcg'])
+        return krav
+
+    if gonzalez:
+        gonz = dict()
+        gonz['mbcg'] = np.array([0.84,0.87,0.33,0.57,0.85,0.60,0.86,0.93,0.71,0.81,0.70,0.57])*1e12*2.65
+        gonz['mbcg_err'] = np.array([0.03,0.09,0.01,0.01,0.14,0.03,0.03,0.05,0.07,0.12,0.02,0.01])*1e12*2.65
+        gonz['m500'] = np.array([2.26,5.15,0.95,3.46,3.59,0.99,0.95,3.23,2.26,2.41,2.37,1.45])*1e14
+        gonz['m500_err'] = np.array([0.19,0.42,0.1,0.32,0.28,0.11,0.1,0.19,0.23,0.18,0.24,0.21])*1e14
+        gonz['mbcg_err'] = gonz['mbcg_err'] / gonz['mbcg'] / np.log(10)
+        gonz['mbcg'] = np.log10(gonz['mbcg'])
+        gonz['m500'] = np.log10(gonz['m500'])
+        return gonz

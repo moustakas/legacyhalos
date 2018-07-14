@@ -83,7 +83,7 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
         radius[radius < rmin] = rmin
         radius[radius > rmax] = rmax
 
-    return radius
+    return radius # [pixels]
 
 def arcsec2kpc(redshift):
     """Compute and return the scale factor to convert a physical axis in arcseconds
@@ -126,3 +126,33 @@ def medxbin(xx, yy, binsize, minpts=20, xmin=None, xmax=None):
     stats = stats[good]
 
     return bins[good], stats
+
+def custom_brickname(ra, dec, prefix='custom-'):
+    brickname = 'custom-{:06d}{}{:05d}'.format(
+        int(1000*ra), 'm' if dec < 0 else 'p',
+        int(1000*np.abs(dec)))
+    return brickname
+
+def lambda2mhalo(richness, redshift=0.3, Saro=False):
+    """
+    Convert cluster richness, lambda, to halo mass, given various 
+    calibrations.
+    
+      * Saro et al. 2015: Equation (7) and Table 2 gives M(500).
+      * Melchior et al. 2017: Equation (51) and Table 4 gives M(200).
+      * Simet et al. 2017: 
+    
+    Other SDSS-based calibrations: Li et al. 2016; Miyatake et al. 2016; 
+    Farahi et al. 2016; Baxter et al. 2016.
+
+    TODO: Return the variance!
+
+    """
+    if Saro:
+        pass
+    
+    # Melchior et al. 2017 (default)
+    logM0, Flam, Gz, lam0, z0 = 14.371, 1.12, 0.18, 30.0, 0.5
+    Mhalo = 10**logM0 * (richness / lam0)**Flam * ( (1 + redshift) / (1 + z0) )**Gz
+    
+    return Mhalo

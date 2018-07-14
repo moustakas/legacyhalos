@@ -14,38 +14,38 @@ import shutil
 import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 
-def custom_brickname(sample, prefix='custom-'):
-    brickname = 'custom-{:06d}{}{:05d}'.format(
-        int(1000*sample['ra']), 'm' if sample['dec'] < 0 else 'p',
-        int(1000*np.abs(sample['dec'])))
-    return brickname
+from legacyhalos.misc import custom_brickname
 
 def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
-                  pixscale=0.262, log=None, force=False):
+                  pixscale=0.262, log=None, force=False, archivedir=None):
     """Run legacypipe on a custom "brick" centered on the central.
 
     """
     import subprocess
 
+    if archivedir is None:
+        archivedir = survey.output_dir
+
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
-    cmd += '--threads {threads} --outdir {outdir} --unwise-coadds --skip-metrics '
+    cmd += '--threads {threads} --outdir {outdir} --unwise-coadds '
     #cmd += '--force-stage coadds '
     cmd += '--write-stage srcs --no-write --skip --skip-calibs --no-wise-ceres '
-    cmd += '--checkpoint {outdir}/{objid}-runbrick-checkpoint.p --checkpoint-period 300 '
-    cmd += '--pickle {outdir}/{objid}-runbrick-%%(stage)s.p ' 
+    cmd += '--checkpoint {archivedir}/{objid}-runbrick-checkpoint.p --checkpoint-period 300 '
+    cmd += '--pickle {archivedir}/{objid}-runbrick-%%(stage)s.p ' 
     if force:
         cmd += '--force-all '
     
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), objid=objid,
                      ra=sample['ra'], dec=sample['dec'], width=2*radius,
-                     pixscale=pixscale, threads=ncpu, outdir=survey.output_dir)
+                     pixscale=pixscale, threads=ncpu, outdir=survey.output_dir,
+                     archivedir=archivedir)
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
 
     # Move (rename) files into the desired output directory and clean up.
-    brickname = custom_brickname(sample, prefix='custom-')
+    brickname = custom_brickname(sample['ra'], sample['dec'], prefix='custom-')
 
     # tractor catalog
     shutil.copy(
@@ -77,7 +77,7 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
             os.path.join(survey.output_dir, '{}-{}.jpg'.format(objid, imtype))
             )
 
-    # CCDs, maskbits, and depth images
+    # CCDs, maskbits, blob images, and depth images
     shutil.copy(
         os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                      'legacysurvey-{}-ccds.fits'.format(brickname)),
@@ -88,6 +88,10 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
                      'legacysurvey-{}-maskbits.fits.gz'.format(brickname)),
         os.path.join(survey.output_dir, '{}-maskbits.fits.gz'.format(objid))
         )
+    shutil.copy(
+        os.path.join(survey.output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
+        os.path.join(survey.output_dir, '{}-blobs.fits.gz'.format(objid))
+        )
     for band in ('g', 'r', 'z'):
         shutil.copy(
             os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
@@ -97,6 +101,7 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
         
     if True:
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
+        shutil.rmtree(os.path.join(survey.output_dir, 'metrics'))
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor'))
         shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
 
@@ -148,9 +153,10 @@ def _read_tractor(sample, objid=None, targetwcs=None,
     # Find and remove the central.  For some reason, match_radec
     # occassionally returns two matches, even though nearest=True.
     m1, m2, d12 = match_radec(cat.ra, cat.dec, sample['ra'], sample['dec'],
-                              1/3600.0, nearest=True)
+                              3/3600.0, nearest=True)
     if len(d12) == 0:
-        raise ValueError('No matching central found -- definitely a problem.')
+        print('No matching central found -- definitely a problem.')
+        raise ValueError
     elif len(d12) > 1:
         m1 = m1[np.argmin(d12)]
 
@@ -261,9 +267,10 @@ def legacyhalos_custom_coadds(sample, survey=None, objid=None, objdir=None,
     
     if objid is None and objdir is None:
         objid, objdir = get_objid(sample)
-    brickname = custom_brickname(sample, prefix='')
+    brickname = custom_brickname(sample['ra'], sample['dec'], prefix='')
 
     survey.output_dir = objdir
+    archivedir = objdir.replace('analysis', 'analysis-archive') # hack!
 
     # Step 0 - Get the cutout radius.
     if cluster_radius:
@@ -277,7 +284,8 @@ def legacyhalos_custom_coadds(sample, survey=None, objid=None, objdir=None,
     # Step 1 - Run legacypipe to generate a custom "brick" and tractor catalog
     # centered on the central.
     _custom_brick(sample, objid=objid, survey=survey, radius=radius,
-                  ncpu=ncpu, pixscale=pixscale, log=log, force=force)
+                  ncpu=ncpu, pixscale=pixscale, log=log, force=force,
+                  archivedir=archivedir)
 
     # Step 2 - Read the Tractor catalog for this brick and remove the central.
     cat = _read_tractor(sample, objid=objid, survey=survey, log=log)

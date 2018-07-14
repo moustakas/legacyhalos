@@ -39,11 +39,12 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
     """Generate QAplots from the ellipse-fitting.
 
     """
-    from legacyhalos.io import read_multiband, read_ellipsefit
+    from legacyhalos.io import read_multiband, read_ellipsefit, read_sky_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile)
 
     ellipsefit = read_ellipsefit(objid, objdir)
+    skyellipsefit = read_sky_ellipsefit(objid, objdir)
 
     if len(ellipsefit) > 0:
 
@@ -51,6 +52,11 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         indx = None
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
         #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
+
+        sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
+        if not os.path.isfile(sbprofilefile) or clobber:
+            display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
+                                      png=sbprofilefile, verbose=verbose, minerr=0.0)
 
         multibandfile = os.path.join(htmlobjdir, '{}-ellipse-multiband.png'.format(objid))
         if not os.path.isfile(multibandfile) or clobber:
@@ -61,10 +67,6 @@ def qa_ellipse_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         ellipsefitfile = os.path.join(htmlobjdir, '{}-ellipse-ellipsefit.png'.format(objid))
         if not os.path.isfile(ellipsefitfile) or clobber:
             display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
-        
-        sbprofilefile = os.path.join(htmlobjdir, '{}-ellipse-sbprofile.png'.format(objid))
-        if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, png=sbprofilefile, verbose=verbose, minerr=0.0)
         
 def qa_mge_results(objid, objdir, htmlobjdir, refband='r', band=('g', 'r', 'z'),
                    pixscale=0.262, clobber=False, verbose=True):
@@ -106,20 +108,6 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
     from legacyhalos.io import read_sersic
     from legacyhalos.qa import display_sersic
 
-    # Sersic-exponential
-    serexp = read_sersic(objid, objdir, model='exponential')
-    if bool(serexp):
-        serexpfile = os.path.join(htmlobjdir, '{}-sersic-exponential.png'.format(objid))
-        if not os.path.isfile(serexpfile) or clobber:
-            display_sersic(serexp, modeltype='exponential', png=serexpfile, verbose=verbose)
-
-    # Sersic-exponential, no wavelength dependence
-    serexp = read_sersic(objid, objdir, model='exponential-nowavepower')
-    if bool(serexp):
-        serexpfile = os.path.join(htmlobjdir, '{}-sersic-exponential-nowavepower.png'.format(objid))
-        if not os.path.isfile(serexpfile) or clobber:
-            display_sersic(serexp, modeltype='exponential-nowavepower', png=serexpfile, verbose=verbose)
-
     # Double Sersic
     double = read_sersic(objid, objdir, model='double')
     if bool(double):
@@ -147,6 +135,20 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         singlefile = os.path.join(htmlobjdir, '{}-sersic-single.png'.format(objid))
         if not os.path.isfile(singlefile) or clobber:
             display_sersic(single, modeltype='single', png=singlefile, verbose=verbose)
+
+    # Sersic-exponential
+    serexp = read_sersic(objid, objdir, model='exponential')
+    if bool(serexp):
+        serexpfile = os.path.join(htmlobjdir, '{}-sersic-exponential.png'.format(objid))
+        if not os.path.isfile(serexpfile) or clobber:
+            display_sersic(serexp, modeltype='exponential', png=serexpfile, verbose=verbose)
+
+    # Sersic-exponential, no wavelength dependence
+    serexp = read_sersic(objid, objdir, model='exponential-nowavepower')
+    if bool(serexp):
+        serexpfile = os.path.join(htmlobjdir, '{}-sersic-exponential-nowavepower.png'.format(objid))
+        if not os.path.isfile(serexpfile) or clobber:
+            display_sersic(serexp, modeltype='exponential-nowavepower', png=serexpfile, verbose=verbose)
 
 def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
                band=('g', 'r', 'z'), clobber=False, verbose=True):
@@ -395,8 +397,9 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
 
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" alt="Missing file {}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
-            html.write('<td><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" alt="Missing file {}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            #html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" alt="Missing file {}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td width="50%"><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" alt="Missing file {}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td></td>\n')
             html.write('</tr>\n')
             html.write('</table>\n')
             

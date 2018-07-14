@@ -37,11 +37,21 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
     ellipsefit['band'] = band
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
-    for filt in band:
-        ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)] / 2.355 # [Gaussian sigma, arcsec]
+    for filt in band: # [Gaussian sigma]
+        ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)] / np.sqrt(8*np.log(2)) # [arcsec]
+        ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
 
     # Default parameters
-    integrmode, sclip, nclip, step, fflag = 'bilinear', 3, 0, 0.1, 0.5
+    #step_pix = 0.1
+    #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, step_pix/pixscale, 0.5, True
+    integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, 0.1, 0.5, False
+    
+    ellipsefit['integrmode'] = integrmode
+    ellipsefit['sclip'] = sclip
+    ellipsefit['nclip'] = nclip
+    ellipsefit['step'] = step
+    ellipsefit['fflag'] = fflag
+    ellipsefit['linear'] = linear
     #integrmode, sclip, nclip, step, fflag = 'median', 3, 0, 0.1, 0.5
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
@@ -55,16 +65,16 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
                                pa=np.radians(mgefit['pa']-90))
     ellipsefit['geometry'] = geometry
 
-    def _sky(data, ellipsefit, diameter=2.0):
-        """Estimate the sky brightness in each band."""
-        #area = diameter**2 # arcsec^2
-        for filt in band:
-            img = data['{}_masked'.format(filt)]
-            #ellipsefit['{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
-            #ellipsefit['mu_{}_sky'.format(filt)] = ellipsefit['{}_sky'.format(filt)] # + 2.5 * np.log10(area)
-            ellipsefit['mu_{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
-
-    _sky(data, ellipsefit)
+    #def _sky(data, ellipsefit, diameter=2.0):
+    #    """Estimate the sky brightness in each band."""
+    #    #area = diameter**2 # arcsec^2
+    #    for filt in band:
+    #        img = data['{}_masked'.format(filt)]
+    #        #ellipsefit['{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
+    #        #ellipsefit['mu_{}_sky'.format(filt)] = ellipsefit['{}_sky'.format(filt)] # + 2.5 * np.log10(area)
+    #        ellipsefit['mu_{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
+    #
+    #_sky(data, ellipsefit)
 
     # Fit in the reference band...
     if verbose:
@@ -93,9 +103,9 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
         for sma0 in (1, 3, 6, 9, 12): # try a few different starting minor axes
             print('  Trying sma0 = {:.1f} pixels.'.format(sma0))
             try:
-                isophot = ellipse.fit_image(sma0, minsma=1, maxsma=2*mgefit['majoraxis'],
+                isophot = ellipse.fit_image(sma0, minsma=0.1, maxsma=2.2*mgefit['majoraxis'],
                                             integrmode=integrmode, sclip=sclip, nclip=nclip,
-                                            step=step, fflag=fflag)
+                                            step=step, fflag=fflag, linear=linear)
             except:
                 isophot = []
             if len(isophot) > 0:
@@ -113,7 +123,7 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
                 try:
                     isophot = ellipse.fit_image(sma0, minsma=1, maxsma=2*mgefit['majoraxis'],
                                                 integrmode=integrmode, sclip=sclip, nclip=nclip,
-                                                step=step, fflag=fflag)
+                                                step=step, fflag=fflag, linear=linear)
                 except:
                     isophot = []
                 if len(isophot) > 0:
@@ -150,7 +160,7 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
                 g = iso.sample.geometry # fixed geometry
 
                 # Use the same integration mode and clipping parameters.
-                sample = EllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
+                sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
                                        sclip=sclip, nclip=nclip)
                 sample.update()
 
@@ -191,7 +201,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
     """
     band, refband = ellipsefit['band'], ellipsefit['refband']
     pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
-    
+
     indx = np.ones(len(ellipsefit[refband]), dtype=bool)
 
     sbprofile = dict()
@@ -199,6 +209,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
         sbprofile['psfsigma_{}'.format(filt)] = ellipsefit['psfsigma_{}'.format(filt)]
     sbprofile['redshift'] = redshift
     
+    sbprofile['minerr'] = minerr
     sbprofile['smaunit'] = 'arcsec'
     sbprofile['sma'] = ellipsefit['r'].sma[indx] * pixscale # [arcsec]
 
