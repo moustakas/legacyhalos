@@ -170,7 +170,6 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
         # Build the ellipse plots.
         qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
                            clobber=clobber, verbose=verbose)
-        pdb.set_trace()
 
         qa_sersic_results(objid, objdir, htmlobjdir, band=band,
                           clobber=clobber, verbose=verbose)
@@ -398,8 +397,9 @@ def make_html(analysisdir=None, htmldir=None, band=('g', 'r', 'z'), refband='r',
 
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" alt="Missing file {}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
-            html.write('<td><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" alt="Missing file {}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            #html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" alt="Missing file {}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td width="50%"><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" alt="Missing file {}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(objid1, objid1, objid1))
+            html.write('<td></td>\n')
             html.write('</tr>\n')
             html.write('</table>\n')
             
