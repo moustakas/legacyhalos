@@ -52,7 +52,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         model = None
 
     ymnmax = [40, 0]
-    rad_model = np.linspace(0.1, sersic['radius'].max()*1.1, 50)
+    #rad_model = np.linspace(0.1, sersic['radius'].max()*1.1, 50)
 
     fig, ax = plt.subplots(figsize=(7, 5))
     for band, lam in zip( sersic['band'], (sersic['lambda_g'],
@@ -119,6 +119,8 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
             sb_model = model(rad_model, wave_model)
             ax.plot(rad_model, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
                         ls='--', lw=2, alpha=1)
+
+            # plot the individual Sersic profiles
             if model.__class__.__name__ == 'SersicDoubleWaveModel' and band == 'r':
                 from legacyhalos.sersic import SersicSingleWaveModel
                 model1 = SersicSingleWaveModel(nref=model.nref1.value, r50ref=model.r50ref1.value,
@@ -129,10 +131,10 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                                                alpha=model.alpha2.value, beta=model.beta2.value,
                                                mu50_g=model.mu50_g2.value, mu50_r=model.mu50_r2.value,
                                                mu50_z=model.mu50_z2.value)
-                ax.plot(rad_model, 22.5-2.5*np.log10(model1(rad_model, wave_model)), color='gray', alpha=0.5,
-                        ls='--', lw=2)
-                ax.plot(rad_model, 22.5-2.5*np.log10(model2(rad_model, wave_model)), color='gray', alpha=0.5,
-                        ls='--', lw=2)
+                ax.plot(rad_model, 22.5-2.5*np.log10(model1(rad_model, wave_model)),
+                        color='gray', alpha=0.5, ls='-.', lw=2)
+                ax.plot(rad_model, 22.5-2.5*np.log10(model2(rad_model, wave_model)),
+                        color='gray', alpha=0.5, ls='-.', lw=2)
             
     # legend with the best-fitting parameters
     if model is not None:
@@ -274,7 +276,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
             r50 = r'$r_{{50,1}} = {r50ref1}\ r_{{50,2}} = {r50ref2}\ arcsec$'.format(r50ref1=r50ref1, r50ref2=r50ref2)
             txt = chi2+'\n'+alpha+'\n'+beta+'\n'+n+'\n'+r50
                 
-        ax.text(0.08, 0.1, txt, ha='left', va='bottom', linespacing=1.3,
+        ax.text(0.06, 0.1, txt, ha='left', va='bottom', linespacing=1.3,
                 transform=ax.transAxes, fontsize=12)
 
     ax.set_xlabel(r'Galactocentric radius $r$ (arcsec)')

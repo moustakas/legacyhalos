@@ -340,7 +340,7 @@ class SersicDoubleWaveModel(Fittable2DModel):
         return mu
 
 class SersicWaveFit(object):
-    def __init__(self, ellipsefit, seed=None, minerr=0.01):
+    def __init__(self, ellipsefit, seed=None, minerr=0.01, nradius_uniform=150):
 
         from astropy.modeling import fitting
         self.rand = np.random.RandomState(seed)
@@ -350,41 +350,61 @@ class SersicWaveFit(object):
 
         refband, pixscale, redshift = ellipsefit['refband'], ellipsefit['pixscale'], ellipsefit['redshift']
         
-        # parse the input sbprofile into the format that SersicSingleWaveModel() expects
+        # parse the input sbprofile into the format that SersicSingleWaveModel()
+        # expects; also interpolate the surface brightness profile onto a
+        # uniform radius grid (in arcsec) so the Gaussian PSF convolution will
+        # behave.
         sb, sberr, wave, radius = [], [], [], []
+        sb_uniform, sberr_uniform, wave_uniform, radius_uniform = [], [], [], []
         for band, lam in zip( self.initfit.band, (self.initfit.lambda_g, 
                                                   self.initfit.lambda_r, 
                                                   self.initfit.lambda_z) ):
             # any quality cuts on stop_code here?!?
             #rad = ellipsefit[band].sma * pixscale # semi-major axis [arcsec]
             
-            rad = ellipsefit[band].sma * np.sqrt(1 - ellipsefit[band].eps) * pixscale # circularized radius [arcsec]
-            flux = ellipsefit[band].intens
-            ferr = np.sqrt( ellipsefit[band].int_err**2 + (0.4 * np.log(10) * flux * minerr)**2 ) # minimum uncertainty
+            _radius = ellipsefit[band].sma * np.sqrt(1 - ellipsefit[band].eps) * pixscale # circularized radius [arcsec]
+            _sb = ellipsefit[band].intens
+            _sberr = np.sqrt( ellipsefit[band].int_err**2 + (0.4 * np.log(10) * _sb * minerr)**2 ) # minimum uncertainty
 
-            #_sb = 22.5 - 2.5 * np.log10(flux) 
-            #keep = _sb < 29
-            #rad = rad[keep]
-            #flux = flux[keep]
-            #ferr = ferr[keep]
+            radius.append(_radius)
+            sb.append(_sb)
+            sberr.append(_sberr)
+            wave.append( np.repeat(lam, len(_radius)) )
+
+            # interpolate onto a regular radius grid (in arcsec!)
+            _radius_uniform = np.linspace( _radius.min(), _radius.max(), nradius_uniform )
+            _sb_uniform = np.interp(_radius_uniform, _radius, _sb)
+            _sberr_uniform = np.sqrt(np.interp(_radius_uniform, _radius, _sberr**2))
+
+            radius_uniform.append( _radius_uniform )
+            sb_uniform.append( _sb_uniform )
+            sberr_uniform.append( _sberr_uniform )
+            wave_uniform.append( np.repeat(lam, len(_radius_uniform)) )
+
+            #plt.scatter(_radius, _sb)
+            #plt.plot(_radius_uniform, _sb_uniform, color='orange', alpha=0.5)
+            #plt.yscale('log')
+            #plt.show()
             
-            wave.append(np.repeat(lam, len(rad)))
-            radius.append(rad)
-            sb.append(flux)
-            sberr.append(ferr)
-
         self.sb = np.hstack(sb)
         self.sberr = np.hstack(sberr)
         self.wave = np.hstack(wave)
         self.radius = np.hstack(radius)
+        
+        self.sb_uniform = np.hstack(sb_uniform)
+        self.sberr_uniform = np.hstack(sberr_uniform)
+        self.wave_uniform = np.hstack(wave_uniform)
+        self.radius_uniform = np.hstack(radius_uniform)
+
         self.redshift = redshift
         self.minerr = minerr
         self.pixscale = pixscale
         self.seed = seed
 
     def chi2(self, bestfit):
-        dof = len(self.sb) - len(bestfit.parameters)
-        chi2 = np.sum( (self.sb - bestfit(self.radius, self.wave, self.sb))**2 / self.sberr**2 ) / dof
+        dof = len(self.sb_uniform) - len(bestfit.parameters)
+        sbmodel = bestfit(self.radius_uniform, self.wave_uniform)
+        chi2 = np.sum( (self.sb_uniform - sbmodel)**2 / self.sberr_uniform**2 ) / dof
         return chi2
     
     def integrate(self, bestfit, nrad=50):
@@ -496,35 +516,32 @@ class SersicWaveFit(object):
         #print(params)
         #pdb.set_trace()
             
-        # perform the fit several times
+        # perform the fit nball times
         with warnings.catch_warnings():
             warnings.simplefilter(warnvalue)
 
-            # interpolate!
-            nrr = 150
-            dr = 0.1
-            radius, wave, sb, sberr = [], [], [], []
-            for lam in (self.initfit.lambda_g, self.initfit.lambda_r, self.initfit.lambda_z):
-                ww = (self.wave == lam)
-                if np.sum(ww) > 0:
-                    rmin, rmax = self.radius[ww].min(), self.radius[ww].max()
-                    #nrr = ( (rmax - rmin) / dr + 1 ).astype('int')
-                    rr = np.linspace(rmin, rmax, nrr)
-                    #rr = np.logspace(np.log10(rmin), np.log10(rmax), nrr)
-                    radius.append(rr)
-                    wave.append(np.repeat(lam, nrr))
-                    sb.append( np.interp(rr, self.radius[ww], self.sb[ww]) )
-                    sberr.append( np.sqrt(np.interp(rr, self.radius[ww], self.sberr[ww]**2)) )
-
-            sb = np.hstack(sb)
-            sberr = np.hstack(sberr)
-            wave = np.hstack(wave)
-            radius = np.hstack(radius)
+            ## interpolate!
+            #radius, wave, sb, sberr = [], [], [], []
+            #for lam in (self.initfit.lambda_g, self.initfit.lambda_r, self.initfit.lambda_z):
+            #    ww = (self.wave == lam)
+            #    if np.sum(ww) > 0:
+            #        rmin, rmax = self.radius[ww].min(), self.radius[ww].max()
+            #        rr = np.linspace(rmin, rmax, nrr)
+            #        radius.append(rr)
+            #        wave.append(np.repeat(lam, nrr))
+            #        sb.append( np.interp(rr, self.radius[ww], self.sb[ww]) )
+            #        sberr.append( np.sqrt(np.interp(rr, self.radius[ww], self.sberr[ww]**2)) )
+            #
+            #sb = np.hstack(sb)
+            #sberr = np.hstack(sberr)
+            #wave = np.hstack(wave)
+            #radius = np.hstack(radius)
 
             chi2 = np.zeros(nball) + chi2fail
             for jj in range(nball):
                 self.initfit.parameters = params[:, jj]
-                ballfit = self.fitter(self.initfit, radius, wave, sb, weights=1/sberr, maxiter=200)
+                ballfit = self.fitter(self.initfit, self.radius_uniform, self.wave_uniform,
+                                      self.sb_uniform, weights=1/self.sberr_uniform, maxiter=200)
                 #ballfit = self.fitter(self.initfit, self.radius, self.wave, self.sb,
                 #                      weights=1/self.sberr, maxiter=200)
                 chi2[jj] = self.chi2(ballfit)
@@ -546,7 +563,8 @@ class SersicWaveFit(object):
         mindx = np.argmin(chi2)
 
         self.initfit.parameters = params[:, mindx]
-        bestfit = self.fitter(self.initfit, radius, wave, sb, weights= 1 / sberr)
+        bestfit = self.fitter(self.initfit, self.radius_uniform, self.wave_uniform,
+                              self.sb_uniform, weights=1/self.sberr_uniform)
         #bestfit = self.fitter(self.initfit, self.radius, self.wave, self.sb, weights= 1 / self.sberr)
         minchi2 = chi2[mindx]
         print('{} Sersic fitting succeeded with a chi^2 minimum of {:.2f}'.format(model.upper(), minchi2))
@@ -742,7 +760,7 @@ def sersic_double(objid, objdir, ellipsefit, minerr=0.01, seed=None,
 
     return sersic
 
-def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.0, seed=None,
+def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.02, seed=None,
                        verbose=False, debug=False):
     """Top-level wrapper script to model the measured surface-brightness profiles
     with various Sersic models.

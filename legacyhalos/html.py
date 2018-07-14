@@ -115,6 +115,8 @@ def qa_sersic_results(objid, objdir, htmlobjdir, band=('g', 'r', 'z'),
         if not os.path.isfile(doublefile) or clobber:
             display_sersic(double, modeltype='double', png=doublefile, verbose=verbose)
 
+    pdb.set_trace()     
+
     # Double Sersic, no wavelength dependence
     double = read_sersic(objid, objdir, model='double-nowavepower')
     if bool(double):
