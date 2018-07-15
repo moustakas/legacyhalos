@@ -123,9 +123,12 @@ def sersic_integrate(sersic, nradius=150, maxradius=200, debug=False):
         phot['flux_{}'.format(filt)] = phot['flux_obs_{}'.format(filt)] + dm
         phot['flux_ivar_{}'.format(filt)] = phot['flux_obs_ivar_{}'.format(filt)] + dm
 
-        phot['dm_in_{}'.format(filt)] = - 2.5 * np.log10(1 - dm_in / obsflux)
-        phot['dm_out_{}'.format(filt)] = - 2.5 * np.log10(1 - dm_out / obsflux)
-        phot['dm_{}'.format(filt)] = - 2.5 * np.log10(1 - dm / obsflux)
+        #print(filt, dm_in, obsflux, - 2.5 * np.log10( (obsflux+dm_in) / obsflux ))
+        #pdb.set_trace()
+        
+        phot['dm_in_{}'.format(filt)] = - 2.5 * np.log10(1 + dm_in / obsflux)
+        phot['dm_out_{}'.format(filt)] = - 2.5 * np.log10(1 + dm_out / obsflux)
+        phot['dm_{}'.format(filt)] = - 2.5 * np.log10(1 + dm / obsflux)
 
     return phot
 
@@ -167,6 +170,8 @@ def main():
     
     for ii, (objid, objdir) in enumerate( zip(np.atleast_1d(allobjid), np.atleast_1d(allobjdir)) ):
 
+        print(ii, objid)
+
         #ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir, verbose=verbose)
         #if bool(ellipsefit):
         #    if ellipsefit['success']:
@@ -178,7 +183,7 @@ def main():
                 modelname = '{}{}'.format(modeltype, wavepower)
                 colname = 'sersic_{}'.format(modelname).replace('-', '_')
             
-                sersic = legacyhalos.io.read_sersic(objid, objdir, modeltype=modelname, verbose=verbose)
+                sersic = legacyhalos.io.read_sersic(objid, objdir, modeltype=modelname, verbose=False)
                 if bool(sersic):
                     results['chi2_{}'.format(colname)][ii] = sersic['chi2']
 
