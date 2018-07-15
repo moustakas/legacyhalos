@@ -6,15 +6,15 @@
 #SBATCH --mail-user=jmoustakas@siena.edu
 #SBATCH --mail-type=ALL
 
-# #SBATCH -p regular
-# #SBATCH -N 32
-# #SBATCH -n 48
-# #SBATCH -t 02:00:00
+#SBATCH -p regular
+#SBATCH -N 32
+#SBATCH -n 48
+#SBATCH -t 02:00:00
 
-#SBATCH -p debug
-#SBATCH -N 6
-#SBATCH -n 16
-#SBATCH -t 00:30:00
+# #SBATCH -p debug
+# #SBATCH -N 6
+# #SBATCH -n 16
+# #SBATCH -t 00:30:00
 
 # for cori only
 #SBATCH -C haswell
@@ -28,4 +28,6 @@
 export IMPY_DIR=$HOME/repos/git/impy
 source $IMPY_DIR/bin/legacyhalos-env-nersc
 
-time srun -N 6 -n 16 -c 12 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --sky --first 0 --last 40 --ncpu 12 --mpi --clobber
+time srun -N 32 -n 48 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --sky --ncpu 4 --mpi --seed 1
+
+# time srun -N 6 -n 16 -c 12 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --sky --first 0 --last 40 --ncpu 12 --mpi --clobber
