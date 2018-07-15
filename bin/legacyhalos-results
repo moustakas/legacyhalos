@@ -8,7 +8,7 @@ Gather all the results into a single multi-extension FITS file.
 """
 from __future__ import print_function, division
 
-import os, argparse, pdb
+import os, argparse, warnings, pdb
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.table import Table, Column, hstack
@@ -24,9 +24,13 @@ def _init_phot(ngal=1):
     [phot.add_column(Column(name='flux_obs_{}'.format(bb), dtype='f4', length=1)) for bb in band]
     [phot.add_column(Column(name='flux_obs_ivar_{}'.format(bb), dtype='f4', length=1)) for bb in band]
 
+    [phot.add_column(Column(name='flux_obs_model_{}'.format(bb), dtype='f4', length=1)) for bb in band]
+    
     [phot.add_column(Column(name='flux_{}'.format(bb), dtype='f4', length=1)) for bb in band]
     [phot.add_column(Column(name='flux_ivar_{}'.format(bb), dtype='f4', length=1)) for bb in band]
 
+    [phot.add_column(Column(name='flux_model_{}'.format(bb), dtype='f4', length=1)) for bb in band]
+    
     [phot.add_column(Column(name='dm_in_{}'.format(bb), dtype='f4', length=1)) for bb in band]
     [phot.add_column(Column(name='dm_out_{}'.format(bb), dtype='f4', length=1)) for bb in band]
     [phot.add_column(Column(name='dm_{}'.format(bb), dtype='f4', length=1)) for bb in band]
@@ -59,7 +63,7 @@ def _init_sersic(ngal=1, mem_match_id=0, modeltype='single', nowavepower=True):
 
     return out
 
-def sersic_integrate(sersic, nrad=50, debug=False):
+def sersic_integrate(sersic, nradius=150, debug=False):
     """Integrate the data and the model to get the final photometry.
 
     flux_obs_[grz] : observed integrated flux
@@ -78,13 +82,14 @@ def sersic_integrate(sersic, nrad=50, debug=False):
     allradius, allwave, allsb, allsberr = sersic['radius'], sersic['wave'], sersic['sb'], sersic['sberr']
 
     for filt, lam in zip( band, (sersic['lambda_g'], sersic['lambda_r'], sersic['lambda_z']) ):
-        #wave = np.repeat(lam, nrad)
-        indx = (allwave == lam) * np.isfinite(allsb) * (allsb > 0)
+
+        indx = (allwave == lam)
 
         radius = allradius[indx] # [arcsec]
         sb = allsb[indx]
         sberr = allsberr[indx]
 
+        # flux_obs_[grz] -- integrate the data (where measured)
         obsflux = 2 * np.pi * integrate.simps(x=radius, y=radius*sb)
         obsvar = 2 * np.pi * integrate.simps(x=radius, y=radius*sberr**2)
 
@@ -92,8 +97,17 @@ def sersic_integrate(sersic, nrad=50, debug=False):
         if obsvar > 0:
             phot['flux_obs_ivar_{}'.format(filt)] = 1 / obsvar
 
-        if debug:
-            display_sersic(sersic)
+        # flux_obs_model_[grz] -- like flux_obs_[grz] but this time using the
+        # best-fitting model
+        radius_model = np.linspace(radius.min(), radius.max(), nradius)
+        sb_model = bestfit(radius_model, np.zeros_like(radius_model) + lam) # no-convolution?
+        obsmodelflux = 2 * np.pi * integrate.simps(x=rad_model, y=rad_model*sb_model)
+        
+        phot['flux_obs_model_{}'.format(filt)] = obsmodelflux
+
+        # now integrate to r=0 using the model
+
+
 
         pdb.set_trace()
 
@@ -194,6 +208,11 @@ def main():
                         pdb.set_trace()
                         
                     locals()[colname] = data
+
+                    if debug:
+                        display_sersic(sersic)
+
+
                     
     # Write out summary statistics
     if verbose:

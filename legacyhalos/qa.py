@@ -37,7 +37,7 @@ def _sbprofile_colors():
     colors = iter([_colors[1], _colors[2], _colors[0], _colors[3], _colors[4]])
     return colors
 
-def display_sersic(sersic, modeltype='single', png=None, verbose=False):
+def display_sersic(sersic, png=None, verbose=False):
     """Plot a wavelength-dependent surface brightness profile and model fit.
 
     """
@@ -52,7 +52,6 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         model = None
 
     ymnmax = [40, 0]
-    rad_model = np.linspace(0, 200, 150)
 
     fig, ax = plt.subplots(figsize=(7, 5))
     for band, lam in zip( sersic['band'], (sersic['lambda_g'],
@@ -73,19 +72,19 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
 
         if model is not None:
             filt = '${}:\ $'.format(band)
-            if 'single' in modeltype:
+            if 'single' in sersic['modeltype']:
                 n = r'$n={:.2f}$'.format(model.get_sersicn(nref=model.nref, lam=lam, alpha=model.alpha))
                 r50 = r'$r_{{50}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref, lam=lam, beta=model.beta) * smascale)
                 label = '{} {}, {}'.format(filt, n, r50)
                 labelfont = 14
-            elif 'exponential' in modeltype:
+            elif 'exponential' in sersic['modeltype']:
                 n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
                 n2 = r'$n_{{2}}={:.2f}$'.format(model.nref2.value)
                 r50_1 = r'$r_{{50,1}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
                 r50_2 = r'$r_{{50,2}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
                 label = '{} {}, {}, {}, {}'.format(filt, n1, n2, r50_1, r50_2)
                 labelfont = 12
-            elif 'double' in modeltype:
+            elif 'double' in sersic['modeltype']:
                 n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
                 n2 = r'$n_{{2}}={:.2f}$'.format(model.get_sersicn(nref=model.nref2, lam=lam, alpha=model.alpha2))
                 r50_1 = r'$r_{{50,1}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
@@ -93,7 +92,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 label = '{} {}, {}, {}, {}'.format(filt, n1, n2, r50_1, r50_2)
                 labelfont = 12
             else:
-                raise ValueError('Unrecognized model type {}'.format(modeltype))
+                raise ValueError('Unrecognized model type {}'.format(sersic['modeltype']))
         else:
             label = band
             labelfont = 14
@@ -114,29 +113,33 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         
         # optionally overplot the model
         if model is not None:
-            #wave_model = 
-            #wave_model = wave ; rad_model = rad
-            wave2 = np.zeros_like(rad_model) + lam
             sb_model = model(rad, wave)
-
-            from legacyhalos.sersic import SersicSingleWaveModel
-            sb_model2 = SersicSingleWaveModel(seed=model.seed, psfsigma_g=model.psfsigma_g*0,
-                                              psfsigma_r=model.psfsigma_r*0, psfsigma_z=model.psfsigma_z*0,
-                                              pixscale=model.pixscale).evaluate(
-                                                  #rad, wave,
-                                                  rad_model, wave2,
-                                                  nref=model.nref, r50ref=model.r50ref, 
-                                                  alpha=model.alpha, beta=model.beta, 
-                                                  mu50_g=model.mu50_g, mu50_r=model.mu50_r, mu50_z=model.mu50_z)
-            #pdb.set_trace()
-
             ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', ls='--', lw=2, alpha=1)
-            ax.plot(rad_model, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
-            #ax.plot(rad, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
+
+            if False:
+                #wave_model = wave ; rad_model = rad
+                wave_model = np.zeros_like(rad_model) + lam
+
+                from legacyhalos.sersic import SersicSingleWaveModel
+                sb_model2 = SersicSingleWaveModel(seed=model.seed, psfsigma_g=model.psfsigma_g*0,
+                                                  psfsigma_r=model.psfsigma_r*0, psfsigma_z=model.psfsigma_z*0,
+                                                  pixscale=model.pixscale).evaluate(
+                                                      #rad, wave,
+                                                      rad_model, wave2,
+                                                      nref=model.nref, r50ref=model.r50ref, 
+                                                      alpha=model.alpha, beta=model.beta, 
+                                                      mu50_g=model.mu50_g, mu50_r=model.mu50_r, mu50_z=model.mu50_z)
+                #ax.plot(rad_model, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
+                #ax.plot(rad, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
+                #pdb.set_trace()
 
             # plot the individual Sersic profiles
-            if model.__class__.__name__ == 'SersicDoubleWaveModel' and band == 'r':
+            if model.__class__.__name__ == 'SersicDoubleWaveModel' and band == 'r' and 0 == 1:
                 from legacyhalos.sersic import SersicSingleWaveModel
+
+                rad_model = np.linspace(0, 200, 150)
+                wave_model = np.zeros_like(rad_model) + lam
+
                 model1 = SersicSingleWaveModel(nref=model.nref1.value, r50ref=model.r50ref1.value,
                                                alpha=model.alpha1.value, beta=model.beta1.value,
                                                mu50_g=model.mu50_g1.value, mu50_r=model.mu50_r1.value,
@@ -154,7 +157,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     if model is not None:
         chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
         lambdaref = '{}'.format(sersic['lambda_ref'])
-        if modeltype == 'single':
+        if sersic['modeltype'] == 'single':
             if sersic['converged']:
                 alpha = '{:.2f}\pm{:.2f}'.format(sersic['alpha'], sersic['alpha_err'])
                 beta = '{:.2f}\pm{:.2f}'.format(sersic['beta'], sersic['beta_err'])
@@ -174,7 +177,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 r50 = r'$r_{{50}}(\lambda) = {r50ref}\ (\lambda/{lambdaref})^{{{beta}}}\ arcsec$'.format(
                     r50ref=r50ref, lambdaref=lambdaref, beta=beta)
             txt = chi2+'\n'+n+'\n'+r50
-        elif modeltype == 'single-nowavepower':
+        elif sersic['modeltype'] == 'single-nowavepower':
             alphabeta = r'$\alpha={:.2f},\ \beta={:.2f}$'.format(sersic['alpha'], sersic['beta'])
             if sersic['converged']:
                 nref = r'{:.2f}\pm{:.2f}'.format(sersic['nref'], sersic['nref_err'])
@@ -187,7 +190,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 n = r'$n = {nref}$'.format(nref=nref)
                 r50 = r'$r_{{50}} = {r50ref}\ arcsec$'.format(r50ref=r50ref)
             txt = chi2+'\n'+alphabeta+'\n'+n+'\n'+r50
-        elif modeltype == 'exponential':
+        elif sersic['modeltype'] == 'exponential':
             if sersic['converged']:
                 alpha1 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha1'], sersic['alpha1_err'])
                 beta1 = r'{:.2f}\pm{:.2f}'.format(sersic['beta1'], sersic['beta1_err'])
@@ -219,7 +222,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 r50_2 = r'$r_{{50,2}}(\lambda) = {r50ref2}\ (\lambda/{lambdaref})^{{{beta2}}}\ arcsec$'.format(
                     r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
             txt = chi2+'\n'+n1+'\n'+n2+'\n'+r50_1+'\n'+r50_2
-        elif modeltype == 'exponential-nowavepower':
+        elif sersic['modeltype'] == 'exponential-nowavepower':
             alpha = r'$\alpha_1={:.2f}$'.format(sersic['alpha1'])
             beta = r'$\beta_1=\beta_2={:.2f}$'.format(sersic['beta1'])
             if sersic['converged']:
@@ -236,7 +239,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
             r50 = r'$r_{{50,1}} = {r50ref1}\ r_{{50,2}} = {r50ref2}\ arcsec$'.format(r50ref1=r50ref1, r50ref2=r50ref2)
             txt = chi2+'\n'+alpha+'\n'+beta+'\n'+n+'\n'+r50
             
-        elif modeltype == 'double':
+        elif sersic['modeltype'] == 'double':
             if sersic['converged']:
                 alpha1 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha1'], sersic['alpha1_err'])
                 alpha2 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha2'], sersic['alpha2_err'])
@@ -273,7 +276,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                     r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
                 
             txt = chi2+'\n'+n1+'\n'+n2+'\n'+r50_1+'\n'+r50_2
-        elif modeltype == 'double-nowavepower':
+        elif sersic['modeltype'] == 'double-nowavepower':
             alpha = r'$\alpha_1=\alpha_2={:.2f}$'.format(sersic['alpha1'])
             beta = r'$\beta_1=\beta_2={:.2f}$'.format(sersic['beta1'])
             if sersic['converged']:

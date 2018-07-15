@@ -119,21 +119,21 @@ def read_sky_ellipsefit(objid, objdir, verbose=True):
 
     return skyellipsefit
 
-def write_sersic(objid, objdir, sersic, model='single', verbose=False):
+def write_sersic(objid, objdir, sersic, modeltype='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
 
     """
-    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, model))
+    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, modeltype))
     if verbose:
         print('Writing {}'.format(sersicfile))
     with open(sersicfile, 'wb') as ell:
         pickle.dump(sersic, ell)
 
-def read_sersic(objid, objdir, model='single', verbose=True):
+def read_sersic(objid, objdir, modeltype='single', verbose=True):
     """Read the output of write_sersic."""
 
-    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, model))
+    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, modeltype))
     try:
         with open(sersicfile, 'rb') as ell:
             sersic = pickle.load(ell)
