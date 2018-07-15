@@ -63,6 +63,10 @@ def _init_sersic(ngal=1, mem_match_id=0, modeltype='single', nowavepower=True):
 
     return out
 
+def _sersic_integrate(args):
+    """Wrapper script for the multiprocessing."""
+    return sersic_integrate(*args)
+
 def sersic_integrate(sersic, nradius=150, maxradius=200, debug=False):
     """Integrate the data and the model to get the final photometry.
 
@@ -135,17 +139,16 @@ def sersic_integrate(sersic, nradius=150, maxradius=200, debug=False):
 def main():
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--ncpu', default=4, type=int, help='number of multiprocessing processes per MPI rank.')
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
     parser.add_argument('--debug', action='store_true', help='Render a debuggin plot.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite an existing file.')
-    parser.add_argument('--quiet', action='store_true', help='Be (more) quiet.')
+    parser.add_argument('--verbose', action='store_true', help='Be verbose.')
     args = parser.parse_args()
 
-    verbose = not args.quiet
-
     # Read the sample
-    sample = legacyhalos.io.read_sample(first=args.first, last=args.last, verbose=verbose)
+    sample = legacyhalos.io.read_sample(first=args.first, last=args.last, verbose=args.verbose)
     ngal = len(sample)
 
     chi2fail = 1e6
@@ -169,10 +172,13 @@ def main():
     sersic_exponential_nowavepower = _init_sersic(ngal, modeltype='exponential')
     
     for ii, (objid, objdir) in enumerate( zip(np.atleast_1d(allobjid), np.atleast_1d(allobjdir)) ):
+        if args.verbose:
+            print(ii, objid)
+        else:
+            if (ii % 100) == 0:
+                print('Processing {} / {}'.format(ii, ngal))
 
-        print(ii, objid)
-
-        #ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir, verbose=verbose)
+        #ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir, verbose=args.verbose)
         #if bool(ellipsefit):
         #    if ellipsefit['success']:
         #        results['ellipse'][ii] = 1
@@ -207,7 +213,7 @@ def main():
                         display_sersic(sersic)
                     
     # Write out summary statistics
-    if verbose:
+    if args.verbose:
         print('Summary statistics:')
         print('  Number of galaxies: {} '.format(ngal))
         #print('  Ellipse-fitting: {}/{} ({:.1f}%) '.format(
@@ -227,7 +233,7 @@ def main():
                                  sersic_single_nowavepower=sersic_single_nowavepower,
                                  sersic_double_nowavepower=sersic_double_nowavepower,
                                  sersic_exponential_nowavepower=sersic_exponential_nowavepower,
-                                 verbose=verbose)
+                                 verbose=args.verbose)
 
 if __name__ == '__main__':
     main()
