@@ -11,7 +11,7 @@ from __future__ import print_function, division
 import os, argparse, warnings, pdb
 import numpy as np
 import matplotlib.pyplot as plt
-from astropy.table import Table, Column, hstack
+from astropy.table import Table, Column, hstack, join
 
 import legacyhalos.io
 from legacyhalos.qa import display_sersic
@@ -63,7 +63,7 @@ def _init_sersic(ngal=1, mem_match_id=0, modeltype='single', nowavepower=True):
 
     return out
 
-def sersic_integrate(sersic, nradius=150, debug=False):
+def sersic_integrate(sersic, nradius=150, maxradius=200, debug=False):
     """Integrate the data and the model to get the final photometry.
 
     flux_obs_[grz] : observed integrated flux
@@ -99,33 +99,25 @@ def sersic_integrate(sersic, nradius=150, debug=False):
 
         # flux_obs_model_[grz] -- like flux_obs_[grz] but this time using the
         # best-fitting model
-        radius_model = np.linspace(radius.min(), radius.max(), nradius)
-        sb_model = bestfit(radius_model, np.zeros_like(radius_model) + lam) # no-convolution?
-        obsmodelflux = 2 * np.pi * integrate.simps(x=rad_model, y=rad_model*sb_model)
+        indx_model = sersic['wave_uniform'] == lam
+        wave_model = sersic['wave_uniform'][indx_model]
+        radius_model = sersic['radius_uniform'][indx_model]
+        
+        sb_model = bestfit(radius_model, wave_model) # no convolution?
+        obsmodelflux = 2 * np.pi * integrate.simps(x=radius_model, y=radius_model*sb_model)
         
         phot['flux_obs_model_{}'.format(filt)] = obsmodelflux
 
-        # now integrate to r=0 using the model
-
-
-
-        pdb.set_trace()
-
         # now integrate inward and outward by evaluating the model
-        rad_in = np.linspace(0, rad.min(), nrad)
-        sb_in = bestfit(rad_in, wave) # no-convolution!!!
-        dm_in = 2 * np.pi * integrate.simps(x=rad_in, y=rad_in*sb_in)
+        radius_in = np.linspace(0, radius_model.min(), nradius)
+        wave_in = np.zeros_like(radius_in) + lam
+        sb_in = bestfit(radius_in, wave_in) # no convolution?
+        dm_in = 2 * np.pi * integrate.simps(x=radius_in, y=radius_in*sb_in)
 
-        #rad_out = np.logspace(np.log10(rad.max()), 3, nrad)
-        rad_out = np.linspace(rad.max()*0.7, 200, 150) # nrad)
-        sb_out = bestfit(rad_out, wave)
-        dm_out = 2 * np.pi * integrate.simps(x=rad_out, y=rad_out*sb_out)
-
-        #plt.errorbar(rad, 22.5-2.5*np.log10(sb), 2.5*sberr/sb/np.log(10))
-        #plt.plot(rad_in, 22.5-2.5*np.log10(sb_in)) ; plt.scatter(rad_out, 22.5-2.5*np.log10(sb_out))
-        #plt.ylim(32, 15) ; plt.xlim(0, 30)
-        #plt.show()
-        #pdb.set_trace()
+        radius_out = np.linspace(radius_model.max(), maxradius, nradius)
+        wave_out = np.zeros_like(radius_out) + lam
+        sb_out = bestfit(radius_out, wave_out)
+        dm_out = 2 * np.pi * integrate.simps(x=radius_out, y=radius_out*sb_out)
 
         dm = dm_in + dm_out
         phot['flux_{}'.format(filt)] = phot['flux_obs_{}'.format(filt)] + dm
@@ -186,7 +178,7 @@ def main():
                 modelname = '{}{}'.format(modeltype, wavepower)
                 colname = 'sersic_{}'.format(modelname).replace('-', '_')
             
-                sersic = legacyhalos.io.read_sersic(objid, objdir, model=modelname, verbose=verbose)
+                sersic = legacyhalos.io.read_sersic(objid, objdir, modeltype=modelname, verbose=verbose)
                 if bool(sersic):
                     results['chi2_{}'.format(colname)][ii] = sersic['chi2']
 
@@ -202,17 +194,12 @@ def main():
                     # integrate to get the total photometry
                     if sersic['success']:
                         phot = sersic_integrate(sersic, debug=args.debug)
-                        
-                        #for col in sersic['phot'].colnames:
-                        #    data[col][ii] = sersic['phot'][col]
-                        pdb.set_trace()
-                        
+                        for col in phot.colnames:
+                            data[col][ii] = phot[col]
                     locals()[colname] = data
 
-                    if debug:
+                    if args.debug:
                         display_sersic(sersic)
-
-
                     
     # Write out summary statistics
     if verbose:

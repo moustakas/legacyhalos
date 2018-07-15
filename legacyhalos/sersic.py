@@ -389,8 +389,10 @@ class SersicWaveFit(object):
             # higher-order interpolation of the uncertainties (or variances) is
             # not well-behaved.
             _radius_uniform = np.linspace( _radius.min(), _radius.max(), nradius_uniform )
-            #_sb_uniform = np.interp(_radius_uniform, _radius, _sb)
-            _sb_uniform = splev(_radius_uniform, splrep(_radius, _sb, w=1/_sberr))
+            try:
+                _sb_uniform = splev(_radius_uniform, splrep(_radius, _sb, w=1/_sberr))
+            except:
+                _sb_uniform = np.interp(_radius_uniform, _radius, _sb)
             _sberr_uniform = np.sqrt(np.interp(_radius_uniform, _radius, _sberr**2))
             
             radius_uniform.append( _radius_uniform )
@@ -811,7 +813,7 @@ def sersic_double(objid, objdir, ellipsefit, minerr=0.01, seed=None, debug=False
 
     return sersic
 
-def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.01, seed=None,
+def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.03, seed=None,
                        verbose=False, debug=False):
     """Top-level wrapper script to model the measured surface-brightness profiles
     with various Sersic models.
