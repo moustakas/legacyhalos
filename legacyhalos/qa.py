@@ -52,7 +52,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         model = None
 
     ymnmax = [40, 0]
-    #rad_model = np.linspace(0.1, sersic['radius'].max()*1.1, 50)
+    rad_model = np.linspace(0, 200, 150)
 
     fig, ax = plt.subplots(figsize=(7, 5))
     for band, lam in zip( sersic['band'], (sersic['lambda_g'],
@@ -114,11 +114,25 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         
         # optionally overplot the model
         if model is not None:
-            #wave_model = np.zeros_like(rad_model) + lam
-            wave_model = wave ; rad_model = rad
-            sb_model = model(rad_model, wave_model)
-            ax.plot(rad_model, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
-                        ls='--', lw=2, alpha=1)
+            #wave_model = 
+            #wave_model = wave ; rad_model = rad
+            wave2 = np.zeros_like(rad_model) + lam
+            sb_model = model(rad, wave)
+
+            from legacyhalos.sersic import SersicSingleWaveModel
+            sb_model2 = SersicSingleWaveModel(seed=model.seed, psfsigma_g=model.psfsigma_g*0,
+                                              psfsigma_r=model.psfsigma_r*0, psfsigma_z=model.psfsigma_z*0,
+                                              pixscale=model.pixscale).evaluate(
+                                                  #rad, wave,
+                                                  rad_model, wave2,
+                                                  nref=model.nref, r50ref=model.r50ref, 
+                                                  alpha=model.alpha, beta=model.beta, 
+                                                  mu50_g=model.mu50_g, mu50_r=model.mu50_r, mu50_z=model.mu50_z)
+            #pdb.set_trace()
+
+            ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', ls='--', lw=2, alpha=1)
+            ax.plot(rad_model, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
+            #ax.plot(rad, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
 
             # plot the individual Sersic profiles
             if model.__class__.__name__ == 'SersicDoubleWaveModel' and band == 'r':
@@ -291,7 +305,8 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     ax.margins(ymargins=0)
     #ax.set_yscale('log')
 
-    ax.set_xlim(xmin=0)
+    ax.set_xlim(0, rad.max()*1.05)
+    #ax.set_xlim(xmin=0)
 
     ax2 = ax.twiny()
     xlim = ax.get_xlim()

@@ -108,6 +108,7 @@ class SersicSingleWaveModel(Fittable2DModel):
                 mu_int = mu50 * np.exp(-gammaincinv(2 * n, 0.5) * ((r[indx] / r50) ** (1 / n) - 1))
             
                 # smooth with the PSF
+                print(psfsig)
                 if psfsig > 0:
                     g = Gaussian1DKernel(stddev=psfsig)#, mode='linear_interp')
                     mu_smooth = convolve(mu_int, g, normalize_kernel=True, boundary='extend')
@@ -408,7 +409,9 @@ class SersicWaveFit(object):
         return chi2
     
     def integrate(self, bestfit, nrad=50):
-        """Integrated the data and the model to get the final photometry.
+        """OBSOLETE -- this functionality is now in legacyhalos-results
+
+        Integrated the data and the model to get the final photometry.
         
         flux_obs_[grz] : observed integrated flux
         flux_int_[grz] : integrated (extrapolated) flux

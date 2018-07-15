@@ -24,6 +24,7 @@ export IMPY_DIR=$HOME/repos/git/impy
 source $IMPY_DIR/bin/legacyhalos-env-nersc
 
 # do the whole sample!
-time srun -n 48 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --sersic --mpi --clobber
+time srun -n 48 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --sersic --mpi --clobber --seed 1
+
 
 
