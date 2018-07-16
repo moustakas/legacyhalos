@@ -195,9 +195,10 @@ def read_parent(extname='LSPHOT', upenn=True, isedfit=False, columns=None, verbo
 
     return cat
 
-def write_results(results, sersic_single=None, sersic_double=None, sersic_exponential=None,
-                  sersic_single_nowavepower=None, sersic_double_nowavepower=None,
-                  sersic_exponential_nowavepower=None, clobber=False, verbose=False):
+def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
+                  sersic_exponential=None, sersic_single_nowavepower=None,
+                  sersic_double_nowavepower=None, sersic_exponential_nowavepower=None,
+                  clobber=False, verbose=False):
     """Write out the output of legacyhalos-results
 
     """
@@ -208,14 +209,14 @@ def write_results(results, sersic_single=None, sersic_double=None, sersic_expone
 
         hx = fits.HDUList()
 
-        hdu = fits.table_to_hdu(results)
-        hdu.header['EXTNAME'] = 'RESULTS'
+        hdu = fits.table_to_hdu(lsphot)
+        hdu.header['EXTNAME'] = 'LHPHOT'
         hx.append(hdu)
 
-        for tt, name in zip( (sersic_single, sersic_double, sersic_exponential,
+        for tt, name in zip( (results, sersic_single, sersic_double, sersic_exponential,
                               sersic_single_nowavepower, sersic_double_nowavepower,
                               sersic_exponential_nowavepower),
-                              ('sersic_single', 'sersic_double, sersic_exponential',
+                              ('results', 'sersic_single', 'sersic_double', 'sersic_exponential',
                               'sersic_single_nowavepower', 'sersic_double_nowavepower',
                               'sersic_exponential_nowavepower') ):
             hdu = fits.table_to_hdu(tt)
@@ -276,7 +277,7 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
 
     return data
 
-def read_results(first=None, last=None, verbose=False, extname='RESULTS'):
+def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=None):
     """Read the output of io.write_results.
 
     """
@@ -290,9 +291,12 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS'):
         print('File {} not found.'.format(resultsfile))
         return None
     else:
+        if rows is not None:
+            results = Table(fitsio.read(resultsfile, ext=extname, rows=rows))
+        else:
+            results = Table(fitsio.read(resultsfile, ext=extname))
         if verbose:
-            print('Reading extension {} from {}'.format(extname, resultsfile))
-        results = Table(fitsio.read(resultsfile, ext=extname))
+            print('Read {} objects from extension {} of {}'.format(len(results), extname, resultsfile))
         return results
 
 def read_sample(first=None, last=None, verbose=False):

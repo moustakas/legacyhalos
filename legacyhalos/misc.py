@@ -93,12 +93,11 @@ def arcsec2kpc(redshift):
     from astropy.cosmology import WMAP9 as cosmo
     return 1 / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/arcsec]
 
-def medxbin(xx, yy, binsize, minpts=20, xmin=None, xmax=None):
+def statsinbins(xx, yy, binsize=0.1, minpts=10, xmin=None, xmax=None):
+    """Compute various statistics in running bins along the x-axis.
+
     """
-    Compute the median (and other statistics) in fixed bins along the x-axis.
-    
-    """
-    from scipy import ptp
+    from scipy.stats import binned_statistic
 
     # Need an exception if there are fewer than three arguments.
     if xmin == None:
@@ -106,26 +105,76 @@ def medxbin(xx, yy, binsize, minpts=20, xmin=None, xmax=None):
     if xmax == None:
         xmax = xx.max()
 
-    nbin = int( ptp(xx) / binsize )
-    bins = np.linspace(xmin, xmax, nbin)
-    idx  = np.digitize(xx, bins)
+    nbin = int( (np.nanmax(xx) - np.nanmin(xx) ) / binsize )
+    stats = np.zeros(nbin, [('xmean', 'f4'), ('xmedian', 'f4'), ('xbin', 'f4'),
+                            ('npts', 'i4'), ('ymedian', 'f4'), ('ymean', 'f4'),
+                            ('ystd', 'f4'), ('y25', 'f4'), ('y75', 'f4')])
 
-    stats = np.zeros(nbin, [('median', 'f4'), ('std', 'f4'), ('q25', 'f4'), ('q75', 'f4')])
-    for kk in range(nbin):
-        npts = len( yy[idx == kk] )
-        if npts > minpts:
-            stats['std'][kk] = np.nanstd( yy[idx==kk] )
+    if False:
+        def median(x):
+            return np.nanmedian(x)
 
-            qq = np.nanpercentile( yy[idx==kk], [25, 50, 75] )
-            stats['q25'][kk] = qq[0]
-            stats['median'][kk] = qq[1]
-            stats['q75'][kk] = qq[2]
+        def mean(x):
+            return np.nanmean(x)
 
-    # Remove bins with too few points.
-    good = np.nonzero( stats['median'] )
-    stats = stats[good]
+        def std(x):
+            return np.nanstd(x)
 
-    return bins[good], stats
+        def q25(x):
+            return np.nanpercentile(x, 25)
+
+        def q75(x):
+            return np.nanpercentile(x, 75)
+
+        ystat, bin_edges, _ = binned_statistic(xx, yy, bins=nbin, statistic='median')
+        stats['median'] = ystat
+
+        bin_width = (bin_edges[1] - bin_edges[0])
+        xmean = bin_edges[1:] - bin_width / 2
+
+        ystat, _, _ = binned_statistic(xx, yy, bins=nbin, statistic='mean')
+        stats['mean'] = ystat
+
+        ystat, _, _ = binned_statistic(xx, yy, bins=nbin, statistic=std)
+        stats['std'] = ystat
+
+        ystat, _, _ = binned_statistic(xx, yy, bins=nbin, statistic=q25)
+        stats['q25'] = ystat
+
+        ystat, _, _ = binned_statistic(xx, yy, bins=nbin, statistic=q75)
+        stats['q75'] = ystat
+
+        keep = (np.nonzero( stats['median'] ) * np.isfinite( stats['median'] ))[0]
+        xmean = xmean[keep]
+        stats = stats[keep]
+    else:
+        _xbin = np.linspace(xmin, xmax, nbin)
+        idx  = np.digitize(xx, _xbin)
+
+        for kk in range(nbin):
+            these = idx == kk
+            npts = np.count_nonzero( yy[these] )
+
+            stats['xbin'][kk] = _xbin[kk]
+            stats['npts'][kk] = npts
+
+            if npts > 0:
+                stats['xmedian'][kk] = np.nanmedian( xx[these] )
+                stats['xmean'][kk] = np.nanmean( xx[these] )
+
+                stats['ystd'][kk] = np.nanstd( yy[these] )
+                stats['ymean'][kk] = np.nanmean( yy[these] )
+
+                qq = np.nanpercentile( yy[these], [25, 50, 75] )
+                stats['y25'][kk] = qq[0]
+                stats['ymedian'][kk] = qq[1]
+                stats['y75'][kk] = qq[2]
+
+        keep = stats['npts'] > minpts
+        if np.count_nonzero(keep) == 0:
+            return None
+        else:
+            return stats[keep]
 
 def custom_brickname(ra, dec, prefix='custom-'):
     brickname = 'custom-{:06d}{}{:05d}'.format(
