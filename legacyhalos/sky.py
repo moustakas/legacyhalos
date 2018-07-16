@@ -79,48 +79,48 @@ def sky_coadd(ra, dec, outdir='.', size=100, prefix='', survey=None, ncpu=1, ell
                 if os.path.isdir(os.path.join(outdir, dd)):
                     shutil.rmtree(os.path.join(outdir, dd))
 
-        # Now measure the blank-sky surface brightness profile.
-        refband = ellipsefit['refband']
-        isophot = ellipsefit[refband]
+    # Now measure the blank-sky surface brightness profile.
+    refband = ellipsefit['refband']
+    isophot = ellipsefit[refband]
 
-        integrmode, sclip, nclip = ellipsefit['integrmode'], ellipsefit['sclip'], ellipsefit['nclip']
-        skyellipsefit = dict()
+    integrmode, sclip, nclip = ellipsefit['integrmode'], ellipsefit['sclip'], ellipsefit['nclip']
+    skyellipsefit = dict()
 
-        print('Reading {}'.format(blobfile))
-        blobs = fitsio.read(blobfile)
-        for filt, imfile in zip( band, imfiles ):
-            print('Reading {}'.format(imfile))
-            image = fitsio.read(imfile)
+    print('Reading {}'.format(blobfile))
+    blobs = fitsio.read(blobfile)
+    for filt, imfile in zip( band, imfiles ):
+        print('Reading {}'.format(imfile))
+        image = fitsio.read(imfile)
 
-            img = ma.masked_array(image, mask=(blobs != -1), fill_value=0)
-            #fitsio.write('junk.fits', img.filled(img.fill_value), clobber=True)
-            #fitsio.write('blobs.fits', blobs, clobber=True)
+        img = ma.masked_array(image, mask=(blobs != -1), fill_value=0)
+        #fitsio.write('junk.fits', img.filled(img.fill_value), clobber=True)
+        #fitsio.write('blobs.fits', blobs, clobber=True)
 
-            # Loop on the reference band isophotes
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                isobandfit = []
-                for iso in isophot:
-                    g = iso.sample.geometry # fixed geometry
-                    g.x0, g.y0 = size / 2, size / 2
+        # Loop on the reference band isophotes
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            isobandfit = []
+            for iso in isophot:
+                g = iso.sample.geometry # fixed geometry
+                g.x0, g.y0 = size / 2, size / 2
 
-                    # Use the same integration mode and clipping parameters.
-                    sample = EllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
-                                           sclip=sclip, nclip=nclip)
-                    sample.update()
+                # Use the same integration mode and clipping parameters.
+                sample = EllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
+                                       sclip=sclip, nclip=nclip)
+                sample.update()
 
-                    # Create an Isophote instance with the sample.
-                    isobandfit.append(Isophote(sample, 0, True, 0))
+                # Create an Isophote instance with the sample.
+                isobandfit.append(Isophote(sample, 0, True, 0))
 
-            # Build the IsophoteList instance with the result.
-            skyellipsefit[filt] = IsophoteList(isobandfit)
+        # Build the IsophoteList instance with the result.
+        skyellipsefit[filt] = IsophoteList(isobandfit)
 
-        ## Clean up
-        #for dd in ('coadd', 'metrics'):
-        #    if os.path.isdir(os.path.join(outdir, dd)):
-        #        shutil.rmtree(os.path.join(outdir, dd), ignore_errors=True)
+    ## Clean up
+    #for dd in ('coadd', 'metrics'):
+    #    if os.path.isdir(os.path.join(outdir, dd)):
+    #        shutil.rmtree(os.path.join(outdir, dd), ignore_errors=True)
 
-        return skyellipsefit
+    return skyellipsefit
 
 def sky_positions(ra_cluster, dec_cluster, redshift, r_lambda, nsky, rand):
     """Choose sky positions that are a minimum physical distance away from the

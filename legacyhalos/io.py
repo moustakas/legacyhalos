@@ -296,7 +296,7 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=N
         else:
             results = Table(fitsio.read(resultsfile, ext=extname))
         if verbose:
-            print('Read {} objects from extension {} of {}'.format(len(results), extname, resultsfile))
+            print('Read {} objects from {} [{}]'.format(len(results), resultsfile, extname))
         return results
 
 def read_sample(first=None, last=None, verbose=False):
