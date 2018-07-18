@@ -250,8 +250,8 @@ def main():
     
     # Now assemble a final set of LegacyHalos (LH) photometry using the
     # best-fitting model.
-    lsphot = _init_phot(ngal, withid=True)
-    lsphot['mem_match_id'] = sample['mem_match_id']
+    lhphot = _init_phot(ngal, withid=True)
+    lhphot['mem_match_id'] = sample['mem_match_id']
     #extname = [model.upper() for model in ['sersic_single_nowavepower', 'sersic_exponential_nowavepower',
     #           'sersic_double_nowavepower', 'sersic_single', 'sersic_exponential',
     #           'sersic_double']]
@@ -271,9 +271,9 @@ def main():
         rows = np.where( ibest == best )[0]
         #phot = legacyhalos.io.read_results(extname=extname[ibest], rows=rows, verbose=True)
         phot = allmodels[ibest][rows]
-        for col in lsphot.colnames:
+        for col in lhphot.colnames:
             if col != 'mem_match_id':
-                lsphot[col][rows] = phot[col]
+                lhphot[col][rows] = phot[col]
 
     # Write out summary statistics
     if args.verbose:
@@ -291,12 +291,17 @@ def main():
     print(results)
 
     # Write out
-    legacyhalos.io.write_results(lsphot, results=results, sersic_single=sersic_single,
+    legacyhalos.io.write_results(lhphot, results=results, sersic_single=sersic_single,
                                  sersic_double=sersic_double, sersic_exponential=sersic_exponential,
                                  sersic_single_nowavepower=sersic_single_nowavepower,
                                  sersic_double_nowavepower=sersic_double_nowavepower,
                                  sersic_exponential_nowavepower=sersic_exponential_nowavepower,
                                  verbose=args.verbose, clobber=args.clobber)
+
+    pdb.set_trace()
+    # HACK!!!!
+    
+    
 
 if __name__ == '__main__':
     main()
