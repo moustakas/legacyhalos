@@ -19,6 +19,7 @@ import legacyhalos.io
 from legacyhalos.qa import display_sersic
 
 band = ('g', 'r', 'z')
+chi2fail = 1e6
 
 def _init_phot(ngal=1, withid=False):
 
@@ -129,6 +130,8 @@ def sersic_integrate(sersic, nradius=150, maxradius=200, debug=False):
         phot['flux_{}'.format(filt)] = phot['flux_obs_{}'.format(filt)] + dm
         phot['flux_ivar_{}'.format(filt)] = phot['flux_obs_ivar_{}'.format(filt)] + dm
 
+        # need to get the total model flux
+
         #print(filt, dm_in, obsflux, - 2.5 * np.log10( (obsflux+dm_in) / obsflux ))
         #pdb.set_trace()
         
@@ -144,7 +147,6 @@ def _get_results(resultargs):
 
 def get_results(sample, verbose=False, debug=False):
 
-    chi2fail = 1e6
     ngal = len(sample)
 
     # Initialize the top-level output table
@@ -290,6 +292,18 @@ def main():
                 print('  {}: {}/{} ({:.1f}%) '.format(modelname, ndone, ngal, fracdone))
     print(results)
 
+    print('HACK!!!!!!!!!!!!!!1')
+    lsphot = legacyhalos.io.read_parent(extname='LSPHOT', upenn=True, verbose=args.verbose)
+    rm = legacyhalos.io.read_parent(extname='REDMAPPER', upenn=True, verbose=args.verbose)
+
+    cols = [
+        'flux_w1', 'flux_ivar_w1', 'flux_w2', 'flux_ivar_w2',
+        'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 'mw_transmission_w1', 'mw_transmission_w2'
+        ]
+            
+    lhphot = hstack( (lhphot, lsphot[cols][args.first:args.last]) )
+    lhphot = hstack( (lhphot, rm[ ['ra', 'dec', 'z'] ][args.first:args.last]) )
+
     # Write out
     legacyhalos.io.write_results(lhphot, results=results, sersic_single=sersic_single,
                                  sersic_double=sersic_double, sersic_exponential=sersic_exponential,
@@ -297,11 +311,6 @@ def main():
                                  sersic_double_nowavepower=sersic_double_nowavepower,
                                  sersic_exponential_nowavepower=sersic_exponential_nowavepower,
                                  verbose=args.verbose, clobber=args.clobber)
-
-    pdb.set_trace()
-    # HACK!!!!
-    
-    
 
 if __name__ == '__main__':
     main()
