@@ -37,7 +37,7 @@ def _sbprofile_colors():
     colors = iter([_colors[1], _colors[2], _colors[0], _colors[3], _colors[4]])
     return colors
 
-def display_sersic(sersic, modeltype='single', png=None, verbose=False):
+def display_sersic(sersic, png=None, verbose=False):
     """Plot a wavelength-dependent surface brightness profile and model fit.
 
     """
@@ -52,7 +52,6 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         model = None
 
     ymnmax = [40, 0]
-    #rad_model = np.linspace(0.1, sersic['radius'].max()*1.1, 50)
 
     fig, ax = plt.subplots(figsize=(7, 5))
     for band, lam in zip( sersic['band'], (sersic['lambda_g'],
@@ -73,19 +72,19 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
 
         if model is not None:
             filt = '${}:\ $'.format(band)
-            if 'single' in modeltype:
+            if 'single' in sersic['modeltype']:
                 n = r'$n={:.2f}$'.format(model.get_sersicn(nref=model.nref, lam=lam, alpha=model.alpha))
                 r50 = r'$r_{{50}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref, lam=lam, beta=model.beta) * smascale)
                 label = '{} {}, {}'.format(filt, n, r50)
                 labelfont = 14
-            elif 'exponential' in modeltype:
+            elif 'exponential' in sersic['modeltype']:
                 n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
                 n2 = r'$n_{{2}}={:.2f}$'.format(model.nref2.value)
                 r50_1 = r'$r_{{50,1}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
                 r50_2 = r'$r_{{50,2}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
                 label = '{} {}, {}, {}, {}'.format(filt, n1, n2, r50_1, r50_2)
                 labelfont = 12
-            elif 'double' in modeltype:
+            elif 'double' in sersic['modeltype']:
                 n1 = r'$n_{{1}}={:.2f}$'.format(model.get_sersicn(nref=model.nref1, lam=lam, alpha=model.alpha1))
                 n2 = r'$n_{{2}}={:.2f}$'.format(model.get_sersicn(nref=model.nref2, lam=lam, alpha=model.alpha2))
                 r50_1 = r'$r_{{50,1}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
@@ -93,7 +92,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 label = '{} {}, {}, {}, {}'.format(filt, n1, n2, r50_1, r50_2)
                 labelfont = 12
             else:
-                raise ValueError('Unrecognized model type {}'.format(modeltype))
+                raise ValueError('Unrecognized model type {}'.format(sersic['modeltype']))
         else:
             label = band
             labelfont = 14
@@ -114,15 +113,36 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
         
         # optionally overplot the model
         if model is not None:
-            #wave_model = np.zeros_like(rad_model) + lam
-            wave_model = wave ; rad_model = rad
-            sb_model = model(rad_model, wave_model)
-            ax.plot(rad_model, 22.5-2.5*np.log10(sb_model), color='k', #color=col, 
-                        ls='--', lw=2, alpha=1)
+            #ww = sersic['wave_uniform'] == lam
+            #sb_model = model(sersic['radius_uniform'][ww], sersic['wave_uniform'][ww])
+            #ax.plot(sersic['radius_uniform'][ww], 22.5-2.5*np.log10(sb_model), color='k', ls='--', lw=2, alpha=1)
+            sb_model = model(rad, wave)
+            ax.plot(rad, 22.5-2.5*np.log10(sb_model), color='k', ls='--', lw=2, alpha=1)
+
+            if False:
+                #wave_model = wave ; rad_model = rad
+                wave_model = np.zeros_like(rad_model) + lam
+
+                from legacyhalos.sersic import SersicSingleWaveModel
+                sb_model2 = SersicSingleWaveModel(seed=model.seed, psfsigma_g=model.psfsigma_g*0,
+                                                  psfsigma_r=model.psfsigma_r*0, psfsigma_z=model.psfsigma_z*0,
+                                                  pixscale=model.pixscale).evaluate(
+                                                      #rad, wave,
+                                                      rad_model, wave2,
+                                                      nref=model.nref, r50ref=model.r50ref, 
+                                                      alpha=model.alpha, beta=model.beta, 
+                                                      mu50_g=model.mu50_g, mu50_r=model.mu50_r, mu50_z=model.mu50_z)
+                #ax.plot(rad_model, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
+                #ax.plot(rad, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
+                #pdb.set_trace()
 
             # plot the individual Sersic profiles
-            if model.__class__.__name__ == 'SersicDoubleWaveModel' and band == 'r':
+            if model.__class__.__name__ == 'SersicDoubleWaveModel' and band == 'r' and 0 == 1:
                 from legacyhalos.sersic import SersicSingleWaveModel
+
+                rad_model = np.linspace(0, 200, 150)
+                wave_model = np.zeros_like(rad_model) + lam
+
                 model1 = SersicSingleWaveModel(nref=model.nref1.value, r50ref=model.r50ref1.value,
                                                alpha=model.alpha1.value, beta=model.beta1.value,
                                                mu50_g=model.mu50_g1.value, mu50_r=model.mu50_r1.value,
@@ -140,7 +160,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
     if model is not None:
         chi2 = r'$\chi^2_\nu={:.2f}$'.format(sersic['chi2'])
         lambdaref = '{}'.format(sersic['lambda_ref'])
-        if modeltype == 'single':
+        if sersic['modeltype'] == 'single':
             if sersic['converged']:
                 alpha = '{:.2f}\pm{:.2f}'.format(sersic['alpha'], sersic['alpha_err'])
                 beta = '{:.2f}\pm{:.2f}'.format(sersic['beta'], sersic['beta_err'])
@@ -160,7 +180,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 r50 = r'$r_{{50}}(\lambda) = {r50ref}\ (\lambda/{lambdaref})^{{{beta}}}\ arcsec$'.format(
                     r50ref=r50ref, lambdaref=lambdaref, beta=beta)
             txt = chi2+'\n'+n+'\n'+r50
-        elif modeltype == 'single-nowavepower':
+        elif sersic['modeltype'] == 'single-nowavepower':
             alphabeta = r'$\alpha={:.2f},\ \beta={:.2f}$'.format(sersic['alpha'], sersic['beta'])
             if sersic['converged']:
                 nref = r'{:.2f}\pm{:.2f}'.format(sersic['nref'], sersic['nref_err'])
@@ -173,7 +193,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 n = r'$n = {nref}$'.format(nref=nref)
                 r50 = r'$r_{{50}} = {r50ref}\ arcsec$'.format(r50ref=r50ref)
             txt = chi2+'\n'+alphabeta+'\n'+n+'\n'+r50
-        elif modeltype == 'exponential':
+        elif sersic['modeltype'] == 'exponential':
             if sersic['converged']:
                 alpha1 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha1'], sersic['alpha1_err'])
                 beta1 = r'{:.2f}\pm{:.2f}'.format(sersic['beta1'], sersic['beta1_err'])
@@ -205,7 +225,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                 r50_2 = r'$r_{{50,2}}(\lambda) = {r50ref2}\ (\lambda/{lambdaref})^{{{beta2}}}\ arcsec$'.format(
                     r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
             txt = chi2+'\n'+n1+'\n'+n2+'\n'+r50_1+'\n'+r50_2
-        elif modeltype == 'exponential-nowavepower':
+        elif sersic['modeltype'] == 'exponential-nowavepower':
             alpha = r'$\alpha_1={:.2f}$'.format(sersic['alpha1'])
             beta = r'$\beta_1=\beta_2={:.2f}$'.format(sersic['beta1'])
             if sersic['converged']:
@@ -222,7 +242,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
             r50 = r'$r_{{50,1}} = {r50ref1}\ r_{{50,2}} = {r50ref2}\ arcsec$'.format(r50ref1=r50ref1, r50ref2=r50ref2)
             txt = chi2+'\n'+alpha+'\n'+beta+'\n'+n+'\n'+r50
             
-        elif modeltype == 'double':
+        elif sersic['modeltype'] == 'double':
             if sersic['converged']:
                 alpha1 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha1'], sersic['alpha1_err'])
                 alpha2 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha2'], sersic['alpha2_err'])
@@ -259,7 +279,7 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
                     r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
                 
             txt = chi2+'\n'+n1+'\n'+n2+'\n'+r50_1+'\n'+r50_2
-        elif modeltype == 'double-nowavepower':
+        elif sersic['modeltype'] == 'double-nowavepower':
             alpha = r'$\alpha_1=\alpha_2={:.2f}$'.format(sersic['alpha1'])
             beta = r'$\beta_1=\beta_2={:.2f}$'.format(sersic['beta1'])
             if sersic['converged']:
@@ -276,22 +296,24 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
             r50 = r'$r_{{50,1}} = {r50ref1}\ r_{{50,2}} = {r50ref2}\ arcsec$'.format(r50ref1=r50ref1, r50ref2=r50ref2)
             txt = chi2+'\n'+alpha+'\n'+beta+'\n'+n+'\n'+r50
                 
-        ax.text(0.06, 0.1, txt, ha='left', va='bottom', linespacing=1.3,
+        ax.text(0.07, 0.04, txt, ha='left', va='bottom', linespacing=1.3,
                 transform=ax.transAxes, fontsize=12)
 
     ax.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
     ax.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
 
     ylim = [ymnmax[0]-0.5, ymnmax[1]+0.5]
-    if ylim[1] > 32.5:
+    if ylim[1] < 32.5:
         ylim[1] = 32.5
+
     ax.set_ylim(ylim)
     ax.invert_yaxis()
     #ax.margins()
     ax.margins(ymargins=0)
     #ax.set_yscale('log')
 
-    ax.set_xlim(xmin=0)
+    ax.set_xlim(0, rad.max()*1.05)
+    #ax.set_xlim(xmin=0)
 
     ax2 = ax.twiny()
     xlim = ax.get_xlim()
@@ -319,9 +341,11 @@ def display_sersic(sersic, modeltype='single', png=None, verbose=False):
 
 def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=None,
                       magrange=10, inchperband=3, contours=False, png=None,
-                      verbose=True):
+                      verbose=True, vertical=False):
     """Display the multi-band images and, optionally, the isophotal fits based on
     either MGE and/or Ellipse.
+
+    vertical -- for talks...
 
     """
     from astropy.visualization import AsinhStretch as Stretch
@@ -338,9 +362,16 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
     from astropy.visualization import ZScaleInterval as Interval
     interval = Interval(contrast=0.9)
 
+    #cmap = {'g': 'winter_r', 'r': 'summer', 'z': 'autumn_r'}
+    #cmap = {'g': 'Blues', 'r': 'Greens', 'z': 'Reds'}
+
     stretch = Stretch(a=0.95)
 
-    fig, ax = plt.subplots(1, 3, figsize=(inchperband*nband, nband))
+    if vertical:
+        fig, ax = plt.subplots(3, 1, figsize=(nband, inchperband*nband))
+    else:
+        fig, ax = plt.subplots(1, 3, figsize=(inchperband*nband, nband))
+        
     for filt, ax1 in zip(band, ax):
 
         img = data['{}_masked'.format(filt)]
@@ -348,7 +379,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
 
         norm = ImageNormalize(img, interval=interval, stretch=stretch)
 
-        im = ax1.imshow(img, origin='lower', norm=norm, cmap=cmap,
+        im = ax1.imshow(img, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
                         interpolation='nearest')
         plt.text(0.1, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
                  ha='center', va='center', color='k', fontsize=14)
@@ -407,7 +438,11 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
         #ax1.set_adjustable('box-forced')
         ax1.autoscale(False)
 
-    fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.02, right=0.98)
+    if vertical:
+        fig.subplots_adjust(hspace=0.02, top=0.98, bottom=0.02, left=0.02, right=0.98)
+    else:
+        fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.02, right=0.98)
+        
     if png:
         if verbose:
             print('Writing {}'.format(png))
@@ -712,7 +747,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             plt.show()
         
 def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
-                              png=None, verbose=True):
+                               png=None, use_ylim=None, verbose=True):
     """Display the multi-band surface brightness profile.
 
     """
@@ -776,14 +811,18 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             #    ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
             #    ax1.axhline(y=ysky, color=col, ls='--')
 
-        ax1.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
+        ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
 
         ylim = [yminmax[0]-0.5, yminmax[1]+0.5]
         if ylim[0] < 17:
             ylim[0] = 17
-        if ylim[1] > 32.5:
-            ylim[1] = 32.5
-        ax1.set_ylim(ylim)
+        if ylim[1] > 33:
+            ylim[1] = 33
+
+        if use_ylim is not None:
+            ax1.set_ylim(use_ylim)
+        else:
+            ax1.set_ylim(ylim)
         ax1.invert_yaxis()
 
         xlim = [xminmax[0], xminmax[1]*1.01]
@@ -819,7 +858,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
         ax2.legend(bbox_to_anchor=(0.25, 0.98))
         
         ax2.set_ylabel('Color (mag)')
-        ax2.set_ylim(-0.1, 2.7)
+        ax2.set_ylim(-0.5, 3)
 
         for xx in (ax1, ax2):
             ylim = xx.get_ylim()
@@ -927,7 +966,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
     from astropy.cosmology import WMAP9 as cosmo
     from legacyhalos.io import get_objid, read_ellipsefit
     from legacyhalos.ellipse import ellipse_sbprofile
-    from legacyhalos.misc import medxbin
+    from legacyhalos.misc import statsinbins
 
     trendsdir = os.path.join(htmldir, 'trends')
     if not os.path.isdir(trendsdir):
@@ -970,7 +1009,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
                 allsma.append([]), allgood.append([]), allcolor.append([]), allcolorerr.append([])
 
         # get the median and interquartile trend
-        median_sma, color_stats = medxbin(np.hstack(allsma), np.hstack(allcolor), 3, minpts=5)
+        color_stats = statsinbins(np.hstack(allsma), np.hstack(allcolor), 3, minpts=5)
 
         if False:
             refsma = allsma[refindx] # reference semimajor axis
@@ -994,9 +1033,9 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
                 ax1.fill_between(thissma, thiscolor-thiscolorerr, thiscolor+thiscolorerr,
                                  alpha=0.1, color='gray')
 
-        ax1.plot(median_sma, color_stats['median'], color=sns.xkcd_rgb['blood red'], lw=2, ls='-')
-        ax1.plot(median_sma, color_stats['q25'], color=sns.xkcd_rgb['blood red'], lw=2, ls='--')
-        ax1.plot(median_sma, color_stats['q75'], color=sns.xkcd_rgb['blood red'], lw=2, ls='--')
+        ax1.plot(color_stats['xmedian'], color_stats['ymedian'], color=sns.xkcd_rgb['blood red'], lw=2, ls='-')
+        ax1.plot(color_stats['xmedian'], color_stats['y25'], color=sns.xkcd_rgb['blood red'], lw=2, ls='--')
+        ax1.plot(color_stats['xmedian'], color_stats['y75'], color=sns.xkcd_rgb['blood red'], lw=2, ls='--')
 
         ax1.grid()
         ax1.set_xlim(xlim)

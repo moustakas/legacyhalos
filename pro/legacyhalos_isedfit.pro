@@ -6,7 +6,7 @@
 ;   Use iSEDfit to compute stellar masses for the various legacyhalos samples.
 ;
 ; INPUTS:
-;   At least one of /LSPHOT_DR5, /LSPHOT_CUSTOM, /SDSSPHOT_DR14, or
+;   At least one of /LSPHOT_DR5, /LHPHOT, /SDSSPHOT_DR14, or
 ;   /SDSSPHOT_UPENN must be set.
 ;
 ; OPTIONAL INPUTS:
@@ -14,7 +14,7 @@
 ;
 ; KEYWORD PARAMETERS:
 ;   lsphot_dr5
-;   lsphot_custom
+;   lhphot
 ;   sdssphot_dr14
 ;   sdssphot_upenn
 ;   redmapper_upenn
@@ -35,6 +35,7 @@
 ;
 ; MODIFICATION HISTORY:
 ;   J. Moustakas, 2017 Dec 27, Siena
+;   jm18jul16siena - fit first-pass legacyhalos photometry 
 ;
 ; Copyright (C) 2017, John Moustakas
 ; 
@@ -49,14 +50,16 @@
 ; General Public License for more details. 
 ;-
 
-function lsphot_custom_version
+function lhphot_version
 ; v1.0 - original effort    
     ver = 'v1.0'
 return, ver
 end    
 
-pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
+pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lhphot=lhphot, $
   sdssphot_dr14=sdssphot_dr14, sdssphot_upenn=sdssphot_upenn, redmapper_upenn=redmapper_upenn, $
+
+  
   write_paramfile=write_paramfile, build_grids=build_grids, model_photometry=model_photometry, $
   isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, $
   gather_results=gather_results, clobber=clobber
@@ -66,10 +69,10 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
 
     legacyhalos_dir = getenv('LEGACYHALOS_DIR')
 
-    if keyword_set(lsphot_dr5) eq 0 and keyword_set(lsphot_custom) eq 0 and $
+    if keyword_set(lsphot_dr5) eq 0 and keyword_set(lhphot) eq 0 and $
       keyword_set(sdssphot_dr14) eq 0 and keyword_set(sdssphot_upenn) eq 0 and $
       keyword_set(redmapper_upenn) eq 0 and keyword_set(gather_results) eq 0 then begin
-       splog, 'Choose one of /LSPHOT_DR5, /LSPHOT_CUSTOM, /SDSSPHOT_DR14, /SDSSPHOT_UPENN, or /REDMAPPER_UPENN'
+       splog, 'Choose one of /LSPHOT_DR5, /LHPHOT, /SDSSPHOT_DR14, /SDSSPHOT_UPENN, or /REDMAPPER_UPENN'
        return       
     endif
     
@@ -78,10 +81,10 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        prefix = 'lsphot'
        outprefix = 'lsphot_dr5'
     endif
-    if keyword_set(lsphot_custom) then begin
-       version = lsphot_custom_version()
+    if keyword_set(lhphot) then begin
+       version = lhphot_version()
        prefix = 'lsphot'
-       outprefix = 'lsphot_'+version
+       outprefix = 'lhphot_'+version
     endif
     if keyword_set(sdssphot_dr14) then begin
        prefix = 'sdssphot'
@@ -96,12 +99,14 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        outprefix = 'redmapper_upenn'
     endif
 
-    isedfit_rootdir = getenv('IM_ARCHIVE_DIR')+'/projects/legacyhalos/'
+    isedfit_rootdir = getenv('IM_WORK_DIR')+'/projects/legacyhalos/isedfit/'
     
 ; --------------------------------------------------
 ; gather the results and write out the final stellar mass catalog; also consider
 ; writing out all the spectra...
     if keyword_set(gather_results) then begin
+
+; full sample
        lsphot = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
          'lsphot_dr5_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
        lsphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
@@ -134,23 +139,74 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
        sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-KCORR'
        modfits, outfile, 0, hdr, exten_no=4
 
-       upenn = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
-         'redmapper_upenn_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
-       upenn_kcorr = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
-         'redmapper_upenn_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
+; upenn subsample       
+       print, 'HACK!!!!!!!!!!!!!!'
+       print, 'Rewrite the mendel stellar mass results.'
+       upenn = mrdfits(legacyhalos_dir+'/redmapper-upenn.fits', 3)
+       upenn_radec = mrdfits(legacyhalos_dir+'/redmapper-upenn.fits', 1, columns=['RA', 'DEC'])
+
+;      upenn = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
+;        'redmapper_upenn_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+;      upenn_kcorr = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
+;        'redmapper_upenn_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
+
+       lhphot = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
+         'lhphot_v1.0_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+
+; match to upenn       
+       spherematch, upenn_radec.ra, upenn_radec.dec, lhphot.ra, lhphot.dec, 1D/3600, m1, m2, d12
+       srt = sort(m2) & m1 = m1[srt] & m2 = m2[srt]
+       upenn = upenn[m1]
+;      upenn_kcorr = upenn_kcorr[m1]
+       
+; match to lsphot
+       spherematch, lsphot.ra, lsphot.dec, lhphot.ra, lhphot.dec, 1D/3600, m1, m2, d12
+       srt = sort(m2) & m1 = m1[srt] & m2 = m2[srt]
+       lsphot = lsphot[m1]
+       lsphot_kcorr = lsphot_kcorr[m1]
+       
+; match to sdssphot
+       spherematch, sdssphot.ra, sdssphot.dec, lhphot.ra, lhphot.dec, 1D/3600, m1, m2, d12
+       srt = sort(m2) & m1 = m1[srt] & m2 = m2[srt]
+       sdssphot = sdssphot[m1]
+       sdssphot_kcorr = sdssphot_kcorr[m1]
        
        outfile = legacyhalos_dir+'/redmapper-upenn-isedfit.fits'
        mwrfits, upenn, outfile, /create
-       mwrfits, upenn_kcorr, outfile
+;      mwrfits, upenn_kcorr, outfile
+       mwrfits, lhphot, outfile
+       mwrfits, lsphot, outfile
+       mwrfits, sdssphot, outfile
 
-       hdr = headfits(outfile,ext=1)
-       sxaddpar, hdr, 'EXTNAME', 'UPENN-ISEDFIT'
-       modfits, outfile, 0, hdr, exten_no=1
+       ee = 1
+       hdr = headfits(outfile,ext=ee)
+       sxaddpar, hdr, 'EXTNAME', 'UPENN'
+       modfits, outfile, 0, hdr, exten_no=ee
 
-       hdr = headfits(outfile,ext=2)
-       sxaddpar, hdr, 'EXTNAME', 'UPENN-KCORR'
-       modfits, outfile, 0, hdr, exten_no=2
+       print, 'Leave off my isedfit masses.'
+;      hdr = headfits(outfile,ext=ee)
+;      sxaddpar, hdr, 'EXTNAME', 'UPENN-ISEDFIT'
+;      modfits, outfile, 0, hdr, exten_no=ee
        
+       print, 'HACK!!  Leave off K-correct'
+;      hdr = headfits(outfile,ext=2)
+;      sxaddpar, hdr, 'EXTNAME', 'UPENN-KCORR'
+;      modfits, outfile, 0, hdr, exten_no=2
+
+       ee = 2
+       hdr = headfits(outfile,ext=ee)
+       sxaddpar, hdr, 'EXTNAME', 'LHPHOT-ISEDFIT'
+       modfits, outfile, 0, hdr, exten_no=ee
+
+       ee = 3
+       hdr = headfits(outfile,ext=ee)
+       sxaddpar, hdr, 'EXTNAME', 'LSPHOT-ISEDFIT'
+       modfits, outfile, 0, hdr, exten_no=ee
+
+       ee = 4
+       hdr = headfits(outfile,ext=ee)
+       sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-ISEDFIT'
+       modfits, outfile, 0, hdr, exten_no=ee
        return
     endif
 
@@ -163,7 +219,7 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
 
 ; --------------------------------------------------
 ; define the filters and the redshift ranges
-    if keyword_set(lsphot_dr5) or keyword_set(lsphot_custom) then begin
+    if keyword_set(lsphot_dr5) or keyword_set(lhphot) then begin
        filterlist = [legacysurvey_filterlist(), wise_filterlist(/short)]
        zminmax = [0.05,0.6]
        nzz = 61
@@ -217,9 +273,28 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lsphot_custom=lsphot_custom, $
     
 ; --------------------------------------------------
 ; custom LegacySurvey (grz) + unWISE W1 & W2    
-    if keyword_set(lsphot_custom) then begin
-       splog, 'Not yet available!'
-       stop
+    if keyword_set(lhphot) then begin
+       cat = mrdfits(legacyhalos_dir+'/legacyhalos-results.fits', 'LHPHOT')
+
+       ra = cat.ra
+       dec = cat.dec
+       zobj = cat.z
+
+       factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
+         [cat.mw_transmission_z] ])
+       dmaggies = float(transpose([ [cat.flux_g], [cat.flux_r], [cat.flux_z] ]) * factor)
+       divarmaggies = float(transpose([ [cat.flux_ivar_g], [cat.flux_ivar_r], $
+         [cat.flux_ivar_z] ]) / factor^2)
+       
+       factor = 1D-9 / transpose([ [cat.mw_transmission_w1], [cat.mw_transmission_w2] ])
+       wmaggies = float(transpose([ [cat.flux_w1], [cat.flux_w2] ]) * factor)
+       wivarmaggies = float(transpose([ [cat.flux_ivar_w1], [cat.flux_ivar_w2] ]) / factor^2)
+
+       maggies = [dmaggies, wmaggies]
+       ivarmaggies = [divarmaggies, wivarmaggies]
+
+; add minimum uncertainties to grzW1W2
+       k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.02,0.02]
     endif
 
 ; --------------------------------------------------

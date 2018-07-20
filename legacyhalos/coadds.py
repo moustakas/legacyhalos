@@ -31,7 +31,7 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
     cmd += '--threads {threads} --outdir {outdir} --unwise-coadds '
     #cmd += '--force-stage coadds '
     cmd += '--write-stage srcs --no-write --skip --skip-calibs --no-wise-ceres '
-    cmd += '--checkpoint {archivedir}/{objid}-runbrick-checkpoint.p --checkpoint-period 300 '
+    cmd += '--checkpoint {archivedir}/{objid}-runbrick-checkpoint.p --checkpoint-period 600 '
     cmd += '--pickle {archivedir}/{objid}-runbrick-%%(stage)s.p ' 
     if force:
         cmd += '--force-all '
@@ -43,67 +43,77 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
+    if err != 0:
+        print('Something we wrong; please check the logfile.')
+        return 0
+    else:
 
-    # Move (rename) files into the desired output directory and clean up.
-    brickname = custom_brickname(sample['ra'], sample['dec'], prefix='custom-')
+        # Move (rename) files into the desired output directory and clean up.
+        brickname = custom_brickname(sample['ra'], sample['dec'], prefix='custom-')
 
-    # tractor catalog
-    shutil.copy(
-        os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
-        os.path.join(survey.output_dir, '{}-tractor.fits'.format(objid))
-        )
-
-    # data and model images
-    for band in ('g', 'r', 'z'):
-        for imtype in ('image', 'model', 'invvar'):
-            shutil.copy(
-                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                             'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, imtype, band))
-                )
-    for band in ('W1', 'W2'):
-        for imtype in ('image', 'model'):
-            shutil.copy(
-                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                             'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, imtype, band))
-                )
-
-    # jpg images
-    for imtype in ('image', 'model', 'resid', 'wise', 'wisemodel'):
+        # tractor catalog
         shutil.copy(
-            os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                         'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-            os.path.join(survey.output_dir, '{}-{}.jpg'.format(objid, imtype))
+            os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
+            os.path.join(survey.output_dir, '{}-tractor.fits'.format(objid))
             )
 
-    # CCDs, maskbits, blob images, and depth images
-    shutil.copy(
-        os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                     'legacysurvey-{}-ccds.fits'.format(brickname)),
-        os.path.join(survey.output_dir, '{}-ccds.fits'.format(objid))
-        )
-    shutil.copy(
-        os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                     'legacysurvey-{}-maskbits.fits.gz'.format(brickname)),
-        os.path.join(survey.output_dir, '{}-maskbits.fits.gz'.format(objid))
-        )
-    shutil.copy(
-        os.path.join(survey.output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
-        os.path.join(survey.output_dir, '{}-blobs.fits.gz'.format(objid))
-        )
-    for band in ('g', 'r', 'z'):
+        # data and model images
+        for band in ('g', 'r', 'z'):
+            for imtype in ('image', 'model', 'invvar'):
+                imfile = os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                                      'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band))
+                if not os.path.isfile(imfile):
+                    return 0
+                
+                shutil.copy(
+                    imfile,
+                    os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, imtype, band))
+                    )
+        for band in ('W1', 'W2'):
+            for imtype in ('image', 'model'):
+                shutil.copy(
+                    os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                                 'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                    os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(objid, imtype, band))
+                    )
+
+        # jpg images
+        for imtype in ('image', 'model', 'resid', 'wise', 'wisemodel'):
+            shutil.copy(
+                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
+                os.path.join(survey.output_dir, '{}-{}.jpg'.format(objid, imtype))
+                )
+
+        # CCDs, maskbits, blob images, and depth images
         shutil.copy(
             os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                         'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
-            os.path.join(survey.output_dir, '{}-depth-{}.fits.fz'.format(objid, band))
+                         'legacysurvey-{}-ccds.fits'.format(brickname)),
+            os.path.join(survey.output_dir, '{}-ccds.fits'.format(objid))
             )
-        
-    if True:
-        shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
-        shutil.rmtree(os.path.join(survey.output_dir, 'metrics'))
-        shutil.rmtree(os.path.join(survey.output_dir, 'tractor'))
-        shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
+        shutil.copy(
+            os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                         'legacysurvey-{}-maskbits.fits.gz'.format(brickname)),
+            os.path.join(survey.output_dir, '{}-maskbits.fits.gz'.format(objid))
+            )
+        shutil.copy(
+            os.path.join(survey.output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
+            os.path.join(survey.output_dir, '{}-blobs.fits.gz'.format(objid))
+            )
+        for band in ('g', 'r', 'z'):
+            shutil.copy(
+                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
+                os.path.join(survey.output_dir, '{}-depth-{}.fits.fz'.format(objid, band))
+                )
+
+        if True:
+            shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
+            shutil.rmtree(os.path.join(survey.output_dir, 'metrics'))
+            shutil.rmtree(os.path.join(survey.output_dir, 'tractor'))
+            shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
+
+        return 1
 
 def _coadds_stage_tims(sample, survey=None, mp=None, radius=100,
                        brickname=None, pixscale=0.262, log=None):
@@ -283,22 +293,25 @@ def legacyhalos_custom_coadds(sample, survey=None, objid=None, objdir=None,
 
     # Step 1 - Run legacypipe to generate a custom "brick" and tractor catalog
     # centered on the central.
-    _custom_brick(sample, objid=objid, survey=survey, radius=radius,
-                  ncpu=ncpu, pixscale=pixscale, log=log, force=force,
-                  archivedir=archivedir)
+    success = _custom_brick(sample, objid=objid, survey=survey, radius=radius,
+                            ncpu=ncpu, pixscale=pixscale, log=log, force=force,
+                            archivedir=archivedir)
+    if success:
 
-    # Step 2 - Read the Tractor catalog for this brick and remove the central.
-    cat = _read_tractor(sample, objid=objid, survey=survey, log=log)
+        # Step 2 - Read the Tractor catalog for this brick and remove the central.
+        cat = _read_tractor(sample, objid=objid, survey=survey, log=log)
 
-    # Step 3 - Set up the first stage of the pipeline.
-    P = _coadds_stage_tims(sample, survey=survey, mp=mp, radius=radius,
-                           brickname=brickname, pixscale=pixscale, log=log)
+        # Step 3 - Set up the first stage of the pipeline.
+        P = _coadds_stage_tims(sample, survey=survey, mp=mp, radius=radius,
+                               brickname=brickname, pixscale=pixscale, log=log)
 
-    # Step 4 - Render the model images without the central.
-    mods = _build_model_image(cat, tims=P['tims'], survey=survey, log=log)
-    
-    # Step 3 - Generate and write out the coadds.
-    _tractor_coadds(sample, P['targetwcs'], P['tims'], mods, P['version_header'],
-                    objid=objid, brickname=brickname, survey=survey, mp=mp, log=log)
+        # Step 4 - Render the model images without the central.
+        mods = _build_model_image(cat, tims=P['tims'], survey=survey, log=log)
 
-    return 1
+        # Step 3 - Generate and write out the coadds.
+        _tractor_coadds(sample, P['targetwcs'], P['tims'], mods, P['version_header'],
+                        objid=objid, brickname=brickname, survey=survey, mp=mp, log=log)
+        return 1
+
+    else:
+        return 0

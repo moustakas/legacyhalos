@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from astropy.modeling import Fittable2DModel
 
 import legacyhalos.io
+from legacyhalos.qa import display_sersic
 
 class SersicSingleWaveModel(Fittable2DModel):
     """
@@ -340,8 +341,9 @@ class SersicDoubleWaveModel(Fittable2DModel):
         return mu
 
 class SersicWaveFit(object):
-    def __init__(self, ellipsefit, seed=None, minerr=0.01, nradius_uniform=150):
+    def __init__(self, ellipsefit, seed=None, minerr=0.01, nradius_uniform=150, snrmin=1):
 
+        from scipy.interpolate import splev, splrep
         from astropy.modeling import fitting
         self.rand = np.random.RandomState(seed)
         
@@ -366,25 +368,45 @@ class SersicWaveFit(object):
             _sb = ellipsefit[band].intens
             _sberr = np.sqrt( ellipsefit[band].int_err**2 + (0.4 * np.log(10) * _sb * minerr)**2 ) # minimum uncertainty
 
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                keep = np.isfinite(_sb) * (_sb / _sberr > snrmin)
+            print('Keeping {} / {} measurements in band {}'.format(np.sum(keep), len(_radius), band))
+                
+            _radius = _radius[keep]
+            _sb = _sb[keep]
+            _sberr = _sberr[keep]
+
             radius.append(_radius)
             sb.append(_sb)
             sberr.append(_sberr)
             wave.append( np.repeat(lam, len(_radius)) )
 
-            # interpolate onto a regular radius grid (in arcsec!)
+            # Interpolate onto a regular radius grid (in arcsec!).  We
+            # interpolate the uncertainties linearly and use a b-spline
+            # interpolation of the surface brightness profile to be able to
+            # smoothly connect missing measurements at large radii.  Note that
+            # higher-order interpolation of the uncertainties (or variances) is
+            # not well-behaved.
             _radius_uniform = np.linspace( _radius.min(), _radius.max(), nradius_uniform )
-            _sb_uniform = np.interp(_radius_uniform, _radius, _sb)
+            try:
+                _sb_uniform = splev(_radius_uniform, splrep(_radius, _sb, w=1/_sberr))
+            except:
+                _sb_uniform = np.interp(_radius_uniform, _radius, _sb)
             _sberr_uniform = np.sqrt(np.interp(_radius_uniform, _radius, _sberr**2))
-
+            
             radius_uniform.append( _radius_uniform )
             sb_uniform.append( _sb_uniform )
             sberr_uniform.append( _sberr_uniform )
             wave_uniform.append( np.repeat(lam, len(_radius_uniform)) )
 
-            #plt.scatter(_radius, _sb)
-            #plt.plot(_radius_uniform, _sb_uniform, color='orange', alpha=0.5)
-            #plt.yscale('log')
-            #plt.show()
+            if False: # QA
+                fig, ax = plt.subplots(2, 1, sharex=True)
+                ax[0].scatter(_radius, _sb) ; ax[0].plot(_radius_uniform, _sb_uniform, color='orange', alpha=0.5)
+                ax[1].scatter(_radius, _sberr) ; ax[1].plot(_radius_uniform, _sberr_uniform, color='orange', alpha=0.5)
+                for xx in ax:
+                    xx.set_yscale('log') ; xx.set_xscale('log')
+                plt.show()
             
         self.sb = np.hstack(sb)
         self.sberr = np.hstack(sberr)
@@ -408,7 +430,9 @@ class SersicWaveFit(object):
         return chi2
     
     def integrate(self, bestfit, nrad=50):
-        """Integrated the data and the model to get the final photometry.
+        """OBSOLETE -- this functionality is now in legacyhalos-results
+
+        Integrated the data and the model to get the final photometry.
         
         flux_obs_[grz] : observed integrated flux
         flux_int_[grz] : integrated (extrapolated) flux
@@ -423,7 +447,11 @@ class SersicWaveFit(object):
 
         phot = Table()
         [phot.add_column(Column(name='flux_obs_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
+        [phot.add_column(Column(name='flux_obs_ivar_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
+
         [phot.add_column(Column(name='flux_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
+        [phot.add_column(Column(name='flux_ivar_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
+        
         [phot.add_column(Column(name='dm_in_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
         [phot.add_column(Column(name='dm_out_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
         [phot.add_column(Column(name='dm_{}'.format(bb), dtype='f4', length=1)) for bb in self.initfit.band]
@@ -432,24 +460,38 @@ class SersicWaveFit(object):
                                                   self.initfit.lambda_r, 
                                                   self.initfit.lambda_z) ):
             wave = np.repeat(lam, nrad)
-            indx = (self.wave == lam) * np.isfinite(self.sb)
+            indx = (self.wave == lam) * np.isfinite(self.sb) * (self.sb > 0)
             
             rad = self.radius[indx]
             sb = self.sb[indx]
-            obsflux = 2 * np.pi * integrate.simps(x=rad, y=rad*sb)
-            phot['flux_obs_{}'.format(band)] = obsflux
+            sberr = self.sberr[indx]
             
+            obsflux = 2 * np.pi * integrate.simps(x=rad, y=rad*sb)
+            obsvar = 2 * np.pi * integrate.simps(x=rad, y=rad*sberr**2)
+
+            phot['flux_obs_{}'.format(band)] = obsflux
+            if obsvar > 0:
+                phot['flux_obs_ivar_{}'.format(band)] = 1/obsvar
+
             # now integrate inward and outward by evaluating the model
             rad_in = np.linspace(0, rad.min(), nrad)
             sb_in = bestfit(rad_in, wave) # no-convolution!!!
             dm_in = 2 * np.pi * integrate.simps(x=rad_in, y=rad_in*sb_in)
             
-            rad_out = np.logspace(np.log10(rad.max()), 3, nrad)
+            #rad_out = np.logspace(np.log10(rad.max()), 3, nrad)
+            rad_out = np.linspace(rad.max()*0.7, 200, 150) # nrad)
             sb_out = bestfit(rad_out, wave)
             dm_out = 2 * np.pi * integrate.simps(x=rad_out, y=rad_out*sb_out)
+
+            #plt.errorbar(rad, 22.5-2.5*np.log10(sb), 2.5*sberr/sb/np.log(10))
+            #plt.plot(rad_in, 22.5-2.5*np.log10(sb_in)) ; plt.scatter(rad_out, 22.5-2.5*np.log10(sb_out))
+            #plt.ylim(32, 15) ; plt.xlim(0, 30)
+            #plt.show()
+            #pdb.set_trace()
             
             dm = dm_in + dm_out
             phot['flux_{}'.format(band)] = phot['flux_obs_{}'.format(band)] + dm
+            phot['flux_ivar_{}'.format(band)] = phot['flux_obs_ivar_{}'.format(band)] + dm
             
             phot['dm_in_{}'.format(band)] = - 2.5 * np.log10(1 - dm_in / obsflux)
             phot['dm_out_{}'.format(band)] = - 2.5 * np.log10(1 - dm_out / obsflux)
@@ -457,7 +499,7 @@ class SersicWaveFit(object):
 
         return phot
 
-    def _fit(self, nball=10, chi2fail=1e6, verbose=False, model='single'):
+    def _fit(self, nball=10, chi2fail=1e6, verbose=False, modeltype='single'):
         """Perform the chi2 minimization.
         
         """
@@ -472,10 +514,18 @@ class SersicWaveFit(object):
             'success': False,
             'converged': False,
             'redshift': self.redshift,
+            'modeltype': modeltype,
+
             'radius': self.radius,
             'wave': self.wave,
             'sb': self.sb,
             'sberr': self.sberr,
+
+            'radius_uniform': self.radius_uniform,
+            'wave_uniform': self.wave_uniform,
+            'sb_uniform': self.sb_uniform,
+            'sberr_uniform': self.sberr_uniform,
+
             'band': self.initfit.band,
             'lambda_ref': self.initfit.lambda_ref,
             'lambda_g': self.initfit.lambda_g,
@@ -483,7 +533,7 @@ class SersicWaveFit(object):
             'lambda_z': self.initfit.lambda_z,
             'params': self.initfit.param_names,
             'chi2': chi2fail, # initial value
-            'dof': len(self.sb) - len(self.initfit.parameters),
+            'dof': len(self.sb_uniform) - len(self.initfit.parameters),
             'minerr': self.minerr,
             'pixscale': self.pixscale,
             'seed': self.seed,
@@ -520,23 +570,6 @@ class SersicWaveFit(object):
         with warnings.catch_warnings():
             warnings.simplefilter(warnvalue)
 
-            ## interpolate!
-            #radius, wave, sb, sberr = [], [], [], []
-            #for lam in (self.initfit.lambda_g, self.initfit.lambda_r, self.initfit.lambda_z):
-            #    ww = (self.wave == lam)
-            #    if np.sum(ww) > 0:
-            #        rmin, rmax = self.radius[ww].min(), self.radius[ww].max()
-            #        rr = np.linspace(rmin, rmax, nrr)
-            #        radius.append(rr)
-            #        wave.append(np.repeat(lam, nrr))
-            #        sb.append( np.interp(rr, self.radius[ww], self.sb[ww]) )
-            #        sberr.append( np.sqrt(np.interp(rr, self.radius[ww], self.sberr[ww]**2)) )
-            #
-            #sb = np.hstack(sb)
-            #sberr = np.hstack(sberr)
-            #wave = np.hstack(wave)
-            #radius = np.hstack(radius)
-
             chi2 = np.zeros(nball) + chi2fail
             for jj in range(nball):
                 self.initfit.parameters = params[:, jj]
@@ -554,7 +587,7 @@ class SersicWaveFit(object):
         # did at least one fit succeed?
         good = chi2 < chi2fail
         if np.sum(good) == 0:
-            print('{}-Sersic fitting failed.'.format(model.upper()))
+            print('{}-Sersic fitting failed.'.format(modeltype.upper()))
             result.update({'fit_message': self.fitter.fit_info['message']})
             return result
 
@@ -567,10 +600,10 @@ class SersicWaveFit(object):
                               self.sb_uniform, weights=1/self.sberr_uniform)
         #bestfit = self.fitter(self.initfit, self.radius, self.wave, self.sb, weights= 1 / self.sberr)
         minchi2 = chi2[mindx]
-        print('{} Sersic fitting succeeded with a chi^2 minimum of {:.2f}'.format(model.upper(), minchi2))
+        print('{} Sersic fitting succeeded with a chi^2 minimum of {:.2f}'.format(modeltype.upper(), minchi2))
 
-        # Integrate the data and model over various apertures.
-        phot = self.integrate(bestfit)
+        ## Integrate the data and model over various apertures.
+        #phot = self.integrate(bestfit)
         
         # Pack the results in a dictionary and return.
         # https://gist.github.com/eteq/1f3f0cec9e4f27536d52cd59054c55f2
@@ -609,7 +642,7 @@ class SersicWaveFit(object):
             'cov': cov,
             'bestfit': bestfit,
             'fit_message': self.fitter.fit_info['message'],
-            'phot': phot,
+            #'phot': phot,
         })
         
         return result
@@ -617,7 +650,10 @@ class SersicWaveFit(object):
 class SersicSingleWaveFit(SersicWaveFit):
     """Fit surface brightness profiles with the SersicSingleWaveModel model.""" 
    
-    def __init__(self, ellipsefit, minerr=0.01, fix_alpha=False, fix_beta=False, seed=None):
+    def __init__(self, ellipsefit, minerr=0.01, fix_alpha=False, fix_beta=False,
+                 seed=None, modeltype='single'):
+        
+        self.modeltype = modeltype
         self.fixed = {'alpha': fix_alpha, 'beta': fix_beta}
         self.initfit = SersicSingleWaveModel(fixed=self.fixed, 
                                              psfsigma_g=ellipsefit['psfsigma_g'],
@@ -630,13 +666,15 @@ class SersicSingleWaveFit(SersicWaveFit):
 
     def fit(self, nball=10, chi2fail=1e6, verbose=False):
 
-        return self._fit(nball=10, chi2fail=1e6, verbose=verbose, model='single')
+        return self._fit(nball=10, chi2fail=1e6, verbose=verbose, modeltype=self.modeltype)
 
 class SersicExponentialWaveFit(SersicWaveFit):
     """Fit surface brightness profiles with the SersicExponentialWaveModel model."""
     
-    def __init__(self, ellipsefit, minerr=0.01, fix_alpha=False, fix_beta=False, seed=None):
+    def __init__(self, ellipsefit, minerr=0.01, fix_alpha=False, fix_beta=False,
+                 seed=None, modeltype='exponential'):
 
+        self.modeltype = modeltype
         self.fixed = {'alpha1': fix_alpha, 'beta1': fix_beta, 'beta2': fix_beta}
         #tied = {'r50ref2': self.tie_r50ref2}
         tied = {'beta2': self.tie_beta2}
@@ -658,13 +696,16 @@ class SersicExponentialWaveFit(SersicWaveFit):
             return model.r50ref1*1.05
         
     def fit(self, nball=10, chi2fail=1e6, verbose=False):
-        return self._fit(nball=10, chi2fail=1e6, verbose=verbose, model='exponential')
+
+        return self._fit(nball=10, chi2fail=1e6, verbose=verbose, modeltype=self.modeltype)
 
 class SersicDoubleWaveFit(SersicWaveFit):
     """Fit surface brightness profiles with the SersicDoubleWaveModel model."""
     
-    def __init__(self, ellipsefit, minerr=0.01, fix_alpha=False, fix_beta=False, seed=None):
+    def __init__(self, ellipsefit, minerr=0.01, fix_alpha=False, fix_beta=False,
+                 seed=None, modeltype='double'):
 
+        self.modeltype = modeltype
         self.fixed = {'alpha1': fix_alpha, 'alpha2': fix_alpha, 'beta1': fix_beta, 'beta2': fix_beta}
         tied = {'alpha2': self.tie_alpha2, 'beta2': self.tie_beta2}
 
@@ -685,9 +726,9 @@ class SersicDoubleWaveFit(SersicWaveFit):
         
     def fit(self, nball=10, chi2fail=1e6, verbose=False):
 
-        return self._fit(nball=10, chi2fail=1e6, verbose=verbose, model='double')
+        return self._fit(nball=10, chi2fail=1e6, verbose=verbose, modeltype=self.modeltype)
 
-def sersic_single(objid, objdir, ellipsefit, minerr=0.01, seed=None,
+def sersic_single(objid, objdir, ellipsefit, minerr=0.01, seed=None, debug=False,
                   nowavepower=False, nowrite=False, verbose=False):
     """Wrapper to fit a single Sersic model to an input surface brightness profile.
 
@@ -696,22 +737,26 @@ def sersic_single(objid, objdir, ellipsefit, minerr=0.01, seed=None,
 
     """
     if nowavepower:
-        model = 'single-nowavepower'
+        modeltype = 'single-nowavepower'
         sersic = SersicSingleWaveFit(ellipsefit, minerr=minerr, fix_alpha=True,
-                                     fix_beta=True, seed=seed)
+                                     fix_beta=True, seed=seed, modeltype=modeltype)
     else:
-        model = 'single'
+        modeltype = 'single'
         sersic = SersicSingleWaveFit(ellipsefit, minerr=minerr, fix_alpha=False,
-                                     fix_beta=False, seed=seed)
+                                     fix_beta=False, seed=seed, modeltype=modeltype)
         
     sersic = sersic.fit(verbose=verbose)
 
+    if debug:
+        display_sersic(sersic)
+
     if not nowrite:
-        legacyhalos.io.write_sersic(objid, objdir, sersic, model=model, verbose=verbose)
+        legacyhalos.io.write_sersic(objid, objdir, sersic, modeltype=modeltype,
+                                    verbose=verbose)
 
     return sersic
 
-def sersic_exponential(objid, objdir, ellipsefit, minerr=0.01, seed=None,
+def sersic_exponential(objid, objdir, ellipsefit, minerr=0.01, seed=None, debug=False,
                        nowavepower=False, nowrite=False, verbose=False):
     """Wrapper to fit a Sersic+exponential model to an input surface brightness
     profile.
@@ -721,22 +766,26 @@ def sersic_exponential(objid, objdir, ellipsefit, minerr=0.01, seed=None,
 
     """
     if nowavepower:
-        model = 'exponential-nowavepower'
+        modeltype = 'exponential-nowavepower'
         sersic = SersicExponentialWaveFit(ellipsefit, minerr=minerr, fix_alpha=True,
-                                          fix_beta=True, seed=seed)
+                                          fix_beta=True, seed=seed, modeltype=modeltype)
     else:
-        model = 'exponential'
+        modeltype = 'exponential'
         sersic = SersicExponentialWaveFit(ellipsefit, minerr=minerr, fix_alpha=False,
-                                          fix_beta=False, seed=seed)
+                                          fix_beta=False, seed=seed, modeltype=modeltype)
         
     sersic = sersic.fit(verbose=verbose)
 
+    if debug:
+        display_sersic(sersic)
+
     if not nowrite:
-        legacyhalos.io.write_sersic(objid, objdir, sersic, model=model, verbose=verbose)
+        legacyhalos.io.write_sersic(objid, objdir, sersic, modeltype=modeltype,
+                                    verbose=verbose)
 
     return sersic
 
-def sersic_double(objid, objdir, ellipsefit, minerr=0.01, seed=None,
+def sersic_double(objid, objdir, ellipsefit, minerr=0.01, seed=None, debug=False,
                   nowavepower=False, nowrite=False, verbose=False):
     """Wrapper to fit a double Sersic model to an input surface brightness profile. 
 
@@ -745,22 +794,26 @@ def sersic_double(objid, objdir, ellipsefit, minerr=0.01, seed=None,
 
     """
     if nowavepower:
-        model = 'double-nowavepower'
+        modeltype = 'double-nowavepower'
         sersic = SersicDoubleWaveFit(ellipsefit, minerr=minerr, fix_alpha=True,
-                                     fix_beta=True, seed=None)
+                                     fix_beta=True, seed=None, modeltype=modeltype)
     else:
-        model = 'double'
+        modeltype = 'double'
         sersic = SersicDoubleWaveFit(ellipsefit, minerr=minerr, fix_alpha=False,
-                                     fix_beta=False, seed=None)
+                                     fix_beta=False, seed=None, modeltype=modeltype)
         
     sersic = sersic.fit(verbose=verbose)
 
+    if debug:
+        display_sersic(sersic)
+
     if not nowrite:
-        legacyhalos.io.write_sersic(objid, objdir, sersic, model=model, verbose=verbose)
+        legacyhalos.io.write_sersic(objid, objdir, sersic, modeltype=modeltype,
+                                    verbose=verbose)
 
     return sersic
 
-def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.02, seed=None,
+def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.03, seed=None,
                        verbose=False, debug=False):
     """Top-level wrapper script to model the measured surface-brightness profiles
     with various Sersic models.
@@ -777,23 +830,24 @@ def legacyhalos_sersic(sample, objid=None, objdir=None, minerr=0.02, seed=None,
         if ellipsefit['success']:
 
             # double Sersic fit with and without wavelength dependence
-            double = sersic_double(objid, objdir, ellipsefit, minerr=minerr,
+            double = sersic_double(objid, objdir, ellipsefit, minerr=minerr, debug=debug,
                                    verbose=verbose, seed=seed)
-            double_nowave = sersic_double(objid, objdir, ellipsefit, minerr=minerr,
+            double_nowave = sersic_double(objid, objdir, ellipsefit, minerr=minerr, debug=debug,
+                                          verbose=verbose, nowavepower=True, seed=seed)
+
+            # single Sersic fit with and without wavelength dependence
+            single = sersic_single(objid, objdir, ellipsefit, minerr=minerr, debug=debug,
+                                   verbose=verbose, seed=seed)
+            
+            single_nowave = sersic_single(objid, objdir, ellipsefit, minerr=minerr, debug=debug,
                                           verbose=verbose, nowavepower=True, seed=seed)
 
             # Sersic-exponential fit with and without wavelength dependence
-            serexp = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr,
+            serexp = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr, debug=debug,
                                         verbose=verbose, seed=seed)
 
-            serexp_nowave = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr,
+            serexp_nowave = sersic_exponential(objid, objdir, ellipsefit, minerr=minerr, debug=debug,
                                                verbose=verbose, nowavepower=True, seed=seed)
-
-            # single Sersic fit with and without wavelength dependence
-            single = sersic_single(objid, objdir, ellipsefit, minerr=minerr,
-                                   verbose=verbose, seed=seed)
-            single_nowave = sersic_single(objid, objdir, ellipsefit, minerr=minerr,
-                                          verbose=verbose, nowavepower=True, seed=seed)
 
             if single['success']:
                 return 1
