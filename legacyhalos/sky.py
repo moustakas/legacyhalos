@@ -171,7 +171,7 @@ def legacyhalos_sky(sample, survey=None, objid=None, objdir=None, ncpu=1, nsky=3
 
             # Set the size of the sky cutout to 2.2 times the length of the
             # semi-major axis of the central galaxy.
-            size = np.ceil(2.5 * ellipsefit['geometry'].sma).astype('int')
+            size = np.ceil(3 * ellipsefit['geometry'].sma).astype('int')
 
             # get the (random) sky coordinates
             ra, dec = sky_positions(sample['ra'], sample['dec'], sample['z'],
