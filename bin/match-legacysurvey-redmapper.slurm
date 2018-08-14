@@ -27,4 +27,4 @@ cat $DR6_FILELIST $DR7_FILELIST > $LEGACYSURVEY_FILELIST
 time srun -u --cpu_bind=no python $LEGACYHALOS_CODE_DIR/bin/match-legacysurvey-redmapper \
     $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-sdssWISEphot-dr14.fits $PWD \
     $REDMAPPER_DIR/v6.3.1/legacysurvey-dr6-dr7-redmapper-v6.3.1-lgt5.fits \
-    -v --numproc 8 -f fits -F $LEGACYSURVEY_FILELIST --copycols MEM_MATCH_ID
+    -v --numproc 8 -f fits -F $LEGACYSURVEY_FILELIST

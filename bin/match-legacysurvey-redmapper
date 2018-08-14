@@ -127,12 +127,12 @@ def save_file(filename, data, header, format):
     if format == 'fits':
         filename = basename + '.fits'
         print('Writing {}'.format(filename))
-        fitsio.write(filename, data, extname='MATCHED', header=header, clobber=True)
+        fitsio.write(filename, data, extname='LEGACYSURVEY', header=header, clobber=True)
     elif format == 'hdf5':
         filename = basename + '.hdf5'
         import h5py
         with h5py.File(filename, 'w') as ff:
-            dset = ff.create_dataset('MATCHED', data=data)
+            dset = ff.create_dataset('LEGACYSURVEY', data=data)
             for key in header:
                 dset.attrs[key] = header[key]
     else:
