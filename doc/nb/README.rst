@@ -7,12 +7,12 @@ order in which they should be reviewed.
 Preparatory Work
 ----------------
 
-* `redmapper-casjobs.ipynb`_ -- The redMaPPer/v6.3.1 catalog of central galaxies
-  we adopt for our analysis (*r8_run_redmapper_v6.3.1_lgt5_catalog.fit*)
-  contains optical photometry from SDSS/DR8 and no WISE photometry.  In this
-  notebook we document how we use `SDSS/CasJobs`_ to assemble updated SDSS/DR14
-  *ugriz* and unWISE *W1-W4* (forced) photometry (and, in some cases,
-  coordinates) for this catalog.
+* `redmapper-casjobs.ipynb`_ -- This notebook documents how we use
+  `SDSS/CasJobs`_ to assemble updated SDSS/DR14 *ugriz* and unWISE *W1-W4*
+  (forced) photometry (and, in some cases, coordinates) for the redMaPPer/v6.3.1
+  catalog of central galaxies, *r8_run_redmapper_v6.3.1_lgt5_catalog.fit*.
+  (Note that the original catalog has optical photometry from SDSS/DR8 and no
+  WISE photometry.)
 
 * `match-legacysurvey-redmapper.ipynb`_ -- This notebook documents how we match
   the updated *redmapper-v6.3.1-sdssWISEphot.fits* catalog to the Legacy Survey
@@ -31,10 +31,10 @@ Analysis
 
 .. _`SDSS/CasJobs`: http://skyserver.sdss.org/CasJobs
 
-.. _`redmapper-casjobs.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/redmapper-casjobs.ipynb 
+.. _`redmapper-casjobs.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/nb/redmapper-casjobs.ipynb 
 
-.. _`match-legacysurvey-redmapper.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/match-legacysurvey-redmapper.ipynb
+.. _`match-legacysurvey-redmapper.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/nb/match-legacysurvey-redmapper.ipynb
 
-.. _`legacyhalos-parent.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/legacyhalos-parent.ipynb
+.. _`legacyhalos-parent.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/nb/legacyhalos-parent.ipynb
 
-.. _`legacyhalos-parent-qaplots.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/nb/legacyhalos-parent-qaplots.ipynb
+.. _`legacyhalos-parent-qaplots.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/nb/legacyhalos-parent-qaplots.ipynb
