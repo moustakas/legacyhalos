@@ -24,8 +24,7 @@ find /global/cscratch1/sd/adamyers/gaiamatch/dr6/sweep/6.0 -name 'sweep-*.fits' 
 find /global/projecta/projectdirs/cosmo/data/legacysurvey/dr7/sweep/7.1 -name 'sweep-*.fits' > $DR7_FILELIST
 cat $DR6_FILELIST $DR7_FILELIST > $LEGACYSURVEY_FILELIST
 
-time srun -u --cpu_bind=no python $LEGACYHALOS_CODE_DIR/bin/match-legacysurvey-redmapper -v \
-     --numproc 8 -f fits -F $LEGACYSURVEY_FILELIST --copycols MEM_MATCH_ID \
-     $REDMAPPER_DIR/redmapper-v6.3.1-lgt5-sdssWISEphot-dr14.fits \
-     . \
-     $REDMAPPER_DIR/v6.3.1/legacysurvey-dr6-dr7-redmapper-v6.3.1-lgt5.fits
+time srun -u --cpu_bind=no python $LEGACYHALOS_CODE_DIR/bin/match-legacysurvey-redmapper \
+    $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-sdssWISEphot-dr14.fits $PWD \
+    $REDMAPPER_DIR/v6.3.1/legacysurvey-dr6-dr7-redmapper-v6.3.1-lgt5.fits \
+    -v --numproc 8 -f fits -F $LEGACYSURVEY_FILELIST --copycols MEM_MATCH_ID

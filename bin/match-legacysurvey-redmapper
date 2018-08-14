@@ -6,6 +6,7 @@ import os, sys, re
 import numpy as np
 
 from legacypipe.internal import sharedmem
+from legacypipe.internal.io import iter_tractor, parse_filename
 
 import argparse
 import os, sys
@@ -191,8 +192,10 @@ def list_bricks(ns):
     t0 = time()
 
     if ns.filelist is not None:
-        d = dict([(parse_filename(fn.strip()), fn.strip()) 
+        d = dict([(os.path.basename(fn.strip()), fn.strip()) 
             for fn in open(ns.filelist, 'r').readlines()])
+        #d = dict([(parse_filename(fn.strip()), fn.strip()) 
+        #    for fn in open(ns.filelist, 'r').readlines()])
     else:
         d = dict(iter_tractor(ns.src))
 
