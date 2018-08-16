@@ -1,5 +1,5 @@
-Guide to legacyhalos Analysis
-=============================
+Guide to *legacyhalos* Analysis
+===============================
 
 This README briefly describes our analysis procedure, and the purpose and
 content of each notebook.
