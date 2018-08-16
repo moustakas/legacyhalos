@@ -1,8 +1,8 @@
-Guide to legacyhalos Notebooks
-==============================
+Guide to legacyhalos Analysis
+=============================
 
-This README briefly describes the purpose of each notebook, and the logical
-order in which they should be reviewed.
+This README briefly describes our analysis procedure, and the purpose and
+content of each notebook.
 
 Preparatory Work
 ----------------
