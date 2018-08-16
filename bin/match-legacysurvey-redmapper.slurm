@@ -10,11 +10,20 @@
 #SBATCH -C haswell
 #SBATCH -t 00:30:00
 
+# In this SLURM script we match the redMaPPer/v6.3.1 central galaxy catalog to the
+# DR6+DR7 Legacy Surveys sweeps files using NERSC/cori.
+# 
 # To run the script from an interactive node do:
-# salloc -N 1 -C haswell -t 00:60:00 --qos interactive -L SCRATCH,project -A cosmo
+#   salloc -N 1 -C haswell -t 00:60:00 --qos interactive -L SCRATCH,project -A cosmo
 
-export IMPY_DIR=$HOME/repos/git/impy
-source $IMPY_DIR/bin/legacyhalos-env-nersc
+module use /global/common/software/desi/$NERSC_HOST/desiconda/20180512-1.2.5-img/modulefiles
+module load desiconda
+
+export LEGACYPIPE_DIR=$SCRATCH/repos/legacypipe
+export LEGACYHALOS_DIR=$SCRATCH/legacyhalos
+export LEGACYHALOS_CODE_DIR=$SCRATCH/repos/legacyhalos
+
+export PYTHONPATH=$LEGACYPIPE_DIR/py:$PYTHONPATH
 
 export DR6_FILELIST=$SCRATCH/tmp/dr6_filelist
 export DR7_FILELIST=$SCRATCH/tmp/dr7_filelist
