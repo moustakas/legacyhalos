@@ -83,11 +83,11 @@ References
 
 .. _`redmapper-sdssWISEphot.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/redmapper-sdssWISEphot.ipynb
 
-.. _`match-legacysurvey-redmapper.slurm`: https://github.com/moustakas/legacyhalos/blob/master/doc/match-legacysurvey-redmapper.slurm
+.. _`match-legacysurvey-redmapper.slurm`: https://github.com/moustakas/legacyhalos/blob/master/bin/match-legacysurvey-redmapper.slurm
 
-.. _`Legacy Surveys/DR6`_: http://legacysurvey.org/dr6/files/#sweep-catalogs
+.. _`Legacy Surveys/DR6`: http://legacysurvey.org/dr6/files/#sweep-catalogs
 
-.. _`Legacy Surveys/DR7`_: http://legacysurvey.org/dr7/files/#sweep-catalogs
+.. _`Legacy Surveys/DR7`: http://legacysurvey.org/dr7/files/#sweep-catalogs
 
 .. _`legacyhalos-parent.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/legacyhalos-parent.ipynb
 
