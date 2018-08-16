@@ -1,9 +1,11 @@
-# Guide to legacyhalos Analysis
+Guide to legacyhalos Analysis
+=============================
 
 This README briefly describes our analysis procedure, and the purpose and
 content of each notebook.
 
-## Preparatory Work
+Preparatory Work
+----------------
 
 1. *Gather SDSS+unWISE photometry.*
 
@@ -31,42 +33,38 @@ Analysis
 
 
 
-## References
+References
+----------
 
-### Relevant redMaPPer papers
+**Relevant redMaPPer papers**
 
-* [Rykoff et al. 2012, *Robust Optical Richness Estimation with Reduced Scatter*](http://adsabs.harvard.edu/abs/2012ApJ...746..178R)
-* [Saro et al. 2015, *Constraints on the richness-mass relation and the optical-SZE positional offset distribution for SZE-selected clusters*](http://adsabs.harvard.edu/abs/2015MNRAS.454.2305S)
-* [Simet et al. 2017, *Weak lensing measurement of the mass-richness relation of SDSS redMaPPer clusters*](http://adsabs.harvard.edu/abs/2017MNRAS.466.3103S)
-* [Melchior et al. 2017, *Weak-lensing mass calibration of redMaPPer galaxy clusters in Dark Energy Survey Science Verification data*](http://adsabs.harvard.edu/abs/2017MNRAS.469.4899M)
+* `Rykoff et al. 2012, Robust Optical Richness Estimation with Reduced Scatter`_
+* `Saro et al. 2015, Constraints on the richness-mass relation and the optical-SZE positional offset distribution for SZE-selected clusters`_
+* `Simet et al. 2017, Weak lensing measurement of the mass-richness relation of SDSS redMaPPer clusters`_
+* `Melchior et al. 2017, Weak-lensing mass calibration of redMaPPer galaxy clusters in Dark Energy Survey Science Verification data`_
 
+* `Rykoff et al. 2014, redMaPPer. I. Algorithm and SDSS DR8 Catalog`_
+* `Rozo et al. 2014, redMaPPer II: X-Ray and SZ Performance Benchmarks for the SDSS Catalog`_
+* `Rozo et al. 2015a, redMaPPer - III. A detailed comparison of the Planck 2013 and SDSS DR8 redMaPPer cluster catalogues`_
+* `Rozo et al. 2015b, redMaPPer - IV. Photometric membership identification of red cluster galaxies with 1 per cent precision`_
+* `Rykoff et al. 2016, The RedMaPPer Galaxy Cluster Catalog From DES Science Verification Data`_
 
-* [Rykoff et al. 2014, *redMaPPer. I. Algorithm and SDSS DR8 Catalog*](http://adsabs.harvard.edu/abs/2014ApJ...785..104R)
-* [Rozo et al. 2014, *redMaPPer II: X-Ray and SZ Performance Benchmarks for the SDSS Catalog*](http://adsabs.harvard.edu/abs/2014ApJ...783...80R)
-* [Rozo et al. 2015a, *redMaPPer - III. A detailed comparison of the Planck 2013 and SDSS DR8 redMaPPer cluster catalogues*](http://adsabs.harvard.edu/abs/2015MNRAS.450..592R)
-* [Rozo et al. 2015b, *redMaPPer - IV. Photometric membership identification of red cluster galaxies with 1 per cent precision*](http://adsabs.harvard.edu/abs/2015MNRAS.453...38R)
+**Relevant Upenn-PhotDec papers**
 
-* [Rykoff et al. 2016, *The RedMaPPer Galaxy Cluster Catalog From DES Science
-  Verification Data*](http://adsabs.harvard.edu/abs/2016ApJS..224....1R)
+* `Vikram et al. 2010, PyMorph: Automated Galaxy Structural Parameter Estimation using Python`_
+* `Meert et al. 2013, Simulations of single- and two-component galaxy decompositions for spectroscopically selected galaxies from the SDSS`_
+* `Meert et al. 2015, A catalogue of 2D photometric decompositions in the SDSS-DR7 spectroscopic main galaxy sample: preferred models and systematics`_
+* `Meert et al. 2016, A catalogue of 2D photometric decompositions in the SDSS-DR7 spectroscopic main galaxy sample: extension to g and i bands`_
+  
+* `Bernardi et al. 2013, The massive end of the luminosity and stellar mass functions: dependence on the fit to the light profile`_
+* `Bernardi et al. 2014, Systematic effects on the size-luminosity relations of early- and late-type galaxies: dependence on model fitting and morphology`_
+* `Bernardi et al. 2016, The massive end of the luminosity and stellar mass functions and clustering from CMASS to SDSS: evidence for and against passive evolution`_
+* `Bernardi et al. 2017a, The high mass end of the stellar mass function: Dependence on stellar population models and agreement between fits to the light profile`_
 
-### Relevant Upenn-PhotDec papers
+* `Fischer et al. 2017, Comparing pymorph and SDSS photometry - I. Background sky and model fitting effects`_
+* `Bernardi et al. 2017b, Comparing pymorph and SDSS photometry - II. The differences are more than semantics and are not dominated by intracluster light`_
 
-Click [here](http://alan-meert-website-aws.s3-website-us-east-1.amazonaws.com/fit_catalog/download/index.html) for complete documentation on the UPenn-PhotDec catalog released by A. Meert and collaborators.  Relevant and related papers:
-* [Vikram et al. 2010, *PyMorph: Automated Galaxy Structural Parameter Estimation using Python*](https://arxiv.org/abs/1007.4965)
-
-* [Meert et al. 2013, *Simulations of single- and two-component galaxy decompositions for spectroscopically selected galaxies from the SDSS*](http://adsabs.harvard.edu/abs/2013MNRAS.433.1344M)
-* [Meert et al. 2015, *A catalogue of 2D photometric decompositions in the SDSS-DR7 spectroscopic main galaxy sample: preferred models and systematics*](http://adsabs.harvard.edu/abs/2015MNRAS.446.3943M)
-* [Meert et al. 2016, *A catalogue of 2D photometric decompositions in the SDSS-DR7 spectroscopic main galaxy sample: extension to g and i bands*](http://adsabs.harvard.edu/abs/2016MNRAS.455.2440M)  
-
-* [Bernardi et al. 2013, *The massive end of the luminosity and stellar mass functions: dependence on the fit to the light profile*](http://adsabs.harvard.edu/abs/2013MNRAS.436..697B)
-* [Bernardi et al. 2014, *Systematic effects on the size-luminosity relations of early- and late-type galaxies: dependence on model fitting and morphology*](http://adsabs.harvard.edu/abs/2014MNRAS.443..874B)
-* [Bernardi et al. 2016, *The massive end of the luminosity and stellar mass functions and clustering from CMASS to SDSS: evidence for and against passive evolution*](http://adsabs.harvard.edu/abs/2016MNRAS.455.4122B)
-* [Bernardi et al. 2017a, *The high mass end of the stellar mass function: Dependence on stellar population models and agreement between fits to the light profile*](http://adsabs.harvard.edu/abs/2017MNRAS.467.2217B)
-
-* [Fischer et al. 2017, *Comparing pymorph and SDSS photometry - I. Background sky and model fitting effects*](http://adsabs.harvard.edu/abs/2017MNRAS.467..490F)
-* [Bernardi et al. 2017b, *Comparing pymorph and SDSS photometry - II. The differences are more than semantics and are not dominated by intracluster light*](http://adsabs.harvard.edu/abs/2017MNRAS.468.2569B)
-
-* [Mendel et al. 2014, *A Catalog of Bulge, Disk, and Total Stellar Mass Estimates for the Sloan Digital Sky Survey*](http://adsabs.harvard.edu/abs/2014ApJS..210....3M)
+* `Mendel et al. 2014, A Catalog of Bulge, Disk, and Total Stellar Mass Estimates for the Sloan Digital Sky Survey`_
 
 
 .. _`SDSS/CasJobs`: http://skyserver.sdss.org/CasJobs
@@ -78,3 +76,44 @@ Click [here](http://alan-meert-website-aws.s3-website-us-east-1.amazonaws.com/fi
 .. _`legacyhalos-parent.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/nb/legacyhalos-parent.ipynb
 
 .. _`legacyhalos-parent-qaplots.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/nb/legacyhalos-parent-qaplots.ipynb
+
+.. _`Rykoff et al. 2012, Robust Optical Richness Estimation with Reduced Scatter`: http://adsabs.harvard.edu/abs/2012ApJ...746..178R
+
+.. _`Saro et al. 2015, Constraints on the richness-mass relation and the optical-SZE positional offset distribution for SZE-selected clusters`: http://adsabs.harvard.edu/abs/2015MNRAS.454.2305S
+
+.. _`Simet et al. 2017, Weak lensing measurement of the mass-richness relation of SDSS redMaPPer clusters`: http://adsabs.harvard.edu/abs/2017MNRAS.466.3103S
+
+.. _`Melchior et al. 2017, Weak-lensing mass calibration of redMaPPer galaxy clusters in Dark Energy Survey Science Verification data`: http://adsabs.harvard.edu/abs/2017MNRAS.469.4899M
+
+.. _`Rykoff et al. 2014, redMaPPer. I. Algorithm and SDSS DR8 Catalog`: http://adsabs.harvard.edu/abs/2014ApJ...785..104R
+
+.. _`Rozo et al. 2014, redMaPPer II: X-Ray and SZ Performance Benchmarks for the SDSS Catalog`: http://adsabs.harvard.edu/abs/2014ApJ...783...80R
+
+.. _`Rozo et al. 2015a, redMaPPer - III. A detailed comparison of the Planck 2013 and SDSS DR8 redMaPPer cluster catalogues`: http://adsabs.harvard.edu/abs/2015MNRAS.450..592R
+
+.. _`Rozo et al. 2015b, redMaPPer - IV. Photometric membership identification of red cluster galaxies with 1 per cent precision`: http://adsabs.harvard.edu/abs/2015MNRAS.453...38R
+
+.. _`Rykoff et al. 2016, The RedMaPPer Galaxy Cluster Catalog From DES Science
+  Verification Data`: http://adsabs.harvard.edu/abs/2016ApJS..224....1R
+
+.. _`Vikram et al. 2010, PyMorph: Automated Galaxy Structural Parameter Estimation using Python`: https://arxiv.org/abs/1007.4965
+
+.. _`Meert et al. 2013, Simulations of single- and two-component galaxy decompositions for spectroscopically selected galaxies from the SDSS`: http://adsabs.harvard.edu/abs/2013MNRAS.433.1344M
+
+.. _`Meert et al. 2015, A catalogue of 2D photometric decompositions in the SDSS-DR7 spectroscopic main galaxy sample: preferred models and systematics`: http://adsabs.harvard.edu/abs/2015MNRAS.446.3943M
+
+.. _`Meert et al. 2016, A catalogue of 2D photometric decompositions in the SDSS-DR7 spectroscopic main galaxy sample: extension to g and i bands`: http://adsabs.harvard.edu/abs/2016MNRAS.455.2440M  
+
+.. _`Bernardi et al. 2013, The massive end of the luminosity and stellar mass functions: dependence on the fit to the light profile`: http://adsabs.harvard.edu/abs/2013MNRAS.436..697B
+
+.. _`Bernardi et al. 2014, Systematic effects on the size-luminosity relations of early- and late-type galaxies: dependence on model fitting and morphology`: http://adsabs.harvard.edu/abs/2014MNRAS.443..874B
+
+.. _`Bernardi et al. 2016, The massive end of the luminosity and stellar mass functions and clustering from CMASS to SDSS: evidence for and against passive evolution`: http://adsabs.harvard.edu/abs/2016MNRAS.455.4122B
+
+.. _`Bernardi et al. 2017a, The high mass end of the stellar mass function: Dependence on stellar population models and agreement between fits to the light profile`: http://adsabs.harvard.edu/abs/2017MNRAS.467.2217B
+
+.. _`Fischer et al. 2017, Comparing pymorph and SDSS photometry - I. Background sky and model fitting effects`: http://adsabs.harvard.edu/abs/2017MNRAS.467..490F
+
+.. _`Bernardi et al. 2017b, Comparing pymorph and SDSS photometry - II. The differences are more than semantics and are not dominated by intracluster light`: http://adsabs.harvard.edu/abs/2017MNRAS.468.2569B
+
+.. _`Mendel et al. 2014, A Catalog of Bulge, Disk, and Total Stellar Mass Estimates for the Sloan Digital Sky Survey`: http://adsabs.harvard.edu/abs/2014ApJS..210....3M
