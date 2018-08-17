@@ -9,7 +9,7 @@ with open('LICENSE') as f:
     license = f.read()
 
 setup(
-    name='LSLGA',
+    name='legacyhalos',
     url='https://github.com/moustakas/legacyhalos',
     version='untagged',
     author='John Moustakas',

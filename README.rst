@@ -27,8 +27,8 @@ The key science goals are to:
 
 5. And lots more!   
 
-We generously acknowledge partial funding support for this work by the National
-Science Foundation grant AST-1616414.
+We gratefully acknowledge partial funding support for this work from the
+National Science Foundation (NSF) grant AST-1616414.
 
 .. image:: https://img.shields.io/badge/PDF-latest-orange.svg?style=flat
     :target: https://github.com/moustakas/legacyhalos/blob/master-pdf/paper/ms.pdf
