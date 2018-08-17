@@ -6,14 +6,13 @@
 ;   Use iSEDfit to compute stellar masses for the various legacyhalos samples.
 ;
 ; INPUTS:
-;   At least one of /LSPHOT_DR5, /LHPHOT, /SDSSPHOT_DR14, or
-;   /SDSSPHOT_UPENN must be set.
+;   At least one of /LSPHOT_DR6_DR7, /LHPHOT, /SDSSPHOT_DR14 must be set.
 ;
 ; OPTIONAL INPUTS:
 ;   thissfhgrid
 ;
 ; KEYWORD PARAMETERS:
-;   lsphot_dr5
+;   lsphot_dr6_dr7
 ;   lhphot
 ;   sdssphot_dr14
 ;   sdssphot_upenn
@@ -36,8 +35,9 @@
 ; MODIFICATION HISTORY:
 ;   J. Moustakas, 2017 Dec 27, Siena
 ;   jm18jul16siena - fit first-pass legacyhalos photometry 
+;   jm18aug17siena - update to latest sample and data model 
 ;
-; Copyright (C) 2017, John Moustakas
+; Copyright (C) 2017-2018, John Moustakas
 ; 
 ; This program is free software; you can redistribute it and/or modify 
 ; it under the terms of the GNU General Public License as published by 
@@ -56,30 +56,29 @@ function lhphot_version
 return, ver
 end    
 
-pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lhphot=lhphot, $
-  sdssphot_dr14=sdssphot_dr14, sdssphot_upenn=sdssphot_upenn, redmapper_upenn=redmapper_upenn, $
-
-  
+pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
+  sdssphot_dr14=sdssphot_dr14, sdssphot_upenn=sdssphot_upenn, $
+  redmapper_upenn=redmapper_upenn, $ 
   write_paramfile=write_paramfile, build_grids=build_grids, model_photometry=model_photometry, $
   isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, $
   gather_results=gather_results, clobber=clobber
 
-;   echo "legacyhalos_isedfit, /lsphot_dr5, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > lsphot-dr5.log 2>&1 &
+;   echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > lsphot-dr5.log 2>&1 &
 ;   echo "legacyhalos_isedfit, /sdssphot_dr14, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > sdssphot-dr14.log 2>&1 &
 
     legacyhalos_dir = getenv('LEGACYHALOS_DIR')
 
-    if keyword_set(lsphot_dr5) eq 0 and keyword_set(lhphot) eq 0 and $
+    if keyword_set(lsphot_dr6_dr7) eq 0 and keyword_set(lhphot) eq 0 and $
       keyword_set(sdssphot_dr14) eq 0 and keyword_set(sdssphot_upenn) eq 0 and $
       keyword_set(redmapper_upenn) eq 0 and keyword_set(gather_results) eq 0 then begin
-       splog, 'Choose one of /LSPHOT_DR5, /LHPHOT, /SDSSPHOT_DR14, /SDSSPHOT_UPENN, or /REDMAPPER_UPENN'
+       splog, 'Choose one of /LSPHOT_DR6_DR7, /LHPHOT, /SDSSPHOT_DR14, /SDSSPHOT_UPENN, or /REDMAPPER_UPENN'
        return       
     endif
     
 ; directories and prefixes for each dataset
-    if keyword_set(lsphot_dr5) then begin
+    if keyword_set(lsphot_dr6_dr7) then begin
        prefix = 'lsphot'
-       outprefix = 'lsphot_dr5'
+       outprefix = 'lsphot_dr6_dr7'
     endif
     if keyword_set(lhphot) then begin
        version = lhphot_version()
@@ -108,9 +107,9 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lhphot=lhphot, $
 
 ; full sample
        lsphot = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
-         'lsphot_dr5_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+         'lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
        lsphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
-         'lsphot_dr5_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
+         'lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
 
        sdssphot = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
          'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
@@ -219,7 +218,7 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lhphot=lhphot, $
 
 ; --------------------------------------------------
 ; define the filters and the redshift ranges
-    if keyword_set(lsphot_dr5) or keyword_set(lhphot) then begin
+    if keyword_set(lsphot_dr6_dr7) or keyword_set(lhphot) then begin
        filterlist = [legacysurvey_filterlist(), wise_filterlist(/short)]
        zminmax = [0.05,0.6]
        nzz = 61
@@ -239,15 +238,14 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lhphot=lhphot, $
     band_shift = 0.1
     
 ; --------------------------------------------------
-; DR5 LegacySurvey (grz) + unWISE W1 & W2    
-    if keyword_set(lsphot_dr5) then begin
-       rm = mrdfits(legacyhalos_dir+'/legacyhalos-parent.fits', 'REDMAPPER')
-       cat = mrdfits(legacyhalos_dir+'/legacyhalos-parent.fits', 'LSPHOT')
+; DR6/DR7 LegacySurvey (grz) + unWISE W1 & W2    
+    if keyword_set(lsphot_dr6_dr7) then begin
+       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-sample.fits', 1)
        ngal = n_elements(cat)
 
-       ra = rm.ra
-       dec = rm.dec
-       zobj = rm.z
+       ra = cat.ra
+       dec = cat.dec
+       zobj = cat.z
        
        factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
          [cat.mw_transmission_z] ])
@@ -387,7 +385,7 @@ pro legacyhalos_isedfit, lsphot_dr5=lsphot_dr5, lhphot=lhphot, $
 ;   splog, 'HACK!!'
 ;   index = lindgen(50)
 ;   outprefix = 'test'
-;   jj = mrdfits('lsphot_dr5_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+;   jj = mrdfits('lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
 ;   index = where(jj.mstar lt 0)
 
 ; --------------------------------------------------
