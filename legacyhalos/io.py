@@ -62,6 +62,16 @@ def sample_dir():
         os.makedirs(sdir, exist_ok=True)
     return sdir
 
+def paper1_dir(figures=True):
+    pdir = os.path.join(legacyhalos_dir(), 'tex', 'paper1')
+    if not os.path.ipdir(pdir):
+        os.makedirs(pdir, exist_ok=True)
+    if figures:
+        pdir = os.path.join(pdir, 'figures')
+        if not os.path.ipdir(pdir):
+            os.makedirs(pdir, exist_ok=True)
+    return pdir
+
 def html_dir():
     #if 'NERSC_HOST' in os.environ:
     #    htmldir = '/global/project/projectdirs/cosmo/www/temp/ioannis/legacyhalos'

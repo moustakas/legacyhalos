@@ -8,6 +8,25 @@ This repository contains code and papers for a multi-pronged analysis of the
 group- and cluster-scale dark matter halos identified in Legacy Survey imaging,
 particularly the stellar mass content of the central galaxies.  
 
+The key science goals are to:
+
+1. Obtain an accurate census of the integrated stellar masses of massive central
+   galaxies---which dominate the massive end of the galaxy stellar mass
+   function---as a function of halo mass and redshift.
+
+2. Measure the stellar mass density profiles and structural properties (e.g.,
+   half-mass radius, concentration), and their correlation with dark matter halo
+   assembly histories.  
+
+3. Measure the stellar mass-halo mass relation and the scatter in the stellar
+   masses of central galaxies, as a probe of star formation efficiency and
+   feedback in massive systems.
+
+4. Measure the fraction of stars formed *in situ* versus *ex situ* in massive
+   spheroidal galaxies.
+
+5. And lots more!   
+
 We generously acknowledge partial funding support for this work by the National
 Science Foundation grant AST-1616414.
 
