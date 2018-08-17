@@ -10,13 +10,16 @@ from __future__ import absolute_import, division, print_function
 import sys
 import numpy as np
 
-def legacyhalos_plot_style():
+def legacyhalos_plot_style(paper=False):
     import seaborn as sns
     rc = {'font.family': 'serif', 'text.usetex': True}
     #rc = {'font.family': 'serif', 'text.usetex': True,
     #       'text.latex.preamble': r'\boldmath'})
     sns.set(style='ticks', font_scale=1.5, palette='Set2', rc=rc)
     #sns.reset_orig()
+
+    if paper:
+        
 
     return sns
 
