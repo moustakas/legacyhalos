@@ -1,23 +1,39 @@
 #! /bin/bash
 
+#SBATCH -A cosmo
+#SBATCH -L SCRATCH,project
+#SBATCH -o match-legacysurvey-redmapper.slurm.%j
+#SBATCH --mail-user=jmoustakas@siena.edu
+#SBATCH --mail-type=ALL
 #SBATCH -p debug
 #SBATCH -N 1
-#SBATCH -L cscratch1,project
 #SBATCH -C haswell
 #SBATCH -t 00:30:00
-#SBATCH -o match-legacysurvey-redmapper.%j
-#SBATCH --profile=all
 
-set -x
-export ATP_ENABLED=0
+# In this SLURM script we match the redMaPPer/v6.3.1 central galaxy catalog to the
+# DR6+DR7 Legacy Surveys sweeps files using NERSC/cori.
+# 
+# To run the script from an interactive node do:
+#   salloc -N 1 -C haswell -t 00:60:00 --qos interactive -L SCRATCH,project -A cosmo
 
-module load python/3.5-anaconda
-source /usr/common/contrib/bccp/python-mpi-bcast/nersc/activate.sh
+module use /global/common/software/desi/$NERSC_HOST/desiconda/20180512-1.2.5-img/modulefiles
+module load desiconda
 
-export PYTHONPATH=$LEGACYPIPE_DIR/py:${PYTHONPATH}
+export LEGACYPIPE_DIR=$SCRATCH/repos/legacypipe
+export LEGACYHALOS_DIR=$SCRATCH/legacyhalos
+export LEGACYHALOS_CODE_DIR=$SCRATCH/repos/legacyhalos
 
-time srun -u --cpu_bind=no -N 1 python-mpi $LEGACYPIPE_DIR/bin/match-external-catalog.py -v --numproc 24 \
-    -f fits -F $TRACTOR_FILELIST \
-    ${RMOUTDIR}/redmapper-${RMVERSION}-lgt5-sdssWISEphot.fits \
-    $TRACTOR_INDIR \
-    ${RMOUTDIR}/legacysurvey-${DR}-redmapper-${RMVERSION}-lgt5.fits
+export PYTHONPATH=$LEGACYPIPE_DIR/py:$PYTHONPATH
+
+export DR6_FILELIST=$SCRATCH/tmp/dr6_filelist
+export DR7_FILELIST=$SCRATCH/tmp/dr7_filelist
+export LEGACYSURVEY_FILELIST=$SCRATCH/tmp/legacysurvey_filelist
+
+find /global/cscratch1/sd/adamyers/gaiamatch/dr6/sweep/6.0 -name 'sweep-*.fits' > $DR6_FILELIST
+find /global/projecta/projectdirs/cosmo/data/legacysurvey/dr7/sweep/7.1 -name 'sweep-*.fits' > $DR7_FILELIST
+cat $DR6_FILELIST $DR7_FILELIST > $LEGACYSURVEY_FILELIST
+
+time srun -u --cpu_bind=no python $LEGACYHALOS_CODE_DIR/bin/match-legacysurvey-redmapper \
+    $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-sdssWISEphot-dr14.fits $PWD \
+    $REDMAPPER_DIR/v6.3.1/legacysurvey-dr6-dr7-redmapper-v6.3.1-lgt5.fits \
+    -v --numproc 8 -f fits -F $LEGACYSURVEY_FILELIST
