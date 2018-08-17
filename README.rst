@@ -8,8 +8,8 @@ This repository contains code and papers for a multi-pronged analysis of the
 group- and cluster-scale dark matter halos identified in Legacy Survey imaging,
 particularly the stellar mass content of the central galaxies.  
 
-We generously acknowledge partial funding support for this work by the National
-Science Foundation grant AST-1616414.
+We gratefully acknowledge partial funding support for this work from the National
+Science Foundation (NSF) grant AST-1616414.
 
 .. image:: https://img.shields.io/badge/PDF-latest-orange.svg?style=flat
     :target: https://github.com/moustakas/legacyhalos/blob/master-pdf/paper/ms.pdf
