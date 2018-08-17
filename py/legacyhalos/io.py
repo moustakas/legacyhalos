@@ -315,54 +315,43 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=N
             print('Read {} objects from {} [{}]'.format(len(results), resultsfile, extname))
         return results
 
-def read_sample(first=None, last=None, verbose=False):
+def read_sample(first=None, last=None, dr='dr6-dr7', verbose=False):
     """Read the sample.
 
-    Temporary hack to add the DR to the catalog.
-
     """
-    from astropy.table import hstack
-    import legacyhalos.io
+    import fitsio
+    from astropy.table import Table
 
-    tractorcols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
-                   'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
-                   'shapedev_r', 'shapedev_e1', 'shapedev_e2',
-                   'fracdev', 'psfsize_g', 'psfsize_r', 'psfsize_z')
-        
-    rmcols = ('mem_match_id', 'z', 'r_lambda', 'lambda_chisq', 'p_cen')
-    sdsscols = ('objid')
-        
-    sample = legacyhalos.io.read_parent(extname='LSPHOT', upenn=True,
-                                        columns=tractorcols, verbose=verbose)
-    
-    rm = legacyhalos.io.read_parent(extname='REDMAPPER', upenn=True,
-                                    columns=rmcols, verbose=verbose)
-    
-    sdss = legacyhalos.io.read_parent(extname='SDSSPHOT', upenn=True,
-                                      columns=np.atleast_1d(sdsscols),
-                                      verbose=verbose)
-    
-    sdss.rename_column('objid', 'sdss_objid')
-    if verbose:
-        print('Renaming column objid-->sdss_objid in [SDSSPHOT] extension.')
-    sample = hstack( (sample, rm) )
-    sample = hstack( (sample, sdss) )
+    samplefile = os.path.join(sample_dir(), 'legacyhalos-sample-{}.fits'.format(dr))
+    if not os.path.isfile(samplefile):
+        print('File {} not found.'.format(samplefile))
+        return None
 
     if first and last:
         if first > last:
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
 
+    info = fitsio.FITS(samplefile)
+    nrows = info[1].get_nrows()
+
     if first is None:
         first = 0
     if last is None:
-        last = len(sample)-1
+        last = nrows
+    if first == last:
+        last = last + 1
 
-    sample = sample[first:last+1]
+    rows = np.arange(first, last)
+
+    sample = Table(info[1].read(rows=rows))
     if verbose:
-        print('Sample contains {} objects with first, last indices {}, {}'.format(
-            len(sample), first, last))
-
+        if len(rows) == 1:
+            print('Read galaxy index {} from {}'.format(first, samplefile))
+        else:
+            print('Read galaxy indices {} through {} (N={}) from {}'.format(
+                first, last-1, len(sample), samplefile))
+            
     return sample
 
 def literature(kravtsov=True, gonzalez=False):
