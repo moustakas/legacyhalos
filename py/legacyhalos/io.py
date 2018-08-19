@@ -315,14 +315,21 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=N
             print('Read {} objects from {} [{}]'.format(len(results), resultsfile, extname))
         return results
 
-def read_sample(first=None, last=None, dr='dr6-dr7', verbose=False):
+def read_sample(first=None, last=None, dr='dr6-dr7', isedfit_lsphot=False,
+                isedfit_sdssphot=False, verbose=False):
     """Read the sample.
 
     """
     import fitsio
     from astropy.table import Table
 
-    samplefile = os.path.join(sample_dir(), 'legacyhalos-sample-{}.fits'.format(dr))
+    if isedfit_lsphot:
+        samplefile = os.path.join(sample_dir(), 'isedfit-lsphot-{}.fits'.format(dr))
+    elif isedfit_sdssphot:
+        samplefile = os.path.join(sample_dir(), 'isedfit-sdssphot-dr14.fits')
+    else:
+        samplefile = os.path.join(sample_dir(), 'legacyhalos-sample-{}.fits'.format(dr))
+        
     if not os.path.isfile(samplefile):
         print('File {} not found.'.format(samplefile))
         return None

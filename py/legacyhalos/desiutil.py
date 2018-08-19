@@ -485,7 +485,7 @@ def init_sky(projection='eck4', ra_center=120, galactic_plane_color='red',
                                    galactic_plane.dec.degree)
 
         paths = m.scatter(
-            galactic_x, galactic_y, marker='.', s=20, lw=0, alpha=0.75,
+            galactic_x, galactic_y, marker='.', s=10, lw=0, alpha=0.5,
             c=galactic_plane_color)
         # Make sure the galactic plane stays above other displayed objects.
         paths.set_zorder(20)
