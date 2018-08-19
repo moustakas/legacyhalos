@@ -105,39 +105,47 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 ; writing out all the spectra...
     if keyword_set(gather_results) then begin
 
-; full sample
-       lsphot = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
-         'lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
-       lsphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
-         'lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
+       if keyword_set(lsphot_dr6_dr7) then begin
+          lsphot = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
+            'lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+          lsphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
+            'lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
+	
+          outfile = legacyhalos_dir+'/sample/isedfit-lsphot-dr6-dr7.fits'
+          print, 'Writing '+outfile
+          mwrfits, lsphot, outfile, /create
+          mwrfits, lsphot_kcorr, outfile
+	
+          hdr = headfits(outfile,ext=1)
+          sxaddpar, hdr, 'EXTNAME', 'LSPHOT-ISEDFIT'
+          modfits, outfile, 0, hdr, exten_no=1
+	
+          hdr = headfits(outfile,ext=2)
+          sxaddpar, hdr, 'EXTNAME', 'LSPHOT-KCORR'
+          modfits, outfile, 0, hdr, exten_no=2
+       endif
 
-       sdssphot = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
-         'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
-       sdssphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
-         'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
+       if keyword_set(sdssphot_dr14) then begin
+          sdssphot = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
+            'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
+          sdssphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
+            'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
 
-       outfile = legacyhalos_dir+'/legacyhalos-parent-isedfit.fits'
-       mwrfits, lsphot, outfile, /create
-       mwrfits, sdssphot, outfile
-       mwrfits, lsphot_kcorr, outfile
-       mwrfits, sdssphot_kcorr, outfile
+          outfile = legacyhalos_dir+'/sample/isedfit-sdssphot-dr14.fits'
+          mwrfits, sdssphot, outfile
+          mwrfits, sdssphot_kcorr, outfile
 
-       hdr = headfits(outfile,ext=1)
-       sxaddpar, hdr, 'EXTNAME', 'LSPHOT-ISEDFIT'
-       modfits, outfile, 0, hdr, exten_no=1
+          hdr = headfits(outfile,ext=1)
+          sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-ISEDFIT'
+          modfits, outfile, 0, hdr, exten_no=1
 
-       hdr = headfits(outfile,ext=2)
-       sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-ISEDFIT'
-       modfits, outfile, 0, hdr, exten_no=2
+          hdr = headfits(outfile,ext=2)
+          sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-KCORR'
+          modfits, outfile, 0, hdr, exten_no=2
+       endif
 
-       hdr = headfits(outfile,ext=3)
-       sxaddpar, hdr, 'EXTNAME', 'LSPHOT-KCORR'
-       modfits, outfile, 0, hdr, exten_no=3
+       stop
        
-       hdr = headfits(outfile,ext=4)
-       sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-KCORR'
-       modfits, outfile, 0, hdr, exten_no=4
-
 ; upenn subsample       
        print, 'HACK!!!!!!!!!!!!!!'
        print, 'Rewrite the mendel stellar mass results.'
@@ -240,7 +248,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 ; --------------------------------------------------
 ; DR6/DR7 LegacySurvey (grz) + unWISE W1 & W2    
     if keyword_set(lsphot_dr6_dr7) then begin
-       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-sample.fits', 1)
+       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-sample-dr6-dr7.fits', 1)
        ngal = n_elements(cat)
 
        ra = cat.ra
@@ -298,13 +306,12 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 ; --------------------------------------------------
 ; SDSS ugriz + forced WISE photometry from Lang & Schlegel    
     if keyword_set(sdssphot_dr14) then begin
-       rm = mrdfits(legacyhalos_dir+'/legacyhalos-parent.fits', 'REDMAPPER')
-       cat = mrdfits(legacyhalos_dir+'/legacyhalos-parent.fits', 'SDSSPHOT')
+       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-sample-dr6-dr7.fits', 1)
        ngal = n_elements(cat)
 
-       ra = rm.ra
-       dec = rm.dec
-       zobj = rm.z
+       ra = cat.ra
+       dec = cat.dec
+       zobj = cat.z
        
        ratio = cat.cmodelmaggies[2,*]/cat.modelmaggies[2,*]
        factor = 1D-9 * rebin(ratio, 5, ngal) * 10D^(0.4*cat.extinction)
@@ -312,7 +319,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        sivarmaggies = cat.modelmaggies_ivar / factor^2
 
        vega2ab = rebin([2.699,3.339],2,ngal) ; Vega-->AB from http://legacysurvey.org/dr5/description/#photometry
-       glactc, rm.ra, rm.dec, 2000.0, gl, gb, 1, /deg
+       glactc, cat.ra, cat.dec, 2000.0, gl, gb, 1, /deg
        ebv = rebin(reform(dust_getval(gl,gb,/interp,/noloop),1,ngal),2,ngal)
        coeff = rebin(reform([0.184,0.113],2,1),2,ngal) ; Galactic extinction coefficients from http://legacysurvey.org/dr5/catalogs
 
