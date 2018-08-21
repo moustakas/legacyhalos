@@ -10,7 +10,7 @@ from __future__ import absolute_import, division, print_function
 import sys
 import numpy as np
 
-def legacyhalos_cosmology(WMAP=False, Planck=False):
+def cosmology(WMAP=False, Planck=False):
     """Establish the default cosmology for the project."""
 
     if WMAP:
@@ -23,7 +23,7 @@ def legacyhalos_cosmology(WMAP=False, Planck=False):
 
     return cosmo
 
-def legacyhalos_plot_style(paper=False, talk=False):
+def plot_style(paper=False, talk=False):
 
     import seaborn as sns
     rc = {'font.family': 'serif'}#, 'text.usetex': True}
