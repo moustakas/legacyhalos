@@ -4,12 +4,10 @@ Guide to *legacyhalos* Analysis
 This README briefly describes our analysis procedure, and the purpose and
 content of each notebook.
 
-Need to define NERSC.
-
 Input Data and Sample Selection
 -------------------------------
 
-1. *Assemble SDSS+unWISE photometry for the redMaPPer centrals*
+1. *Assemble SDSS+unWISE photometry for the redMaPPer centrals.*
 
    First, we use `SDSS/CasJobs`_ to assemble updated SDSS/DR14 *ugriz* and
    unWISE *W1-W4* (forced) photometry (and, in some cases, coordinates) for the
@@ -18,17 +16,17 @@ Input Data and Sample Selection
    catalog has optical photometry from SDSS/DR8 and no WISE photometry.)  This
    step is documented in the `redmapper-sdssWISEphot.ipynb`_ notebook.
 
-2. *Assemble Legacy Surveys photometry for the redMaPPer centrals*
+2. *Assemble Legacy Surveys photometry for the redMaPPer centrals.*
    
    Next, we assemble *grz* and *W1-W4* photometry from the `Legacy Surveys/DR6`_
    and `Legacy Surveys/DR7`_ sweep files for the
-   **dr8_run_redmapper_v6.3.1_lgt5_catalog.fit** parent catalog by submitting
-   the `match-legacysurvey-redmapper.slurm`_ script at NERSC.
+   **dr8_run_redmapper_v6.3.1_lgt5_catalog.fit** parent catalog using the
+   `match-legacysurvey-redmapper.slurm`_ SLURM script.
 
-3. *Select the parent sample*
+3. *Select the parent sample.*
 
-   Third, build the parent sample of central galaxies as the set of galaxies in
-   the *redMaPPer/v6.3.1* centrals catalog with high-fidelity, full-depth
+   Third, we build the parent sample of central galaxies as the set of galaxies
+   in the *redMaPPer/v6.3.1* centrals catalog with high-fidelity, full-depth
    *grzW1W2* photometry from the Legacy Surveys.  This step is documented in the
    `legacyhalos-sample-selection.ipynb`_ Jupyter notebook.
 
