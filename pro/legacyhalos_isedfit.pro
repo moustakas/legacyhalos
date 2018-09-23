@@ -273,8 +273,9 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        ww = where(abs(snr[3,*]) gt 1e3) & ivarmaggies[3,ww] = 0
        ww = where(abs(snr[4,*]) gt 1e3) & ivarmaggies[4,ww] = 0
 
-; add minimum uncertainties to grzW1W2
-       k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.02,0.02]
+; add minimum calibration uncertainties (in quadrature) to grzW1W2; see
+; [desi-targets 2084]
+       k_minerror, maggies, ivarmaggies, [0.003,0.003,0.006,0.001,0.001]
     endif
     
 ; --------------------------------------------------
