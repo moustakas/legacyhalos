@@ -10,6 +10,13 @@ from __future__ import absolute_import, division, print_function
 import sys
 import numpy as np
 
+def area():
+    """Return the area of the DR6+DR7 sample.  See the
+    `legacyhalos-sample-selection.ipynb` notebook for this calculation.
+
+    """
+    return 6711.276
+
 def cosmology(WMAP=False, Planck=False):
     """Establish the default cosmology for the project."""
 
@@ -231,3 +238,32 @@ def lambda2mhalo(richness, redshift=0.3, Saro=False):
     Mhalo = 10**logM0 * (richness / lam0)**Flam * ( (1 + redshift) / (1 + z0) )**Gz
     
     return Mhalo
+
+def radec2pix(nside, ra, dec):
+    '''Convert `ra`, `dec` to nested pixel number.
+
+    Args:
+        nside (int): HEALPix `nside`, ``2**k`` where 0 < k < 30.
+        ra (float or array): Right Accention in degrees.
+        dec (float or array): Declination in degrees.
+
+    Returns:
+        Array of integer pixel numbers using nested numbering scheme.
+
+    Notes:
+        This is syntactic sugar around::
+
+            hp.ang2pix(nside, ra, dec, lonlat=True, nest=True)
+
+        but also works with older versions of healpy that didn't have
+        `lonlat` yet.
+    '''
+    import healpy as hp
+    theta, phi = np.radians(90-dec), np.radians(ra)
+    if np.isnan(np.sum(theta)) :
+        raise ValueError("some NaN theta values")
+
+    if np.sum((theta < 0)|(theta > np.pi))>0 :
+        raise ValueError("some theta values are outside [0,pi]: {}".format(theta[(theta < 0)|(theta > np.pi)]))
+
+    return hp.ang2pix(nside, theta, phi, nest=True)
