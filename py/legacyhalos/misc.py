@@ -10,15 +10,48 @@ from __future__ import absolute_import, division, print_function
 import sys
 import numpy as np
 
-def legacyhalos_plot_style():
+def area():
+    """Return the area of the DR6+DR7 sample.  See the
+    `legacyhalos-sample-selection.ipynb` notebook for this calculation.
+
+    """
+    return 6711.276
+
+def cosmology(WMAP=False, Planck=False):
+    """Establish the default cosmology for the project."""
+
+    if WMAP:
+        from astropy.cosmology import WMAP9 as cosmo
+    elif Planck:
+        from astropy.cosmology import Planck15 as cosmo
+    else:
+        from astropy.cosmology import FlatLambdaCDM
+        cosmo = FlatLambdaCDM(H0=70, Om0=0.3)        
+
+    return cosmo
+
+def plot_style(paper=False, talk=False):
+
     import seaborn as sns
-    rc = {'font.family': 'serif', 'text.usetex': True}
+    rc = {'font.family': 'serif'}#, 'text.usetex': True}
     #rc = {'font.family': 'serif', 'text.usetex': True,
     #       'text.latex.preamble': r'\boldmath'})
-    sns.set(style='ticks', font_scale=1.5, palette='Set2', rc=rc)
+    palette = 'Set2'
+    
+    if paper:
+        palette = 'deep'
+        rc.update({'text.usetex': False})
+    
+    if talk:
+        pass
+
+    sns.set(style='ticks', font_scale=1.6, rc=rc)
+    sns.set_palette(palette, 12)
+
+    colors = sns.color_palette()
     #sns.reset_orig()
 
-    return sns
+    return sns, colors
 
 def get_logger(logfile):
     """Instantiate a simple logger.
@@ -61,7 +94,7 @@ def cutout_radius_150kpc(redshift, pixscale=0.262, radius_kpc=150):
     """Get a cutout radius of 150 kpc [in pixels] at the redshift of the cluster.
 
     """
-    from astropy.cosmology import WMAP9 as cosmo
+    cosmo = legacyhalos_cosmology()
     arcsec_per_kpc = cosmo.arcsec_per_kpc_proper(redshift).value
     radius = np.rint(radius_kpc * arcsec_per_kpc / pixscale).astype(int) # [pixels]
     return radius
@@ -74,7 +107,7 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
     Optionally bound the radius to (rmin, rmax).
 
     """
-    from astropy.cosmology import WMAP9 as cosmo
+    cosmo = legacyhalos_cosmology()
 
     radius_kpc = cluster_radius * 1e3 * cosmo.h # cluster radius in kpc
     radius = np.rint(factor * radius_kpc * cosmo.arcsec_per_kpc_proper(redshift).value / pixscale)
@@ -90,7 +123,7 @@ def arcsec2kpc(redshift):
     to kpc.
 
     """
-    from astropy.cosmology import WMAP9 as cosmo
+    cosmo = legacyhalos_cosmology()
     return 1 / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/arcsec]
 
 def statsinbins(xx, yy, binsize=0.1, minpts=10, xmin=None, xmax=None):
@@ -205,3 +238,32 @@ def lambda2mhalo(richness, redshift=0.3, Saro=False):
     Mhalo = 10**logM0 * (richness / lam0)**Flam * ( (1 + redshift) / (1 + z0) )**Gz
     
     return Mhalo
+
+def radec2pix(nside, ra, dec):
+    '''Convert `ra`, `dec` to nested pixel number.
+
+    Args:
+        nside (int): HEALPix `nside`, ``2**k`` where 0 < k < 30.
+        ra (float or array): Right Accention in degrees.
+        dec (float or array): Declination in degrees.
+
+    Returns:
+        Array of integer pixel numbers using nested numbering scheme.
+
+    Notes:
+        This is syntactic sugar around::
+
+            hp.ang2pix(nside, ra, dec, lonlat=True, nest=True)
+
+        but also works with older versions of healpy that didn't have
+        `lonlat` yet.
+    '''
+    import healpy as hp
+    theta, phi = np.radians(90-dec), np.radians(ra)
+    if np.isnan(np.sum(theta)) :
+        raise ValueError("some NaN theta values")
+
+    if np.sum((theta < 0)|(theta > np.pi))>0 :
+        raise ValueError("some theta values are outside [0,pi]: {}".format(theta[(theta < 0)|(theta > np.pi)]))
+
+    return hp.ang2pix(nside, theta, phi, nest=True)
