@@ -11,7 +11,7 @@ import numpy as np
 
 #import cosmo
 
-def p_in_lmbin(lambda_val, lambda_err, lm_min, lm_max):
+def p_in_lambdabin(lambda_val, lambda_err, lm_min, lm_max):
     """Compute the probability P(lm_min < lambda < lm_max) for an input sample of
     galaxies assuming a Gaussia distribution.
 
@@ -86,7 +86,7 @@ def p_in_zbin(pz, pzbins, zmin, zmax, verbose=False):
     plist = np.where( p > 1 )[0]
     if len(plist) > 0:
         if verbose:
-            print('Clamping p(z) for {} galaxies to unity.'.format(len(plist)))
+            print('Clamping p(z) to unity for {} galaxies to unity.'.format(len(plist)))
         p[plist] = 1
 
     return p
