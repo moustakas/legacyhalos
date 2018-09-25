@@ -143,7 +143,8 @@ def compute_nofz(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
                 print('  Bootstrap sample {:02d}/{:02d}'.format(ii+1, nboot))
             for jj in range(nlam):
                 for ii in range(nz):
-                    nofz_boot[kk, jj, ii] = np.sum( p_zbin[ii, bootindx[kk]] * p_lbin[jj, bootindx[kk]] ) / vol[ii]
+                    nofz_boot[kk, jj, ii] = np.sum( p_zbin[ii, bootindx[kk]] *
+                                                    p_lbin[jj, bootindx[kk]] ) / vol[ii]
 
         for jj in range(nlam):
             for ii in range(nz):
@@ -282,7 +283,8 @@ def compute_noflambda(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
                 print('  Bootstrap sample {:02d}/{:02d}'.format(kk + 1, nboot))
             for ii in range(nz):
                 for jj in range(nlam):
-                    noflambda_boot[kk, ii, jj] = np.sum( p_zbin[ii, bootindx[kk]] * p_lbin[jj, bootindx[kk]] ) / vol[ii]
+                    noflambda_boot[kk, ii, jj] = np.sum( p_zbin[ii, bootindx[kk]] *
+                                                         p_lbin[jj, bootindx[kk]] ) / vol[ii]
 
         for ii in range(nz):
             for jj in range(nlam):
