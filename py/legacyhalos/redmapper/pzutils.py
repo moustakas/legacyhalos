@@ -9,25 +9,26 @@ Note: code currently treats pzbins as bin midpoints with uniform binning.
 """
 import numpy as np
 
-#import cosmo
-
 def p_in_lambdabin(lambda_val, lambda_err, lm_min, lm_max):
     """Compute the probability P(lm_min < lambda < lm_max) for an input sample of
     galaxies assuming a Gaussia distribution.
 
     """
     from scipy.special import erf
-    
-    alist = np.where(lambda_err > 0)[0]
-    blist = np.where(lambda_err == 0)[0]
-    p = np.zeros_like(lambda_val).astype(float)
+    isnan = np.isnan(lambda_err)
+    if np.sum(isnan) > 0:
+        lambda_err[isnan] = 0.0
 
+    alist = np.where( lambda_err > 0 )[0]
+    blist = np.where( lambda_err == 0 )[0]
+
+    p = np.zeros_like(lambda_val)
     if len(alist) > 0:
         p[alist] = 0.5*(erf( (lm_max - lambda_val[alist]) / lambda_err[alist] / np.sqrt(2) ) -
                         erf( (lm_min - lambda_val[alist]) / lambda_err[alist] / np.sqrt(2)) )
     if len(blist) > 0:
-        clist = np.where( (lambda_err == 0) * (lambda_val >= lm_min) * (lambda_val < lm_max) )[0]
-        p[clist] = 0.0 * clist + 1.0
+        clist = np.where( (lambda_val[blist] >= lm_min) * (lambda_val[blist] < lm_max) )[0]
+        p[blist][clist] = 1
 
     return p
 
@@ -51,7 +52,7 @@ def p_in_zbin(pz, pzbins, zmin, zmax, verbose=False):
         for i in range(len(blist)):
             bmax = np.max( np.where(pzbins[blist[i], :] < zmax)[0] )
             slope = ( pz[blist[i], bmax + 1] - pz[blist[i], bmax] ) / dz[blist[i]]
-            p[blist[i]] = ( np.sum( pz[blist[i], :bmax+1] ) * dz[blist[i]] - pz[blist[i],bmax] *
+            p[blist[i]] = ( np.sum( pz[blist[i], :bmax+1] ) * dz[blist[i]] - pz[blist[i], bmax] *
                             dz[blist[i]] / 2.0 + (pz[blist[i], bmax] * 2 + slope * (zmax - pzbins[blist[i], bmax]) ) *
                             (zmax - pzbins[blist[i], bmax]) / 2.0 )
             #print p[blist[i]],slope,pzbins[blist[i],bmax],pzbins[blist[i],bmax+1]
@@ -99,6 +100,8 @@ def bootstrap_resample_simple(ngal, nboot=10, seed=None):
     """
     rand = np.random.RandomState(seed)
     return rand.randint( ngal, size=(nboot, ngal) )
+
+
 
 ##Single random selection from P(z) distribution
 #def select_rand_z(pz,pzbins):

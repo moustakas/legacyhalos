@@ -63,7 +63,7 @@ def sample_dir():
     return sdir
 
 def paper1_dir(figures=True):
-    pdir = os.path.join(legacyhalos_dir(), 'tex', 'paper1')
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper1')
     if not os.path.ipdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
