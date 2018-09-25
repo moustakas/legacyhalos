@@ -309,7 +309,8 @@ def get_zbins(zmin=0.05, zmax=0.6, dt=1.0, verbose=False):
     tbins = tbins.value
     
     # Now fix the bins:
-    zbins = np.array([0.05, 0.15, 0.25, 0.35, 0.45, 0.6])
+    # zbins = np.array([0.05, 0.15, 0.25, 0.35, 0.45, 0.6])
+    zbins = np.array([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6])
     tbins = cosmo.lookback_time(zbins).value
     
     if verbose:

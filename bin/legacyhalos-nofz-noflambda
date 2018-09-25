@@ -35,7 +35,7 @@ def get_lambda(cat, descale=False):
     return lam, lam_err
 
 def compute_nofz(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
-                 dz=0.02, descale=False, verbose=True, clobber=False):
+                 dz=0.025, descale=False, verbose=True, clobber=False):
     '''Calculate n(z) on a fine redshift grid for several broad thresholds of
     lambda.  Estimate the marginalized variance using bootstrap resampling.
 
@@ -139,7 +139,7 @@ def compute_nofz(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
             print('Computing the variance.')
         nofz_boot = np.zeros([nboot, nlam, nz])
         for kk in range(nboot):
-            if verbose and ii % 10 == 0:
+            if verbose and kk % 10 == 0:
                 print('  Bootstrap sample {:02d}/{:02d}'.format(ii+1, nboot))
             for jj in range(nlam):
                 for ii in range(nz):
@@ -154,15 +154,17 @@ def compute_nofz(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
     hx = fits.HDUList()
     hdu = fits.ImageHDU(nofz.astype('f4'), name='NOFZ')
     hdu.header['NZ'] = nz
-    hdu.header['ZMIN'] = np.float(_zmin)
-    hdu.header['ZMAX'] = np.float(_zmax)
+    hdu.header['ZMIN'] = np.float('{:.4f}'.format(_zmin))
+    hdu.header['ZMAX'] = np.float('{:.4f}'.format(_zmax))
     hdu.header['DZ'] = np.float(dz)
     hdu.header['NLAM'] = nlam
-    [hdu.header['LAMMIN{:02d}'.format(jj)] = lmin[jj].astype('f4') for jj in range(nlam)]
-    [hdu.header['LAMMAX{:02d}'.format(jj)] = lmax[jj].astype('f4') for jj in range(nlam)]
+    for jj in range(nlam):
+        hdu.header['LAMMIN{:02d}'.format(jj)] = lmin[jj].astype('f4')
+    for jj in range(nlam):
+        hdu.header['LAMMAX{:02d}'.format(jj)] = lmax[jj].astype('f4')
     hx.append(hdu)
 
-    hdu = fits.ImageHDU(nofz_err.astype('f4'), name='NOFZ_ERR')
+    hdu = fits.ImageHDU(nofz_err.astype('f4'), name='NOFZERR')
     hx.append(hdu)
 
     hx.writeto(outfile, overwrite=True)
@@ -270,7 +272,7 @@ def compute_noflambda(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
             noflambda[ii, jj] = np.sum( p_zbin[ii, :] * p_lbin[jj, :] ) / vol[ii]
 
     # Estimate the variance from the bootstrap samples.
-    noflambda_err = np.zeros_like(noflambda)
+    noflambda_err = np.zeros([nz, nlam])
     if nboot > 0:
         if verbose:
             print('Computing the variance.')
@@ -292,7 +294,7 @@ def compute_noflambda(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
         for jj in range(nlam):
             for kk in range(nlam):
                 noflambda_covar[ii, jj, kk] = np.sum( (noflambda[ii, jj] - noflambda_boot[:, ii, jj]) *
-                                                      (noflambda[ii, kk] - noflambda_boot[:, ii, kk]) )/ (nboot - 1.0)
+                                                      (noflambda[ii, kk] - noflambda_boot[:, ii, kk]) ) / (nboot - 1.0)
 
     print('Writing {}'.format(outfile))
     hx = fits.HDUList()
@@ -302,14 +304,16 @@ def compute_noflambda(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
     hdu.header['LAMMAX'] = np.float(_lmax)
     hdu.header['DLAM'] = np.float(dlam)
     hdu.header['NZ'] = nz
-    [hdu.header['ZMIN{:02d}'.format(ii)] = zmin[ii].astype('f4') for ii in range(nz)]
-    [hdu.header['ZMAX{:02d}'.format(ii)] = zmax[ii].astype('f4') for ii in range(nz)]
+    for ii in range(nz):
+        hdu.header['ZMIN{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmin[ii]))
+    for ii in range(nz):
+        hdu.header['ZMAX{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmax[ii]))
     hx.append(hdu)
 
-    hdu = fits.ImageHDU(noflambda_err.astype('f4'), name='NOFLAMBDA_ERR')
+    hdu = fits.ImageHDU(noflambda_err.astype('f4'), name='NOFLAMBDAERR')
     hx.append(hdu)
 
-    hdu = fits.ImageHDU(noflambda_covar.astype('f4'), name='NOFLAMBDA_COVAR')
+    hdu = fits.ImageHDU(noflambda_covar.astype('f4'), name='NOFLAMBDACOVAR')
     hx.append(hdu)
 
     hx.writeto(outfile, overwrite=True)
@@ -321,7 +325,7 @@ def main():
     parser.add_argument('--nofz', action='store_true', help='Compute n(z)')
     parser.add_argument('--noflambda', action='store_true', help='Compute n(lambda)')
     parser.add_argument('--dr', type=str, default='dr6-dr7', help='Data release to analyze.')
-    parser.add_argument('--dz', type=float, default=0.02, help='Redshift binning interval for n(z).')
+    parser.add_argument('--dz', type=float, default=0.025, help='Redshift binning interval for n(z).')
     parser.add_argument('--dlam', type=float, default=1.0, help='Lambda binning interval for n(lambda).')
     parser.add_argument('--nboot', type=int, default=100, help="""Number of bootstrap
     samples to generate for error estimation.""")
@@ -343,7 +347,7 @@ def main():
         noflambda, noflambda_err, noflambda_covar = compute_noflambda(
             dlam=args.dlam, dr=args.dr, nboot=args.nboot,
             verbose=args.verbose, clobber=args.clobber)
-        print('Time to compute n(z) = {:.2f} min'.format( (time.time() - t0) / 60 ))
+        print('Time to compute n(lambda) = {:.2f} min'.format( (time.time() - t0) / 60 ))
 
 if __name__ == '__main__':
     main()
