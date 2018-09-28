@@ -294,8 +294,8 @@ def compute_noflambda(cat=None, area=None, nboot=100, seed=None, suffix=None,
         for kk in range(nboot):
             if verbose and (kk + 1) % 10 == 0:
                 print('  Bootstrap sample {:02d}/{:02d}'.format(kk + 1, nboot))
-            noflambda[kk, :, :] = np.sum( p_zbin[:, np.newaxis, bootindx[kk]] *
-                                          p_lbin[np.newaxis, :, bootindx[kk]], axis=2 ) / vol[:, np.newaxis]
+            noflambda_boot[kk, :, :] = np.sum( p_zbin[:, np.newaxis, bootindx[kk]] *
+                                               p_lbin[np.newaxis, :, bootindx[kk]], axis=2 ) / vol[:, np.newaxis]
 
         for ii in range(nz):
             for jj in range(nlam):
@@ -374,7 +374,7 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
     outfile = get_outfile('smf', suffix, descale=descale, clobber=clobber)
     if outfile is None:
         return
-
+    pdb.set_trace()
     ngal = len(cat)
 
     # Optionally create bootstrap subsamples.
@@ -537,17 +537,18 @@ def main():
     if args.smf:
         print('Building the stellar mass function.')
         if args.sdssphot:
-            mstarcat = legacyhalos.io.read_sample(dr=args.dr, verbose=args.verbose,
-                                                  isedfit_sdssphot=True)
+            suffix = 'sdssphot-dr14'
+            mstarcat = legacyhalos.io.read_sample(verbose=args.verbose, isedfit_sdssphot=True)
         elif args.lhphot:
-            mstarcat = legacyhalos.io.read_sample(dr=args.dr, verbose=args.verbose,
-                                                  isedfit_lhphot=True)
+            suffix = 'lhphot'
+            mstarcat = legacyhalos.io.read_sample(verbose=args.verbose, isedfit_lhphot=True)
         else:
+            suffix = 'lsphot-{}'.format(args.dr)
             mstarcat = legacyhalos.io.read_sample(dr=args.dr, verbose=args.verbose,
                                                   isedfit_lsphot=True)
 
         t0 = time.time()
-        compute_smf(cat, mstarcat, area, dr=args.dr, nboot=args.nboot,
+        compute_smf(cat, mstarcat, area, suffix=suffix, nboot=args.nboot,
                     verbose=args.verbose, clobber=args.clobber)
         print('Time to compute SMF = {:.2f} min'.format( (time.time() - t0) / 60 ))
         
