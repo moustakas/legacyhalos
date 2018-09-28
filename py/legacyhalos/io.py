@@ -316,7 +316,7 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=N
         return results
 
 def read_sample(first=None, last=None, dr='dr6-dr7', isedfit_lsphot=False,
-                isedfit_sdssphot=False, verbose=False):
+                isedfit_sdssphot=False, kcorr=False, verbose=False):
     """Read the sample.
 
     """
@@ -351,7 +351,12 @@ def read_sample(first=None, last=None, dr='dr6-dr7', isedfit_lsphot=False,
 
     rows = np.arange(first, last)
 
-    sample = Table(info[1].read(rows=rows))
+    if kcorr:
+        ext = 2
+    else:
+        ext = 1
+
+    sample = Table(info[1].read(rows=rows, ext=ext))
     if verbose:
         if len(rows) == 1:
             print('Read galaxy index {} from {}'.format(first, samplefile))

@@ -280,7 +280,7 @@ def get_lambdabins(verbose=False):
     """
     
     # Roughly 13.5, 13.9, 14.2, 14.6, 15, 15.7 Msun
-    lambdabins = np.array([5, 10, 20, 40, 80, 250])
+    lambdabins = np.array([5.0, 10.0, 20.0, 40.0, 80.0, 250.0])
     #lambdabins = np.array([5, 25, 50, 100, 500])
     nlbins = len(lambdabins)
     
@@ -318,4 +318,25 @@ def get_zbins(zmin=0.05, zmax=0.6, dt=1.0, verbose=False):
             print('Bin {}: z={:.3f}-{:.3f}, t={:.3f}-{:.3f} Gyr'.format(
                 ii, zbins[ii], zbins[ii+1], tbins[ii], tbins[ii+1]))
     return zbins
+
+def get_mstarbins(deltam=0.1, satellite=False):
+    """Fixed bins of stellar mass.
+    
+    nn = 7
+    ll = 10**np.linspace(np.log10(5), np.log10(500), nn)
+    #ll = np.linspace(5, 500, nn)
+    mh = np.log10(lambda2mhalo(ll))
+    for ii in range(nn):
+        print('{:.3f}, {:.3f}'.format(ll[ii], mh[ii]))    
+    """
+
+    if satellite:
+        pass # code me
+    else:
+        mstarmin, mstarmax = 9.0, 14.0
+
+    nmstarbins = np.round( (mstarmax - mstarmin) / deltam ).astype('int') + 1
+    mstarbins = np.linspace(mstarmin, mstarmax, nmstarbins)
+    
+    return mstarbins
 

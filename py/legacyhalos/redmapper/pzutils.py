@@ -83,12 +83,72 @@ def p_in_zbin(pz, pzbins, zmin, zmax, verbose=False):
                             (pz[clist[i], cmin] * 2 - slope_min * (pzbins[clist[i], cmin] - zmin) ) *
                             (pzbins[clist[i], cmin] - zmin) / 2.0 )
 
-    # Clamp probabilities in excess of unity due to numerical roundoff.
-    plist = np.where( p > 1 )[0]
-    if len(plist) > 0:
-        if verbose:
-            print('Clamping p(z) to unity for {} galaxies to unity.'.format(len(plist)))
-        p[plist] = 1
+    ## Clamp probabilities in excess of unity due to numerical roundoff.
+    #plist = np.where( p > 1 )[0]
+    #if len(plist) > 0:
+    #    if verbose:
+    #        print('Clamping p(z) to unity for {} galaxies to unity.'.format(len(plist)))
+    #    p[plist] = 1
+
+    return p
+
+def p_in_mstarbin(pofm, pofm_bins, zmin, zmax, verbose=False):
+    """Compute the probability that a given galaxy is in a specified bin in redshift
+    for an input sample of galaxies.
+
+    """
+    dz = np.copy(pofm_bins[:, 1] - pofm_bins[:, 0])
+    p = np.zeros(len(pofm))
+
+    # Case 1: PDF is entirely in the pofm_bins range.
+    alist = np.where( (zmin < np.min(pofm_bins, 1)) * (zmax > np.max(pofm_bins, 1)) )[0]
+    if len(alist) != 0:
+        p[alist] = 0 * alist + 1.0
+
+    # Case 2: zmax cutoff is in the pofm_bins range.
+    blist = np.where( (zmin < np.min(pofm_bins, 1)) * (zmax < np.max(pofm_bins, 1)) *
+                      (zmax > np.min(pofm_bins, 1)) )[0]
+    if len(blist) > 0:
+        for i in range(len(blist)):
+            bmax = np.max( np.where(pofm_bins[blist[i], :] < zmax)[0] )
+            slope = ( pofm[blist[i], bmax + 1] - pofm[blist[i], bmax] ) / dz[blist[i]]
+            p[blist[i]] = ( np.sum( pofm[blist[i], :bmax+1] ) * dz[blist[i]] - pofm[blist[i], bmax] *
+                            dz[blist[i]] / 2.0 + (pofm[blist[i], bmax] * 2 + slope * (zmax - pofm_bins[blist[i], bmax]) ) *
+                            (zmax - pofm_bins[blist[i], bmax]) / 2.0 )
+            #print p[blist[i]],slope,pofm_bins[blist[i],bmax],pofm_bins[blist[i],bmax+1]
+
+    # Case 3: zmin cutoff is in the pofm_bins range.
+    blist = np.where( (zmax > np.max(pofm_bins, 1)) * (zmin > np.min(pofm_bins, 1)) * (zmin < np.max(pofm_bins,1)) )[0]
+    if len(blist) > 0:
+        for i in range(len(blist)):
+            bmin = np.min( np.where(pofm_bins[blist[i], :] > zmin)[0] )
+            slope = ( pofm[blist[i], bmin] - pofm[blist[i], bmin-1]) / dz[blist[i]]
+            p[blist[i]] = ( np.sum(pofm[blist[i], bmin:]) * dz[blist[i]] - pofm[blist[i], bmin] *
+                            dz[blist[i]] / 2.0 + (pofm[blist[i], bmin] * 2 - slope * (pofm_bins[blist[i], bmin] - zmin) ) *
+                            (pofm_bins[blist[i], bmin] - zmin) / 2.0 )
+
+    # Case 4: zmax and zmin cutoff are both in the pofm_bins range.
+    clist = np.where( (zmax < np.max(pofm_bins, 1)) * (zmin > np.min(pofm_bins, 1)) )[0]
+    if len(clist) > 0:
+        for i in range(len(clist)):
+            cmin = np.min( np.where(pofm_bins[clist[i],:] > zmin)[0] )
+            cmax = np.max( np.where(pofm_bins[clist[i],:] < zmax)[0] )
+            slope_min = (pofm[clist[i], cmin] - pofm[clist[i], cmin - 1]) / dz[clist[i]]
+            slope_max = (pofm[clist[i], cmax + 1] - pofm[clist[i], cmax]) / dz[clist[i]]
+
+            p[clist[i]] = ( np.sum(dz[clist[i]] * pofm[clist[i], cmin:cmax + 1]) -
+                            pofm[clist[i], cmax] * dz[clist[i]] / 2.0 +
+                            (pofm[clist[i], cmax] * 2 + slope_max * (zmax-pofm_bins[clist[i],cmax]) ) *
+                            (zmax - pofm_bins[clist[i], cmax]) / 2.0 - pofm[clist[i], cmin] * dz[clist[i]] / 2.0 +
+                            (pofm[clist[i], cmin] * 2 - slope_min * (pofm_bins[clist[i], cmin] - zmin) ) *
+                            (pofm_bins[clist[i], cmin] - zmin) / 2.0 )
+
+    ## Clamp probabilities in excess of unity due to numerical roundoff.
+    #plist = np.where( p > 1 )[0]
+    #if len(plist) > 0:
+    #    if verbose:
+    #        print('Clamping p(z) to unity for {} galaxies to unity.'.format(len(plist)))
+    #    p[plist] = 1
 
     return p
 
@@ -100,8 +160,6 @@ def bootstrap_resample_simple(ngal, nboot=10, seed=None):
     """
     rand = np.random.RandomState(seed)
     return rand.randint( ngal, size=(nboot, ngal) )
-
-
 
 ##Single random selection from P(z) distribution
 #def select_rand_z(pz,pzbins):
