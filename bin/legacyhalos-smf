@@ -34,21 +34,21 @@ def get_lambda(cat, descale=False):
         lam_err /= cat['SCALEVAL'].data
     return lam, lam_err
 
-def compute_nofz(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
+def compute_nofz(cat=None, area=None, nboot=100, seed=None, dr='dr6-dr7',
                  dz=0.025, descale=False, verbose=True, clobber=False):
     '''Calculate n(z) on a fine redshift grid for several broad thresholds of
     lambda.  Estimate the marginalized variance using bootstrap resampling.
 
     Parameters
     ----------
-    cat : :class:`astropy.table.Table`, optional
-        Input catalog.  Default is to read the full legacyhalos sample.
+    cat : :class:`astropy.table.Table`
+        Input catalog.
+    area : :class:`float`
+        Area of the input catalog [deg**2].
     nboot : :class:`int`, optional
         Number of bootstrap samples to use for error estimation.  Default 100. 
     seed : :class:`int`, optional, default None
         Seed for reproducibility; only used with nboot.
-    area : :class:`float`, optional, default None
-        Area of the input catalog [deg**2].
     dr : :class:`str`, optional, default 'dr6-dr7'
         Data release suffix.
     dz : :class:`float`, optional, default 0.025
@@ -65,23 +65,25 @@ def compute_nofz(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
 
     Raises
     ------
+    IOError
+        If either cat or area are not passed.
 
     '''
+    if cat is None or area is None:
+        print('Cat and area inputs are required.')
+        raise IOError
+
     if descale:
-        suffix = '-descaled'
+        suffix = '{}-descaled'.format(dr)
     else:
-        suffix = ''
-    outfile = os.path.join( legacyhalos.io.sample_dir(), 'nofz-{}{}.fits'.format(dr, suffix) )
+        suffix = '{}'.format(dr)
+        
+    outfile = os.path.join( legacyhalos.io.sample_dir(), 'nofz-{}.fits'.format(suffix) )
     if os.path.isfile(outfile) and not clobber:
         print('Output file {} exists; use clobber.'.format(outfile))
         return
 
-    if cat is None:
-        cat = legacyhalos.io.read_sample(dr=dr, verbose=verbose)
     ngal = len(cat)
-
-    if area is None:
-        area = legacyhalos.misc.area() # [deg2]
 
     # Optionally create bootstrap subsamples.
     if nboot > 0:
@@ -143,12 +145,13 @@ def compute_nofz(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
                 print('  Bootstrap sample {:02d}/{:02d}'.format(ii+1, nboot))
             for jj in range(nlam):
                 for ii in range(nz):
-                    nofz_boot[kk, jj, ii] = np.sum( p_zbin[ii, bootindx[kk]] *
-                                                    p_lbin[jj, bootindx[kk]] ) / vol[ii]
+                    nofz_boot[kk, jj, ii] = np.sum(
+                        p_zbin[ii, bootindx[kk]] * p_lbin[jj, bootindx[kk]] ) / vol[ii]
 
         for jj in range(nlam):
             for ii in range(nz):
-                nofz_err[jj, ii] = np.sqrt( np.sum( (nofz[jj, ii] - nofz_boot[:, jj, ii])**2 ) / (nboot - 1) )
+                nofz_err[jj, ii] = np.sqrt( np.sum(
+                    (nofz[jj, ii] - nofz_boot[:, jj, ii])**2 ) / (nboot - 1) )
 
     print('Writing {}'.format(outfile))
 
@@ -172,7 +175,7 @@ def compute_nofz(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
 
     return nofz, nofz_err
                 
-def compute_noflambda(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
+def compute_noflambda(cat=None, area=None, nboot=100, seed=None, dr='dr6-dr7',
                       dlam=1.0, descale=False, verbose=True, clobber=False):
     '''Calculate n(lambda) in fine bins of lambda for several broad redshift bins.
     Estimate the marginalized variance and the full covariance matrix using
@@ -180,14 +183,14 @@ def compute_noflambda(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
 
     Parameters
     ----------
-    cat : :class:`astropy.table.Table`, optional
-        Input catalog.  Default is to read the full legacyhalos sample.
+    cat : :class:`astropy.table.Table`
+        Input catalog.
+    area : :class:`float`
+        Area of the input catalog [deg**2].
     nboot : :class:`int`, optional
         Number of bootstrap samples to use for error estimation.  Default 100. 
     seed : :class:`int`, optional, default None
         Seed for reproducibility; only used with nboot.
-    area : :class:`float`, optional, default None
-        Area of the input catalog [deg**2].
     dr : :class:`str`, optional, default 'dr6-dr7'
         Data release suffix.
     dlam : :class:`float`, optional, default 1.0
@@ -204,23 +207,25 @@ def compute_noflambda(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
 
     Raises
     ------
+    IOError
+        If either cat or area are not passed.
 
     '''
+    if cat is None or area is None:
+        print('Cat and area inputs are required.')
+        raise IOError
+    
     if descale:
-        suffix = '-descaled'
+        suffix = '{}-descaled'.format(dr)
     else:
-        suffix = ''
-    outfile = os.path.join( legacyhalos.io.sample_dir(), 'noflambda-{}{}.fits'.format(dr, suffix) )
+        suffix = '{}'.format(dr)
+        
+    outfile = os.path.join( legacyhalos.io.sample_dir(), 'noflambda-{}.fits'.format(suffix) )
     if os.path.isfile(outfile) and not clobber:
         print('Output file {} exists; use clobber.'.format(outfile))
         return
 
-    if cat is None:
-        cat = legacyhalos.io.read_sample(dr=dr, verbose=verbose)
     ngal = len(cat)
-
-    if area is None:
-        area = legacyhalos.misc.area() # [deg2]
 
     # Optionally create bootstrap subsamples.
     if nboot > 0:
@@ -283,20 +288,22 @@ def compute_noflambda(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
                 print('  Bootstrap sample {:02d}/{:02d}'.format(kk + 1, nboot))
             for ii in range(nz):
                 for jj in range(nlam):
-                    noflambda_boot[kk, ii, jj] = np.sum( p_zbin[ii, bootindx[kk]] *
-                                                         p_lbin[jj, bootindx[kk]] ) / vol[ii]
+                    noflambda_boot[kk, ii, jj] = np.sum(
+                        p_zbin[ii, bootindx[kk]] * p_lbin[jj, bootindx[kk]] ) / vol[ii]
 
         for ii in range(nz):
             for jj in range(nlam):
-                noflambda_err[ii, jj] = np.sqrt( np.sum( (noflambda[ii, jj] - noflambda_boot[:, ii, jj])**2 ) / (nboot - 1) )
+                noflambda_err[ii, jj] = np.sqrt( np.sum(
+                    (noflambda[ii, jj] - noflambda_boot[:, ii, jj])**2 ) / (nboot - 1) )
 
     print('Computing the covariance matrix.')
     noflambda_covar = np.zeros([nz, nlam, nlam])
     for ii in range(nz):
         for jj in range(nlam):
             for kk in range(nlam):
-                noflambda_covar[ii, jj, kk] = np.sum( (noflambda[ii, jj] - noflambda_boot[:, ii, jj]) *
-                                                      (noflambda[ii, kk] - noflambda_boot[:, ii, kk]) ) / (nboot - 1.0)
+                noflambda_covar[ii, jj, kk] = np.sum(
+                    (noflambda[ii, jj] - noflambda_boot[:, ii, jj]) *
+                    (noflambda[ii, kk] - noflambda_boot[:, ii, kk]) ) / (nboot - 1)
 
     print('Writing {}'.format(outfile))
     hx = fits.HDUList()
@@ -321,9 +328,52 @@ def compute_noflambda(cat=None, nboot=100, seed=None, area=None, dr='dr6-dr7',
     hx.writeto(outfile, overwrite=True)
 
     return noflambda, noflambda_err, noflambda_covar
-                
+
+def compute_smf(cat=None, area=None, nboot=100, seed=None, dr='dr6-dr7',
+                verbose=True, clobber=False):
+    '''Construct the stellar mass function (SMF) in several broad redshift bins.
+    Estimate the marginalized variance using bootstrap resampling.
+
+    Parameters
+    ----------
+    cat : :class:`astropy.table.Table`
+        Input catalog.
+    area : :class:`float`
+        Area of the input catalog [deg**2].
+    nboot : :class:`int`, optional
+        Number of bootstrap samples to use for error estimation.  Default 100. 
+    seed : :class:`int`, optional, default None
+        Seed for reproducibility; only used with nboot.
+    dr : :class:`str`, optional, default 'dr6-dr7'
+        Data release suffix.
+    verbose : :class:`bool`, optional, default True
+        Be loquacious! 
+    clobber : :class:`bool`, optional, default False
+        Overwrite an existing file.
+
+    Returns
+    -------
+
+    Raises
+    ------
+
+    '''
+    if cat is None or area is None:
+        print('Cat and area inputs are required.')
+        raise IOError
+
+
+
+    ngal = len(cat)
+
+
+    
+
+    return smf, smf_err
+
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--smf', action='store_true', help='Construct the stellar mass function (SMF).')
     parser.add_argument('--nofz', action='store_true', help='Compute n(z)')
     parser.add_argument('--noflambda', action='store_true', help='Compute n(lambda)')
     parser.add_argument('--dr', type=str, default='dr6-dr7', help='Data release to analyze.')
@@ -335,20 +385,29 @@ def main():
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
     args = parser.parse_args()
 
+    # Read the catalog
+    cat = legacyhalos.io.read_sample(dr=dr, verbose=verbose)
+    area = legacyhalos.misc.area() # [deg2]
+
+    if args.smf:
+        print('Building the stellar mass function.')
+        t0 = time.time()
+        compute_smf(cat, area, dz=args.dz, dr=args.dr, nboot=args.nboot,
+                    verbose=args.verbose, clobber=args.clobber)
+        print('Time to compute n(z) = {:.2f} min'.format( (time.time() - t0) / 60 ))
+        
     if args.nofz:
         print('Building n(lambda, z).')
         t0 = time.time()
-        nofz, nofz_err = compute_nofz(
-            dz=args.dz, dr=args.dr, nboot=args.nboot,
-            verbose=args.verbose, clobber=args.clobber)
+        compute_nofz(cat, area, dz=args.dz, dr=args.dr, nboot=args.nboot,
+                     verbose=args.verbose, clobber=args.clobber)
         print('Time to compute n(z) = {:.2f} min'.format( (time.time() - t0) / 60 ))
         
     if args.noflambda:
         print('Building n(z, lambda).')
         t0 = time.time()
-        noflambda, noflambda_err, noflambda_covar = compute_noflambda(
-            dlam=args.dlam, dr=args.dr, nboot=args.nboot,
-            verbose=args.verbose, clobber=args.clobber)
+        compute_noflambda(cat, area, dlam=args.dlam, dr=args.dr, nboot=args.nboot,
+                          verbose=args.verbose, clobber=args.clobber)
         print('Time to compute n(lambda) = {:.2f} min'.format( (time.time() - t0) / 60 ))
 
 if __name__ == '__main__':
