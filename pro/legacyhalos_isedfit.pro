@@ -56,6 +56,63 @@ function lhphot_version
 return, ver
 end    
 
+function get_pofm, prefix, outprefix, isedfit_rootdir, $
+  thissfhgrid=thissfhgrid, kcorr=kcorr
+; read the marginalized posterior on stellar mass, pack it into the iSEDfit
+; structure, read the k-corrections and return
+
+    isedfit_dir = isedfit_rootdir+'isedfit_'+prefix+'/'
+    montegrids_dir = isedfit_rootdir+'montegrids_'+prefix+'/'
+    isedfit_paramfile = isedfit_dir+prefix+'_paramfile.par'
+
+    fp = isedfit_filepaths(read_isedfit_paramfile(isedfit_paramfile,$
+      thissfhgrid=thissfhgrid),isedfit_dir=isedfit_dir,band_shift=0.1,$
+      montegrids_dir=montegrids_dir,outprefix=outprefix)
+    
+    npofm = 21 ; number of posterior samplings on stellar mass
+    ngal = sxpar(headfits(fp.isedfit_dir+fp.isedfit_outfile+'.gz',ext=1), 'NAXIS2')
+
+    nperchunk = ngal            ; 50000
+    nchunk = ceil(ngal/float(nperchunk))
+    
+    for ii = 0, nchunk-1 do begin
+       print, format='("Working on chunk ",I0,"/",I0)', ii+1, nchunk
+       these = lindgen(nperchunk)+ii*nperchunk
+       these = these[where(these lt ngal)]
+;      these = these[0:99] ; test!
+
+       delvarx, post
+       lsphot1 = read_isedfit(isedfit_paramfile,isedfit_dir=isedfit_dir,$
+         montegrids_dir=montegrids_dir,outprefix=outprefix,index=these,$
+         isedfit_post=post,thissfhgrid=thissfhgrid)
+       lsphot1 = struct_trimtags(struct_trimtags(lsphot1,except='*HB*'),except='*HA*')
+             
+       if ii eq 0 then begin
+          lsphot = replicate(lsphot1[0], ngal)
+          lsphot = struct_addtags(lsphot, replicate({pofm: fltarr(npofm),$
+            pofm_bins: fltarr(npofm)},ngal))
+       endif
+       lsphot[these] = im_struct_assign(lsphot1, lsphot[these], /nozero)
+
+       for jj = 0, n_elements(these)-1 do begin
+          mn = min(post[jj].mstar)
+          mx = max(post[jj].mstar)
+          dm = (mx - mn) / (npofm - 1)
+
+          pofm = im_hist1d(post[jj].mstar,binsize=dm,$
+            binedge=0,obin=pofm_bins)
+          lsphot[these[jj]].pofm = pofm / im_integral(pofm_bins, pofm) ; normalize
+          lsphot[these[jj]].pofm_bins = pofm_bins
+       endfor
+    endfor             
+
+    kcorrfile = fp.isedfit_dir+fp.kcorr_outfile+'.gz'
+    print, 'Reading '+kcorrfile
+    kcorr = mrdfits(kcorrfile,1)
+          
+return, lsphot
+end
+
 pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
   sdssphot_dr14=sdssphot_dr14, sdssphot_upenn=sdssphot_upenn, $
   redmapper_upenn=redmapper_upenn, $ 
@@ -63,8 +120,9 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
   isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, $
   gather_results=gather_results, clobber=clobber
 
-;   echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > lsphot-dr5.log 2>&1 &
-;   echo "legacyhalos_isedfit, /sdssphot_dr14, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > sdssphot-dr14.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, thissfhgrid=2, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sfhgrid02.log 2>&1 &
+; echo "legacyhalos_isedfit, /sdssphot_dr14, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > sdssphot-dr14.log 2>&1 &
 
     legacyhalos_dir = getenv('LEGACYHALOS_DIR')
 
@@ -74,6 +132,12 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        splog, 'Choose one of /LSPHOT_DR6_DR7, /LHPHOT, /SDSSPHOT_DR14, /SDSSPHOT_UPENN, or /REDMAPPER_UPENN'
        return       
     endif
+
+    if n_elements(thissfhgrid) eq 0 then begin
+       splog, 'THISSFHGRID is a required input!'
+       return
+    endif
+    sfhgridstring = 'sfhgrid'+string(thissfhgrid,format='(I2.2)')
     
 ; directories and prefixes for each dataset
     if keyword_set(lsphot_dr6_dr7) then begin
@@ -100,19 +164,24 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 
     isedfit_rootdir = getenv('IM_WORK_DIR')+'/projects/legacyhalos/isedfit/'
     
+    isedfit_dir = isedfit_rootdir+'isedfit_'+prefix+'/'
+    montegrids_dir = isedfit_rootdir+'montegrids_'+prefix+'/'
+    isedfit_paramfile = isedfit_dir+prefix+'_paramfile.par'
+
+    spawn, ['mkdir -p '+isedfit_dir], /sh
+    spawn, ['mkdir -p '+montegrids_dir], /sh
+
 ; --------------------------------------------------
-; gather the results and write out the final stellar mass catalog; also consider
-; writing out all the spectra...
+; gather the results and write out the final stellar mass catalog, including the
+; posterior probability on stellar mass 
     if keyword_set(gather_results) then begin
 
        if keyword_set(lsphot_dr6_dr7) then begin
-          lsphot = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
-            'lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
-          lsphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
-            'lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
-	
-          outfile = legacyhalos_dir+'/sample/isedfit-lsphot-dr6-dr7.fits'
-          print, 'Writing '+outfile
+          lsphot = get_pofm(prefix,outprefix,isedfit_rootdir,$
+            thissfhgrid=thissfhgrid,kcorr=lsphot_kcorr)
+
+          outfile = legacyhalos_dir+'/sample/isedfit-'+sfhgridstring+'-lsphot-dr6-dr7.fits'
+          splog, 'Writing '+outfile
           mwrfits, lsphot, outfile, /create
           mwrfits, lsphot_kcorr, outfile
 	
@@ -126,12 +195,11 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        endif
 
        if keyword_set(sdssphot_dr14) then begin
-          sdssphot = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
-            'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
-          sdssphot_kcorr = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
-            'sdssphot_dr14_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
-
-          outfile = legacyhalos_dir+'/sample/isedfit-sdssphot-dr14.fits'
+          sdssphot = get_pofm(prefix,outprefix,isedfit_rootdir,$
+            thissfhgrid=thissfhgrid,kcorr=sdssphot_kcorr)
+          
+          outfile = legacyhalos_dir+'/sample/isedfit-'+sfhgridstring+'-sdssphot-dr14.fits'
+          splog, 'Writing '+outfile
           mwrfits, sdssphot, outfile
           mwrfits, sdssphot_kcorr, outfile
 
@@ -216,13 +284,6 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        modfits, outfile, 0, hdr, exten_no=ee
        return
     endif
-
-    isedfit_dir = isedfit_rootdir+'isedfit_'+prefix+'/'
-    montegrids_dir = isedfit_rootdir+'montegrids_'+prefix+'/'
-    isedfit_paramfile = isedfit_dir+prefix+'_paramfile.par'
-
-    spawn, ['mkdir -p '+isedfit_dir], /sh
-    spawn, ['mkdir -p '+montegrids_dir], /sh
 
 ; --------------------------------------------------
 ; define the filters and the redshift ranges
@@ -375,19 +436,18 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 ; --------------------------------------------------
 ; write the parameter file
     if keyword_set(write_paramfile) then begin
-       spsmodels = 'fsps_v2.4_miles' ; v1.0
-       imf = 'chab'
-       redcurve = 'charlot'
-       Zmetal = [0.004,0.03]
-       age = [0.1,13.0]
-       tau = [0.0,6]
-       nmodel = 25000L
-
+; SFHGRID01 - general SFH + dust, no emission lines
        write_isedfit_paramfile, params=params, isedfit_dir=isedfit_dir, $
-         prefix=prefix, filterlist=filterlist, spsmodels=spsmodels, $
-         imf=imf, redcurve=redcurve, igm=0, zminmax=zminmax, nzz=nzz, $
-         nmodel=nmodel, age=age, tau=tau, Zmetal=Zmetal, $
-         /delayed, nebular=0, clobber=clobber, sfhgrid=lsphot_sfhgrid
+         prefix=prefix, filterlist=filterlist, spsmodels='fsps_v2.4_miles', $
+         imf='chab', redcurve='charlot', igm=0, zminmax=zminmax, nzz=nzz, $
+         nmodel=25000L, age=[0.1,13.0], tau=[0.0,6], Zmetal=[0.004,0.03], $
+         /delayed, nebular=0, clobber=clobber, sfhgrid=1
+; SFHGRID02 - no dust, no emission lines
+       write_isedfit_paramfile, params=params, isedfit_dir=isedfit_dir, $
+         prefix=prefix, filterlist=filterlist, spsmodels='fsps_v2.4_miles', $
+         imf='chab', redcurve='none', igm=0, zminmax=zminmax, nzz=nzz, $
+         nmodel=25000L, age=[0.1,13.0], tau=[0.0,6], Zmetal=[0.004,0.03], $
+         AV=[0,0], /delayed, nebular=0, clobber=clobber, sfhgrid=2, /append
     endif
 
 ;   splog, 'HACK!!'
