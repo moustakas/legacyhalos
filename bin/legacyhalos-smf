@@ -374,7 +374,6 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
     outfile = get_outfile('smf', suffix, descale=descale, clobber=clobber)
     if outfile is None:
         return
-    pdb.set_trace()
     ngal = len(cat)
 
     # Optionally create bootstrap subsamples.
@@ -521,7 +520,9 @@ def main():
     parser.add_argument('--sdssphot', action='store_true', help='Use SDSS ugriz1W2 photometry.')
     parser.add_argument('--lhphot', action='store_true', help='Use custom legacyhalos grzW1W2 photometry.')
 
+    parser.add_argument('--sfhgrid', type=int, default='1', help='SFH grid number.')
     parser.add_argument('--dr', type=str, default='dr6-dr7', help='Data release to analyze.')
+
     parser.add_argument('--dz', type=float, default=0.025, help='Redshift binning interval for n(z).')
     parser.add_argument('--dlam', type=float, default=1.0, help='Lambda binning interval for n(lambda).')
     parser.add_argument('--nboot', type=int, default=100, help='Number of bootstrap samples.')
@@ -537,16 +538,17 @@ def main():
     if args.smf:
         print('Building the stellar mass function.')
         if args.sdssphot:
-            suffix = 'sdssphot-dr14'
-            mstarcat = legacyhalos.io.read_sample(verbose=args.verbose, isedfit_sdssphot=True)
+            suffix = 'sfhgrid{:02d}-sdssphot-dr14'.format(args.sfhgrid)
+            mstarcat = legacyhalos.io.read_sample(verbose=args.verbose, isedfit_sdssphot=True,
+                                                  sfhgrid=args.sfhgrid)
         elif args.lhphot:
-            suffix = 'lhphot'
-            mstarcat = legacyhalos.io.read_sample(verbose=args.verbose, isedfit_lhphot=True)
+            suffix = 'sfhgrid{:02d}-lhphot'.format(args.sfhgrid)
+            mstarcat = legacyhalos.io.read_sample(verbose=args.verbose, isedfit_lhphot=True,
+                                                  sfhgrid=args.sfhgrid)
         else:
-            suffix = 'lsphot-{}'.format(args.dr)
+            suffix = 'sfhgrid{:02d}-lsphot-{}'.format(args.sfhgrid, args.dr)
             mstarcat = legacyhalos.io.read_sample(dr=args.dr, verbose=args.verbose,
-                                                  isedfit_lsphot=True)
-
+                                                  isedfit_lsphot=True, sfhgrid=args.sfhgrid)
         t0 = time.time()
         compute_smf(cat, mstarcat, area, suffix=suffix, nboot=args.nboot,
                     verbose=args.verbose, clobber=args.clobber)

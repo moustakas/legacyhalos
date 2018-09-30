@@ -315,9 +315,9 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=N
             print('Read {} objects from {} [{}]'.format(len(results), resultsfile, extname))
         return results
 
-def read_sample(first=None, last=None, dr='dr6-dr7', isedfit_lsphot=False,
-                isedfit_sdssphot=False, isedfit_lhphot=False, kcorr=False,
-                verbose=False):
+def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
+                isedfit_lsphot=False, isedfit_sdssphot=False,
+                isedfit_lhphot=False, kcorr=False, verbose=False):
     """Read the sample.
 
     """
@@ -325,11 +325,11 @@ def read_sample(first=None, last=None, dr='dr6-dr7', isedfit_lsphot=False,
     from astropy.table import Table
 
     if isedfit_lsphot:
-        samplefile = os.path.join(sample_dir(), 'isedfit-lsphot-{}.fits'.format(dr))
+        samplefile = os.path.join(sample_dir(), 'isedfit-sfhgrid{:02d}-lsphot-{}.fits'.format(sfhgrid, dr))
     elif isedfit_sdssphot:
-        samplefile = os.path.join(sample_dir(), 'isedfit-sdssphot-dr14.fits')
+        samplefile = os.path.join(sample_dir(), 'isedfit-sfhgrid{:02d}-sdssphot-dr14.fits'.format(sfhgrid))
     elif isedfit_lhphot:
-        samplefile = os.path.join(sample_dir(), 'isedfit-lhphot.fits')
+        samplefile = os.path.join(sample_dir(), 'isedfit-sfhgrid{:02d}-lhphot.fits'.format(sfhgrid))
     else:
         samplefile = os.path.join(sample_dir(), 'legacyhalos-sample-{}.fits'.format(dr))
         
