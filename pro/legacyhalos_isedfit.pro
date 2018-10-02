@@ -82,17 +82,17 @@ function get_pofm, prefix, outprefix, isedfit_rootdir, $
 ;      these = these[0:99] ; test!
 
        delvarx, post
-       lsphot1 = read_isedfit(isedfit_paramfile,isedfit_dir=isedfit_dir,$
+       outphot1 = read_isedfit(isedfit_paramfile,isedfit_dir=isedfit_dir,$
          montegrids_dir=montegrids_dir,outprefix=outprefix,index=these,$
          isedfit_post=post,thissfhgrid=thissfhgrid)
-       lsphot1 = struct_trimtags(struct_trimtags(lsphot1,except='*HB*'),except='*HA*')
+       outphot1 = struct_trimtags(struct_trimtags(outphot1,except='*HB*'),except='*HA*')
              
        if ii eq 0 then begin
-          lsphot = replicate(lsphot1[0], ngal)
-          lsphot = struct_addtags(lsphot, replicate({pofm: fltarr(npofm),$
+          outphot = replicate(outphot1[0], ngal)
+          outphot = struct_addtags(outphot, replicate({pofm: fltarr(npofm),$
             pofm_bins: fltarr(npofm)},ngal))
        endif
-       lsphot[these] = im_struct_assign(lsphot1, lsphot[these], /nozero)
+       outphot[these] = im_struct_assign(outphot1, outphot[these], /nozero)
 
        for jj = 0, n_elements(these)-1 do begin
           mn = min(post[jj].mstar)
@@ -101,8 +101,8 @@ function get_pofm, prefix, outprefix, isedfit_rootdir, $
 
           pofm = im_hist1d(post[jj].mstar,binsize=dm,$
             binedge=0,obin=pofm_bins)
-          lsphot[these[jj]].pofm = pofm / im_integral(pofm_bins, pofm) ; normalize
-          lsphot[these[jj]].pofm_bins = pofm_bins
+          outphot[these[jj]].pofm = pofm / im_integral(pofm_bins, pofm) ; normalize
+          outphot[these[jj]].pofm_bins = pofm_bins
        endfor
     endfor             
 
@@ -110,7 +110,7 @@ function get_pofm, prefix, outprefix, isedfit_rootdir, $
     print, 'Reading '+kcorrfile
     kcorr = mrdfits(kcorrfile,1)
           
-return, lsphot
+return, outphot
 end
 
 pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
@@ -180,7 +180,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
           lsphot = get_pofm(prefix,outprefix,isedfit_rootdir,$
             thissfhgrid=thissfhgrid,kcorr=lsphot_kcorr)
 
-          outfile = legacyhalos_dir+'/sample/isedfit-'+sfhgridstring+'-lsphot-dr6-dr7.fits'
+          outfile = legacyhalos_dir+'/sample/centrals-'+sfhgridstring+'-lsphot-dr6-dr7.fits'
           splog, 'Writing '+outfile
           mwrfits, lsphot, outfile, /create
           mwrfits, lsphot_kcorr, outfile
@@ -198,9 +198,9 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
           sdssphot = get_pofm(prefix,outprefix,isedfit_rootdir,$
             thissfhgrid=thissfhgrid,kcorr=sdssphot_kcorr)
           
-          outfile = legacyhalos_dir+'/sample/isedfit-'+sfhgridstring+'-sdssphot-dr14.fits'
+          outfile = legacyhalos_dir+'/sample/centrals-'+sfhgridstring+'-sdssphot-dr14.fits'
           splog, 'Writing '+outfile
-          mwrfits, sdssphot, outfile
+          mwrfits, sdssphot, outfile, /create
           mwrfits, sdssphot_kcorr, outfile
 
           hdr = headfits(outfile,ext=1)
