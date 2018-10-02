@@ -13,6 +13,10 @@ import numpy as np
 import numpy.ma as ma
 from glob import glob
 
+import fitsio
+from astropy.table import Table
+from astropy.io import fits
+
 def get_objid(cat, analysisdir=None):
     """Build a unique object ID based on the redmapper mem_match_id.
 
@@ -193,9 +197,6 @@ def read_parent(extname='LSPHOT', upenn=True, isedfit=False, columns=None, verbo
       upenn - Restrict to the UPenn-matched catalogs.
 
     """
-    import fitsio
-    from astropy.table import Table
-
     suffix = ''
     if isedfit:
         suffix = '-isedfit'
@@ -221,7 +222,6 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     lsdir = legacyhalos_dir()
     resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
     if not os.path.isfile(resultsfile) or clobber:
-        from astropy.io import fits
 
         hx = fits.HDUList()
 
@@ -251,7 +251,6 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
     convert to surface brightness by dividing by the pixel area.
 
     """
-    import fitsio
     from scipy.ndimage.morphology import binary_dilation
 
     data = dict()
@@ -297,9 +296,6 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=N
     """Read the output of io.write_results.
 
     """
-    import fitsio
-    from astropy.table import Table
-
     lsdir = legacyhalos_dir()
     resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
 
@@ -315,14 +311,33 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=N
             print('Read {} objects from {} [{}]'.format(len(results), resultsfile, extname))
         return results
 
+def read_jackknife(verbose=False, dr='dr6-dr7'):
+    """Read the jackknife table (written by legacyhalos-sample-selection.ipynb).
+
+    """
+    lsdir = legacyhalos_dir()
+    jackfile = os.path.join(lsdir, 'legacyhalos-jackknife-{}.fits'.format(dr))
+
+    if not os.path.isfile(jackfile):
+        print('File {} not found.'.format(jackfile))
+        return None
+
+    jack = Table(read(jackfile)
+    if verbose:
+        print('Read {} rows from {}'.format(len(jack), jackfile))
+    return jack
+
 def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
                 isedfit_lsphot=False, isedfit_sdssphot=False,
-                isedfit_lhphot=False, kcorr=False, verbose=False):
+                isedfit_lhphot=False, satellites=False,
+                kcorr=False, verbose=False):
     """Read the sample.
 
     """
-    import fitsio
-    from astropy.table import Table
+    if satellites:
+        prefix = 'satellites'
+    else:
+        prefix = 'centrals'
 
     if isedfit_lsphot:
         samplefile = os.path.join(sample_dir(), 'isedfit-sfhgrid{:02d}-lsphot-{}.fits'.format(sfhgrid, dr))
@@ -331,7 +346,7 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
     elif isedfit_lhphot:
         samplefile = os.path.join(sample_dir(), 'isedfit-sfhgrid{:02d}-lhphot.fits'.format(sfhgrid))
     else:
-        samplefile = os.path.join(sample_dir(), 'legacyhalos-sample-{}.fits'.format(dr))
+        samplefile = os.path.join(sample_dir(), 'legacyhalos-centrals-{}.fits'.format(dr))
         
     if not os.path.isfile(samplefile):
         print('File {} not found.'.format(samplefile))

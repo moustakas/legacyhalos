@@ -15,7 +15,7 @@ def area():
     `legacyhalos-sample-selection.ipynb` notebook for this calculation.
 
     """
-    return 6711.276
+    return 6692.0
 
 def cosmology(WMAP=False, Planck=False):
     """Establish the default cosmology for the project."""

@@ -88,6 +88,11 @@ def compute_nofz(cat=None, area=None, nboot=100, seed=None, suffix=None,
 
     Returns
     -------
+    nofz : :class:`numpy.ndarray`
+        Comoving number density of central galaxies as a function of redshift in
+        several broad, threshold bins of richness.
+    nofz_err : :class:`numpy.ndarray`
+        Statistical uncertainty in nofz (only computed if nboot>0).
 
     Raises
     ------
@@ -220,6 +225,13 @@ def compute_noflambda(cat=None, area=None, nboot=100, seed=None, suffix=None,
 
     Returns
     -------
+    noflambda : :class:`numpy.ndarray`
+        Comoving number density of central galaxies as a function of richness in
+        several broad bins of redshift.
+    noflambda_err : :class:`numpy.ndarray`
+        Statistical uncertainty in noflambda (only computed if nboot>0).
+    noflambda_covar : :class:`numpy.ndarray`
+        Covariance matrix for noflambda (only computed if nboot>0).
 
     Raises
     ------
@@ -362,17 +374,29 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
 
     Returns
     -------
+    smf : :class:`numpy.ndarray`
+        Comoving number density of central galaxies as a function of richness in
+        several broad bins of redshift.
+    smf_err : :class:`numpy.ndarray`
+        Statistical uncertainty in smf (only computed if nboot>0).
+    smf_covar : :class:`numpy.ndarray`
+        Covariance matrix for smf (only computed if nboot>0).
+    smffile : :class:`str`
+        Output file name (needed if doing jackknife resampling outside this
+        function).
 
     Raises
     ------
+    IOError
+        If either cat or area are not passed.
 
     '''
     if cat is None or area is None:
         print('Cat and area inputs are required.')
         raise IOError
 
-    outfile = get_outfile('smf', suffix, descale=descale, clobber=clobber)
-    if outfile is None:
+    smffile = get_outfile('smf', suffix, descale=descale, clobber=clobber)
+    if smffile is None:
         return
     ngal = len(cat)
 
@@ -470,7 +494,7 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
                             (smf[ii, jj, mm] - smf_boot[:, ii, jj, mm]) *
                             (smf[ii, jj, kk] - smf_boot[:, ii, jj, kk]) ) / (nboot - 1)
 
-    print('Writing {}'.format(outfile))
+    print('Writing {}'.format(smffile))
     hx = fits.HDUList()
     hdu = fits.ImageHDU(smf.astype('f4'), name='SMF')
     hdu.header['NZ'] = nz
@@ -506,9 +530,9 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
     hdu = fits.ImageHDU(smf_covar.astype('f4'), name='SMFCOVAR')
     hx.append(hdu)
 
-    hx.writeto(outfile, overwrite=True)
+    hx.writeto(smffile, overwrite=True)
 
-    return smf, smf_err, smf_covar
+    return smf, smf_err, smf_covar, smffile
 
 def main():
     parser = argparse.ArgumentParser()
@@ -527,6 +551,7 @@ def main():
     parser.add_argument('--dlam', type=float, default=1.0, help='Lambda binning interval for n(lambda).')
     parser.add_argument('--nboot', type=int, default=100, help='Number of bootstrap samples.')
 
+    parser.add_argument('--no-jackknife', action='store_true', help='Skip jackknife resampling.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
     args = parser.parse_args()
@@ -550,9 +575,15 @@ def main():
             mstarcat = legacyhalos.io.read_sample(dr=args.dr, verbose=args.verbose,
                                                   isedfit_lsphot=True, sfhgrid=args.sfhgrid)
         t0 = time.time()
-        compute_smf(cat, mstarcat, area, suffix=suffix, nboot=args.nboot,
-                    verbose=args.verbose, clobber=args.clobber)
+        smf, smf_err, smf_covar, smffile = compute_smf(cat, mstarcat, area, suffix=suffix,
+                                                       nboot=args.nboot, verbose=args.verbose,
+                                                       clobber=args.clobber)
         print('Time to compute SMF = {:.2f} min'.format( (time.time() - t0) / 60 ))
+
+        if not args.no_jackknife:
+            
+            
+        
         
     if args.nofz:
         print('Building n(lambda, z).')
