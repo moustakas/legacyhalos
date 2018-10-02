@@ -15,8 +15,6 @@ and on edison
 where N = 8 * 24 / 32 (e.g., on cori).
 
 """
-from __future__ import absolute_import, division, print_function
-
 import os, sys, time, pdb
 import argparse
 import numpy as np
