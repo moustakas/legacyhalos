@@ -268,6 +268,29 @@ def radec2pix(nside, ra, dec):
 
     return hp.ang2pix(nside, theta, phi, nest=True)
 
+def pix2radec(nside, pix):
+    '''Convert nested pixel number to `ra`, `dec`.
+
+    Args:
+        nside (int): HEALPix `nside`, ``2**k`` where 0 < k < 30.
+        ra (float or array): Right Accention in degrees.
+        dec (float or array): Declination in degrees.
+
+    Returns:
+        Array of RA, Dec coorindates using nested numbering scheme. 
+
+    Notes:
+        This is syntactic sugar around::
+            hp.pixelfunc.pix2ang(nside, pix, nest=True)
+    
+    '''
+    import healpy as hp
+
+    theta, phi = hp.pixelfunc.pix2ang(nside, pix, nest=True)
+    ra, dec = np.degrees(phi), 90-np.degrees(theta)
+    
+    return ra, dec
+    
 def get_lambdabins(verbose=False):
     """Fixed bins of richness.
     
