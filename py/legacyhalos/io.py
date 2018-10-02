@@ -315,17 +315,18 @@ def read_jackknife(verbose=False, dr='dr6-dr7'):
     """Read the jackknife table (written by legacyhalos-sample-selection.ipynb).
 
     """
-    lsdir = legacyhalos_dir()
-    jackfile = os.path.join(lsdir, 'legacyhalos-jackknife-{}.fits'.format(dr))
+    jackfile = os.path.join(sample_dir(), 'legacyhalos-jackknife-{}.fits'.format(dr))
 
     if not os.path.isfile(jackfile):
         print('File {} not found.'.format(jackfile))
-        return None
+        return None, None
 
-    jack = Table(read(jackfile)
+    jack, hdr = fitsio.read(jackfile, extname='JACKKNIFE', header=True)
+    nside = hdr['NSIDE']
+    
     if verbose:
         print('Read {} rows from {}'.format(len(jack), jackfile))
-    return jack
+    return Table(jack), nside
 
 def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
                 isedfit_lsphot=False, isedfit_sdssphot=False,
@@ -340,13 +341,13 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
         prefix = 'centrals'
 
     if isedfit_lsphot:
-        samplefile = os.path.join(sample_dir(), 'isedfit-sfhgrid{:02d}-lsphot-{}.fits'.format(sfhgrid, dr))
+        samplefile = os.path.join(sample_dir(), '{}-sfhgrid{:02d}-lsphot-{}.fits'.format(prefix, sfhgrid, dr))
     elif isedfit_sdssphot:
-        samplefile = os.path.join(sample_dir(), 'isedfit-sfhgrid{:02d}-sdssphot-dr14.fits'.format(sfhgrid))
+        samplefile = os.path.join(sample_dir(), '{}-sfhgrid{:02d}-sdssphot-dr14.fits'.format(prefix, sfhgrid))
     elif isedfit_lhphot:
-        samplefile = os.path.join(sample_dir(), 'isedfit-sfhgrid{:02d}-lhphot.fits'.format(sfhgrid))
+        samplefile = os.path.join(sample_dir(), '{}-sfhgrid{:02d}-lhphot.fits'.format(prefix, sfhgrid))
     else:
-        samplefile = os.path.join(sample_dir(), 'legacyhalos-centrals-{}.fits'.format(dr))
+        samplefile = os.path.join(sample_dir(), 'legacyhalos-{}-{}.fits'.format(prefix, dr))
         
     if not os.path.isfile(samplefile):
         print('File {} not found.'.format(samplefile))

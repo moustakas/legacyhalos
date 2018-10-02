@@ -342,7 +342,7 @@ def get_zbins(zmin=0.05, zmax=0.6, dt=1.0, verbose=False):
                 ii, zbins[ii], zbins[ii+1], tbins[ii], tbins[ii+1]))
     return zbins
 
-def get_mstarbins(deltam=0.1, satellite=False):
+def get_mstarbins(deltam=0.1, satellites=False):
     """Fixed bins of stellar mass.
     
     nn = 7
@@ -353,7 +353,7 @@ def get_mstarbins(deltam=0.1, satellite=False):
         print('{:.3f}, {:.3f}'.format(ll[ii], mh[ii]))    
     """
 
-    if satellite:
+    if satellites:
         pass # code me
     else:
         mstarmin, mstarmax = 9.0, 14.0

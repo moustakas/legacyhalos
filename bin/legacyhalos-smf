@@ -137,7 +137,7 @@ def compute_nofz(cat=None, area=None, nboot=100, seed=None, suffix=None,
         print('Computing P(z) for all galaxies.')
     p_zbin = np.zeros([nz, ngal])
     for ii in range(nz):
-        if verbose and ii % 5 == 0:
+        if verbose and (ii + 1) % 5 == 0:
             print('  Redshift bin {:02d}/{:02d}, {:.3f}-{:.3f}'.format(
                 ii + 1, nz, zmin[ii], zmax[ii]))
         p_zbin[ii, :] = pzutils.p_in_zbin(cat['PZ'].data, cat['PZBINS'].data,
@@ -347,7 +347,8 @@ def compute_noflambda(cat=None, area=None, nboot=100, seed=None, suffix=None,
     return noflambda, noflambda_err, noflambda_covar
 
 def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
-                suffix=None, descale=False, verbose=True, clobber=False):
+                suffix=None, deltam=0.1, descale=False, verbose=True, clobber=False,
+                nowrite=False):
     '''Construct the stellar mass function (SMF) in several bins of redshift and
     lambda.  Estimate the variance using bootstrap resampling.
 
@@ -365,12 +366,16 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
         Seed for reproducibility; only used with nboot.
     suffix : :class:`str`, optional, default None
         Suffix to append to output filename.
+    deltam : :class:`float`, optional, default 0.1
+        Stellar mass binning width.
     descale : :class:`bool`, optional, default False
         Apply scaleval correction to lambda_chisq (see Sec 5.1 in Rykoff+14).
     verbose : :class:`bool`, optional, default True
         Be loquacious! 
     clobber : :class:`bool`, optional, default False
         Overwrite an existing file.
+    nowrite : :class:`bool`, optional, default False
+        Do not write out the resulting SMF.
 
     Returns
     -------
@@ -395,9 +400,12 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
         print('Cat and area inputs are required.')
         raise IOError
 
-    smffile = get_outfile('smf', suffix, descale=descale, clobber=clobber)
-    if smffile is None:
-        return
+    if nowrite:
+        smffile = ''
+    else:
+        smffile = get_outfile('smf', suffix, descale=descale, clobber=clobber)
+        if smffile is None:
+            return
     ngal = len(cat)
 
     # Optionally create bootstrap subsamples.
@@ -415,7 +423,7 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
     lmid = (lmax - lmin) / 2 + lmin
     nlam = len(lmin)
 
-    mstarbins = legacyhalos.misc.get_mstarbins()
+    mstarbins = legacyhalos.misc.get_mstarbins(deltam=deltam)
     mstarmin, mstarmax = mstarbins[:-1], mstarbins[1:]
     mstarmid = (mstarmax - mstarmin) / 2 + mstarmin
     nmstar = len(mstarmin)
@@ -426,7 +434,7 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
     vol = get_vol(zmin, zmax, area)
 
     # Compute the summed probability that each galaxy is in each stellar mass bin.
-    print('Need to account for p_cen!')
+    #print('Need to account for p_cen!')
     if verbose:
         print('Computing P(mstar) for all galaxies.')
     p_mstarbin = np.zeros([nmstar, ngal])
@@ -466,7 +474,7 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
                  p_lbin[np.newaxis, :, np.newaxis, :], axis=3) # [nz, nlam, nmstar]
 
     # Estimate the variance and the covariance from the bootstrap samples.
-    smf_err = np.zeros([nz, nlam, nmstar])
+    smf_err, smf_covar = np.zeros([nz, nlam, nmstar]), np.zeros([nz, nlam, nmstar, nmstar])
     if nboot > 0:
         if verbose:
             print('Computing the variance.')
@@ -485,7 +493,6 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
                     smf_err[ii, jj, mm] = np.sqrt( np.sum( (smf[ii, jj, mm] - smf_boot[:, ii, jj, mm])**2 ) / (nboot - 1) )
 
         print('Computing the covariance matrix.')
-        smf_covar = np.zeros([nz, nlam, nmstar, nmstar])
         for ii in range(nz):
             for jj in range(nlam):
                 for mm in range(nmstar):
@@ -494,43 +501,44 @@ def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
                             (smf[ii, jj, mm] - smf_boot[:, ii, jj, mm]) *
                             (smf[ii, jj, kk] - smf_boot[:, ii, jj, kk]) ) / (nboot - 1)
 
-    print('Writing {}'.format(smffile))
-    hx = fits.HDUList()
-    hdu = fits.ImageHDU(smf.astype('f4'), name='SMF')
-    hdu.header['NZ'] = nz
-    hdu.header['NLAM'] = nlam
-    hdu.header['NMSTAR'] = nmstar
-    
-    for ii in range(nz):
-        hdu.header['ZMIN{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmin[ii]))
-    for ii in range(nz):
-        hdu.header['ZMAX{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmax[ii]))
-    for ii in range(nz):
-        hdu.header['ZMID{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmid[ii]))
-        
-    for jj in range(nlam):
-        hdu.header['LAMMIN{:02d}'.format(jj)] = np.float('{:.2f}'.format(lmin[jj]))
-    for jj in range(nlam):
-        hdu.header['LAMMAX{:02d}'.format(jj)] = np.float('{:.2f}'.format(lmax[jj]))
-    for jj in range(nlam):
-        hdu.header['LAMMID{:02d}'.format(jj)] = np.float('{:.2f}'.format(lmid[jj]))
-        
-    for mm in range(nmstar):
-        hdu.header['MMIN{:02d}'.format(mm)] = np.float('{:.2f}'.format(mstarmin[mm]))
-    for mm in range(nmstar):
-        hdu.header['MMAX{:02d}'.format(mm)] = np.float('{:.4f}'.format(mstarmax[mm]))
-    for mm in range(nmstar):
-        hdu.header['MMID{:02d}'.format(mm)] = np.float('{:.4f}'.format(mstarmid[mm]))
-        
-    hx.append(hdu)
+    if nowrite == False:
+        print('Writing {}'.format(smffile))
+        hx = fits.HDUList()
+        hdu = fits.ImageHDU(smf.astype('f4'), name='SMF')
+        hdu.header['NZ'] = nz
+        hdu.header['NLAM'] = nlam
+        hdu.header['NMSTAR'] = nmstar
 
-    hdu = fits.ImageHDU(smf_err.astype('f4'), name='SMFERR')
-    hx.append(hdu)
+        for ii in range(nz):
+            hdu.header['ZMIN{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmin[ii]))
+        for ii in range(nz):
+            hdu.header['ZMAX{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmax[ii]))
+        for ii in range(nz):
+            hdu.header['ZMID{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmid[ii]))
 
-    hdu = fits.ImageHDU(smf_covar.astype('f4'), name='SMFCOVAR')
-    hx.append(hdu)
+        for jj in range(nlam):
+            hdu.header['LAMMIN{:02d}'.format(jj)] = np.float('{:.2f}'.format(lmin[jj]))
+        for jj in range(nlam):
+            hdu.header['LAMMAX{:02d}'.format(jj)] = np.float('{:.2f}'.format(lmax[jj]))
+        for jj in range(nlam):
+            hdu.header['LAMMID{:02d}'.format(jj)] = np.float('{:.2f}'.format(lmid[jj]))
 
-    hx.writeto(smffile, overwrite=True)
+        for mm in range(nmstar):
+            hdu.header['MMIN{:02d}'.format(mm)] = np.float('{:.2f}'.format(mstarmin[mm]))
+        for mm in range(nmstar):
+            hdu.header['MMAX{:02d}'.format(mm)] = np.float('{:.4f}'.format(mstarmax[mm]))
+        for mm in range(nmstar):
+            hdu.header['MMID{:02d}'.format(mm)] = np.float('{:.4f}'.format(mstarmid[mm]))
+
+        hx.append(hdu)
+
+        hdu = fits.ImageHDU(smf_err.astype('f4'), name='SMFERR')
+        hx.append(hdu)
+
+        hdu = fits.ImageHDU(smf_covar.astype('f4'), name='SMFCOVAR')
+        hx.append(hdu)
+
+        hx.writeto(smffile, overwrite=True)
 
     return smf, smf_err, smf_covar, smffile
 
@@ -549,6 +557,7 @@ def main():
 
     parser.add_argument('--dz', type=float, default=0.025, help='Redshift binning interval for n(z).')
     parser.add_argument('--dlam', type=float, default=1.0, help='Lambda binning interval for n(lambda).')
+    parser.add_argument('--deltam', type=float, default=0.1, help='Stellar mass binning interval for SMF.')
     parser.add_argument('--nboot', type=int, default=100, help='Number of bootstrap samples.')
 
     parser.add_argument('--no-jackknife', action='store_true', help='Skip jackknife resampling.')
@@ -574,16 +583,38 @@ def main():
             suffix = 'sfhgrid{:02d}-lsphot-{}'.format(args.sfhgrid, args.dr)
             mstarcat = legacyhalos.io.read_sample(dr=args.dr, verbose=args.verbose,
                                                   isedfit_lsphot=True, sfhgrid=args.sfhgrid)
+            
         t0 = time.time()
         smf, smf_err, smf_covar, smffile = compute_smf(cat, mstarcat, area, suffix=suffix,
-                                                       nboot=args.nboot, verbose=args.verbose,
-                                                       clobber=args.clobber)
-        print('Time to compute SMF = {:.2f} min'.format( (time.time() - t0) / 60 ))
+                                                       deltam=args.deltam, nboot=args.nboot,
+                                                       verbose=args.verbose, clobber=args.clobber)
 
         if not args.no_jackknife:
+            print('Estimating the sample variance using jackknife resampling.')
+            jack, nside_jack = legacyhalos.io.read_jackknife(verbose=args.verbose)
+            njack = len(jack)
+
+            smf_jack = np.zeros( smf.shape + tuple([njack]) )
             
-            
+            jackpix = legacyhalos.misc.radec2pix(nside_jack, cat['RA'].data, cat['DEC'].data)
+            for ii in range(njack):
+                if args.verbose and (ii +1) % 10 == 0:
+                    print('  Jackknife sample {:02d}/{:02d}'.format(ii + 1, njack))
+                
+                indx = np.where( jack['HPXPIXEL'][ii] == jackpix )[0]
+                smf_jack1, _, _, _ = compute_smf(cat[indx], mstarcat[indx], jack['AREA'][ii],
+                                                suffix=suffix, deltam=args.deltam, nboot=0,
+                                                verbose=False, nowrite=True)
+                smf_jack[:, :, :, ii] = smf_jack1
+
+            smf_jack_err = np.sqrt( (njack - 1) * np.mean( (smf_jack - smf[:, :, :, np.newaxis])**2, axis=3) )
+
+        with fits.open(smffile, 'update') as hx:
+            hdu = fits.ImageHDU(smf_jack_err.astype('f4'), name='SMFCVERR')
+            hx.append(hdu)
+            hx.flush(verbose=args.verbose)
         
+        print('Time to compute SMF = {:.2f} min'.format( (time.time() - t0) / 60 ))
         
     if args.nofz:
         print('Building n(lambda, z).')
