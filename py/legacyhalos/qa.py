@@ -15,9 +15,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from legacyhalos.misc import arcsec2kpc
-from legacyhalos.misc import legacyhalos_plot_style
+from legacyhalos.misc import plot_style
 
-sns = legacyhalos_plot_style()
+sns, _ = plot_style()
 #snscolors = sns.color_palette()
 
 #import matplotlib as mpl 

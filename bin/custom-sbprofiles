@@ -1,0 +1,128 @@
+#!/usr/bin/env python
+
+"""custom-sbprofiles --clobber
+
+Run the legacyhalos pipeline on a custom set of positions to derive the surface
+brightness profile.
+
+"""
+
+import os, argparse, pdb
+import numpy as np
+from astropy.table import Table
+
+import legacyhalos.coadds
+import legacyhalos.html
+from legacyhalos.misc import cutout_radius_150kpc
+from astrometry.util.multiproc import multiproc
+
+pixscale = 0.262
+ncpu = 16
+
+def _missing(sample, size=1, filetype='coadds', clobber=False):
+    """Find missing data of a given filetype."""    
+
+    if filetype == 'coadds':
+        filesuffix = 'image-central.jpg'
+    elif filetype == 'ellipse':
+        filesuffix = 'ellipsefit.p'
+    elif filetype == 'sersic':
+        filesuffix = 'sersic-single.p'
+    elif filetype == 'sky':
+        filesuffix = 'ellipsefit-sky.p'
+    else:
+        print('Unrecognized file type!')
+        raise ValueError
+
+    objdir = '.'
+    objid = sample['GALAXY']
+
+    ngal = len(sample)
+    indices = np.arange(ngal)
+    todo = np.ones(ngal, dtype=bool)
+    
+    for ii, (objid1, objdir1) in enumerate( zip(np.atleast_1d(objid), np.atleast_1d(objdir)) ):
+        residfile = os.path.join(objdir1, '{}-{}'.format(objid1, filesuffix))
+        if os.path.exists(residfile) and clobber is False:
+            todo[ii] = False
+
+    if np.sum(todo) == 0:
+        return list()
+    else:
+        indices = indices[todo]
+    return np.array_split(indices, size)
+
+def missing_coadds(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have coadds.'''
+    return _missing(sample, size=size, filetype='coadds',
+                    clobber=clobber)
+
+def missing_ellipse(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have ellipse fits.'''
+    return _missing(sample, size=size, filetype='ellipse',
+                    clobber=clobber)
+
+def main():
+
+    from legacypipe.survey import LegacySurveyData
+    survey = LegacySurveyData()
+    survey.output_dir = '.'
+
+    sample = Table()
+    sample['GALAXY'] = np.array(['CGCG004-096'])
+    sample['RA'] = np.array([129.603676]).astype('f8')
+    sample['DEC'] = np.array([-1.606419]).astype('f8')
+    sample['Z'] = np.array([0.05204]).astype('f4')
+    sample['PSFSIZE_G'] = np.array([1.1]).astype('f4') # hack!
+    sample['PSFSIZE_R'] = np.array([1.1]).astype('f4')
+    sample['PSFSIZE_Z'] = np.array([1.1]).astype('f4')
+
+    log = None
+    force = False
+
+    mp = multiproc(nthreads=ncpu)
+
+    for samp in sample:
+
+        prefix = samp['GALAXY']
+
+        if len(missing_coadds(sample, clobber=False)) > 0:
+            radius = cutout_radius_150kpc(redshift=samp['Z'], pixscale=pixscale) 
+            brickname = legacyhalos.coadds.custom_brickname(samp['RA'], samp['DEC'], prefix='')
+
+            # Step 1 - Build a custom brick.
+            success = legacyhalos.coadds.custom_brick(samp, objid=objid, survey=survey, radius=radius,
+                                                      ncpu=16, pixscale=pixscale, log=log, force=force,
+                                                      archivedir=None)
+
+            if success:
+                # Step 2 - Read the Tractor catalog for this brick and remove the central.
+                cat = legacyhalos.coadds.read_tractor(samp, objid=objid, survey=survey, log=log)
+
+                # Step 3 - Set up the first stage of the pipeline.
+                P = legacyhalos.coadds.coadds_stage_tims(samp, survey=survey, mp=mp, radius=radius,
+                                                         brickname=brickname, pixscale=pixscale, log=log)
+
+                # Step 4 - Render the model images without the central.
+                mods = legacyhalos.coadds.build_model_image(cat, tims=P['tims'], survey=survey, log=log)
+
+                # Step 3 - Generate and write out the coadds.
+                legacyhalos.coadds.tractor_coadds(samp, P['targetwcs'], P['tims'], mods, P['version_header'],
+                                                  objid=objid, brickname=brickname, survey=survey, mp=mp, log=log)
+
+        
+        if len(missing_ellipse(sample, clobber=False)) > 0:
+
+            from legacyhalos.ellipse import legacyhalos_ellipse
+            success = legacyhalos_ellipse(samp, objid=prefix, objdir='.', ncpu=ncpu, 
+                                          pixscale=pixscale, debug=False, verbose=True)
+
+        # Plots---
+        legacyhalos.html.make_plots(samp, analysisdir='.', htmldir='.',
+                                    clobber=False, verbose=True)
+            
+        pdb.set_trace()
+    
+if __name__ == '__main__':
+    main()
+

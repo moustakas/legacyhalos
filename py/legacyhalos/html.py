@@ -3,8 +3,8 @@ from __future__ import (absolute_import, division)
 import os, subprocess, pdb
 import numpy as np
 
-from legacyhalos.misc import legacyhalos_plot_style
-sns = legacyhalos_plot_style()
+from legacyhalos.misc import plot_style
+sns = plot_style()
 
 #import seaborn as sns
 #sns.set(style='ticks', font_scale=1.4, palette='Set2')
@@ -158,10 +158,13 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
     from legacyhalos.io import get_objid
     from legacyhalos.qa import sample_trends
 
-    sample_trends(sample, htmldir, analysisdir=analysisdir, verbose=verbose)
+    print('Temporarily leaving off sample_trends.')
+    #sample_trends(sample, htmldir, analysisdir=analysisdir, verbose=verbose)
 
-    for gal in sample:
-        objid, objdir = get_objid(gal, analysisdir=analysisdir)
+    for gal in np.atleast_1d(sample):
+        print('HACK!!!')
+        #objid, objdir = get_objid(gal, analysisdir=analysisdir)
+        objid, objdir = gal['GALAXY'], '.'
 
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid))
         if not os.path.isdir(htmlobjdir):

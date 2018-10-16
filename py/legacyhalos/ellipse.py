@@ -33,12 +33,13 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
 
     ellipsefit = dict()
     ellipsefit['success'] = False
-    ellipsefit['redshift'] = sample['z']
+    ellipsefit['redshift'] = sample['Z']
     ellipsefit['band'] = band
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
     for filt in band: # [Gaussian sigma]
-        ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)] / np.sqrt(8*np.log(2)) # [arcsec]
+        ellipsefit['psfsigma_{}'.format(filt)] = ( sample['PSFSIZE_{}'.format(filt.upper())] /
+                                                   np.sqrt(8 * np.log(2)) ) # [arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
 
     # Default parameters
