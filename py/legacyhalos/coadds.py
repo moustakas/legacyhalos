@@ -16,8 +16,8 @@ from contextlib import redirect_stdout, redirect_stderr
 
 from legacyhalos.misc import custom_brickname
 
-def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
-                  pixscale=0.262, log=None, force=False, archivedir=None):
+def custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
+                 pixscale=0.262, log=None, force=False, archivedir=None):
     """Run legacypipe on a custom "brick" centered on the central.
 
     """
@@ -37,7 +37,7 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
         cmd += '--force-all '
     
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), objid=objid,
-                     ra=sample['ra'], dec=sample['dec'], width=2*radius,
+                     ra=sample['RA'], dec=sample['DEC'], width=2*radius,
                      pixscale=pixscale, threads=ncpu, outdir=survey.output_dir,
                      archivedir=archivedir)
     
@@ -49,7 +49,7 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
     else:
 
         # Move (rename) files into the desired output directory and clean up.
-        brickname = custom_brickname(sample['ra'], sample['dec'], prefix='custom-')
+        brickname = custom_brickname(sample['RA'], sample['DEC'], prefix='custom-')
 
         # tractor catalog
         shutil.copy(
@@ -115,8 +115,8 @@ def _custom_brick(sample, objid, survey=None, radius=100, ncpu=1,
 
         return 1
 
-def _coadds_stage_tims(sample, survey=None, mp=None, radius=100,
-                       brickname=None, pixscale=0.262, log=None):
+def coadds_stage_tims(sample, survey=None, mp=None, radius=100,
+                      brickname=None, pixscale=0.262, log=None):
     """Initialize the first step of the pipeline, returning
     a dictionary with the following keys:
     
@@ -132,13 +132,13 @@ def _coadds_stage_tims(sample, survey=None, mp=None, radius=100,
 
     if log:
         with redirect_stdout(log), redirect_stderr(log):
-            P = stage_tims(ra=sample['ra'], dec=sample['dec'], brickname=brickname,
+            P = stage_tims(ra=sample['RA'], dec=sample['DEC'], brickname=brickname,
                            survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
                            mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                            depth_cut=False, apodize=False, do_calibs=False, rex=True, 
                            splinesky=True, unwise_dir=unwise_dir)
     else:
-        P = stage_tims(ra=sample['ra'], dec=sample['dec'], brickname=brickname,
+        P = stage_tims(ra=sample['RA'], dec=sample['DEC'], brickname=brickname,
                        survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
                        mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                        depth_cut=False, apodize=False, do_calibs=False, rex=True, 
@@ -146,8 +146,8 @@ def _coadds_stage_tims(sample, survey=None, mp=None, radius=100,
 
     return P
 
-def _read_tractor(sample, objid=None, targetwcs=None,
-                  survey=None, log=None):
+def read_tractor(sample, objid=None, targetwcs=None,
+                 survey=None, log=None):
     """Read the full Tractor catalog for a given brick 
     and remove the BCG.
     
@@ -162,7 +162,7 @@ def _read_tractor(sample, objid=None, targetwcs=None,
 
     # Find and remove the central.  For some reason, match_radec
     # occassionally returns two matches, even though nearest=True.
-    m1, m2, d12 = match_radec(cat.ra, cat.dec, sample['ra'], sample['dec'],
+    m1, m2, d12 = match_radec(cat.ra, cat.dec, sample['RA'], sample['DEC'],
                               3/3600.0, nearest=True)
     if len(d12) == 0:
         print('No matching central found -- definitely a problem.')
@@ -179,7 +179,7 @@ def _read_tractor(sample, objid=None, targetwcs=None,
         fracdev = cat[m1].fracdev[0]
         radius = fracdev * cat[m1].shapedev_r[0] + (1-fracdev) * cat[m1].shapeexp_r[0] # [arcsec]
         if radius > 0:
-            n1, n2, nd12 = match_radec(cat.ra, cat.dec, sample['ra'], sample['dec'],
+            n1, n2, nd12 = match_radec(cat.ra, cat.dec, sample['RA'], sample['DEC'],
                                        radius/3600.0, nearest=False)
             m1 = np.hstack( (m1, n1) )
             m1 = np.unique(m1)
@@ -188,7 +188,7 @@ def _read_tractor(sample, objid=None, targetwcs=None,
         
     return cat
 
-def _build_model_image(cat, tims, survey=None, log=None):
+def build_model_image(cat, tims, survey=None, log=None):
     """Generate a model image by rendering each source.
     
     """
@@ -207,9 +207,9 @@ def _build_model_image(cat, tims, survey=None, log=None):
 
     return mods
 
-def _tractor_coadds(sample, targetwcs, tims, mods, version_header, objid=None,
-                    brickname=None, survey=None, mp=None, log=None, 
-                    bands=['g','r','z']):
+def tractor_coadds(sample, targetwcs, tims, mods, version_header, objid=None,
+                   brickname=None, survey=None, mp=None, log=None, 
+                   bands=['g','r','z']):
     """Generate individual-band FITS and color coadds for each central using
     Tractor.
 
@@ -219,7 +219,7 @@ def _tractor_coadds(sample, targetwcs, tims, mods, version_header, objid=None,
     from legacypipe.survey import get_rgb, imsave_jpeg
 
     if brickname is None:
-        brickname = sample['brickname']
+        brickname = sample['BRICKNAME']
 
     print('Producing coadds...', flush=True, file=log)
     if log:
@@ -277,7 +277,7 @@ def legacyhalos_custom_coadds(sample, survey=None, objid=None, objdir=None,
     
     if objid is None and objdir is None:
         objid, objdir = get_objid(sample)
-    brickname = custom_brickname(sample['ra'], sample['dec'], prefix='')
+    brickname = custom_brickname(sample['RA'], sample['DEC'], prefix='')
 
     survey.output_dir = objdir
     archivedir = objdir.replace('analysis', 'analysis-archive') # hack!
@@ -285,32 +285,32 @@ def legacyhalos_custom_coadds(sample, survey=None, objid=None, objdir=None,
     # Step 0 - Get the cutout radius.
     if cluster_radius:
         from legacyhalos.misc import cutout_radius_cluster
-        radius = cutout_radius_cluster(redshift=sample['z'], pixscale=pixscale,
-                                       cluster_radius=sample['r_lambda'])
+        radius = cutout_radius_cluster(redshift=sample['Z'], pixscale=pixscale,
+                                       cluster_radius=sample['R_LAMBDA'])
     else:
         from legacyhalos.misc import cutout_radius_150kpc
-        radius = cutout_radius_150kpc(redshift=sample['z'], pixscale=pixscale)
+        radius = cutout_radius_150kpc(redshift=sample['Z'], pixscale=pixscale)
 
     # Step 1 - Run legacypipe to generate a custom "brick" and tractor catalog
     # centered on the central.
-    success = _custom_brick(sample, objid=objid, survey=survey, radius=radius,
-                            ncpu=ncpu, pixscale=pixscale, log=log, force=force,
-                            archivedir=archivedir)
+    success = custom_brick(sample, objid=objid, survey=survey, radius=radius,
+                           ncpu=ncpu, pixscale=pixscale, log=log, force=force,
+                           archivedir=archivedir)
     if success:
 
         # Step 2 - Read the Tractor catalog for this brick and remove the central.
-        cat = _read_tractor(sample, objid=objid, survey=survey, log=log)
+        cat = read_tractor(sample, objid=objid, survey=survey, log=log)
 
         # Step 3 - Set up the first stage of the pipeline.
-        P = _coadds_stage_tims(sample, survey=survey, mp=mp, radius=radius,
-                               brickname=brickname, pixscale=pixscale, log=log)
+        P = coadds_stage_tims(sample, survey=survey, mp=mp, radius=radius,
+                              brickname=brickname, pixscale=pixscale, log=log)
 
         # Step 4 - Render the model images without the central.
-        mods = _build_model_image(cat, tims=P['tims'], survey=survey, log=log)
+        mods = build_model_image(cat, tims=P['tims'], survey=survey, log=log)
 
         # Step 3 - Generate and write out the coadds.
-        _tractor_coadds(sample, P['targetwcs'], P['tims'], mods, P['version_header'],
-                        objid=objid, brickname=brickname, survey=survey, mp=mp, log=log)
+        tractor_coadds(sample, P['targetwcs'], P['tims'], mods, P['version_header'],
+                       objid=objid, brickname=brickname, survey=survey, mp=mp, log=log)
         return 1
 
     else:
