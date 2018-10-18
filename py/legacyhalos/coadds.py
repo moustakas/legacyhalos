@@ -17,7 +17,8 @@ from contextlib import redirect_stdout, redirect_stderr
 from legacyhalos.misc import custom_brickname
 
 def custom_brick(sample, prefix, survey=None, radius=100, ncpu=1,
-                 pixscale=0.262, log=None, force=False, archivedir=None):
+                 pixscale=0.262, splinesky=True, log=None, force=False,
+                 archivedir=None):
     """Run legacypipe on a custom "brick" centered on the central.
 
     """
@@ -30,11 +31,13 @@ def custom_brick(sample, prefix, survey=None, radius=100, ncpu=1,
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} --unwise-coadds '
     #cmd += '--force-stage coadds '
-    cmd += '--write-stage srcs --no-write --skip --skip-calibs --no-wise-ceres '
+    cmd += '--write-stage srcs --no-write --skip --no-wise-ceres '
     cmd += '--checkpoint {archivedir}/{prefix}-runbrick-checkpoint.p --checkpoint-period 600 '
     cmd += '--pickle {archivedir}/{prefix}-runbrick-%%(stage)s.p ' 
     if force:
         cmd += '--force-all '
+    if splinesky == False:
+        cmd += '--no-splinesky '
     
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), prefix=prefix,
                      ra=sample['RA'], dec=sample['DEC'], width=2*radius,
@@ -116,7 +119,8 @@ def custom_brick(sample, prefix, survey=None, radius=100, ncpu=1,
         return 1
 
 def coadds_stage_tims(sample, survey=None, mp=None, radius=100,
-                      brickname=None, pixscale=0.262, log=None):
+                      brickname=None, pixscale=0.262, splinesky=True,
+                      log=None):
     """Initialize the first step of the pipeline, returning
     a dictionary with the following keys:
     
@@ -136,13 +140,13 @@ def coadds_stage_tims(sample, survey=None, mp=None, radius=100,
                            survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
                            mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                            depth_cut=False, apodize=False, do_calibs=False, rex=True, 
-                           splinesky=True, unwise_dir=unwise_dir)
+                           splinesky=splinesky, unwise_dir=unwise_dir)
     else:
         P = stage_tims(ra=sample['RA'], dec=sample['DEC'], brickname=brickname,
                        survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
                        mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                        depth_cut=False, apodize=False, do_calibs=False, rex=True, 
-                       splinesky=True, unwise_dir=unwise_dir)
+                       splinesky=splinesky, unwise_dir=unwise_dir)
 
     return P
 
@@ -268,7 +272,7 @@ def tractor_coadds(sample, targetwcs, tims, mods, version_header, prefix=None,
 
 def legacyhalos_custom_coadds(sample, survey=None, prefix=None, objdir=None,
                               ncpu=1, pixscale=0.262, log=None, force=False,
-                              cluster_radius=False):
+                              splinesky=True, cluster_radius=False):
     """Top-level wrapper script to generate coadds for a single galaxy.
 
     """ 
@@ -295,7 +299,7 @@ def legacyhalos_custom_coadds(sample, survey=None, prefix=None, objdir=None,
     # centered on the central.
     success = custom_brick(sample, prefix=prefix, survey=survey, radius=radius,
                            ncpu=ncpu, pixscale=pixscale, log=log, force=force,
-                           archivedir=archivedir)
+                           archivedir=archivedir, splinesky=splinesky)
     if success:
 
         # Step 2 - Read the Tractor catalog for this brick and remove the central.
@@ -303,7 +307,8 @@ def legacyhalos_custom_coadds(sample, survey=None, prefix=None, objdir=None,
 
         # Step 3 - Set up the first stage of the pipeline.
         P = coadds_stage_tims(sample, survey=survey, mp=mp, radius=radius,
-                              brickname=brickname, pixscale=pixscale, log=log)
+                              brickname=brickname, pixscale=pixscale, log=log,
+                              splinesky=splinesky)
 
         # Step 4 - Render the model images without the central.
         mods = build_model_image(cat, tims=P['tims'], survey=survey, log=log)
