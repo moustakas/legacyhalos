@@ -5,10 +5,10 @@
 #SBATCH -o match-legacysurvey-redmapper.slurm.%j
 #SBATCH --mail-user=jmoustakas@siena.edu
 #SBATCH --mail-type=ALL
-#SBATCH -p debug
+#SBATCH -p regular
 #SBATCH -N 1
 #SBATCH -C haswell
-#SBATCH -t 00:30:00
+#SBATCH -t 00:60:00
 
 # In this SLURM script we match the redMaPPer/v6.3.1 central and satellite
 # galaxy catalogs to the DR6+DR7 Legacy Surveys sweeps files using NERSC/cori.
@@ -29,7 +29,7 @@ export DR6_FILELIST=$SCRATCH/tmp/dr6_filelist
 export DR7_FILELIST=$SCRATCH/tmp/dr7_filelist
 export LEGACYSURVEY_FILELIST=$SCRATCH/tmp/legacysurvey_filelist
 
-find /global/cscratch1/sd/adamyers/gaiamatch/dr6/sweep/6.0 -name 'sweep-*.fits' > $DR6_FILELIST
+find /project/projectdirs/desi/target/gaia_dr2_match_dr6/dr6/sweep/6.0 -name 'sweep-*.fits' > $DR6_FILELIST
 find /global/projecta/projectdirs/cosmo/data/legacysurvey/dr7/sweep/7.1 -name 'sweep-*.fits' > $DR7_FILELIST
 cat $DR6_FILELIST $DR7_FILELIST > $LEGACYSURVEY_FILELIST
 
@@ -40,5 +40,5 @@ cat $DR6_FILELIST $DR7_FILELIST > $LEGACYSURVEY_FILELIST
 
 time srun -u --cpu_bind=no python $LEGACYHALOS_CODE_DIR/bin/match-legacysurvey-redmapper \
     $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-members-sdssWISEphot-dr14.fits $PWD \
-    $REDMAPPER_DIR/v6.3.1/legacysurvey-dr6-dr7-membera-v6.3.1-lgt5.fits \
+    $REDMAPPER_DIR/v6.3.1/legacysurvey-dr6-dr7-members-v6.3.1-lgt5.fits \
     -v --numproc 8 -f fits -F $LEGACYSURVEY_FILELIST
