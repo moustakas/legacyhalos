@@ -3,7 +3,6 @@ legacyhalos.ellipse
 ===================
 
 Code to do ellipse fitting on the residual coadds.
-
 """
 from __future__ import absolute_import, division, print_function
 
@@ -45,7 +44,8 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
     # Default parameters
     #step_pix = 0.1
     #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, step_pix/pixscale, 0.5, True
-    integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, 0.1, 0.5, False
+    #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, 0.1, 0.5, False
+    integrmode, sclip, nclip, step, fflag, linear = 'median', 3, 2, 0.1, 0.5, False
     
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip

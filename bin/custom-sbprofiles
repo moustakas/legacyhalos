@@ -7,12 +7,13 @@ brightness profile.
 
 """
 
-import os, argparse, pdb
+import os, argparse, pdb, pickle
 import numpy as np
 from astropy.table import Table
 
 import legacyhalos.coadds
 import legacyhalos.html
+from legacyhalos.ellipse import ellipse_sbprofile
 from legacyhalos.misc import cutout_radius_150kpc
 from astrometry.util.multiproc import multiproc
 
@@ -111,15 +112,20 @@ def main():
                                                   objid=objid, brickname=brickname, survey=survey, mp=mp, log=log)
 
         
-        if len(missing_ellipse(sample, clobber=False)) > 0:
-
+        if len(missing_ellipse(sample, clobber=True)) > 0:
             from legacyhalos.ellipse import legacyhalos_ellipse
             success = legacyhalos_ellipse(samp, objid=prefix, objdir='.', ncpu=ncpu, 
                                           pixscale=pixscale, debug=False, verbose=True)
 
         # Plots---
         legacyhalos.html.make_plots(samp, analysisdir='.', htmldir='.',
-                                    clobber=False, verbose=True)
+                                    clobber=True, verbose=True)
+
+        with open('CGCG004-096-ellipsefit.p', 'rb') as ff:
+            res = pickle.load(ff)
+        prof = ellipse_sbprofile(res)            
+        with open('CGCG004-096-sbprofile.p', 'wb') as out:
+            pickle.dump(prof, out)
             
         pdb.set_trace()
     
