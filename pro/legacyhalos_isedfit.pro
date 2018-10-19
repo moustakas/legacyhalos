@@ -15,8 +15,6 @@
 ;   lsphot_dr6_dr7
 ;   lhphot
 ;   sdssphot_dr14
-;   sdssphot_upenn
-;   redmapper_upenn
 ;   write_paramfile
 ;   build_grids
 ;   model_photometry
@@ -114,8 +112,7 @@ return, outphot
 end
 
 pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
-  sdssphot_dr14=sdssphot_dr14, sdssphot_upenn=sdssphot_upenn, $
-  redmapper_upenn=redmapper_upenn, $  
+  sdssphot_dr14=sdssphot_dr14, $
   write_paramfile=write_paramfile, build_grids=build_grids, model_photometry=model_photometry, $
   isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, $
   gather_results=gather_results, clobber=clobber, satellites=satellites
@@ -127,9 +124,8 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
     legacyhalos_dir = getenv('LEGACYHALOS_DIR')
 
     if keyword_set(lsphot_dr6_dr7) eq 0 and keyword_set(lhphot) eq 0 and $
-      keyword_set(sdssphot_dr14) eq 0 and keyword_set(sdssphot_upenn) eq 0 and $
-      keyword_set(redmapper_upenn) eq 0 and keyword_set(gather_results) eq 0 then begin
-       splog, 'Choose one of /LSPHOT_DR6_DR7, /LHPHOT, /SDSSPHOT_DR14, /SDSSPHOT_UPENN, or /REDMAPPER_UPENN'
+      keyword_set(sdssphot_dr14) eq 0 and keyword_set(gather_results) eq 0 then begin
+       splog, 'Choose one of /LSPHOT_DR6_DR7, /LHPHOT, or /SDSSPHOT_DR14'
        return       
     endif
 
@@ -152,14 +148,6 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
     if keyword_set(sdssphot_dr14) then begin
        prefix = 'sdssphot'
        outprefix = 'sdssphot_dr14'
-    endif
-    if keyword_set(sdssphot_upenn) then begin
-       prefix = 'sdssphot'
-       outprefix = 'sdssphot_upenn'
-    endif
-    if keyword_set(redmapper_upenn) then begin
-       prefix = 'sdssphot'
-       outprefix = 'redmapper_upenn'
     endif
 
     if keyword_set(satellites) then begin
@@ -219,79 +207,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
           sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-KCORR'
           modfits, outfile, 0, hdr, exten_no=2
        endif
-
-       stop
-       
-; upenn subsample       
-       print, 'HACK!!!!!!!!!!!!!!'
-       print, 'Rewrite the mendel stellar mass results.'
-       upenn = mrdfits(legacyhalos_dir+'/redmapper-upenn.fits', 3)
-       upenn_radec = mrdfits(legacyhalos_dir+'/redmapper-upenn.fits', 1, columns=['RA', 'DEC'])
-
-;      upenn = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
-;        'redmapper_upenn_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
-;      upenn_kcorr = mrdfits(isedfit_rootdir+'isedfit_sdssphot/'+$
-;        'redmapper_upenn_fsps_v2.4_miles_chab_charlot_sfhgrid01_kcorr.z0.1.fits.gz',1)
-
-       lhphot = mrdfits(isedfit_rootdir+'isedfit_lsphot/'+$
-         'lhphot_v1.0_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
-
-; match to upenn       
-       spherematch, upenn_radec.ra, upenn_radec.dec, lhphot.ra, lhphot.dec, 1D/3600, m1, m2, d12
-       srt = sort(m2) & m1 = m1[srt] & m2 = m2[srt]
-       upenn = upenn[m1]
-;      upenn_kcorr = upenn_kcorr[m1]
-       
-; match to lsphot
-       spherematch, lsphot.ra, lsphot.dec, lhphot.ra, lhphot.dec, 1D/3600, m1, m2, d12
-       srt = sort(m2) & m1 = m1[srt] & m2 = m2[srt]
-       lsphot = lsphot[m1]
-       lsphot_kcorr = lsphot_kcorr[m1]
-       
-; match to sdssphot
-       spherematch, sdssphot.ra, sdssphot.dec, lhphot.ra, lhphot.dec, 1D/3600, m1, m2, d12
-       srt = sort(m2) & m1 = m1[srt] & m2 = m2[srt]
-       sdssphot = sdssphot[m1]
-       sdssphot_kcorr = sdssphot_kcorr[m1]
-       
-       outfile = legacyhalos_dir+'/redmapper-upenn-isedfit.fits'
-       mwrfits, upenn, outfile, /create
-;      mwrfits, upenn_kcorr, outfile
-       mwrfits, lhphot, outfile
-       mwrfits, lsphot, outfile
-       mwrfits, sdssphot, outfile
-
-       ee = 1
-       hdr = headfits(outfile,ext=ee)
-       sxaddpar, hdr, 'EXTNAME', 'UPENN'
-       modfits, outfile, 0, hdr, exten_no=ee
-
-       print, 'Leave off my isedfit masses.'
-;      hdr = headfits(outfile,ext=ee)
-;      sxaddpar, hdr, 'EXTNAME', 'UPENN-ISEDFIT'
-;      modfits, outfile, 0, hdr, exten_no=ee
-       
-       print, 'HACK!!  Leave off K-correct'
-;      hdr = headfits(outfile,ext=2)
-;      sxaddpar, hdr, 'EXTNAME', 'UPENN-KCORR'
-;      modfits, outfile, 0, hdr, exten_no=2
-
-       ee = 2
-       hdr = headfits(outfile,ext=ee)
-       sxaddpar, hdr, 'EXTNAME', 'LHPHOT-ISEDFIT'
-       modfits, outfile, 0, hdr, exten_no=ee
-
-       ee = 3
-       hdr = headfits(outfile,ext=ee)
-       sxaddpar, hdr, 'EXTNAME', 'LSPHOT-ISEDFIT'
-       modfits, outfile, 0, hdr, exten_no=ee
-
-       ee = 4
-       hdr = headfits(outfile,ext=ee)
-       sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-ISEDFIT'
-       modfits, outfile, 0, hdr, exten_no=ee
-       return
-    endif
+    endif 
 
 ; --------------------------------------------------
 ; define the filters and the redshift ranges
@@ -300,15 +216,10 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        zminmax = [0.05,0.6]
        nzz = 61
     endif
-    if keyword_set(sdssphot_dr14) or keyword_set(redmapper_upenn) then begin
+    if keyword_set(sdssphot_dr14) then begin
        filterlist = [sdss_filterlist(), wise_filterlist(/short)]
        zminmax = [0.05,0.6]
        nzz = 61
-    endif
-    if keyword_set(sdssphot_upenn) then begin
-       filterlist = [sdss_filterlist(), wise_filterlist(/short)] ; most of these will be zeros
-       zminmax = [0.05,0.4]
-       nzz = 41
     endif
 
     absmag_filterlist = [sdss_filterlist(), legacysurvey_filterlist()]
@@ -402,43 +313,6 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        
 ; add minimum uncertainties to ugrizW1W2
        k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.005,0.02]
-    endif
-
-; --------------------------------------------------
-; SDSS ugriz
-    if keyword_set(redmapper_upenn) then begin
-       rm = mrdfits(legacyhalos_dir+'/redmapper-upenn.fits', 'REDMAPPER')
-       cat = mrdfits(legacyhalos_dir+'/redmapper-upenn.fits', 'SDSSPHOT')
-       ngal = n_elements(cat)
-
-       ra = rm.ra
-       dec = rm.dec
-       zobj = rm.z
-       
-       ratio = cat.cmodelmaggies[2,*]/cat.modelmaggies[2,*]
-       factor = 1D-9 * rebin(ratio, 5, ngal) * 10D^(0.4*cat.extinction)
-       smaggies = cat.modelmaggies * factor
-       sivarmaggies = cat.modelmaggies_ivar / factor^2
-
-       maggies = [smaggies, fltarr(2,ngal)]
-       ivarmaggies = [sivarmaggies, fltarr(2,ngal)]
-       
-       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.0,0.0]
-    endif
-
-; --------------------------------------------------
-; UPenn-PhotDec gri SDSS photometry
-    if keyword_set(sdssphot_upenn) then begin
-       rm = mrdfits(legacyhalos_dir+'/legacyhalos-parent-upenn.fits', 'REDMAPPER')
-       cat = mrdfits(legacyhalos_dir+'/legacyhalos-parent-upenn.fits', 'UPENN')
-       ngal = n_elements(cat)
-
-       ra = rm.ra
-       dec = rm.dec
-       zobj = rm.z
-       
-       splog, 'Write some photometry code here!'
-       stop
     endif
 
 ; --------------------------------------------------
