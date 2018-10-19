@@ -115,10 +115,10 @@ end
 
 pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
   sdssphot_dr14=sdssphot_dr14, sdssphot_upenn=sdssphot_upenn, $
-  redmapper_upenn=redmapper_upenn, $ 
+  redmapper_upenn=redmapper_upenn, $  
   write_paramfile=write_paramfile, build_grids=build_grids, model_photometry=model_photometry, $
   isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, $
-  gather_results=gather_results, clobber=clobber
+  gather_results=gather_results, clobber=clobber, satellites=satellites
 
 ; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7.log 2>&1 &
 ; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, thissfhgrid=2, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sfhgrid02.log 2>&1 &
@@ -162,6 +162,13 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        outprefix = 'redmapper_upenn'
     endif
 
+    if keyword_set(satellites) then begin
+       nsatchunk = 20
+       sampleprefix = 'satellites'
+    endif else begin
+       sampleprefix = 'centrals'
+    endelse
+    
     isedfit_rootdir = getenv('IM_WORK_DIR')+'/projects/legacyhalos/isedfit/'
     
     isedfit_dir = isedfit_rootdir+'isedfit_'+prefix+'/'
@@ -180,7 +187,8 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
           lsphot = get_pofm(prefix,outprefix,isedfit_rootdir,$
             thissfhgrid=thissfhgrid,kcorr=lsphot_kcorr)
 
-          outfile = legacyhalos_dir+'/sample/centrals-'+sfhgridstring+'-lsphot-dr6-dr7.fits'
+          outfile = legacyhalos_dir+'/sample/'+sampleprefix+'-'+sfhgridstring+'-lsphot-dr6-dr7.fits'
+
           splog, 'Writing '+outfile
           mwrfits, lsphot, outfile, /create
           mwrfits, lsphot_kcorr, outfile
@@ -198,7 +206,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
           sdssphot = get_pofm(prefix,outprefix,isedfit_rootdir,$
             thissfhgrid=thissfhgrid,kcorr=sdssphot_kcorr)
           
-          outfile = legacyhalos_dir+'/sample/centrals-'+sfhgridstring+'-sdssphot-dr14.fits'
+          outfile = legacyhalos_dir+'/sample/'+sampleprefix+'-'+sfhgridstring+'-sdssphot-dr14.fits'
           splog, 'Writing '+outfile
           mwrfits, sdssphot, outfile, /create
           mwrfits, sdssphot_kcorr, outfile
@@ -309,7 +317,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 ; --------------------------------------------------
 ; DR6/DR7 LegacySurvey (grz) + unWISE W1 & W2    
     if keyword_set(lsphot_dr6_dr7) then begin
-       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-sample-dr6-dr7.fits', 1)
+       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits', 1)
        ngal = n_elements(cat)
 
        ra = cat.ra
@@ -336,7 +344,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 
 ; add minimum calibration uncertainties (in quadrature) to grzW1W2; see
 ; [desi-targets 2084]
-       k_minerror, maggies, ivarmaggies, [0.003,0.003,0.006,0.001,0.001]
+       k_minerror, maggies, ivarmaggies, [0.003,0.003,0.006,0.005,0.02]
     endif
     
 ; --------------------------------------------------
@@ -362,13 +370,13 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        ivarmaggies = [divarmaggies, wivarmaggies]
 
 ; add minimum uncertainties to grzW1W2
-       k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.02,0.02]
+       k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.005,0.02]
     endif
 
 ; --------------------------------------------------
 ; SDSS ugriz + forced WISE photometry from Lang & Schlegel    
     if keyword_set(sdssphot_dr14) then begin
-       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-sample-dr6-dr7.fits', 1)
+       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits', 1)
        ngal = n_elements(cat)
 
        ra = cat.ra
@@ -393,7 +401,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        ivarmaggies = [sivarmaggies, wivarmaggies]
        
 ; add minimum uncertainties to ugrizW1W2
-       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.02,0.02]
+       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.005,0.02]
     endif
 
 ; --------------------------------------------------
@@ -474,9 +482,32 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 ; --------------------------------------------------
 ; fit!
     if keyword_set(isedfit) then begin
-       isedfit, isedfit_paramfile, maggies, ivarmaggies, zobj, ra=ra, $
-         dec=dec, isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, $
-         clobber=clobber, index=index, outprefix=outprefix
+       if keyword_set(satellites) then begin
+          print('Ridiculously hard-coding ngal here to speed things up!')
+          ngal = 6682618L 
+          chunksize = ceil(ngal/float(nsatchunk))
+          if n_elements(firstchunk) eq 0 then firstchunk = 0
+          if n_elements(lastchunk) eq 0 then lastchunk = nsatchunk-1
+
+          for ii = firstchunk, lastchunk do begin
+             splog, 'Working on CHUNK '+strtrim(ii,2)+', '+strtrim(lastchunk,2)
+             splog, im_today()
+             t0 = systime(1)
+             outprefix = 'redmapper_chunk'+string(ii,format='(I3.3)')
+             these = lindgen(chunksize)+ii*chunksize
+             these = these[where(these lt ngal)]
+             these = these[0:99] ; test!
+
+             phot = mrdfits(redmapper_dir+'catalogs/redmapper_'+ver+'_phot.fits.gz',1,rows=these)
+             isedfit, isedfit_paramfile, maggies, ivarmaggies, zobj, ra=ra, $
+               dec=dec, isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, $
+               clobber=clobber, index=index, outprefix=outprefix
+          endfor
+       endif else begin
+          isedfit, isedfit_paramfile, maggies, ivarmaggies, zobj, ra=ra, $
+            dec=dec, isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, $
+            clobber=clobber, index=index, outprefix=outprefix
+       endelse
     endif 
 
 ; --------------------------------------------------
