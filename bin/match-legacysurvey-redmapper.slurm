@@ -33,10 +33,10 @@ find /project/projectdirs/desi/target/gaia_dr2_match_dr6/dr6/sweep/6.0 -name 'sw
 find /global/projecta/projectdirs/cosmo/data/legacysurvey/dr7/sweep/7.1 -name 'sweep-*.fits' > $DR7_FILELIST
 cat $DR6_FILELIST $DR7_FILELIST > $LEGACYSURVEY_FILELIST
 
-#time srun -u --cpu_bind=no python $LEGACYHALOS_CODE_DIR/bin/match-legacysurvey-redmapper \
-#    $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-sdssWISEphot-dr14.fits $PWD \
-#    $REDMAPPER_DIR/v6.3.1/legacysurvey-dr6-dr7-centrals-v6.3.1-lgt5.fits \
-#    -v --numproc 8 -f fits -F $LEGACYSURVEY_FILELIST
+time srun -u --cpu_bind=no python $LEGACYHALOS_CODE_DIR/bin/match-legacysurvey-redmapper \
+    $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-centrals-sdssWISEphot-dr14.fits $PWD \
+    $REDMAPPER_DIR/v6.3.1/legacysurvey-dr6-dr7-centrals-v6.3.1-lgt5.fits \
+    -v --numproc 8 -f fits -F $LEGACYSURVEY_FILELIST
 
 time srun -u --cpu_bind=no python $LEGACYHALOS_CODE_DIR/bin/match-legacysurvey-redmapper \
     $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-members-sdssWISEphot-dr14.fits $PWD \
