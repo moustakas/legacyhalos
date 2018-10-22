@@ -120,7 +120,7 @@ def custom_brick(sample, prefix, survey=None, radius=100, ncpu=1,
 
 def coadds_stage_tims(sample, survey=None, mp=None, radius=100,
                       brickname=None, pixscale=0.262, splinesky=True,
-                      log=None):
+                      log=None, plots=False):
     """Initialize the first step of the pipeline, returning
     a dictionary with the following keys:
     
@@ -132,6 +132,12 @@ def coadds_stage_tims(sample, survey=None, mp=None, radius=100,
     """
     from legacypipe.runbrick import stage_tims
 
+    if plots:
+        from astrometry.util.plotutils import PlotSequence
+        ps = PlotSequence('qa-{}'.format(brickname))
+    else:
+        ps = None
+
     unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)    
 
     if log:
@@ -140,13 +146,13 @@ def coadds_stage_tims(sample, survey=None, mp=None, radius=100,
                            survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
                            mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                            depth_cut=False, apodize=False, do_calibs=False, rex=True, 
-                           splinesky=splinesky, unwise_dir=unwise_dir)
+                           splinesky=splinesky, unwise_dir=unwise_dir, plots=plots, ps=ps)
     else:
         P = stage_tims(ra=sample['RA'], dec=sample['DEC'], brickname=brickname,
                        survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
                        mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                        depth_cut=False, apodize=False, do_calibs=False, rex=True, 
-                       splinesky=splinesky, unwise_dir=unwise_dir)
+                       splinesky=splinesky, unwise_dir=unwise_dir, plots=plots, ps=ps)
 
     return P
 
@@ -174,7 +180,7 @@ def read_tractor(sample, prefix=None, targetwcs=None,
     elif len(d12) > 1:
         m1 = m1[np.argmin(d12)]
 
-    print('Removed central galaxy with prefix = {}'.format(cat[m1].prefix),
+    print('Removed central galaxy with objid = {}'.format(cat[m1].objid),
           flush=True, file=log)
 
     # To prevent excessive masking, leave the central galaxy and any source
@@ -188,7 +194,7 @@ def read_tractor(sample, prefix=None, targetwcs=None,
             m1 = np.hstack( (m1, n1) )
             m1 = np.unique(m1)
 
-    cat.cut( ~np.in1d(cat.prefix, m1) )
+    cat.cut( ~np.in1d(cat.objid, m1) )
         
     return cat
 
@@ -212,7 +218,7 @@ def build_model_image(cat, tims, survey=None, log=None):
     return mods
 
 def tractor_coadds(sample, targetwcs, tims, mods, version_header, prefix=None,
-                   brickname=None, survey=None, mp=None, log=None, 
+                   brickname=None, survey=None, mp=None, log=None, skycoadd=False,
                    bands=['g','r','z']):
     """Generate individual-band FITS and color coadds for each central using
     Tractor.
@@ -247,10 +253,10 @@ def tractor_coadds(sample, targetwcs, tims, mods, version_header, prefix=None,
                     brickname, suffix, band)),
                 os.path.join(survey.output_dir, '{}-{}-nocentral-{}.fits.fz'.format(prefix, suffix, band))
                 )
-
+            
     if True:
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
-    
+
     # Build png postage stamps of the coadds.
     rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1)
     #rgbkwargs_resid = dict(mnmx=(0.1, 2), arcsinh=1)
@@ -269,6 +275,23 @@ def tractor_coadds(sample, targetwcs, tims, mods, version_header, prefix=None,
         print('Writing {}'.format(outfn), flush=True, file=log)
         imsave_jpeg(outfn, rgb, origin='lower', **kwa)
         del rgb
+
+    #if skycoadd:
+    #    if log:
+    #        with redirect_stdout(log), redirect_stderr(log):
+    #            C = make_coadds(tims, bands, targetwcs, mods=mods, mp=mp,
+    #                            skycoadd=skycoadd,
+    #                            callback=write_coadd_images,
+    #                            callback_args=(survey, brickname, version_header, 
+    #                                           tims, targetwcs))
+    #    else:
+    #        C = make_coadds(tims, bands, targetwcs, mods=mods, mp=mp,
+    #                        skycoadd=skycoadd,
+    #                        callback=write_coadd_images,
+    #                        callback_args=(survey, brickname, version_header, 
+    #                                       tims, targetwcs))
+    #
+    #pdb.set_trace()
 
 def legacyhalos_custom_coadds(sample, survey=None, prefix=None, objdir=None,
                               ncpu=1, pixscale=0.262, log=None, force=False,

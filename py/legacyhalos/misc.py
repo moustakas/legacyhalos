@@ -10,6 +10,29 @@ from __future__ import absolute_import, division, print_function
 import sys
 import numpy as np
 
+from astrometry.util.util import Tan
+
+def simple_wcs(onegal, radius=None, factor=1.0, pixscale=0.262):
+    '''Build a simple WCS object for a single galaxy.'''
+    galdiam = 100 # [pixels]
+    if radius is None:
+        if 'Z' in onegal.colnames:
+            galdiam = 2 * cutout_radius_150kpc(redshift=onegal['Z'], pixscale=pixscale)
+    
+    diam = np.ceil(factor * galdiam).astype('int') # [pixels]
+    simplewcs = Tan(onegal['RA'], onegal['DEC'], diam/2+0.5, diam/2+0.5,
+                    -pixscale/3600.0, 0.0, 0.0, pixscale/3600.0, 
+                    float(diam), float(diam))
+    return simplewcs
+
+def ccdwcs(ccd):
+    '''Build a simple WCS object for a single CCD table.'''
+    W, H = ccd.width, ccd.height
+    ccdwcs = Tan(*[float(xx) for xx in [ccd.crval1, ccd.crval2, ccd.crpix1,
+                                        ccd.crpix2, ccd.cd1_1, ccd.cd1_2,
+                                        ccd.cd2_1, ccd.cd2_2, W, H]])
+    return W, H, ccdwcs
+
 def area():
     """Return the area of the DR6+DR7 sample.  See the
     `legacyhalos-sample-selection.ipynb` notebook for this calculation.

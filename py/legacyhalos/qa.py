@@ -13,11 +13,11 @@ import os, pdb
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
-from legacyhalos.misc import arcsec2kpc
-from legacyhalos.misc import plot_style
+import legacyhalos.misc
 
-sns, _ = plot_style()
+sns, _ = legacyhalos.misc.plot_style()
 #snscolors = sns.color_palette()
 
 #import matplotlib as mpl 
@@ -45,7 +45,7 @@ def display_sersic(sersic, png=None, verbose=False):
     colors = _sbprofile_colors()
 
     if sersic['success']:
-        smascale = arcsec2kpc(sersic['redshift'])
+        smascale = legacyhalos.misc.arcsec2kpc(sersic['redshift'])
         model = sersic['bestfit']
     else:
         smascale = 1
@@ -462,7 +462,7 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         
         band, refband = ellipsefit['band'], ellipsefit['refband']
         pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
-        smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
         
@@ -578,7 +578,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         band, refband = ellipsefit['band'], ellipsefit['refband']
         redshift, pixscale = ellipsefit['redshift'], ellipsefit['pixscale']
-        smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
         yminmax = [40, 0]
         xminmax = [0, 0]
@@ -761,7 +761,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         band, refband = ellipsefit['band'], ellipsefit['refband']
         redshift = ellipsefit['redshift']
-        smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
         yminmax = [40, 0]
         xminmax = [0, 0]
@@ -989,7 +989,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:                    
                     refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
-                    smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+                    smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
                     sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.01)
 
                     sma = sbprofile['sma'] * smascale
@@ -1070,7 +1070,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:
                     refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
-                    smascale = ellipsefit['pixscale'] * arcsec2kpc(redshift) # [kpc/pixel]
+                    smascale = ellipsefit['pixscale'] * legacyhalos.misc.arcsec2kpc(redshift) # [kpc/pixel]
                     
                     good = (ellipsefit[refband].stop_code < 4)
                     #good = np.arange( len(ellipsefit[refband].sma) )
@@ -1099,3 +1099,57 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
     
     _color_vs_sma()       # color vs semi-major axis
     _ellipticity_vs_sma() # ellipticity vs semi-major axis
+
+
+def ccdpos(onegal, ccds, radius=None, png=None, verbose=False):
+    """Visualize the position of all the CCDs contributing to the image stack of a
+    single galaxy.
+
+    """
+    wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius)
+    pxscale = wcs.pixel_scale() / 3600.0
+    width, height = (wcs.get_width()*pxscale, wcs.get_height()*pxscale)
+    bb = wcs.radec_bounds()
+    bbcc = wcs.radec_center()
+    ww = 0.2
+
+    fig, allax = plt.subplots(1, 3, figsize=(12, 5), sharey=True, sharex=True)
+
+    for ax, band in zip(allax, ('g', 'r', 'z')):
+        ax.set_aspect('equal')
+        ax.set_xlim(bb[0]+width+ww, bb[0]-ww)
+        ax.set_ylim(bb[2]-ww, bb[2]+height+ww)
+        ax.set_xlabel('RA (deg)')
+        ax.text(0.9, 0.05, band, ha='center', va='bottom',
+                transform=ax.transAxes, fontsize=18)
+
+        if band == 'g':
+            ax.set_ylabel('Dec (deg)')
+        ax.get_xaxis().get_major_formatter().set_useOffset(False)
+        ax.add_patch(patches.Rectangle((bb[0], bb[2]), bb[1]-bb[0], bb[3]-bb[2],
+                                       fill=False, edgecolor='black', lw=3, ls='--'))
+        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), radius*PIXSCALE/2, 
+                                    fill=False, edgecolor='black', lw=2))
+
+        these = np.where(ccds.filter == band)[0]
+        col = plt.cm.Set1(np.linspace(0, 1, len(ccds)))
+        for ii, ccd in enumerate(ccds[these]):
+            print(ccd.expnum, ccd.ccdname, ccd.filter)
+            W, H, ccdwcs = _ccdwcs(ccd)
+
+            cc = ccdwcs.radec_bounds()
+            ax.add_patch(patches.Rectangle((cc[0], cc[2]), cc[1]-cc[0],
+                                           cc[3]-cc[2], fill=False, lw=2, 
+                                           edgecolor=col[these[ii]],
+                                           label='ccd{:02d}'.format(these[ii])))
+            ax.legend(ncol=2, frameon=False, loc='upper left')
+
+    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.06, right=0.97)
+
+    if png:
+        if verbose:
+            print('Writing {}'.format(png))
+        fig.savefig(png)
+        plt.close(fig)
+    else:
+        plt.show()
