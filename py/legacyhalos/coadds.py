@@ -52,7 +52,7 @@ def custom_brick(sample, prefix, survey=None, radius=100, ncpu=1,
     else:
 
         # Move (rename) files into the desired output directory and clean up.
-        brickname = custom_brickname(sample['RA'], sample['DEC'], prefix='custom-')
+        brickname = 'custom-{}'.format(custom_brickname(sample['RA'], sample['DEC']))
 
         # tractor catalog
         shutil.copy(
@@ -304,7 +304,7 @@ def legacyhalos_custom_coadds(sample, survey=None, prefix=None, objdir=None,
     
     #if prefix is None and objdir is None:
     #    objid, objdir = get_objid(sample)
-    brickname = custom_brickname(sample['RA'], sample['DEC'], prefix='')
+    brickname = custom_brickname(sample['RA'], sample['DEC'])
 
     survey.output_dir = objdir
     archivedir = objdir.replace('analysis', 'analysis-archive') # hack!

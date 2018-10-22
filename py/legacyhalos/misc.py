@@ -232,8 +232,8 @@ def statsinbins(xx, yy, binsize=0.1, minpts=10, xmin=None, xmax=None):
         else:
             return stats[keep]
 
-def custom_brickname(ra, dec, prefix='custom-'):
-    brickname = 'custom-{:06d}{}{:05d}'.format(
+def custom_brickname(ra, dec):
+    brickname = '{:06d}{}{:05d}'.format(
         int(1000*ra), 'm' if dec < 0 else 'p',
         int(1000*np.abs(dec)))
     return brickname

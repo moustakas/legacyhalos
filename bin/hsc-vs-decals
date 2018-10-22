@@ -1,17 +1,19 @@
 #!/usr/bin/env python
 
-"""custom-sbprofiles --clobber
+"""hsc-vs-decals --clobber
 
-Run the legacyhalos pipeline on a custom set of positions to derive the surface
-brightness profile.
+Run the legacyhalos pipeline on the HSC vs DECaLS comparison sample.
 
 """
-import os, argparse, pdb, pickle
+import os, argparse, sys, pickle
+import pdb
 import numpy as np
-from astropy.table import Table
+import fitsio
+from astropy.table import Table, hstack
 
 import matplotlib.pyplot as plt
 
+import legacyhalos.io
 import legacyhalos.qa
 import legacyhalos.html
 import legacyhalos.coadds
@@ -20,14 +22,6 @@ from legacyhalos.misc import cutout_radius_150kpc
 
 from astrometry.util.multiproc import multiproc
 from astrometry.util.fits import fits_table, merge_tables
-
-from scipy.ndimage.morphology import binary_dilation
-from tractor.splinesky import SplineSky
-import matplotlib.patches as patches
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from astropy.convolution import Gaussian2DKernel, convolve
-from legacypipe.image import CP_DQ_BITS
-from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 
 sns, setcolors = legacyhalos.misc.plot_style()
 
@@ -78,18 +72,53 @@ def missing_ellipse(sample, size=1, clobber=False):
 
 def main():
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ncpu', default=4, type=int, help='number of multiprocessing processes per MPI rank.')
+    parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
+
+    parser.add_argument('--build-sample', action='store_true', help='Build and write out the sample.')
+    parser.add_argument('--coadds', action='store_true', help='Build the custom coadds')
+    parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
+    parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
+    parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
+    parser.add_argument('--debug', action='store_true', help='Log to STDOUT and build debugging plots.')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
+    args = parser.parse_args()
+
+    # Write out the sample.
+    if args.build_sample:
+        from astrometry.libkd.spherematch import match_radec
+
+        # Really should be reading this from disk.
+        cat = Table()
+        cat['GALAXY'] = np.array(['CGCG004-096'])
+        cat['RA'] = np.array([129.603676]).astype('f8')
+        cat['DEC'] = np.array([-1.606419]).astype('f8')
+        cat['Z'] = np.array([0.05204]).astype('f4')
+        
+        brickname = '1296m015' # hard-coded
+        tractorfile = os.path.join(os.getenv('LEGACY_SURVEY_DIR'), 'tractor', brickname[:3],
+                                   'tractor-{}.fits'.format(brickname))
+        print('Reading {}'.format(tractorfile))
+        tractor = Table(fitsio.read(tractorfile, upper=True))
+        m1, m2, d12 = match_radec(cat['RA'], cat['DEC'], tractor['RA'], tractor['DEC'], 1/3600, nearest=True)
+
+        sample = hstack( (cat['GALAXY', 'Z'], tractor[m1]) )
+        sample.rename_column('GALAXY', 'CENTRAL_ID')
+
+        samplefile = os.path.join( legacyhalos.io.hsc_vs_decals_dir(), 'hsc-vs-decals.fits' )
+        print('Writing {}'.format(samplefile))
+        sample.write(samplefile, overwrite=True)
+
+        sys.exit(1)
+
+    
+
     from legacypipe.survey import LegacySurveyData
     survey = LegacySurveyData()
     survey.output_dir = '.'
 
-    sample = Table()
-    sample['GALAXY'] = np.array(['CGCG004-096'])
-    sample['RA'] = np.array([129.603676]).astype('f8')
-    sample['DEC'] = np.array([-1.606419]).astype('f8')
-    sample['Z'] = np.array([0.05204]).astype('f4')
-    sample['PSFSIZE_G'] = np.array([1.1]).astype('f4') # hack!
-    sample['PSFSIZE_R'] = np.array([1.1]).astype('f4')
-    sample['PSFSIZE_Z'] = np.array([1.1]).astype('f4')
 
     log = None
     #force = True
@@ -99,6 +128,14 @@ def main():
     ncpu = 16
 
     mp = multiproc(nthreads=ncpu)
+
+    from scipy.ndimage.morphology import binary_dilation
+    from tractor.splinesky import SplineSky
+    import matplotlib.patches as patches
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    from astropy.convolution import Gaussian2DKernel, convolve
+    from legacypipe.image import CP_DQ_BITS
+    from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 
     for onegal in np.atleast_1d(sample):
 

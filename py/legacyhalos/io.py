@@ -409,3 +409,21 @@ def literature(kravtsov=True, gonzalez=False):
         gonz['mbcg'] = np.log10(gonz['mbcg'])
         gonz['m500'] = np.log10(gonz['m500'])
         return gonz
+
+
+# For HSC vs DECaLS analysis:
+
+def hsc_vs_decals_dir():
+    ddir = os.path.join(legacyhalos_dir(), 'hsc-vs-decals')
+    if not os.path.isdir(ddir):
+        os.makedirs(ddir, exist_ok=True)
+    return ddir
+
+def read_hsc_vs_decals(verbose=False):
+    """Read the parent sample."""
+    ddir = hsc_vs_decals_dir()
+    catfile = os.path.join(ddir, 'hsc-vs-decals.fits')
+    cat = Table(fitsio.read(catfile, upper=True))
+    if verbose:
+        print('Read {} objects from {}'.format(len(cat), catfile))
+    return cat
