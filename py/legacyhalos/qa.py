@@ -1101,24 +1101,26 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
     _ellipticity_vs_sma() # ellipticity vs semi-major axis
 
 
-def ccdpos(onegal, ccds, radius=None, png=None, verbose=False):
+def ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=False):
     """Visualize the position of all the CCDs contributing to the image stack of a
     single galaxy.
 
     """
-    wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius)
-    pxscale = wcs.pixel_scale() / 3600.0
-    width, height = (wcs.get_width()*pxscale, wcs.get_height()*pxscale)
-    bb = wcs.radec_bounds()
-    bbcc = wcs.radec_center()
-    ww = 0.2
+    if radius is None:
+        radius = legacyhalos.misc.cutout_radius_150kpc(
+            redshift=onegal['Z'], pixscale=pixscale) # [pixels]
+
+    wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius, pixscale=pixscale)
+    width, height = wcs.get_width() * pixscale / 3600, wcs.get_height() * pixscale / 3600 # [degrees]
+    bb, bbcc = wcs.radec_bounds(), wcs.radec_center() # [degrees]
+    pad = 0.2 # [degrees]
 
     fig, allax = plt.subplots(1, 3, figsize=(12, 5), sharey=True, sharex=True)
 
     for ax, band in zip(allax, ('g', 'r', 'z')):
         ax.set_aspect('equal')
-        ax.set_xlim(bb[0]+width+ww, bb[0]-ww)
-        ax.set_ylim(bb[2]-ww, bb[2]+height+ww)
+        ax.set_xlim(bb[0]+width+pad, bb[0]-pad)
+        ax.set_ylim(bb[2]-pad, bb[2]+height+pad)
         ax.set_xlabel('RA (deg)')
         ax.text(0.9, 0.05, band, ha='center', va='bottom',
                 transform=ax.transAxes, fontsize=18)
@@ -1126,25 +1128,25 @@ def ccdpos(onegal, ccds, radius=None, png=None, verbose=False):
         if band == 'g':
             ax.set_ylabel('Dec (deg)')
         ax.get_xaxis().get_major_formatter().set_useOffset(False)
-        ax.add_patch(patches.Rectangle((bb[0], bb[2]), bb[1]-bb[0], bb[3]-bb[2],
-                                       fill=False, edgecolor='black', lw=3, ls='--'))
-        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), radius*PIXSCALE/2, 
+        #ax.add_patch(patches.Rectangle((bb[0], bb[2]), bb[1]-bb[0], bb[3]-bb[2],
+        #                               fill=False, edgecolor='black', lw=3, ls='--'))
+        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), radius * pixscale / 3600,
                                     fill=False, edgecolor='black', lw=2))
 
         these = np.where(ccds.filter == band)[0]
         col = plt.cm.Set1(np.linspace(0, 1, len(ccds)))
         for ii, ccd in enumerate(ccds[these]):
             print(ccd.expnum, ccd.ccdname, ccd.filter)
-            W, H, ccdwcs = _ccdwcs(ccd)
+            W, H, ccdwcs = legacyhalos.misc.ccdwcs(ccd)
 
             cc = ccdwcs.radec_bounds()
             ax.add_patch(patches.Rectangle((cc[0], cc[2]), cc[1]-cc[0],
                                            cc[3]-cc[2], fill=False, lw=2, 
                                            edgecolor=col[these[ii]],
                                            label='ccd{:02d}'.format(these[ii])))
-            ax.legend(ncol=2, frameon=False, loc='upper left')
+            ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=10)
 
-    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.06, right=0.97)
+    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.1, right=0.97)
 
     if png:
         if verbose:
