@@ -12,12 +12,12 @@ import numpy as np
 
 from astrometry.util.util import Tan
 
-def simple_wcs(onegal, radius=None, factor=1.0, pixscale=0.262):
+def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262):
     '''Build a simple WCS object for a single galaxy.'''
-    galdiam = 100 # [pixels]
-    if radius is None:
-        if 'Z' in onegal.colnames:
-            galdiam = 2 * cutout_radius_150kpc(redshift=onegal['Z'], pixscale=pixscale)
+    if 'Z' in onegal.colnames:
+        galdiam = 2 * cutout_radius_150kpc(redshift=onegal['Z'], pixscale=pixscale)
+    else:
+        galdiam = radius # [pixels]
     
     diam = np.ceil(factor * galdiam).astype('int') # [pixels]
     simplewcs = Tan(onegal['RA'], onegal['DEC'], diam/2+0.5, diam/2+0.5,
@@ -385,4 +385,58 @@ def get_mstarbins(deltam=0.1, satellites=False):
     mstarbins = np.linspace(mstarmin, mstarmax, nmstarbins)
     
     return mstarbins
+
+def missing_files(sample, size=1, filetype='coadds', clobber=False):
+    """Find missing data of a given filetype."""    
+
+    if filetype == 'coadds':
+        filesuffix = 'image-central.jpg'
+    elif filetype == 'ellipse':
+        filesuffix = 'ellipsefit.p'
+    elif filetype == 'sersic':
+        filesuffix = 'sersic-single.p'
+    elif filetype == 'sky':
+        filesuffix = 'ellipsefit-sky.p'
+    else:
+        print('Unrecognized file type!')
+        raise ValueError
+
+    objdir = '.'
+    objid = sample['GALAXY']
+    #objid, objdir = legacyhalos.io.get_objid(sample)
+
+    ngal = len(sample)
+    indices = np.arange(ngal)
+    todo = np.ones(ngal, dtype=bool)
+    
+    for ii, (objid1, objdir1) in enumerate( zip(np.atleast_1d(objid), np.atleast_1d(objdir)) ):
+        residfile = os.path.join(objdir1, '{}-{}'.format(objid1, filesuffix))
+        if os.path.exists(residfile) and clobber is False:
+            todo[ii] = False
+
+    if np.sum(todo) == 0:
+        return list()
+    else:
+        indices = indices[todo]
+    return np.array_split(indices, size)
+
+def missing_coadds(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have coadds.'''
+    return _missing(sample, size=size, filetype='coadds',
+                    clobber=clobber)
+
+def missing_ellipse(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have ellipse fits.'''
+    return _missing(sample, size=size, filetype='ellipse',
+                    clobber=clobber)
+
+def missing_sersic(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have Sersic fits.'''
+    return _missing(sample, size=size, filetype='sersic',
+                    clobber=clobber)
+
+def missing_sky(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have sky variance estimates.'''
+    return _missing(sample, size=size, filetype='sky',
+                    clobber=clobber)
 
