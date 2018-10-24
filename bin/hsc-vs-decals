@@ -18,7 +18,6 @@ from astrometry.util.fits import fits_table
 
 import legacyhalos.io
 import legacyhalos.misc
-import legacyhalos.coadds
 
 #import legacyhalos.qa
 #import legacyhalos.html
@@ -153,6 +152,7 @@ def main():
 
     # Generate the pipeline coadds.
     if args.coadds:
+        from legacyhalos.coadds import pipeline_coadds
         survey = LegacySurveyData()
 
         print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
@@ -166,12 +166,12 @@ def main():
             radius = legacyhalos.misc.cutout_radius_150kpc( 
                 redshift=onegal['Z'], pixscale=args.pixscale) # [pixels]
             
-            legacyhalos.coadds.runbrick(onegal, galaxy=galaxy, radius=radius,
-                                        survey=survey, pixscale=args.pixscale,
-                                        ncpu=args.ncpu, force=args.force,
-                                        splinesky=True, cleanup=True)
+            pipeline_coadds(onegal, galaxy=galaxy, radius=radius, survey=survey,
+                            pixscale=args.pixscale, ncpu=args.ncpu, force=args.force,
+                            splinesky=True, cleanup=True)
 
     if args.custom_coadds:
+        from legacyhalos.coadds import custom_coadds
         survey = LegacySurveyData()
 
         print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
@@ -186,13 +186,26 @@ def main():
             radius = legacyhalos.misc.cutout_radius_150kpc( 
                 redshift=onegal['Z'], pixscale=args.pixscale) # [pixels]
             
-            legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
-                                             survey=survey, pixscale=args.pixscale,
-                                             ncpu=args.ncpu, verbose=args.verbose)
+            custom_coadds(onegal, galaxy=galaxy, radius=radius, survey=survey,
+                          pixscale=args.pixscale, ncpu=args.ncpu, verbose=args.verbose)
                                              
+
+    if args.ellipse:
+        from legacyhalos.ellipse import legacyhalos_ellipse
+
+        print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
+        tall = time.time()
+        for ii in groups:
+            onegal = sample[ii][0]
+            galaxy = onegal['GALAXY'].lower()
+            galaxydir = os.path.join(analysisdir, galaxy)            
+
+            legacyhalos_ellipse(onegal, galaxydir=galaxydir,
+                                pixscale=args.pixscale, debug=False,
+                                verbose=args.verbose)
+            
         
-        
-        pdb.set_trace()
+    pdb.set_trace()
 
     log = None
     #force = True

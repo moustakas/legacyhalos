@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 import legacyhalos.io
 
-def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
+def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
                          nowrite=False, verbose=False):
     """Ellipse-fit the multiband data.
 
@@ -200,7 +200,7 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
 
     # Write out
     if not nowrite:
-        legacyhalos.io.write_ellipsefit(objid, objdir, ellipsefit, verbose=verbose)
+        legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=verbose)
 
     return ellipsefit
 
@@ -255,7 +255,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
 
     return sbprofile
 
-def mgefit_multiband(objid, objdir, data, debug=False, nowrite=False,
+def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
                      nofit=True, verbose=False):
     """MGE-fit the multiband data.
 
@@ -319,29 +319,31 @@ def mgefit_multiband(objid, objdir, data, debug=False, nowrite=False,
             print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
         
     if not nowrite:
-        legacyhalos.io.write_mgefit(objid, objdir, mgefit, band=refband, verbose=verbose)
+        legacyhalos.io.write_mgefit(galaxy, galaxydir, mgefit, band=refband, verbose=verbose)
 
     return mgefit
     
-def legacyhalos_ellipse(sample, objid=None, objdir=None, ncpu=1,
-                        pixscale=0.262, refband='r', band=('g', 'r', 'z'),
+def legacyhalos_ellipse(onegal, galaxydir=None, pixscale=0.262,
+                        refband='r', band=('g', 'r', 'z'),
                         verbose=False, debug=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
-    """ 
-    if objid is None and objdir is None:
-        objid, objdir = get_objid(sample)
+    """
+    if galaxydir is None:
+        galaxy, galaxydir = get_objid(onegal)
+    else:
+        galaxy = onegal['GALAXY'].lower()
 
     # Read the data.  
-    data = legacyhalos.io.read_multiband(objid, objdir, band=band, refband=refband,
-                                         pixscale=pixscale)
+    data = legacyhalos.io.read_multiband(galaxy, galaxydir, band=band,
+                                         refband=refband, pixscale=pixscale)
     if bool(data):
         # Find the galaxy and perform MGE fitting.
-        mgefit = mgefit_multiband(objid, objdir, data, verbose=verbose, debug=debug)
+        mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose, debug=debug)
 
         # Do ellipse-fitting.
-        ellipsefit = ellipsefit_multiband(objid, objdir, data, sample, mgefit,
-                                          verbose=verbose)
+        ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
+                                          mgefit, verbose=verbose)
         if ellipsefit['success']:
             return 1
         else:

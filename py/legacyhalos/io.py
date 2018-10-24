@@ -245,7 +245,7 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     else:
         print('File {} exists.'.format(resultsfile))
 
-def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
+def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
@@ -257,8 +257,8 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
 
     found_data = True
     for filt in band:
-        for imtype in ('image', 'model-nocentral', 'invvar'):
-            imfile = os.path.join(objdir, '{}-{}-{}.fits.fz'.format(objid, imtype, filt))
+        for imtype in ('custom-image', 'model-nocentral', 'invvar'):
+            imfile = os.path.join(galaxydir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, filt))
             if not os.path.isfile(imfile):
                 print('File {} not found.'.format(imfile))
                 found_data = False
@@ -267,9 +267,9 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
         return data
     
     for filt in band:
-        image = fitsio.read(os.path.join(objdir, '{}-image-{}.fits.fz'.format(objid, filt)))
-        model = fitsio.read(os.path.join(objdir, '{}-model-nocentral-{}.fits.fz'.format(objid, filt)))
-        invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))
+        image = fitsio.read(os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, filt)))
+        model = fitsio.read(os.path.join(galaxydir, '{}-model-nocentral-{}.fits.fz'.format(galaxy, filt)))
+        invvar = fitsio.read(os.path.join(galaxydir, '{}-invvar-{}.fits.fz'.format(galaxy, filt)))
 
         # Mask pixels with ivar<=0. Also build an object mask from the model
         # image, to handle systematic residuals.  However, don't mask too
