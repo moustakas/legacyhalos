@@ -13,6 +13,9 @@ from astropy.table import Table, hstack
 
 import matplotlib.pyplot as plt
 
+from legacypipe.survey import LegacySurveyData
+from astrometry.util.fits import fits_table
+
 import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.coadds
@@ -21,8 +24,6 @@ import legacyhalos.coadds
 #import legacyhalos.html
 #from legacyhalos.ellipse import ellipse_sbprofile
 #from legacyhalos.misc import cutout_radius_150kpc
-
-from legacypipe.survey import LegacySurveyData
 
 #from astrometry.util.multiproc import multiproc
 #from astrometry.util.fits import fits_table, merge_tables
@@ -177,16 +178,17 @@ def main():
         tall = time.time()
         for ii in groups:
             onegal = sample[ii][0]
-
             galaxy = onegal['GALAXY'].lower()
+
             survey.output_dir = os.path.join(analysisdir, galaxy)
+            survey.ccds = fits_table(os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy)))
 
             radius = legacyhalos.misc.cutout_radius_150kpc( 
                 redshift=onegal['Z'], pixscale=args.pixscale) # [pixels]
             
             legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
                                              survey=survey, pixscale=args.pixscale,
-                                             ncpu=args.ncpu)
+                                             ncpu=args.ncpu, verbose=args.verbose)
                                              
         
         
