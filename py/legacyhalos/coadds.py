@@ -14,6 +14,8 @@ import shutil
 import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 
+from astrometry.util.multiproc import multiproc
+
 from legacyhalos.misc import custom_brickname
 
 def _copyfile(infile, outfile):
@@ -30,6 +32,9 @@ def _custom_sky(args):
     """
     from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
+    from legacypipe.detection import (detection_maps, segment_and_group_sources,
+                                      run_sed_matched_filters)
+    from legacypipe.runbrick import _median_smooth_detmap
 
     (survey, onegal, radius, ccd) = args
 
@@ -39,6 +44,27 @@ def _custom_sky(args):
           'object', getattr(ccd, 'object', None))
     tim = im.get_tractor_image(splinesky=True, subsky=False,
                                hybridPsf=True, normalizePsf=True)
+
+    #mp = multiproc()
+    #targetwcs, bands = tim.subwcs, tim.band
+    #
+    #detmaps, detivs, satmaps = detection_maps([tim], targetwcs, tim.band, mp)
+    #smoos = _median_smooth_detmap( (detmaps[0], detivs[0], 4) )
+    #
+    #SEDs = survey.sed_matched_filters(tim.band)
+    #avoid_x, avoid_y, avoid_r = [], [], []
+    #Tnew,newcat,hot = run_sed_matched_filters(
+    #    SEDs, tim.band, detmaps, detivs, (avoid_x,avoid_y,avoid_r), tim.subwcs,
+    #    nsigma=nsigma, saturated_pix=saturated_pix, plots=plots, ps=ps, mp=mp)
+    #blobs,blobsrcs,blobslices = segment_and_group_sources(
+    #    np.logical_or(hot, reduce(np.logical_or, saturated_pix)),
+    #    T, name=brickname, ps=ps, plots=plots)
+
+    #pdb.set_trace()
+    #H, W = tim.subwcs.shape
+    #detmap = np.zeros( (H, W) ).astype('f4')
+    #detiv, satmap = np.zeros_like(detmap), np.zeros_like(detmap)
+    #Yo, Xo, detim, detiv, sat = _detmap( (tim, tim.subwcs, H, W) )
     
     # Get the (pixel) coordinates of the galaxy on this CCD
     #W, H, wcs = tim.imobj.width, tim.imobj.height, tim.subwcs
@@ -212,24 +238,24 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
         return 1
 
 def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
-                  pixscale=0.262, log=None, plots=False, verbose=False,
-                  cleanup=True):
+                  pixscale=0.262, bands=('g', 'r', 'z'), log=None,
+                  plots=False, verbose=False, cleanup=True):
     """Build a custom set of coadds for a single galaxy, with a custom mask and sky
     model.
 
     """
     from astropy.io import fits
 
-    from astrometry.util.multiproc import multiproc
     from astrometry.util.fits import fits_table
     from astrometry.libkd.spherematch import match_radec
+    from tractor.sky import ConstantSky
 
     from legacypipe.runbrick import stage_tims
     from legacypipe.catalog import read_fits_catalog
     from legacypipe.runbrick import _get_mod
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.survey import get_rgb, imsave_jpeg
-
+            
     if survey is None:
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
@@ -307,6 +333,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
             pipesky.addTo(splinesky)
             newsky = splinesky
         tim.setImage(image - newsky)
+        tim.sky = ConstantSky(0)
         newtims.append(tim)
 
     # [4] Read the Tractor catalog and render the model image of each CCD, with
@@ -371,7 +398,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
             if not ok:
                 return ok
 
-    # Custom coadds (just the central).
+    # Custom coadds (without the central).
     if log:
         with redirect_stdout(log), redirect_stderr(log):
             C_onlycentral = call_make_coadds(mods_nocentral)

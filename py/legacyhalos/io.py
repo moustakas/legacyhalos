@@ -257,7 +257,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r', pixscal
 
     found_data = True
     for filt in band:
-        for imtype in ('custom-image', 'model-nocentral', 'invvar'):
+        for imtype in ('custom-image', 'custom-model-nocentral', 'invvar'):
             imfile = os.path.join(galaxydir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, filt))
             if not os.path.isfile(imfile):
                 print('File {} not found.'.format(imfile))
@@ -268,7 +268,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r', pixscal
     
     for filt in band:
         image = fitsio.read(os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, filt)))
-        model = fitsio.read(os.path.join(galaxydir, '{}-model-nocentral-{}.fits.fz'.format(galaxy, filt)))
+        model = fitsio.read(os.path.join(galaxydir, '{}-custom-model-nocentral-{}.fits.fz'.format(galaxy, filt)))
         invvar = fitsio.read(os.path.join(galaxydir, '{}-invvar-{}.fits.fz'.format(galaxy, filt)))
 
         # Mask pixels with ivar<=0. Also build an object mask from the model

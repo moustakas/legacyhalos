@@ -203,6 +203,13 @@ def main():
             legacyhalos_ellipse(onegal, galaxydir=galaxydir,
                                 pixscale=args.pixscale, debug=False,
                                 verbose=args.verbose)
+
+
+    pdb.set_trace()
+    
+    galaxy = onegal['GALAXY'].lower()
+    legacyhalos.html.make_plots(onegal, analysisdir=galaxy, htmldir=galaxy,
+                                clobber=True, verbose=True)
             
         
     pdb.set_trace()
