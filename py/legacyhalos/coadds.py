@@ -18,7 +18,7 @@ from legacyhalos.misc import custom_brickname
 
 def _copyfile(infile, outfile):
     if os.path.isfile(infile):
-        shutil.copy(infile, outfile)
+        shutil.copy2(infile, outfile)
         return 1
     else:
         print('Missing file {}; please check the logfile.'.format(infile))
@@ -53,7 +53,7 @@ def _custom_sky(args):
 
     mask = tim.getInvvar() <= 0 # True=bad, False=good
     mask = np.logical_or( mask, (image - splinesky) > 3 * tim.sig1 )
-    #mask = binary_dilation(mask, iterations=2)
+    mask = binary_dilation(mask, iterations=2)
 
     # Also mask the full extent of the central galaxy.
     #http://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
@@ -65,11 +65,12 @@ def _custom_sky(args):
     # Finally estimate the new sky background as the sigma-clipped mode
     # (using equation 1 in the SExtractor user manual).
     #mn, med, std = sigma_clipped_stats(image, mask=mask)
-    good = np.flatnonzero( (mask == 0) * 1 )
-    cimage, _, _ = sigmaclip(image.flat[good], low=3.0, high=3.0)
-    newsky = 2.5 * np.median(cimage) - 1.5 * np.mean(cimage)
-    newsky = newsky / tim.zpscale # [nanomaggies]
-    #print(newsky, np.median(splinesky))
+    good = np.flatnonzero(~mask)
+    cimage, _, _ = sigmaclip(image.flat[good], low=2.0, high=2.0)
+    newsky = np.median(cimage)
+    #newsky = 2.5 * np.median(cimage) - 1.5 * np.mean(cimage)
+    #newsky = newsky / tim.zpscale # [nanomaggies]
+    print(newsky, np.median(splinesky))
 
     out = dict()
     key = '{}-{:02d}'.format(im.name, im.hdu)
@@ -248,29 +249,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
 
     unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)    
 
-    # [1] Perform custom sky-subtraction of each (full) CCD.
-    args = [(survey, onegal, radius, _ccd) for _ccd in survey.ccds]
-    result = mp.map(_custom_sky, args)
-    #result = list( zip( *mp.map(_custom_sky, args) ) )
-    sky = dict()
-    [sky.update(res) for res in result]
-
-    hx = fits.HDUList()
-    for ii, ccd in enumerate(survey.ccds):
-        im = survey.get_image_object(ccd)
-        key = '{}-{:02d}'.format(im.name, im.hdu)
-        mask = sky['{}-mask'.format(key)].astype('uint8')
-        hdu = fits.ImageHDU(mask , name=key)
-        #hdu = fits.ImageHDU(sky['{}-mask'.format(key)], name='CCD{:03d}'.format(iccd))
-        hdu.header['SKY'] = sky['{}-sky'.format(key)]
-        hx.append(hdu)
-
-    skyfile = os.path.join(survey.output_dir, '{}-sky.fits'.format(galaxy))
-    print('Writing {}'.format(skyfile))
-    hx.writeto(skyfile, overwrite=True)
-
-    # [2] Next, initialize the "tims" stage of the pipeline, returning a
-    # dictionary with the following keys:    
+    # [1] Initialize the "tims" stage of the pipeline, returning a
+    # dictionary with the following keys:
+    
     #   ['brickid', 'target_extent', 'version_header', 'targetrd',
     #    'brickname', 'pixscale', 'bands', 'survey', 'brick', 'ps',
     #    'H', 'ccds', 'W', 'targetwcs', 'tims']
@@ -283,7 +264,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
         return stage_tims(ra=onegal['RA'], dec=onegal['DEC'], brickname=brickname,
                           survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
                           mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
-                          splinesky=True, subsky=True, #False, # note!
+                          splinesky=True, subsky=False, # note!
                           depth_cut=False, apodize=False, do_calibs=False, rex=True, 
                           unwise_dir=unwise_dir, plots=plots, ps=ps)
 
@@ -295,7 +276,40 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
 
     tims = P['tims']
 
-    # [2] Read the Tractor catalog and render the model image of each CCD, with
+    # [2] Derive the custom sky value of each (full) CCD.
+    args = [(survey, onegal, radius, _ccd) for _ccd in survey.ccds]
+    result = mp.map(_custom_sky, args)
+    #result = list( zip( *mp.map(_custom_sky, args) ) )
+    sky = dict()
+    [sky.update(res) for res in result]
+
+    hx = fits.HDUList()
+    for ii, ccd in enumerate(survey.ccds):
+        im = survey.get_image_object(ccd)
+        key = '{}-{:02d}'.format(im.name, im.hdu)
+        mask = sky['{}-mask'.format(key)].astype('uint8')
+        hdu = fits.ImageHDU(mask, name=key)
+        hdu.header['SKY'] = sky['{}-sky'.format(key)]
+        hx.append(hdu)
+
+    maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits'.format(galaxy))
+    print('Writing {}'.format(maskfile))
+    hx.writeto(maskfile, overwrite=True)
+
+    # [3] Modify each tim by subtracting our new estimate of the sky.
+    newtims = []
+    for tim in tims:
+        image = tim.getImage()
+        newsky = sky['{}-{:02d}-sky'.format(tim.imobj.name, tim.imobj.hdu)]
+        if False:
+            pipesky = tim.getSky()
+            splinesky = np.zeros_like(image)
+            pipesky.addTo(splinesky)
+            newsky = splinesky
+        tim.setImage(image - newsky)
+        newtims.append(tim)
+
+    # [4] Read the Tractor catalog and render the model image of each CCD, with
     # and without the central large galaxy.
     tractorfile = os.path.join(survey.output_dir, '{}-tractor.fits'.format(galaxy))
     if not os.path.isfile(tractorfile):
@@ -329,22 +343,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
         [print(' ', src) for src in srcs]
 
     print('Rendering model images with and without surrounding galaxies...', flush=True, file=log)
-    mods = [_get_mod((tim, srcs)) for tim in tims]
-    mods_nocentral = [_get_mod((tim, srcs_nocentral)) for tim in tims]
+    mods = [_get_mod((tim, srcs)) for tim in newtims]
+    mods_nocentral = [_get_mod((tim, srcs_nocentral)) for tim in newtims]
 
-    # [3] Modify each tim by subtracting our new estimate of the sky.
-    #newtims = tims.copy()
-    newtims = []
-    for tim in tims:
-        image = tim.getImage()
-        #pipesky = tim.getSky()
-        #splinesky = np.zeros_like(image)
-        #pipesky.addTo(splinesky)
-        newsky = sky['{}-{:02d}-sky'.format(tim.imobj.name, tim.imobj.hdu)]
-        tim.setImage(image - newsky)
-        newtims.append(tim)
-
-    # [4] Build the custom coadds, with and without the surrounding galaxies.
+    # [5] Build the custom coadds, with and without the surrounding galaxies.
     print('Producing coadds...', flush=True, file=log)
     def call_make_coadds(usemods):
         return make_coadds(newtims, P['bands'], P['targetwcs'], mods=usemods, mp=mp,
@@ -390,8 +392,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
     if cleanup:
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
 
-    # [5] Finally, build png postage stamps.
-
+    # [6] Finally, build png postage stamps.
     def call_make_png(C, onlycentral=False):
         rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1)
         #rgbkwargs_resid = dict(mnmx=(0.1, 2), arcsinh=1)
