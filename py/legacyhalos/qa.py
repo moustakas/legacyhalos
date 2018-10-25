@@ -381,8 +381,8 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
 
         im = ax1.imshow(img, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
                         interpolation='nearest')
-        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
-                 ha='center', va='center', color='k', fontsize=14)
+        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
+                 ha='center', va='center', color='k', fontsize=16)
 
         if mgefit:
             from mge.mge_print_contours import _multi_gauss, _gauss2d_mge

@@ -99,10 +99,10 @@ def write_ellipsefit(objid, objdir, ellipsefit, verbose=False):
     with open(ellipsefitfile, 'wb') as ell:
         pickle.dump(ellipsefit, ell)
 
-def read_ellipsefit(objid, objdir, verbose=True):
+def read_ellipsefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_ellipsefit."""
 
-    ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
+    ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
     try:
         with open(ellipsefitfile, 'rb') as ell:
             ellipsefit = pickle.load(ell)
@@ -114,20 +114,20 @@ def read_ellipsefit(objid, objdir, verbose=True):
 
     return ellipsefit
 
-def write_sky_ellipsefit(objid, objdir, skyellipsefit, verbose=False):
+def write_sky_ellipsefit(galaxy, galaxydir, skyellipsefit, verbose=False):
     """Pickle the sky ellipse-fitting results
 
     """
-    skyellipsefitfile = os.path.join(objdir, '{}-ellipsefit-sky.p'.format(objid))
+    skyellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit-sky.p'.format(galaxy))
     if verbose:
         print('Writing {}'.format(skyellipsefitfile))
     with open(skyellipsefitfile, 'wb') as ell:
         pickle.dump(skyellipsefit, ell)
 
-def read_sky_ellipsefit(objid, objdir, verbose=True):
+def read_sky_ellipsefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_skyellipsefit."""
 
-    skyellipsefitfile = os.path.join(objdir, '{}-ellipsefit-sky.p'.format(objid))
+    skyellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit-sky.p'.format(galaxy))
     try:
         with open(skyellipsefitfile, 'rb') as ell:
             skyellipsefit = pickle.load(ell)
@@ -272,13 +272,18 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r', pixscal
         invvar = fitsio.read(os.path.join(galaxydir, '{}-invvar-{}.fits.fz'.format(galaxy, filt)))
 
         # Mask pixels with ivar<=0. Also build an object mask from the model
-        # image, to handle systematic residuals.  However, don't mask too
-        # aggressively near the center of the galaxy.
-        sig1 = 1.0 / np.sqrt(np.median(invvar[invvar > 0]))
+        # image, to handle systematic residuals.
+        mask = (invvar <= 0) # 1=bad, 0=good
+        if np.sum(mask) > 0:
+            invvar[mask] = 1e-3
 
-        mask = (invvar <= 0)*1 # 1=bad, 0=good
-        mask = np.logical_or( mask, ( model > (1 * sig1) )*1 )
-        mask = binary_dilation(mask, iterations=5) * 1
+        snr = model * np.sqrt(invvar)
+        mask = np.logical_or( mask, (snr > 1) ) 
+
+        #sig1 = 1.0 / np.sqrt(np.median(invvar))
+        #mask = np.logical_or( mask, (image - model) > (3 * sig1) )
+
+        mask = binary_dilation(mask * 1, iterations=3)
 
         data[filt] = (image - model) / pixscale**2 # [nanomaggies/arcsec**2]
         

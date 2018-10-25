@@ -223,26 +223,20 @@ def main():
     if args.html:
         from legacyhalos.html import make_plots
 
-        print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
-        tall = time.time()
+        htmldir = os.path.join(analysisdir, 'html')
+
         for ii in groups:
+            t0 = time.time()
+
             onegal = sample[ii][0]
-
-            legacyhalos.html.make_plots(onegal, analysisdir='.', htmldir='.',
-                                        clobber=True, verbose=True)
-
-            pdb.set_trace()
-            
             galaxy = onegal['GALAXY'].lower()
-            galaxydir = os.path.join(analysisdir, galaxy)
+            
+            make_plots(onegal, galaxy=galaxy, analysisdir=analysisdir, htmldir=htmldir,
+                       clobber=args.clobber, verbose=args.verbose, notrends=True)
 
-            qa_ellipse_results(objid, objdir, htmlobjdir, band=band,
-                               clobber=clobber, verbose=verbose)
-
-            make_plots(onegal, analysisdir=galaxydir, htmldir=galaxydir,
-                       clobber=True, verbose=True)
-        
     pdb.set_trace()
+
+
 
     log = None
     #force = True

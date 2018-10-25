@@ -159,16 +159,14 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
         return 1
 
 def _custom_sky(skyargs):
-    """Wrapper function for the multiprocessing."""
-    return custom_sky(*skyargs)
-
-def custom_sky(survey, onegal, radius, ccd):
     """Perform custom sky-subtraction on a single CCD.
 
     """
     from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
     from legacypipe.runbrick import stage_srcs
+
+    survey, onegal, radius, ccd = skyargs
 
     im = survey.get_image_object(ccd)
     print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
@@ -179,10 +177,11 @@ def custom_sky(survey, onegal, radius, ccd):
 
     mp = multiproc()
     targetwcs, bands = tim.subwcs, tim.band
-    H, W = tim.imobj.height, tim.imobj.width
+    H, W = targetwcs.shape
+    H, W = np.int(H), np.int(W)
 
     S = stage_srcs(pixscale=im.pixscale, targetwcs=targetwcs, W=W, H=H,
-                   bands=bands, tims=[tim], mp=mp, nsigma=5, survey=survey,
+                   bands=bands, tims=[tim], mp=mp, nsigma=3, survey=survey,
                    gaia_stars=True, star_clusters=False)
 
     mask = S['blobs'] != -1
