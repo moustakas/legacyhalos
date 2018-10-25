@@ -16,6 +16,7 @@ from contextlib import redirect_stdout, redirect_stderr
 
 from astrometry.util.multiproc import multiproc
 
+import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
 
 def _copyfile(infile, outfile):
@@ -166,12 +167,16 @@ def _custom_sky(skyargs):
     from scipy.ndimage.morphology import binary_dilation
     from legacypipe.runbrick import stage_srcs
 
-    survey, onegal, radius, ccd = skyargs
+    survey, onegal, ccd = skyargs
 
     im = survey.get_image_object(ccd)
     print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
           'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
           'object', getattr(ccd, 'object', None))
+
+    radius = legacyhalos.misc.cutout_radius_150kpc(
+        redshift=onegal['Z'], pixscale=im.pixscale) # [pixels]
+    
     tim = im.get_tractor_image(splinesky=True, subsky=False,
                                hybridPsf=True, normalizePsf=True)
 
@@ -185,23 +190,28 @@ def _custom_sky(skyargs):
                    gaia_stars=True, star_clusters=False)
 
     mask = S['blobs'] != -1 # 1 = bad
-    #mask = binary_dilation(mask, iterations=2)
+    mask = np.logical_or( mask, tim.getInvvar() <= 0 )
+    mask = binary_dilation(mask, iterations=2)
 
     # Mask the full extent of the central galaxy.
     #http://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
     _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
-    xcen, ycen = np.round(x0 - 1), np.round(y0 - 1)
+    xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
 
-    ysize, xsize = tim.shape
-    ymask, xmask = np.ogrid[-ycen:ysize-ycen, -xcen:xsize-xcen]
-    galmask = xmask**2 + ymask**2 <= radius**2
+    ymask, xmask = np.ogrid[-ycen:H-ycen, -xcen:W-xcen]
+    galmask = (xmask**2 + ymask**2) <= radius**2
+
+    #if im.name == 'decam-00603132-S5':
+    #    import matplotlib.pyplot as plt
+    #    plt.imshow(mask, origin='lower') ; plt.show()
+    #    import pdb ; pdb.set_trace()
     mask = np.logical_or( mask, galmask )
 
     # Finally estimate the new (constant) sky background.
     # sigma_clipped_stats(image, mask=mask)
     image = tim.getImage()
     good = np.flatnonzero(~mask)
-    cimage, _, _ = sigmaclip(image.flat[good], low=3.0, high=3.0)
+    cimage, _, _ = sigmaclip(image.flat[good], low=2.0, high=2.0)
     newsky = np.median(cimage)
     #newsky = 2.5 * np.median(cimage) - 1.5 * np.mean(cimage)
 
@@ -279,7 +289,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
-    skyargs = [(survey, onegal, radius, _ccd) for _ccd in survey.ccds]
+    skyargs = [(survey, onegal, _ccd) for _ccd in survey.ccds]
     result = mp.map(_custom_sky, skyargs)
     #result = list( zip( *mp.map(_custom_sky, args) ) )
     sky = dict()

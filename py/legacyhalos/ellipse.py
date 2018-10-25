@@ -273,8 +273,8 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
     if verbose:
         print('Finding the galaxy in the reference {}-band image.'.format(refband))
 
-    galaxy = find_galaxy(data[refband], nblob=1, binning=3,
-                         plot=debug, quiet=not verbose)
+    mgegalaxy = find_galaxy(data[refband], nblob=1, binning=3,
+                            plot=debug, quiet=not verbose)
     if debug:
         #plt.show()
         pass
@@ -287,7 +287,7 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
     mgefit = dict()
     for key in ('eps', 'majoraxis', 'pa', 'theta',
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
-        mgefit[key] = getattr(galaxy, key)
+        mgefit[key] = getattr(mgegalaxy, key)
 
     if not nofit:
         t0 = time.time()
@@ -295,15 +295,15 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
             if verbose:
                 print('Running MGE on the {}-band image.'.format(filt))
 
-            mgephot = sectors_photometry(data[filt], galaxy.eps, galaxy.theta, galaxy.xmed,
-                                         galaxy.ymed, n_sectors=11, minlevel=0, plot=debug,
+            mgephot = sectors_photometry(data[filt], mgegalaxy.eps, mgegalaxy.theta, mgegalaxy.xmed,
+                                         mgegalaxy.ymed, n_sectors=11, minlevel=0, plot=debug,
                                          mask=data['{}_mask'.format(filt)])
             if debug:
                 #plt.show()
                 pass
 
             mgefit[filt] = fit_sectors(mgephot.radius, mgephot.angle, mgephot.counts,
-                                       galaxy.eps, ngauss=None, negative=False,
+                                       mgegalaxy.eps, ngauss=None, negative=False,
                                        sigmaPSF=0, normPSF=1, scale=pixscale,
                                        quiet=not debug, outer_slope=4, bulge_disk=False,
                                        plot=debug)
@@ -311,13 +311,13 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
                 pass
                 #plt.show()
 
-            #_ = print_contours(data[refband], galaxy.pa, galaxy.xpeak, galaxy.ypeak, pp.sol, 
+            #_ = print_contours(data[refband], mgegalaxy.pa, mgegalaxy.xpeak, mgegalaxy.ypeak, pp.sol, 
             #                   binning=2, normpsf=1, magrange=6, mask=None, 
             #                   scale=pixscale, sigmapsf=0)
 
         if verbose:
             print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
-        
+
     if not nowrite:
         legacyhalos.io.write_mgefit(galaxy, galaxydir, mgefit, band=refband, verbose=verbose)
 

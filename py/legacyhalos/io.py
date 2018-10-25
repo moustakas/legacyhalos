@@ -88,12 +88,12 @@ def html_dir():
         os.makedirs(htmldir, exist_ok=True)
     return htmldir
 
-def write_ellipsefit(objid, objdir, ellipsefit, verbose=False):
+def write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
 
     """
-    ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
+    ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
     with open(ellipsefitfile, 'wb') as ell:
@@ -139,21 +139,21 @@ def read_sky_ellipsefit(galaxy, galaxydir, verbose=True):
 
     return skyellipsefit
 
-def write_sersic(objid, objdir, sersic, modeltype='single', verbose=False):
+def write_sersic(galaxy, galaxydir, sersic, modeltype='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
 
     """
-    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, modeltype))
+    sersicfile = os.path.join(galaxydir, '{}-sersic-{}.p'.format(galaxy, modeltype))
     if verbose:
         print('Writing {}'.format(sersicfile))
     with open(sersicfile, 'wb') as ell:
         pickle.dump(sersic, ell)
 
-def read_sersic(objid, objdir, modeltype='single', verbose=True):
+def read_sersic(galaxy, galaxydir, modeltype='single', verbose=True):
     """Read the output of write_sersic."""
 
-    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, modeltype))
+    sersicfile = os.path.join(galaxydir, '{}-sersic-{}.p'.format(galaxy, modeltype))
     try:
         with open(sersicfile, 'rb') as ell:
             sersic = pickle.load(ell)
@@ -165,20 +165,47 @@ def read_sersic(objid, objdir, modeltype='single', verbose=True):
 
     return sersic
 
-def write_mgefit(objid, objdir, mgefit, band='r', verbose=False):
+def write_sbprofile(sbprofile, smascale, sbfile):
+    """Write a (previously derived) surface brightness profile as a simple ASCII
+    file, for use on a webpage.
+
+    """
+    data = np.array( [
+        sbprofile['sma'],
+        sbprofile['sma'] * smascale,
+        sbprofile['mu_g'],
+        sbprofile['mu_r'],
+        sbprofile['mu_z'],
+        sbprofile['mu_g_err'],
+        sbprofile['mu_r_err'],
+        sbprofile['mu_z_err']
+        ] ).T
+
+    fixnan = np.isnan(data)
+    if np.sum(fixnan) > 0:
+        data[fixnan] = -999
+        
+    np.savetxt(sbfile, data, fmt='%.6f')
+    #with open(sbfile, 'wb') as sb:
+    #    sb.write('# Yo\n')
+    #pdb.set_trace()
+
+    print('Wrote {}'.format(sbfile))
+
+def write_mgefit(galaxy, galaxydir, mgefit, band='r', verbose=False):
     """Pickle an XXXXX object (see, e.g., ellipse.mgefit_multiband).
 
     """
-    mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
+    mgefitfile = os.path.join(galaxydir, '{}-mgefit.p'.format(galaxy))
     if verbose:
         print('Writing {}'.format(mgefitfile))
     with open(mgefitfile, 'wb') as mge:
         pickle.dump(mgefit, mge)
 
-def read_mgefit(objid, objdir, verbose=True):
+def read_mgefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_mgefit."""
 
-    mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
+    mgefitfile = os.path.join(galaxydir, '{}-mgefit.p'.format(galaxy))
     try:
         with open(mgefitfile, 'rb') as mge:
             mgefit = pickle.load(mge)

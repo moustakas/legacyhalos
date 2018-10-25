@@ -20,14 +20,19 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     maskfile = os.path.join(galaxydir, '{}-custom-mask.fits.gz'.format(galaxy))
 
-    ccdargs = [(onegal, _ccd, iccd, survey, maskfile, qarootfile, pixscale)
-               for iccd, _ccd in enumerate(survey.ccds)]
-    mp.map(_display_ccdmask_and_sky, ccdargs)
+    okfiles = True
+    for iccd in range(len(survey.ccds)):
+        qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
+        okfiles *= os.path.isfile(qafile)
 
-    import pdb ; pdb.set_trace()
+    if not okfiles or clobber:
+        ccdargs = [(onegal, _ccd, iccd, survey, maskfile, qarootfile, pixscale)
+                   for iccd, _ccd in enumerate(survey.ccds)]
+        mp.map(_display_ccdmask_and_sky, ccdargs)
 
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
-    display_ccdpos(onegal, survey.ccds, png=ccdposfile)
+    if not os.path.isfile(ccdposfile) or clobber:
+        display_ccdpos(onegal, survey.ccds, png=ccdposfile)
     
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
@@ -72,19 +77,17 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
         #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
 
+        sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
+        if not os.path.isfile(sbprofilefile) or clobber:
+            display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
+                                      png=sbprofilefile, verbose=verbose, minerr=0.0)
+
         multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(galaxy, galaxydir, band=band)
             display_multiband(data, ellipsefit=ellipsefit, indx=indx,
                               png=multibandfile, verbose=verbose)
 
-        sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
-        if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
-                                      png=sbprofilefile, verbose=verbose, minerr=0.0)
-
-        import pdb ; pdb.set_trace()
-        
         ellipsefitfile = os.path.join(htmlgalaxydir, '{}-ellipse-ellipsefit.png'.format(galaxy))
         if not os.path.isfile(ellipsefitfile) or clobber:
             display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
@@ -200,33 +203,30 @@ def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband=
             galaxydir = os.path.join(analysisdir, galaxy)
             htmlgalaxydir = os.path.join(htmldir, galaxy)
 
-        #htmlgalaxydir = os.path.join(htmldir, galaxy)
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
+
+        # Build the ellipse plots.
+        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
+                           clobber=clobber, verbose=verbose)
 
         # Build the CCD-level QA.
         if ccdqa:
             qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey,
                    pixscale=pixscale, mp=mp, clobber=clobber, verbose=verbose)
 
-        import pdb ; pdb.set_trace()
-
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
                           clobber=clobber, verbose=verbose)
 
-        # Build the ellipse plots.
-        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
-                           clobber=clobber, verbose=verbose)
-
-        if False:
-            print('Hack!!  Leaving off sersic plots!')
-            qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
-                              clobber=clobber, verbose=verbose)
+        qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
+                          clobber=clobber, verbose=verbose)
 
         # Build the MGE plots.
         #qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', band=band,
         #               clobber=clobber, verbose=verbose)
+
+    return 1
 
 def _javastring():
     """Return a string that embeds a date in a webpage."""

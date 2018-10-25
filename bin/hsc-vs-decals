@@ -4,10 +4,12 @@
 
 Run the legacyhalos pipeline on the HSC vs DECaLS comparison sample.
 
-with open('CGCG004-096-ellipsefit.p', 'rb') as ff:
+import pickle
+from legacyhalos.ellipse import ellipse_sbprofile
+with open('cgcg004-096/cgcg004-096-ellipsefit.p', 'rb') as ff:
     res = pickle.load(ff)
 prof = ellipse_sbprofile(res)            
-with open('CGCG004-096-sbprofile.p', 'wb') as out:
+with open('cgcg004-096/cgcg004-096-sbprofile.p', 'wb') as out:
     pickle.dump(prof, out)
 
 """
@@ -229,11 +231,15 @@ def main():
             survey.output_dir = os.path.join(analysisdir, galaxy)
             survey.ccds = fits_table(os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy)))
             
-            make_plots([onegal], galaxylist=[galaxy], analysisdir=analysisdir,
-                       htmldir=htmldir, clobber=args.clobber, verbose=args.verbose,
-                       survey=survey, nproc=args.nproc, pixscale=args.pixscale,
-                       ccdqa=True, trends=False)
-
+            err = make_plots([onegal], galaxylist=[galaxy], analysisdir=analysisdir,
+                             htmldir=htmldir, clobber=args.clobber, verbose=args.verbose,
+                             survey=survey, nproc=args.nproc, pixscale=args.pixscale,
+                             ccdqa=True, trends=False)
+            if err == 0:
+                print('ERROR: {}; please check the logfile.'.format(galaxy), flush=True)
+            print('Finished galaxy {} in {:.3f} minutes.'.format(
+                galaxy, (time.time() - t0) / 60), flush=True)
+            
 if __name__ == '__main__':
     main()
 

@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+import legacyhalos.io
 import legacyhalos.misc
 
 sns, _ = legacyhalos.misc.plot_style()
@@ -573,15 +574,18 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
     if ellipsefit['success']:
         sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr)
-
-        colors = _sbprofile_colors()
-
+        
         band, refband = ellipsefit['band'], ellipsefit['refband']
         redshift, pixscale = ellipsefit['redshift'], ellipsefit['pixscale']
         smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
+        if png:
+            sbfile = png.replace('.png', '.txt')
+            legacyhalos.io.write_sbprofile(sbprofile, smascale, sbfile)
+
         yminmax = [40, 0]
         xminmax = [0, 0]
+        colors = _sbprofile_colors()
 
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(10, 12), sharex=True,
                                                  gridspec_kw = {'height_ratios':[0.8, 0.8, 2, 1.2]})
@@ -1249,66 +1253,77 @@ def _display_ccdmask_and_sky(ccdargs):
     import matplotlib.patches as patches
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     from scipy.ndimage.morphology import binary_dilation
+    from scipy.ndimage.filters import uniform_filter
 
     import fitsio
     from tractor.splinesky import SplineSky
 
     onegal, ccd, iccd, survey, maskfile, qarootfile, pixscale = ccdargs
 
-    maskfits = fitsio.FITS(maskfile)
-
-    radius = legacyhalos.misc.cutout_radius_150kpc(
-        redshift=onegal['Z'], pixscale=pixscale) # [pixels]
-
+    # Read the tim.
     im = survey.get_image_object(ccd)
     print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
-          'seeing {:.2f}'.format(ccd.fwhm*im.pixscale), 
+          'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
           'object', getattr(ccd, 'object', None))
+
+    radius = legacyhalos.misc.cutout_radius_150kpc(
+        redshift=onegal['Z'], pixscale=im.pixscale) # [pixels]
+    
     tim = im.get_tractor_image(splinesky=True, subsky=False,
                                hybridPsf=True, normalizePsf=True)
 
+    targetwcs = tim.subwcs
+    H, W = targetwcs.shape
+    H, W = np.int(H), np.int(W)
+
+    # Get the image, read and instantiate the pipeline (splinesky) model.
     image = tim.getImage()
+    weight = tim.getInvvar()
+    pipesky = np.zeros_like(image)
+    tim.getSky().addTo(pipesky)
+
+    # Reproduce the (pipeline) image mask derived in
+    # legacypipe.decam.run_calibs.
+    boxsize, boxcar = 512, 5
+    if min(image.shape) / boxsize < 4:
+        boxsize /= 2
+
+    good = weight > 0
+    if np.sum(good) == 0:
+        raise RuntimeError('No pixels with weight > 0.')
+    med = np.median(image[good])
+
+    skyobj = SplineSky.BlantonMethod(image - med, good, boxsize)
+    skymod = np.zeros_like(image)
+    skyobj.addTo(skymod)
+
+    bsig1 = ( 1 / np.sqrt( np.median(weight[good]) ) ) / boxcar
+    
+    mask = np.abs( uniform_filter(image - med - skymod, size=boxcar, mode='constant') > (3 * bsig1) )
+    mask = binary_dilation(mask, iterations=3)
 
     # Read the custom mask and (constant) sky value.
     extname = '{}-{:02d}'.format(im.name, im.hdu)
-    newmask = maskfits[extname].read()
-    hdr = maskfits[extname].read_header()
+    newmask = fitsio.read(maskfile, ext=extname)
+    hdr = fitsio.read_header(maskfile, ext=extname)
     newsky = np.zeros_like(image) + hdr['SKY']
 
     # Get the (pixel) coordinates of the galaxy on this CCD
-    W, H, wcs = legacyhalos.misc.ccdwcs(ccd)
-    ok, x0, y0 = wcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
-    xcen, ycen = x0 - 1, y0 - 1
-    pxscale = wcs.pixel_scale()
-
-    # Get the image, read and instantiate the splinesky model, and
-    # also reproduce the image mask used in legacypipe.decam.run_calibs.
-    weight = tim.getInvvar()
-    sky = tim.getSky()
-    skymodel = np.zeros_like(image)
-    sky.addTo(skymodel)
-
-    med = np.median(image[weight > 0])
-    skyobj = SplineSky.BlantonMethod(image - med, weight>0, 512)
-    skymod = np.zeros_like(image)
-    skyobj.addTo(skymod)
-    sig1 = 1.0 / np.sqrt(np.median(weight[weight > 0]))
-    mask = ((image - med - skymod) > (5.0*sig1))*1.0
-    mask = binary_dilation(mask, iterations=3)
-    mask[weight == 0] = 1 # 0=good, 1=bad
-    pipeskypix = np.flatnonzero((mask == 0)*1)
+    _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
+    xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
 
     # Visualize the data, the mask, and the sky.
     fig, ax = plt.subplots(1, 5, sharey=True, figsize=(14, 4.5))
-    #fig, ax = plt.subplots(3, 2, sharey=True, figsize=(14, 6))
-    fig.suptitle('{} (ccd{:02d})'.format(tim.name, iccd), y=0.97)
+    fig.suptitle('{} (ccd{:02d})'.format(extname, iccd), y=0.95, fontsize=20)
 
     vmin_image, vmax_image = np.percentile(image, (1, 99))
     vmin_weight, vmax_weight = np.percentile(weight, (1, 99))
     vmin_mask, vmax_mask = (0, 1)
-    vmin_sky, vmax_sky = np.percentile(skymodel, (1, 99))
+    vmin_sky, vmax_sky = np.percentile(pipesky, (0.1, 99.9))
 
-    for thisax, data, title in zip(ax.flat, (image, mask, newmask, skymodel, newsky), 
+    cmap = 'viridis' # 'inferno'
+
+    for thisax, data, title in zip(ax.flat, (image, mask, newmask, pipesky, newsky), 
                                    ('Image', 'Pipeline Mask', 'Custom Mask',
                                     'Pipeline Sky', 'Custom Sky')):
         if 'Mask' in title:
@@ -1320,22 +1335,24 @@ def _display_ccdmask_and_sky(ccdargs):
         elif 'Weight' in title:
             vmin, vmax = vmin_weight, vmax_weight
 
-        thisim = thisax.imshow(data, cmap='inferno', interpolation='nearest', origin='lower',
-                               vmin=vmin, vmax=vmax)
+        thisim = thisax.imshow(data, cmap=cmap, interpolation='nearest',
+                               origin='lower', vmin=vmin, vmax=vmax)
         thisax.add_patch(patches.Circle((xcen, ycen), radius, fill=False, edgecolor='white', lw=2))
         div = make_axes_locatable(thisax)
         cax = div.append_axes('right', size='15%', pad=0.1)
         cbar = fig.colorbar(thisim, cax=cax, format='%.4g')
 
-        thisax.set_title(title)
+        thisax.set_title(title, fontsize=16)
         thisax.xaxis.set_visible(False)
         thisax.yaxis.set_visible(False)
         thisax.set_aspect('equal')
 
     ## Shared colorbar.
-    plt.tight_layout(w_pad=0.25, h_pad=0.25)
-    plt.subplots_adjust(bottom=0.0, top=0.93)
+    plt.tight_layout(w_pad=0.22)
+    plt.subplots_adjust(bottom=0.05, top=0.95)
 
     qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
     print('Writing {}'.format(qafile))
     fig.savefig(qafile)
+    
+    #import pdb ; pdb.set_trace()
