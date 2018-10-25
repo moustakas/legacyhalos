@@ -9,6 +9,22 @@ sns = plot_style()
 #import seaborn as sns
 #sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
+def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir,
+           clobber=False, verbose=True):
+    """Build CCD-level QA."""
+
+    from astrometry.util.fits import fits_table
+    from legacyhalos.qa import display_ccdpos
+
+    ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
+    ccds = fits_table(ccdsfile)
+    print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+
+    
+
+    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+    display_ccdpos(onegal, ccds, png=ccdposfile)
+    
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
 
@@ -151,32 +167,41 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
         if not os.path.isfile(serexpfile) or clobber:
             display_sersic(serexp, png=serexpfile, verbose=verbose)
 
-def make_plots(sample, analysisdir=None, htmldir=None, galaxy=None, refband='r',
-               band=('g', 'r', 'z'), notrends=False, clobber=False,
+def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband='r',
+               band=('g', 'r', 'z'), trends=True, ccdqa=False, clobber=False,
                verbose=True):
     """Make QA plots.
 
     """
     #from legacyhalos.io import get_galaxy
 
-    if not notrends:
+    if trends:
         from legacyhalos.qa import sample_trends
         sample_trends(sample, htmldir, analysisdir=analysisdir, verbose=verbose)
 
-    for ii, onegal in enumerate( np.atleast_1d(sample) ):
+    for ii, onegal in enumerate( sample ):
+    #for ii, onegal in enumerate( np.atleast_1d(sample) ):
 
-        if galaxy is None:
+        if galaxylist is None:
             pass
             #galaxy, galaxydir = get_galaxy(onegal, analysisdir=analysisdir)
             #galaxy, galaxydir = onegal['GALAXY'].decode('utf-8').lower(), 'cgcg004-096'
             #galaxy, galaxydir, htmlgalaxydir = get_galaxy(onegal, analysisdir=analysisdir, html=True)
         else:
+            galaxy = galaxylist[ii]
             galaxydir = os.path.join(analysisdir, galaxy)
             htmlgalaxydir = os.path.join(htmldir, galaxy)
 
         #htmlgalaxydir = os.path.join(htmldir, galaxy)
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
+
+        # Build the CCD-level QA.
+        if ccdqa:
+            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir,
+                   clobber=clobber, verbose=verbose)
+
+        import pdb ; pdb.set_trace()
 
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
@@ -185,8 +210,6 @@ def make_plots(sample, analysisdir=None, htmldir=None, galaxy=None, refband='r',
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                            clobber=clobber, verbose=verbose)
-
-        import pdb ; pdb.set_trace()
 
         if False:
             print('Hack!!  Leaving off sersic plots!')

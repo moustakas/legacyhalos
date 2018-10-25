@@ -1100,8 +1100,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
     _color_vs_sma()       # color vs semi-major axis
     _ellipticity_vs_sma() # ellipticity vs semi-major axis
 
-
-def ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=False):
+def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=False):
     """Visualize the position of all the CCDs contributing to the image stack of a
     single galaxy.
 
@@ -1155,3 +1154,4 @@ def ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=False):
         plt.close(fig)
     else:
         plt.show()
+

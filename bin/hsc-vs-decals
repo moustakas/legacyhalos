@@ -231,8 +231,9 @@ def main():
             onegal = sample[ii][0]
             galaxy = onegal['GALAXY'].lower()
             
-            make_plots(onegal, galaxy=galaxy, analysisdir=analysisdir, htmldir=htmldir,
-                       clobber=args.clobber, verbose=args.verbose, notrends=True)
+            make_plots([onegal], galaxylist=[galaxy], analysisdir=analysisdir,
+                       htmldir=htmldir, clobber=args.clobber, verbose=args.verbose,
+                       ccdqa=True, trends=False)
 
     pdb.set_trace()
 
@@ -488,64 +489,11 @@ def main():
 
             pdb.set_trace()
 
-        if len(missing_coadds(sample, clobber=True)) > 0:
-            brickname = legacyhalos.coadds.custom_brickname(onegal['RA'], onegal['DEC'], prefix='')
-
-            P = legacyhalos.coadds.coadds_stage_tims(onegal, survey=survey, mp=mp, radius=radius,
-                                                     brickname=brickname, pixscale=PIXSCALE,
-                                                     log=log, splinesky=splinesky, plots=True)
-            
-            
-            
-            pdb.set_trace()
-
-            # Step 1 - Build a custom brick.
-            success = legacyhalos.coadds.custom_brick(onegal, prefix, survey=survey, radius=radius,
-                                                      nproc=nproc, pixscale=PIXSCALE, log=log, force=force,
-                                                      archivedir=None, splinesky=splinesky)
-
-            if success:
-                # Step 2 - Read the Tractor catalog for this brick and remove the central.
-                cat = legacyhalos.coadds.read_tractor(onegal, prefix=prefix, survey=survey, log=log)
-
-                # Step 3 - Set up the first stage of the pipeline.
-                P = legacyhalos.coadds.coadds_stage_tims(onegal, survey=survey, mp=mp, radius=radius,
-                                                         brickname=brickname, pixscale=PIXSCALE,
-                                                         log=log, splinesky=splinesky)
-
-                ## To get the sky models:
-                #tim = P['tims'][0]
-                #sky = tim.imobj.read_sky_model(splinesky=True, slc=tim.slice)
-                #skymod = np.zeros(tim.shape, np.float32)
-                #sky.addTo(skymod)
-                #import matplotlib.pyplot as plt
-                #plt.imshow(skymod, origin='lower')
-                #plt.show()
-
-                # Step 4 - Render the model images without the central.
-                mods = legacyhalos.coadds.build_model_image(cat, tims=P['tims'], survey=survey, log=log)
-
-                # Step 3 - Generate and write out the coadds.
-                legacyhalos.coadds.tractor_coadds(onegal, P['targetwcs'], P['tims'], mods, P['version_header'],
-                                                  prefix=prefix, brickname=brickname, survey=survey, mp=mp,
-                                                  log=log, skycoadd=True)
-
-        pdb.set_trace()
-
-        if len(missing_ellipse(sample, clobber=True)) > 0:
-            from legacyhalos.ellipse import legacyhalos_ellipse
-            success = legacyhalos_ellipse(onegal, objid=prefix, objdir='.', nproc=nproc, 
-                                          pixscale=PIXSCALE, debug=False, verbose=True)
-
-        # Plots---
-        legacyhalos.html.make_plots(onegal, analysisdir='.', htmldir='.',
-                                    clobber=True, verbose=True)
-
-        with open('CGCG004-096-ellipsefit.p', 'rb') as ff:
-            res = pickle.load(ff)
-        prof = ellipse_sbprofile(res)            
-        with open('CGCG004-096-sbprofile.p', 'wb') as out:
-            pickle.dump(prof, out)
+        #with open('CGCG004-096-ellipsefit.p', 'rb') as ff:
+        #    res = pickle.load(ff)
+        #prof = ellipse_sbprofile(res)            
+        #with open('CGCG004-096-sbprofile.p', 'wb') as out:
+        #    pickle.dump(prof, out)
             
         pdb.set_trace()
     
