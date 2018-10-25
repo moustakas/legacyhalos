@@ -95,8 +95,7 @@ def _custom_sky(args):
     cimage, _, _ = sigmaclip(image.flat[good], low=2.0, high=2.0)
     newsky = np.median(cimage)
     #newsky = 2.5 * np.median(cimage) - 1.5 * np.mean(cimage)
-    #newsky = newsky / tim.zpscale # [nanomaggies]
-    print(newsky, np.median(splinesky))
+    #print(newsky, np.median(splinesky))
 
     out = dict()
     key = '{}-{:02d}'.format(im.name, im.hdu)
@@ -303,8 +302,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
     tims = P['tims']
 
     # [2] Derive the custom sky value of each (full) CCD.
-    args = [(survey, onegal, radius, _ccd) for _ccd in survey.ccds]
-    result = mp.map(_custom_sky, args)
+    skyargs = [(survey, onegal, radius, _ccd) for _ccd in survey.ccds]
+    result = mp.map(_custom_sky, skyargs)
     #result = list( zip( *mp.map(_custom_sky, args) ) )
     sky = dict()
     [sky.update(res) for res in result]
@@ -318,9 +317,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
         hdu.header['SKY'] = sky['{}-sky'.format(key)]
         hx.append(hdu)
 
-    maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits'.format(galaxy))
+    maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
     print('Writing {}'.format(maskfile))
-    hx.writeto(maskfile, overwrite=True)
+    #hx.writeto(maskfile, overwrite=True)
 
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
@@ -370,8 +369,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
         [print(' ', src) for src in srcs]
 
     print('Rendering model images with and without surrounding galaxies...', flush=True, file=log)
-    mods = [_get_mod((tim, srcs)) for tim in newtims]
-    mods_nocentral = [_get_mod((tim, srcs_nocentral)) for tim in newtims]
+    modargs = [(tim, srcs) for tim in newtims]
+    mods = mp.map(_get_mod, modargs)
+
+    modargs = [(tim, srcs_nocentral) for tim in newtims]
+    mods_nocentral = mp.map(_get_mod, modargs)
 
     # [5] Build the custom coadds, with and without the surrounding galaxies.
     print('Producing coadds...', flush=True, file=log)
@@ -401,9 +403,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
     # Custom coadds (without the central).
     if log:
         with redirect_stdout(log), redirect_stderr(log):
-            C_onlycentral = call_make_coadds(mods_nocentral)
+            C_nocentral = call_make_coadds(mods_nocentral)
     else:
-        C_onlycentral = call_make_coadds(mods_nocentral)
+        C_nocentral = call_make_coadds(mods_nocentral)
 
     # Move (rename) the coadds into the desired output directory - no central.
     for suffix in ('image', 'model'):
@@ -412,7 +414,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
                 os.path.join(survey.output_dir, 'coadd', brickname[:3], 
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
                     brickname, suffix, band)),
-                os.path.join(survey.output_dir, '{}-custom-central-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
+                os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
             if not ok:
                 return ok
             
@@ -420,12 +422,12 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
         shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
 
     # [6] Finally, build png postage stamps.
-    def call_make_png(C, onlycentral=False):
+    def call_make_png(C, nocentral=False):
         rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1)
         #rgbkwargs_resid = dict(mnmx=(0.1, 2), arcsinh=1)
         rgbkwargs_resid = dict(mnmx=(-1, 100), arcsinh=1)
 
-        if onlycentral:
+        if nocentral:
             coadd_list = [('custom-model-nocentral', C.comods, rgbkwargs),
                           ('custom-image-central', C.coresids, rgbkwargs_resid)]
         else:
@@ -441,58 +443,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, ncpu=1,
             imsave_jpeg(outfn, rgb, origin='lower', **kwa)
             del rgb
 
-    call_make_png(C, onlycentral=False)
-    call_make_png(C_onlycentral, onlycentral=True)
+    call_make_png(C, nocentral=False)
+    call_make_png(C_nocentral, nocentral=True)
 
     return 1
 
-def legacyhalos_custom_coadds(sample, survey=None, prefix=None, objdir=None,
-                              ncpu=1, pixscale=0.262, log=None, force=False,
-                              splinesky=True, cluster_radius=False):
-    """Top-level wrapper script to generate coadds for a single galaxy.
-
-    """ 
-    from astrometry.util.multiproc import multiproc
-    mp = multiproc(nthreads=ncpu)
-    
-    #if prefix is None and objdir is None:
-    #    objid, objdir = get_objid(sample)
-    brickname = custom_brickname(sample['RA'], sample['DEC'])
-
-    survey.output_dir = objdir
-    archivedir = objdir.replace('analysis', 'analysis-archive') # hack!
-
-    # Step 0 - Get the cutout radius.
-    if cluster_radius:
-        from legacyhalos.misc import cutout_radius_cluster
-        radius = cutout_radius_cluster(redshift=sample['Z'], pixscale=pixscale,
-                                       cluster_radius=sample['R_LAMBDA'])
-    else:
-        from legacyhalos.misc import cutout_radius_150kpc
-        radius = cutout_radius_150kpc(redshift=sample['Z'], pixscale=pixscale)
-
-    # Step 1 - Run legacypipe to generate a custom "brick" and tractor catalog
-    # centered on the central.
-    success = runbrick(sample, prefix=prefix, survey=survey, radius=radius,
-                       ncpu=ncpu, pixscale=pixscale, log=log, force=force,
-                       archivedir=archivedir, splinesky=splinesky)
-    if success:
-
-        # Step 2 - Read the Tractor catalog for this brick and remove the central.
-        cat = read_tractor(sample, prefix=prefix, survey=survey, log=log)
-
-        # Step 3 - Set up the first stage of the pipeline.
-        P = coadds_stage_tims(sample, survey=survey, mp=mp, radius=radius,
-                              brickname=brickname, pixscale=pixscale, log=log,
-                              splinesky=splinesky)
-
-        # Step 4 - Render the model images without the central.
-        mods = build_model_image(cat, tims=P['tims'], survey=survey, log=log)
-
-        # Step 3 - Generate and write out the coadds.
-        tractor_coadds(sample, P['targetwcs'], P['tims'], mods, P['version_header'],
-                       prefix=prefix, brickname=brickname, survey=survey, mp=mp, log=log)
-        return 1
-
-    else:
-        return 0
