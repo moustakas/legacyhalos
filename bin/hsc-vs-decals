@@ -101,7 +101,7 @@ def main():
     import legacyhalos.io
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ncpu', default=4, type=int, help='number of multiprocessing processes.')
+    parser.add_argument('--nproc', default=4, type=int, help='number of multiprocessing processes.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
 
     parser.add_argument('--build-sample', action='store_true', help='Build and write out the sample.')
@@ -156,33 +156,37 @@ def main():
         print('{} left to do: {} / {} divided across {} group(s).'.format(
             suffix.upper(), ntodo, len(sample), len(groups)), flush=True)
 
+    print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
+    
     # Generate the pipeline coadds.
     if args.coadds:
         from legacyhalos.coadds import pipeline_coadds
         survey = LegacySurveyData()
 
-        print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
-        tall = time.time()
         for ii in groups:
-            onegal = sample[ii][0]
+            t0 = time.time()
 
+            onegal = sample[ii][0]
             galaxy = onegal['GALAXY'].lower()
             survey.output_dir = os.path.join(analysisdir, galaxy)
             
             radius = legacyhalos.misc.cutout_radius_150kpc( 
                 redshift=onegal['Z'], pixscale=args.pixscale) # [pixels]
             
-            pipeline_coadds(onegal, galaxy=galaxy, radius=radius, survey=survey,
-                            pixscale=args.pixscale, ncpu=args.ncpu, force=args.force,
-                            splinesky=True, cleanup=True)
+            err = pipeline_coadds(onegal, galaxy=galaxy, radius=radius, survey=survey,
+                                  pixscale=args.pixscale, nproc=args.nproc, force=args.force)
+            if err == 0:
+                print('ERROR: {}; please check the logfile.'.format(galaxy), flush=True)
+            print('Finished galaxy {} in {:.3f} minutes.'.format(
+                galaxy, (time.time() - t0) / 60), flush=True)
 
     if args.custom_coadds:
         from legacyhalos.coadds import custom_coadds
         survey = LegacySurveyData()
 
-        print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
-        tall = time.time()
         for ii in groups:
+            t0 = time.time()
+
             onegal = sample[ii][0]
             galaxy = onegal['GALAXY'].lower()
 
@@ -192,23 +196,29 @@ def main():
             radius = legacyhalos.misc.cutout_radius_150kpc( 
                 redshift=onegal['Z'], pixscale=args.pixscale) # [pixels]
             
-            custom_coadds(onegal, galaxy=galaxy, radius=radius, survey=survey,
-                          pixscale=args.pixscale, ncpu=args.ncpu, verbose=args.verbose)
-                                             
+            err = custom_coadds(onegal, galaxy=galaxy, radius=radius, survey=survey,
+                                pixscale=args.pixscale, nproc=args.nproc, verbose=args.verbose)
+            if err == 0:
+                print('ERROR: {}; please check the logfile.'.format(galaxy), flush=True)
+            print('Finished galaxy {} in {:.3f} minutes.'.format(
+                galaxy, (time.time() - t0) / 60), flush=True)
 
     if args.ellipse:
         from legacyhalos.ellipse import legacyhalos_ellipse
 
-        print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
-        tall = time.time()
         for ii in groups:
+            t0 = time.time()
+
             onegal = sample[ii][0]
             galaxy = onegal['GALAXY'].lower()
             galaxydir = os.path.join(analysisdir, galaxy)
 
-            legacyhalos_ellipse(onegal, galaxydir=galaxydir,
-                                pixscale=args.pixscale, debug=False,
-                                verbose=args.verbose)
+            err = legacyhalos_ellipse(onegal, galaxydir=galaxydir, pixscale=args.pixscale, 
+                                      verbose=args.verbose)
+            if err == 0:
+                print('ERROR: {}; please check the logfile.'.format(galaxy), flush=True)
+            print('Finished galaxy {} in {:.3f} minutes.'.format(
+                galaxy, (time.time() - t0) / 60), flush=True)
 
     if args.html:
         from legacyhalos.html import make_plots
@@ -238,10 +248,10 @@ def main():
     #force = True
     force = False
     splinesky = True
-    #ncpu = 1
-    ncpu = 16
+    #nproc = 1
+    nproc = 16
 
-    mp = multiproc(nthreads=ncpu)
+    mp = multiproc(nthreads=nproc)
 
     from scipy.ndimage.morphology import binary_dilation
     from tractor.splinesky import SplineSky
@@ -497,7 +507,7 @@ def main():
 
             # Step 1 - Build a custom brick.
             success = legacyhalos.coadds.custom_brick(onegal, prefix, survey=survey, radius=radius,
-                                                      ncpu=ncpu, pixscale=PIXSCALE, log=log, force=force,
+                                                      nproc=nproc, pixscale=PIXSCALE, log=log, force=force,
                                                       archivedir=None, splinesky=splinesky)
 
             if success:
@@ -530,7 +540,7 @@ def main():
 
         if len(missing_ellipse(sample, clobber=True)) > 0:
             from legacyhalos.ellipse import legacyhalos_ellipse
-            success = legacyhalos_ellipse(onegal, objid=prefix, objdir='.', ncpu=ncpu, 
+            success = legacyhalos_ellipse(onegal, objid=prefix, objdir='.', nproc=nproc, 
                                           pixscale=PIXSCALE, debug=False, verbose=True)
 
         # Plots---
