@@ -1155,3 +1155,187 @@ def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=
     else:
         plt.show()
 
+def display_ccd_apphot():
+    deltar = 5.0
+    rin = np.arange(0.0, radius/2, 1.0)
+    nap = len(rin)
+
+    apphot = Table(np.zeros(nap, dtype=[('RCEN', 'f4'), ('RIN', 'f4'),
+                                        ('ROUT', 'f4'), ('PIPEFLUX', 'f4'),
+                                        ('NEWFLUX', 'f4'), ('PIPESKYFLUX', 'f4'), 
+                                        ('NEWSKYFLUX', 'f4'), ('AREA', 'f4'),
+                                        ('SKYAREA', 'f4')]))
+    apphot['RIN'] = rin
+    apphot['ROUT'] = rin + deltar
+    apphot['RCEN'] = rin + deltar / 2.0
+    for ii in range(nap):
+        ap = CircularAperture((xcen, ycen), apphot['RCEN'][ii])
+        skyap = CircularAnnulus((xcen, ycen), r_in=apphot['RIN'][ii],
+                                r_out=apphot['ROUT'][ii])
+
+        #pdb.set_trace()
+        apphot['PIPEFLUX'][ii] = aperture_photometry(image_nopipesky, ap)['aperture_sum'].data
+        apphot['NEWFLUX'][ii] = aperture_photometry(image_nonewsky, ap)['aperture_sum'].data
+        apphot['PIPESKYFLUX'][ii] = aperture_photometry(image_nopipesky, skyap)['aperture_sum'].data
+        apphot['NEWSKYFLUX'][ii] = aperture_photometry(image_nonewsky, skyap)['aperture_sum'].data
+
+        apphot['AREA'][ii] = ap.area()
+        apphot['SKYAREA'][ii] = skyap.area()
+
+    # Convert to arcseconds
+    apphot['RIN'] *= im.pixscale
+    apphot['ROUT'] *= im.pixscale
+    apphot['RCEN'] *= im.pixscale
+    apphot['AREA'] *= im.pixscale**2
+    apphot['SKYAREA'] *= im.pixscale**2
+    print(apphot)
+    #pdb.set_trace()
+
+    # Now generate some QAplots related to the sky.
+    sbinsz = 0.001
+    srange = (-5 * sig1, +5 * sig1)
+    #sbins = 50
+    sbins = np.int( (srange[1]-srange[0]) / sbinsz )
+
+    qaccd = os.path.join('.', 'qa-{}-ccd{:02d}-sky.png'.format(prefix.lower(), iccd))
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    fig.suptitle('{} (ccd{:02d})'.format(tim.name, iccd), y=0.97)
+    for data1, label, color in zip((image_nopipesky.flat[pipeskypix],
+                                    image_nonewsky.flat[newskypix]),
+                                   ('Pipeline Sky', 'Custom Sky'), setcolors):
+        nn, bins = np.histogram(data1, bins=sbins, range=srange)
+        nn = nn/float(np.max(nn))
+        cbins = (bins[:-1] + bins[1:]) / 2.0
+        #pdb.set_trace()
+        ax[0].step(cbins, nn, color=color, lw=2, label=label)
+        ax[0].set_ylim(0, 1.2)
+        #(nn, bins, _) = ax[0].hist(data1, range=srange, bins=sbins,
+        #                           label=label, normed=True, lw=2, 
+        #                           histtype='step', color=color)
+    ylim = ax[0].get_ylim()
+    ax[0].vlines(0.0, ylim[0], 1.05, colors='k', linestyles='dashed')
+    ax[0].set_xlabel('Residuals (nmaggie)')
+    ax[0].set_ylabel('Relative Fraction of Pixels')
+    ax[0].legend(frameon=False, loc='upper left')
+
+    ax[1].plot(apphot['RCEN'], apphot['PIPESKYFLUX']/apphot['SKYAREA'], 
+                  label='Pipeline', color=setcolors[0])
+    ax[1].plot(apphot['RCEN'], apphot['NEWSKYFLUX']/apphot['SKYAREA'], 
+                  label='Custom', color=setcolors[1])
+    #ax[1].scatter(apphot['RCEN'], apphot['PIPESKYFLUX']/apphot['SKYAREA'], 
+    #              label='DR2 Pipeline', marker='o', color=setcolors[0])
+    #ax[1].scatter(apphot['RCEN']+1.0, apphot['NEWSKYFLUX']/apphot['SKYAREA'], 
+    #              label='Large Galaxy Pipeline', marker='s', color=setcolors[1])
+    ax[1].set_xlabel('Galactocentric Radius (arcsec)')
+    ax[1].set_ylabel('Flux in {:g}" Annulus (nmaggie/arcsec$^2$)'.format(deltar))
+    ax[1].set_xlim(-2.0, apphot['ROUT'][-1])
+    ax[1].legend(frameon=False, loc='upper right')
+
+    xlim = ax[1].get_xlim()
+    ylim = ax[1].get_ylim()
+    ax[1].hlines(0.0, xlim[0], xlim[1]*0.99999, colors='k', linestyles='dashed')
+    #ax[1].vlines(gal['RADIUS'], ylim[0], ylim[1]*0.5, colors='k', linestyles='dashed')
+
+    plt.tight_layout(w_pad=0.25)
+    plt.subplots_adjust(bottom=0.15, top=0.88)
+    print('Writing {}'.format(qaccd))
+    plt.savefig(qaccd)
+
+def _display_ccdmask_and_sky(ccdargs):
+    """Visualize the image, the custom mask, custom sky, and the pipeline sky (via
+    multiprocessing) of a single CCD.
+
+    """
+    import matplotlib.patches as patches
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    from scipy.ndimage.morphology import binary_dilation
+
+    import fitsio
+    from tractor.splinesky import SplineSky
+
+    onegal, ccd, iccd, survey, maskfile, qarootfile, pixscale = ccdargs
+
+    maskfits = fitsio.FITS(maskfile)
+
+    radius = legacyhalos.misc.cutout_radius_150kpc(
+        redshift=onegal['Z'], pixscale=pixscale) # [pixels]
+
+    im = survey.get_image_object(ccd)
+    print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
+          'seeing {:.2f}'.format(ccd.fwhm*im.pixscale), 
+          'object', getattr(ccd, 'object', None))
+    tim = im.get_tractor_image(splinesky=True, subsky=False,
+                               hybridPsf=True, normalizePsf=True)
+
+    image = tim.getImage()
+
+    # Read the custom mask and (constant) sky value.
+    extname = '{}-{:02d}'.format(im.name, im.hdu)
+    newmask = maskfits[extname].read()
+    hdr = maskfits[extname].read_header()
+    newsky = np.zeros_like(image) + hdr['SKY']
+
+    # Get the (pixel) coordinates of the galaxy on this CCD
+    W, H, wcs = legacyhalos.misc.ccdwcs(ccd)
+    ok, x0, y0 = wcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
+    xcen, ycen = x0 - 1, y0 - 1
+    pxscale = wcs.pixel_scale()
+
+    # Get the image, read and instantiate the splinesky model, and
+    # also reproduce the image mask used in legacypipe.decam.run_calibs.
+    weight = tim.getInvvar()
+    sky = tim.getSky()
+    skymodel = np.zeros_like(image)
+    sky.addTo(skymodel)
+
+    med = np.median(image[weight > 0])
+    skyobj = SplineSky.BlantonMethod(image - med, weight>0, 512)
+    skymod = np.zeros_like(image)
+    skyobj.addTo(skymod)
+    sig1 = 1.0 / np.sqrt(np.median(weight[weight > 0]))
+    mask = ((image - med - skymod) > (5.0*sig1))*1.0
+    mask = binary_dilation(mask, iterations=3)
+    mask[weight == 0] = 1 # 0=good, 1=bad
+    pipeskypix = np.flatnonzero((mask == 0)*1)
+
+    # Visualize the data, the mask, and the sky.
+    fig, ax = plt.subplots(1, 5, sharey=True, figsize=(14, 4.5))
+    #fig, ax = plt.subplots(3, 2, sharey=True, figsize=(14, 6))
+    fig.suptitle('{} (ccd{:02d})'.format(tim.name, iccd), y=0.97)
+
+    vmin_image, vmax_image = np.percentile(image, (1, 99))
+    vmin_weight, vmax_weight = np.percentile(weight, (1, 99))
+    vmin_mask, vmax_mask = (0, 1)
+    vmin_sky, vmax_sky = np.percentile(skymodel, (1, 99))
+
+    for thisax, data, title in zip(ax.flat, (image, mask, newmask, skymodel, newsky), 
+                                   ('Image', 'Pipeline Mask', 'Custom Mask',
+                                    'Pipeline Sky', 'Custom Sky')):
+        if 'Mask' in title:
+            vmin, vmax = vmin_mask, vmax_mask
+        elif 'Sky' in title:
+            vmin, vmax = vmin_sky, vmax_sky
+        elif 'Image' in title:
+            vmin, vmax = vmin_image, vmax_image
+        elif 'Weight' in title:
+            vmin, vmax = vmin_weight, vmax_weight
+
+        thisim = thisax.imshow(data, cmap='inferno', interpolation='nearest', origin='lower',
+                               vmin=vmin, vmax=vmax)
+        thisax.add_patch(patches.Circle((xcen, ycen), radius, fill=False, edgecolor='white', lw=2))
+        div = make_axes_locatable(thisax)
+        cax = div.append_axes('right', size='15%', pad=0.1)
+        cbar = fig.colorbar(thisim, cax=cax, format='%.4g')
+
+        thisax.set_title(title)
+        thisax.xaxis.set_visible(False)
+        thisax.yaxis.set_visible(False)
+        thisax.set_aspect('equal')
+
+    ## Shared colorbar.
+    plt.tight_layout(w_pad=0.25, h_pad=0.25)
+    plt.subplots_adjust(bottom=0.0, top=0.93)
+
+    qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
+    print('Writing {}'.format(qafile))
+    fig.savefig(qafile)

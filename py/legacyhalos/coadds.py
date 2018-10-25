@@ -159,7 +159,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
         return 1
 
 def _custom_sky(skyargs):
-    """Perform custom sky-subtraction on a single CCD.
+    """Perform custom sky-subtraction on a single CCD (with multiprocessing).
 
     """
     from scipy.stats import sigmaclip
@@ -181,11 +181,11 @@ def _custom_sky(skyargs):
     H, W = np.int(H), np.int(W)
 
     S = stage_srcs(pixscale=im.pixscale, targetwcs=targetwcs, W=W, H=H,
-                   bands=bands, tims=[tim], mp=mp, nsigma=3, survey=survey,
+                   bands=bands, tims=[tim], mp=mp, nsigma=5, survey=survey,
                    gaia_stars=True, star_clusters=False)
 
-    mask = S['blobs'] != -1
-    mask = binary_dilation(mask, iterations=2)
+    mask = S['blobs'] != -1 # 1 = bad
+    #mask = binary_dilation(mask, iterations=2)
 
     # Mask the full extent of the central galaxy.
     #http://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array

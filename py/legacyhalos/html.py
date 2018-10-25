@@ -9,21 +9,25 @@ sns = plot_style()
 #import seaborn as sns
 #sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
-def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir,
-           clobber=False, verbose=True):
-    """Build CCD-level QA."""
+def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
+           mp=None, clobber=False, verbose=True):
+    """Build CCD-level QA.
 
+    """
     from astrometry.util.fits import fits_table
-    from legacyhalos.qa import display_ccdpos
+    from legacyhalos.qa import display_ccdpos, _display_ccdmask_and_sky
 
-    ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
-    ccds = fits_table(ccdsfile)
-    print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+    qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
+    maskfile = os.path.join(galaxydir, '{}-custom-mask.fits.gz'.format(galaxy))
 
-    
+    ccdargs = [(onegal, _ccd, iccd, survey, maskfile, qarootfile, pixscale)
+               for iccd, _ccd in enumerate(survey.ccds)]
+    mp.map(_display_ccdmask_and_sky, ccdargs)
+
+    import pdb ; pdb.set_trace()
 
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
-    display_ccdpos(onegal, ccds, png=ccdposfile)
+    display_ccdpos(onegal, survey.ccds, png=ccdposfile)
     
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
@@ -168,8 +172,8 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
             display_sersic(serexp, png=serexpfile, verbose=verbose)
 
 def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband='r',
-               band=('g', 'r', 'z'), trends=True, ccdqa=False, clobber=False,
-               verbose=True):
+               band=('g', 'r', 'z'), pixscale=0.262, survey=None, nproc=1, trends=True,
+               ccdqa=False, clobber=False, verbose=True):
     """Make QA plots.
 
     """
@@ -178,6 +182,10 @@ def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband=
     if trends:
         from legacyhalos.qa import sample_trends
         sample_trends(sample, htmldir, analysisdir=analysisdir, verbose=verbose)
+
+    if ccdqa:
+        from astrometry.util.multiproc import multiproc
+        mp = multiproc(nthreads=nproc)
 
     for ii, onegal in enumerate( sample ):
     #for ii, onegal in enumerate( np.atleast_1d(sample) ):
@@ -198,8 +206,8 @@ def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband=
 
         # Build the CCD-level QA.
         if ccdqa:
-            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir,
-                   clobber=clobber, verbose=verbose)
+            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey,
+                   pixscale=pixscale, mp=mp, clobber=clobber, verbose=verbose)
 
         import pdb ; pdb.set_trace()
 
@@ -252,8 +260,8 @@ def _javastring():
     return js
         
 def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
-              refband='r', dr='dr7', first=None, last=None, makeplots=True,
-              clobber=False, verbose=True):
+              refband='r', pixscale=0.262, dr='dr7', first=None, last=None,
+              makeplots=True, clobber=False, verbose=True):
     """Make the HTML pages.
 
     """
@@ -513,4 +521,4 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
 
     if makeplots:
         make_plots(sample, analysisdir=analysisdir, htmldir=htmldir, refband=refband,
-                   band=band, clobber=clobber, verbose=verbose)
+                   band=band, pixscale=pixscale, clobber=clobber, verbose=verbose)
