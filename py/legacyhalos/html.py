@@ -1,5 +1,10 @@
-from __future__ import (absolute_import, division)
+"""
+legacyhalos.html
+================
 
+Code to generate HTML content.
+
+"""
 import os, subprocess, pdb
 import numpy as np
 
