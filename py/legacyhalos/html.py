@@ -164,7 +164,7 @@ def make_plots(sample, analysisdir=None, htmldir='.', refband='r',
     for gal in np.atleast_1d(sample):
         print('HACK!!!')
         #objid, objdir = get_objid(gal, analysisdir=analysisdir)
-        objid, objdir = gal['GALAXY'], '.'
+        objid, objdir = gal['GALAXY'].decode('utf-8').lower(), 'cgcg004-096'
 
         htmlobjdir = os.path.join(htmldir, '{}'.format(objid))
         if not os.path.isdir(htmlobjdir):
