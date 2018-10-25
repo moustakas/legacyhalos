@@ -21,58 +21,6 @@ import numpy as np
 
 import legacyhalos.io
 
-def _missing(sample, size=1, filetype='coadds', clobber=False):
-    """Find missing data of a given filetype."""    
-
-    if filetype == 'coadds':
-        filesuffix = 'image-central.jpg'
-    elif filetype == 'ellipse':
-        filesuffix = 'ellipsefit.p'
-    elif filetype == 'sersic':
-        filesuffix = 'sersic-single.p'
-    elif filetype == 'sky':
-        filesuffix = 'ellipsefit-sky.p'
-    else:
-        print('Unrecognized file type!')
-        raise ValueError
-
-    objid, objdir = legacyhalos.io.get_objid(sample)
-
-    ngal = len(sample)
-    indices = np.arange(ngal)
-    todo = np.ones(ngal, dtype=bool)
-    
-    for ii, (objid1, objdir1) in enumerate( zip(np.atleast_1d(objid), np.atleast_1d(objdir)) ):
-        residfile = os.path.join(objdir1, '{}-{}'.format(objid1, filesuffix))
-        if os.path.exists(residfile) and clobber is False:
-            todo[ii] = False
-
-    if np.sum(todo) == 0:
-        return list()
-    else:
-        indices = indices[todo]
-    return np.array_split(indices, size)
-
-def missing_coadds(sample, size=1, clobber=False):
-    '''Find the galaxies that do not yet have coadds.'''
-    return _missing(sample, size=size, filetype='coadds',
-                    clobber=clobber)
-
-def missing_ellipse(sample, size=1, clobber=False):
-    '''Find the galaxies that do not yet have ellipse fits.'''
-    return _missing(sample, size=size, filetype='ellipse',
-                    clobber=clobber)
-
-def missing_sersic(sample, size=1, clobber=False):
-    '''Find the galaxies that do not yet have Sersic fits.'''
-    return _missing(sample, size=size, filetype='sersic',
-                    clobber=clobber)
-
-def missing_sky(sample, size=1, clobber=False):
-    '''Find the galaxies that do not yet have sky variance estimates.'''
-    return _missing(sample, size=size, filetype='sky',
-                    clobber=clobber)
-
 def main():
     from contextlib import redirect_stdout, redirect_stderr
 

@@ -3,7 +3,6 @@ legacyhalos.ellipse
 ===================
 
 Code to do ellipse fitting on the residual coadds.
-
 """
 from __future__ import absolute_import, division, print_function
 
@@ -16,7 +15,7 @@ import matplotlib.pyplot as plt
 
 import legacyhalos.io
 
-def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
+def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
                          nowrite=False, verbose=False):
     """Ellipse-fit the multiband data.
 
@@ -33,18 +32,20 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
 
     ellipsefit = dict()
     ellipsefit['success'] = False
-    ellipsefit['redshift'] = sample['z']
+    ellipsefit['redshift'] = sample['Z']
     ellipsefit['band'] = band
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
     for filt in band: # [Gaussian sigma]
-        ellipsefit['psfsigma_{}'.format(filt)] = sample['psfsize_{}'.format(filt)] / np.sqrt(8*np.log(2)) # [arcsec]
+        ellipsefit['psfsigma_{}'.format(filt)] = ( sample['PSFSIZE_{}'.format(filt.upper())] /
+                                                   np.sqrt(8 * np.log(2)) ) # [arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
 
     # Default parameters
     #step_pix = 0.1
     #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, step_pix/pixscale, 0.5, True
-    integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, 0.1, 0.5, False
+    #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, 0.1, 0.5, False
+    integrmode, sclip, nclip, step, fflag, linear = 'median', 3, 2, 0.1, 0.5, False
     
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip
@@ -199,7 +200,7 @@ def ellipsefit_multiband(objid, objdir, data, sample, mgefit,
 
     # Write out
     if not nowrite:
-        legacyhalos.io.write_ellipsefit(objid, objdir, ellipsefit, verbose=verbose)
+        legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=verbose)
 
     return ellipsefit
 
@@ -254,7 +255,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
 
     return sbprofile
 
-def mgefit_multiband(objid, objdir, data, debug=False, nowrite=False,
+def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
                      nofit=True, verbose=False):
     """MGE-fit the multiband data.
 
@@ -272,8 +273,8 @@ def mgefit_multiband(objid, objdir, data, debug=False, nowrite=False,
     if verbose:
         print('Finding the galaxy in the reference {}-band image.'.format(refband))
 
-    galaxy = find_galaxy(data[refband], nblob=1, binning=3,
-                         plot=debug, quiet=not verbose)
+    mgegalaxy = find_galaxy(data[refband], nblob=1, binning=3,
+                            plot=debug, quiet=not verbose)
     if debug:
         #plt.show()
         pass
@@ -286,7 +287,7 @@ def mgefit_multiband(objid, objdir, data, debug=False, nowrite=False,
     mgefit = dict()
     for key in ('eps', 'majoraxis', 'pa', 'theta',
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
-        mgefit[key] = getattr(galaxy, key)
+        mgefit[key] = getattr(mgegalaxy, key)
 
     if not nofit:
         t0 = time.time()
@@ -294,15 +295,15 @@ def mgefit_multiband(objid, objdir, data, debug=False, nowrite=False,
             if verbose:
                 print('Running MGE on the {}-band image.'.format(filt))
 
-            mgephot = sectors_photometry(data[filt], galaxy.eps, galaxy.theta, galaxy.xmed,
-                                         galaxy.ymed, n_sectors=11, minlevel=0, plot=debug,
+            mgephot = sectors_photometry(data[filt], mgegalaxy.eps, mgegalaxy.theta, mgegalaxy.xmed,
+                                         mgegalaxy.ymed, n_sectors=11, minlevel=0, plot=debug,
                                          mask=data['{}_mask'.format(filt)])
             if debug:
                 #plt.show()
                 pass
 
             mgefit[filt] = fit_sectors(mgephot.radius, mgephot.angle, mgephot.counts,
-                                       galaxy.eps, ngauss=None, negative=False,
+                                       mgegalaxy.eps, ngauss=None, negative=False,
                                        sigmaPSF=0, normPSF=1, scale=pixscale,
                                        quiet=not debug, outer_slope=4, bulge_disk=False,
                                        plot=debug)
@@ -310,37 +311,39 @@ def mgefit_multiband(objid, objdir, data, debug=False, nowrite=False,
                 pass
                 #plt.show()
 
-            #_ = print_contours(data[refband], galaxy.pa, galaxy.xpeak, galaxy.ypeak, pp.sol, 
+            #_ = print_contours(data[refband], mgegalaxy.pa, mgegalaxy.xpeak, mgegalaxy.ypeak, pp.sol, 
             #                   binning=2, normpsf=1, magrange=6, mask=None, 
             #                   scale=pixscale, sigmapsf=0)
 
         if verbose:
             print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
-        
+
     if not nowrite:
-        legacyhalos.io.write_mgefit(objid, objdir, mgefit, band=refband, verbose=verbose)
+        legacyhalos.io.write_mgefit(galaxy, galaxydir, mgefit, band=refband, verbose=verbose)
 
     return mgefit
     
-def legacyhalos_ellipse(sample, objid=None, objdir=None, ncpu=1,
-                        pixscale=0.262, refband='r', band=('g', 'r', 'z'),
+def legacyhalos_ellipse(onegal, galaxydir=None, pixscale=0.262,
+                        refband='r', band=('g', 'r', 'z'),
                         verbose=False, debug=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
-    """ 
-    if objid is None and objdir is None:
-        objid, objdir = get_objid(sample)
+    """
+    if galaxydir is None:
+        galaxy, galaxydir = get_objid(onegal)
+    else:
+        galaxy = onegal['GALAXY'].lower()
 
     # Read the data.  
-    data = legacyhalos.io.read_multiband(objid, objdir, band=band, refband=refband,
-                                         pixscale=pixscale)
+    data = legacyhalos.io.read_multiband(galaxy, galaxydir, band=band,
+                                         refband=refband, pixscale=pixscale)
     if bool(data):
         # Find the galaxy and perform MGE fitting.
-        mgefit = mgefit_multiband(objid, objdir, data, verbose=verbose, debug=debug)
+        mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose, debug=debug)
 
         # Do ellipse-fitting.
-        ellipsefit = ellipsefit_multiband(objid, objdir, data, sample, mgefit,
-                                          verbose=verbose)
+        ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
+                                          mgefit, verbose=verbose)
         if ellipsefit['success']:
             return 1
         else:
