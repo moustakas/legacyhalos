@@ -25,6 +25,10 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     maskfile = os.path.join(galaxydir, '{}-custom-mask.fits.gz'.format(galaxy))
 
+    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+    if not os.path.isfile(ccdposfile) or clobber:
+        display_ccdpos(onegal, survey.ccds, png=ccdposfile)
+    
     okfiles = True
     for iccd in range(len(survey.ccds)):
         qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
@@ -35,9 +39,6 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
                    for iccd, _ccd in enumerate(survey.ccds)]
         mp.map(_display_ccdmask_and_sky, ccdargs)
 
-    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
-    if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, survey.ccds, png=ccdposfile)
     
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
@@ -214,18 +215,18 @@ def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband=
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                            clobber=clobber, verbose=verbose)
-
-        # Build the CCD-level QA.
-        if ccdqa:
-            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey,
-                   pixscale=pixscale, mp=mp, clobber=clobber, verbose=verbose)
-
+        
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
                           clobber=clobber, verbose=verbose)
 
         qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                           clobber=clobber, verbose=verbose)
+
+        # Build the CCD-level QA.
+        if ccdqa:
+            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey,
+                   pixscale=pixscale, mp=mp, clobber=clobber, verbose=verbose)
 
         # Build the MGE plots.
         #qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', band=band,

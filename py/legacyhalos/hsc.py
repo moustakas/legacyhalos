@@ -234,8 +234,10 @@ def make_html(sample, analysisdir, htmldir, band=('g', 'r', 'z'),
             html.close()
 
     if makeplots:
-        for ii, onegal in enumerate( np.atleast_1d(sample) ):
-            galaxy = onegal['GALAXY'].decode('utf-8').upper()
+        for ii, onegal in enumerate(sample):
+        #for ii, onegal in enumerate( np.atleast_1d(sample) ):
+            galaxy = onegal['GALAXY'].upper()
+            #galaxy = onegal['GALAXY'].decode('utf-8').upper()
             gal = galaxy.lower()
 
             survey.output_dir = os.path.join(analysisdir, gal)

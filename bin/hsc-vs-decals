@@ -228,8 +228,6 @@ def main():
                   survey=survey, makeplots=not args.nomakeplots)
         print('HTML pages written to {}'.format(htmldir))
 
-        pdb.set_trace()
-
         if 'NERSC_HOST' in os.environ:
             print('Execute the following command to publish the webpage.')
             print('rsync -auvP --delete {}/* /project/projectdirs/cosmo/www/temp/ioannis/hsc-vs-decals/'.format(

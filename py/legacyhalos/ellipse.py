@@ -14,6 +14,7 @@ import numpy.ma as ma
 import matplotlib.pyplot as plt
 
 import legacyhalos.io
+import legacyhalos.misc
 
 def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
                          nowrite=False, verbose=False):
@@ -41,11 +42,17 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
                                                    np.sqrt(8 * np.log(2)) ) # [arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
 
+    # Set the maximum semi-major axis length to 100 kpc or three times the
+    # semi-major axis estimated below (whichever is smaller).
+    maxsma_100kpc = 100 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
+    maxsma_major = 3 * mgefit['majoraxis']
+    maxsma = np.min( (maxsma_100kpc, maxsma_major) )
+
     # Default parameters
     #step_pix = 0.1
     #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, step_pix/pixscale, 0.5, True
     #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, 0.1, 0.5, False
-    integrmode, sclip, nclip, step, fflag, linear = 'median', 3, 2, 0.1, 0.5, False
+    integrmode, sclip, nclip, step, fflag, linear = 'median', 3, 2, 0.1, 0.7, False
     
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip
@@ -104,7 +111,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
         for sma0 in (1, 3, 6, 9, 12): # try a few different starting minor axes
             print('  Trying sma0 = {:.1f} pixels.'.format(sma0))
             try:
-                isophot = ellipse.fit_image(sma0, minsma=0.1, maxsma=2.2*mgefit['majoraxis'],
+                isophot = ellipse.fit_image(sma0, minsma=0.1, maxsma=3*mgefit['majoraxis'],
                                             integrmode=integrmode, sclip=sclip, nclip=nclip,
                                             step=step, fflag=fflag, linear=linear)
             except:
