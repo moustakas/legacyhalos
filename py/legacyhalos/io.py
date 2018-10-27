@@ -15,6 +15,53 @@ import fitsio
 from astropy.table import Table
 from astropy.io import fits
 
+def get_galaxy_galaxydir(cat, analysisdir=None):
+    """Retrieve the galaxy name and the (nested) directory based on CENTRAL_ID. 
+
+    """
+    if analysisdir is None:
+        analysisdir = analysis_dir()
+
+    galaxy = cat['CENTRAL_ID'].data
+    galid = galaxy.astype(np.int32)
+
+    galaxydir = np.zeros(ngal, dtype='U{}'.format( len(analysisdir) + 1 + 5 + 1 + 4) )
+
+    subdir1 = np.array(['{:05d}'.format(gg // 10000) for gg in galid])
+    
+    for dir1 in sorted(set(subdir1)):
+        indx1 = dir1 == subdir1
+        subdir2 = np.array(['{:04d}'.format(gg // 1000) for gg in galid[indx1]])
+        for dir2 in sorted(set(subdir2)):
+            indx2 = dir2 == subdir2
+            
+            galaxydir[indx1][indx2] = os.path.join(analysisdir, dir1, dir2)
+        
+        #import pdb ; pdb.set_trace()
+
+    import pdb ; pdb.set_trace()
+
+    ngal = len(np.atleast_1d(cat))
+    objid = np.zeros(ngal, dtype='U7')
+    objdir = np.zeros(ngal, dtype='U{}'.format(len(analysisdir)+1+7))
+
+    #objid, objdir = list(), list()
+    for ii, memid in enumerate(np.atleast_1d(cat['mem_match_id'])):
+        objid[ii] = '{:07d}'.format(memid)
+        objdir[ii] = os.path.join(analysisdir, objid[ii])
+        #objid.append('{:07d}'.format(memid))
+        #objdir.append(os.path.join(analysis_dir, objid[ii]))
+        if not os.path.isdir(objdir[ii]):
+            os.makedirs(objdir[ii], exist_ok=True)
+    #objid = np.array(objid)
+    #objdir = np.array(objdir)
+
+    if ngal == 1:
+        objid = objid[0]
+        objdir = objdir[0]
+            
+    return objid, objdir
+
 def get_objid(cat, analysisdir=None):
     """Build a unique object ID based on the redmapper mem_match_id.
 
