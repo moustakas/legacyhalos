@@ -569,6 +569,13 @@ def main():
     cat = legacyhalos.io.read_sample(dr=args.dr, verbose=args.verbose)
     area = legacyhalos.misc.area() # [deg2]
 
+    to match the ids of the other possible centrals back to the satellite catalog use this bit of code;
+    note that we have to loop to maintain proper indexing order
+    
+    memid, cenid = cen['MEM_MATCH_ID'][0], cen['ID_CENT'][0]
+    indx = np.hstack([ np.where((sat['MEM_MATCH_ID'] == memid) * (sat['ID'] == cid))[0] for cid in cenid ])
+
+
     if args.smf:
         print('Building the stellar mass function.')
         if args.sdssphot:
