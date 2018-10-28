@@ -18,6 +18,7 @@ from astrometry.util.multiproc import multiproc
 
 import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
+from legacyhalos.io import get_galaxy_galaxydir
 
 def _copyfile(infile, outfile):
     if os.path.isfile(infile):
@@ -435,4 +436,3 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
     call_make_png(C_nocentral, nocentral=True)
 
     return 1
-

@@ -19,6 +19,7 @@ def get_galaxy_galaxydir(cat, analysisdir=None):
     """Retrieve the galaxy name and the (nested) directory based on CENTRAL_ID. 
 
     """
+    import astropy
     import healpy as hp
     from legacyhalos.misc import radec2pix
     
@@ -31,13 +32,18 @@ def get_galaxy_galaxydir(cat, analysisdir=None):
         subdir = os.path.join(str(pixnum // 100), str(pixnum))
         return os.path.abspath(os.path.join(analysisdir, str(nside), subdir))
 
-    ngal = len(cat)
-
-    galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID'].data])
-    pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
+    if type(cat) is astropy.table.row.Row:
+        ngal = 1
+        galaxy = [cat['CENTRAL_ID']]
+        pixnum = [radec2pix(nside, cat['RA'], cat['DEC'])]
+    else:
+        ngal = len(cat)
+        galaxy = np.array([cc for cc in cat['CENTRAL_ID']])
+        #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID']])
+        pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
 
     galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, analysisdir), gal)
-                 for pix, gal in zip(pixnum, galaxy)])
+                          for pix, gal in zip(pixnum, galaxy)])
 
     if ngal == 1:
         galaxy = galaxy[0]

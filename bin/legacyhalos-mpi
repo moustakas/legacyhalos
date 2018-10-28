@@ -19,7 +19,11 @@ import os, sys, time, pdb
 import argparse
 import numpy as np
 
+from astrometry.util.fits import fits_table
+
 import legacyhalos.io
+import legacyhalos.coadds
+import legacyhalos.ellipse
 
 def missing_files(sample, filedir='.', filetype='coadds',
                   size=1, clobber=False):
@@ -40,11 +44,9 @@ def missing_files(sample, filedir='.', filetype='coadds',
     todo = np.ones(ngal, dtype=bool)
 
     galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
-    pdb.set_trace()
 
-    for ii, onegal in enumerate(np.atleast_1d(sample)):
-        galaxy = onegal['GALAXY'].decode('utf-8').lower()
-        checkfile = os.path.join(filedir, galaxy, '{}-{}'.format(galaxy, filesuffix))
+    for ii, (gal, gdir) in enumerate( zip(galaxy, galaxydir) ):
+        checkfile = os.path.join(gdir, '{}-{}'.format(gal, filesuffix))
         if os.path.exists(checkfile) and clobber is False:
             todo[ii] = False
 
@@ -54,6 +56,82 @@ def missing_files(sample, filedir='.', filetype='coadds',
         indices = indices[todo]
         
     return np.array_split(indices, size)
+
+def _missing_files(args, sample, analysisdir, size):
+    """Simple task-specific wrapper on missing_files."""
+    if args.coadds:
+        suffix = 'coadds'
+        groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
+                               size=size, clobber=args.clobber)
+    elif args.custom_coadds:
+        suffix = 'custom_coadds'
+        groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
+                               size=size, clobber=args.clobber)
+    elif args.ellipse:
+        suffix = 'ellipse'
+        groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
+                               size=size, clobber=args.clobber)
+    elif args.sersic:
+        groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
+                               size=size, clobber=args.clobber)
+        suffix = 'sersic'
+    elif args.sky:
+        groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
+                               size=size, clobber=args.clobber)
+        suffix = 'sky'
+    else:
+        groups = []
+    
+
+def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
+                          nproc, force, debug, logfile):
+    """Wrapper script to build the pipeline coadds."""
+    t0 = time.time()
+    if debug:
+        err = legacyhalos.coadds.pipeline_coadds(
+            onegal, galaxy=galaxy, radius=radius, survey=survey, 
+            pixscale=pixscale, nproc=nproc, force=force)
+        if err == 0:
+            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+        print('Finished galaxy {} in {:.3f} minutes.'.format(
+            galaxy, (time.time() - t0)/60), flush=True)
+    else:
+        with open(logfile, 'w') as log:
+            #with redirect_stdout(log), redirect_stderr(log):
+            print('Rank {} started working on galaxy {} at {}'.format(
+                rank, galaxy, time.asctime()), flush=True, file=log)
+            err = legacyhalos.coadds.pipeline_coadds(
+                onegal, galaxy=galaxy, radius=radius, survey=survey, 
+                pixscale=args.pixscale, nproc=args.nproc, force=args.force)
+            if err == 0:
+                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+            print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
+                rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
+
+def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
+                        nproc, debug, logfile):
+    """Wrapper script to build the pipeline coadds."""
+    t0 = time.time()
+    if debug:
+        err = legacyhalos.coadds.custom_coadds(
+            onegal, galaxy=galaxy, radius=radius, survey=survey, 
+            pixscale=pixscale, nproc=nproc)
+        if err == 0:
+            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+        print('Finished galaxy {} in {:.3f} minutes.'.format(
+            galaxy, (time.time() - t0)/60), flush=True)
+    else:
+        with open(logfile, 'w') as log:
+            #with redirect_stdout(log), redirect_stderr(log):
+            print('Rank {} started working on galaxy {} at {}'.format(
+                rank, galaxy, time.asctime()), flush=True, file=log)
+            err = legacyhalos.coadds.custom_coadds(
+                onegal, galaxy=galaxy, radius=radius, survey=survey, 
+                pixscale=args.pixscale, nproc=args.nproc)
+            if err == 0:
+                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+            print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
+                rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
 
 def main():
     from contextlib import redirect_stdout, redirect_stderr
@@ -93,7 +171,7 @@ def main():
         analysisdir = legacyhalos.io.analysis_dir()
         print('LEGACYHALOS_DIR = {}'.format(analysisdir ))
         sample = legacyhalos.io.read_sample(first=args.first, last=args.last)
-        if args.coadds:
+        if args.coadds or args.custom_coadds:
             print('Initializing the LegacySurveyData object.')
             from legacypipe.survey import LegacySurveyData
             survey = LegacySurveyData()
@@ -107,30 +185,11 @@ def main():
         sample = comm.bcast(sample, root=0)
         survey = comm.bcast(survey, root=0)
 
-    #objid, objdir = legacyhalos.io.get_objid(sample) 
-
     # Determine how many more objects we need to analyze and divide them
     # across ranks.
     groups, suffix = [], ''
     if rank == 0:
-        if args.coadds:
-            suffix = 'coadds'
-            groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
-                                   size=size, clobber=args.clobber)
-        elif args.ellipse:
-            suffix = 'ellipse'
-            groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
-                                   size=size, clobber=args.clobber)
-        elif args.sersic:
-            groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
-                                   size=size, clobber=args.clobber)
-            suffix = 'sersic'
-        elif args.sky:
-            groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
-                                   size=size, clobber=args.clobber)
-            suffix = 'sky'
-        else:
-            groups = []
+        suffix, groups = _missing_files(args, sample, analysisdir, size)
 
     if comm:
         groups = comm.bcast(groups, root=0)
@@ -158,6 +217,8 @@ def main():
             #[print('  {}'.format(dd)) for dd in np.atleast_1d(objdir)]
         return
 
+    logfile = None
+
     # Loop on the remaining objects.
     print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
     tall = time.time()
@@ -166,121 +227,107 @@ def main():
             print('Rank {}: Building {} {} / {}'.format(
                 rank, suffix.upper(), count+1, len(groups[rank])), flush=True)
 
-        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample[ii])
-        pdb.set_trace()
+        onegal = sample[ii]
+        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
 
         if not args.debug:
-            logfile = os.path.join(objdir, '{}-{}.log'.format(objid, suffix))
+            logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
             print('Logging to {} '.format(logfile), flush=True)
 
-        t0 = time.time()
+        if args.coadds or args.custom_coadds:
+            survey.output_dir = galaxydir
+            radius = legacyhalos.misc.cutout_radius_150kpc( 
+                redshift=onegal['Z'], pixscale=args.pixscale) # [pixels]
+            
         if args.coadds:
-            from legacyhalos.coadds import legacyhalos_custom_coadds
-            if args.debug:
-                result = legacyhalos_custom_coadds(
-                    sample[ii], survey=survey, objid=objid, objdir=objdir,
-                    nproc=args.nproc, pixscale=args.pixscale, force=args.force)
-                if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
-                print('Finished objid {} in {:.3f} minutes.'.format(
-                    objid, (time.time() - t0)/60), flush=True)
-            else:
-                with open(logfile, 'w') as log:
-                    #with redirect_stdout(log), redirect_stderr(log):
-                    print('Rank {} started working on objid {} at {}'.format(
-                        rank, objid, time.asctime()), flush=True, file=log)
-                    result = legacyhalos_custom_coadds(
-                        sample[ii], survey=survey, objid=objid, objdir=objdir, nproc=args.nproc, 
-                        pixscale=args.pixscale, log=log, force=args.force)
-                    if result == 0:
-                        print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True, file=log)
-                    print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
-                        rank, objid, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
+            _call_pipeline_coadds(onegal, galaxy, radius, survey, args.pixscale,
+                                  args.nproc, args.force, args.debug, logfile)
+                    
+        if args.custom_coadds:
+            survey.ccds = fits_table(os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy)))
+            _call_custom_coadds(onegal, galaxy, radius, survey, args.pixscale,
+                                args.nproc, args.debug, logfile)
                     
         if args.ellipse:
-            from legacyhalos.ellipse import legacyhalos_ellipse
             if args.debug:
-                result = legacyhalos_ellipse(
-                    sample[ii], objid=objid, objdir=objdir, nproc=args.nproc,
+                err = legacyhalos_ellipse(
+                    sample[ii], galaxy=galaxy, objdir=objdir, nproc=args.nproc,
                     pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
-                if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
-                print('Finished objid {} in {:.3f} minutes.'.format(
-                    objid, (time.time() - t0)/60), flush=True)
+                if err == 0:
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                print('Finished galaxy {} in {:.3f} minutes.'.format(
+                    galaxy, (time.time() - t0)/60), flush=True)
             else:
                 with open(logfile, 'w') as log:
                     with redirect_stdout(log), redirect_stderr(log):
-                        print('Rank {} started working on objid {} at {}'.format(
-                            rank, objid, time.asctime()), flush=True)
-                        result = legacyhalos_ellipse(
-                            sample[ii], objid=objid, objdir=objdir, nproc=args.nproc,
+                        print('Rank {} started working on galaxy {} at {}'.format(
+                            rank, galaxy, time.asctime()), flush=True)
+                        err = legacyhalos_ellipse(
+                            sample[ii], galaxy=galaxy, objdir=objdir, nproc=args.nproc,
                             pixscale=args.pixscale, debug=args.debug, verbose=args.verbose)
-                        if result == 0:
-                            print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
-                        print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
-                            rank, objid, time.asctime(), (time.time() - t0)/60), flush=True)
-                if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
+                        if err == 0:
+                            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                        print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
+                            rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
+                if err == 0:
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
                         
         if args.sersic:
             from legacyhalos.sersic import legacyhalos_sersic
             if args.debug:
-                result = legacyhalos_sersic(sample[ii], objid=objid, objdir=objdir, 
+                err = legacyhalos_sersic(sample[ii], galaxy=galaxy, objdir=objdir, 
                                             debug=args.debug, verbose=args.verbose,
                                             seed=args.seed)
-                if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
-                print('Finished objid {} in {:.3f} minutes.'.format(
-                    objid, (time.time() - t0)/60), flush=True)
+                if err == 0:
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                print('Finished galaxy {} in {:.3f} minutes.'.format(
+                    galaxy, (time.time() - t0)/60), flush=True)
             else:
                 with open(logfile, 'w') as log:
                     with redirect_stdout(log), redirect_stderr(log):
-                        print('Rank {} started working on objid {} at {}'.format(
-                            rank, objid, time.asctime()), flush=True)
-                        result = legacyhalos_sersic(sample[ii], objid=objid, objdir=objdir, 
+                        print('Rank {} started working on galaxy {} at {}'.format(
+                            rank, galaxy, time.asctime()), flush=True)
+                        err = legacyhalos_sersic(sample[ii], galaxy=galaxy, objdir=objdir, 
                                                     debug=args.debug, verbose=args.verbose,
                                                     seed=args.seed)
-                        if result == 0:
-                            print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
-                        print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
-                            rank, objid, time.asctime(), (time.time() - t0)/60), flush=True)
-                if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
+                        if err == 0:
+                            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                        print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
+                            rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
+                if err == 0:
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
                         
         if args.sky:
             from legacyhalos.sky import legacyhalos_sky
             if args.debug:
-                result = legacyhalos_sky(sample[ii], survey=survey, objid=objid, objdir=objdir,
+                err = legacyhalos_sky(sample[ii], survey=survey, galaxy=galaxy, objdir=objdir,
                                          nproc=args.nproc, pixscale=args.pixscale, seed=args.seed,
                                          debug=args.debug, verbose=args.verbose, force=args.force)
-                if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
-                print('Finished objid {} in {:.3f} minutes.'.format(
-                    objid, (time.time() - t0)/60), flush=True)
+                if err == 0:
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                print('Finished galaxy {} in {:.3f} minutes.'.format(
+                    galaxy, (time.time() - t0)/60), flush=True)
             else:
                 with open(logfile, 'w') as log:
                     with redirect_stdout(log), redirect_stderr(log):
-                        print('Rank {} started working on objid {} at {}'.format(
-                            rank, objid, time.asctime()), flush=True)
-                        result = legacyhalos_sky(sample[ii], survey=survey, objid=objid, objdir=objdir,
+                        print('Rank {} started working on galaxy {} at {}'.format(
+                            rank, galaxy, time.asctime()), flush=True)
+                        err = legacyhalos_sky(sample[ii], survey=survey, galaxy=galaxy, objdir=objdir,
                                                  nproc=args.nproc, pixscale=args.pixscale, seed=args.seed,
                                                  debug=args.debug, verbose=args.verbose, log=log,
                                                  force=args.force)
-                        if result == 0:
-                            print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
-                        print('Rank {} finished objid {} at {} in {:.3f} minutes.'.format(
-                            rank, objid, time.asctime(), (time.time() - t0)/60), flush=True)
-                if result == 0:
-                    print('ERROR: objid {}; please check the logfile.'.format(objid), flush=True)
+                        if err == 0:
+                            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                        print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
+                            rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
+                if err == 0:
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
                         
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        if args.coadds:
-            groups = missing_coadds(sample, size=size, clobber=args.clobber)
-        if args.ellipse:
-            groups = missing_ellipse(sample, size=size, clobber=args.clobber)
-
+        groups = missing_files(sample, filedir=analysisdir, filetype=suffix,
+                               size=size, clobber=args.clobber)
         if len(groups) > 0:
             stilltodo = len(np.hstack(np.atleast_1d(groups)))
         else:
