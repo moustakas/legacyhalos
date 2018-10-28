@@ -19,9 +19,8 @@
 module use /global/common/software/desi/$NERSC_HOST/desiconda/20180512-1.2.5-img/modulefiles
 module load desiconda
 
-export LEGACYPIPE_DIR=$SCRATCH/repos/legacypipe
-export LEGACYHALOS_DIR=$SCRATCH/legacyhalos
-export LEGACYHALOS_CODE_DIR=$SCRATCH/repos/legacyhalos
+export LEGACYPIPE_DIR=$HOME/repos/git/legacypipe
+export LEGACYHALOS_CODE_DIR=$HOME/repos/git/legacyhalos
 
 export PYTHONPATH=$LEGACYPIPE_DIR/py:$PYTHONPATH
 
@@ -29,7 +28,8 @@ export DR6_FILELIST=$SCRATCH/tmp/dr6_filelist
 export DR7_FILELIST=$SCRATCH/tmp/dr7_filelist
 export LEGACYSURVEY_FILELIST=$SCRATCH/tmp/legacysurvey_filelist
 
-find /global/cscratch1/sd/adamyers/gaiamatch/dr6/sweep/6.0 -name 'sweep-*.fits' > $DR6_FILELIST
+find /project/projectdirs/cosmo/data/legacysurvey/dr6/sweep/6.0 -name 'sweep-*.fits' > $DR6_FILELIST
+# find /global/cscratch1/sd/adamyers/gaiamatch/dr6/sweep/6.0 -name 'sweep-*.fits' > $DR6_FILELIST
 find /global/projecta/projectdirs/cosmo/data/legacysurvey/dr7/sweep/7.1 -name 'sweep-*.fits' > $DR7_FILELIST
 cat $DR6_FILELIST $DR7_FILELIST > $LEGACYSURVEY_FILELIST
 
