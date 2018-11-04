@@ -37,8 +37,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
     ellipsefit['band'] = band
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
-    missing psfsigma!!
-    import pdb ; pdb.set_trace()
     for filt in band: # [Gaussian sigma]
         ellipsefit['psfsigma_{}'.format(filt)] = ( sample['PSFSIZE_{}'.format(filt.upper())] /
                                                    np.sqrt(8 * np.log(2)) ) # [arcsec]

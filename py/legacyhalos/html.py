@@ -8,6 +8,8 @@ Code to generate HTML content.
 import os, subprocess, pdb
 import numpy as np
 
+import legacyhalos.io
+
 from legacyhalos.misc import plot_style
 sns = plot_style()
 
@@ -200,15 +202,15 @@ def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband=
     #for ii, onegal in enumerate( np.atleast_1d(sample) ):
 
         if galaxylist is None:
-            pass
+            galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
             #galaxy, galaxydir = get_galaxy(onegal, analysisdir=analysisdir)
             #galaxy, galaxydir = onegal['GALAXY'].decode('utf-8').lower(), 'cgcg004-096'
             #galaxy, galaxydir, htmlgalaxydir = get_galaxy(onegal, analysisdir=analysisdir, html=True)
         else:
             galaxy = galaxylist[ii]
             galaxydir = os.path.join(analysisdir, galaxy)
-            htmlgalaxydir = os.path.join(htmldir, galaxy)
-
+            
+        htmlgalaxydir = os.path.join(htmldir, galaxy)
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
 
@@ -266,8 +268,8 @@ def _javastring():
     return js
         
 def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, dr='dr7', first=None, last=None,
-              makeplots=True, clobber=False, verbose=True):
+              refband='r', pixscale=0.262, dr='dr7', first=None, last=None, nproc=1,
+              makeplots=True, clobber=False, verbose=True, ccdqa=True):
     """Make the HTML pages.
 
     """
@@ -282,7 +284,7 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
     if sample is None:
         sample = legacyhalos.io.read_sample(first=first, last=last)
         
-    #galaxy, galaxydir = legacyhalos.io.get_galaxy(sample)
+    galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
 
     # Write the last-updated date to a webpage.
     js = _javastring()       
@@ -290,17 +292,17 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
     # Get the viewer link
     def _viewer_link(gal, dr):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_150kpc(redshift=gal['z'], pixscale=0.262) # [pixels]
+        width = 2 * cutout_radius_150kpc(redshift=gal['Z'], pixscale=0.262) # [pixels]
         if width > 400:
             zoom = 14
         else:
             zoom = 15
         viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=decals-{}'.format(
-            baseurl, gal['ra'], gal['dec'], zoom, dr)
+            baseurl, gal['RA'], gal['DEC'], zoom, dr)
         return viewer
 
     def _skyserver_link(gal):
-        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_GALAXY'])
+        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
 
     trendshtml = 'trends.html'
     homehtml = 'index.html'
@@ -340,11 +342,11 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<tr>\n')
             html.write('<td>{:g}</td>\n'.format(ii))
             html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile, galaxy1))
-            html.write('<td>{:.7f}</td>\n'.format(gal['ra']))
-            html.write('<td>{:.7f}</td>\n'.format(gal['dec']))
-            html.write('<td>{:.5f}</td>\n'.format(gal['z']))
-            html.write('<td>{:.4f}</td>\n'.format(gal['lambda_chisq']))
-            html.write('<td>{:.3f}</td>\n'.format(gal['p_cen'][0]))
+            html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
+            html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
+            html.write('<td>{:.5f}</td>\n'.format(gal['Z']))
+            html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
+            html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
@@ -427,11 +429,11 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<tr>\n')
             html.write('<td>{:g}</td>\n'.format(ii))
             html.write('<td>{}</td>\n'.format(galaxy1))
-            html.write('<td>{:.7f}</td>\n'.format(gal['ra']))
-            html.write('<td>{:.7f}</td>\n'.format(gal['dec']))
-            html.write('<td>{:.5f}</td>\n'.format(gal['z']))
-            html.write('<td>{:.4f}</td>\n'.format(gal['lambda_chisq']))
-            html.write('<td>{:.3f}</td>\n'.format(gal['p_cen'][0]))
+            html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
+            html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
+            html.write('<td>{:.5f}</td>\n'.format(gal['Z']))
+            html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
+            html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
@@ -527,4 +529,5 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
 
     if makeplots:
         make_plots(sample, analysisdir=analysisdir, htmldir=htmldir, refband=refband,
-                   band=band, pixscale=pixscale, clobber=clobber, verbose=verbose)
+                   band=band, pixscale=pixscale, clobber=clobber, verbose=verbose,
+                   nproc=nproc)
