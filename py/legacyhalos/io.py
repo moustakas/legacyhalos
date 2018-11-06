@@ -15,7 +15,7 @@ import fitsio
 from astropy.table import Table
 from astropy.io import fits
 
-def get_galaxy_galaxydir(cat, analysisdir=None):
+def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False):
     """Retrieve the galaxy name and the (nested) directory based on CENTRAL_ID. 
 
     """
@@ -27,6 +27,8 @@ def get_galaxy_galaxydir(cat, analysisdir=None):
     
     if analysisdir is None:
         analysisdir = analysis_dir()
+    if htmldir is None:
+        htmldir = html_dir()
 
     def get_healpix_subdir(nside, pixnum, analysisdir):
         subdir = os.path.join(str(pixnum // 100), str(pixnum))
@@ -44,36 +46,46 @@ def get_galaxy_galaxydir(cat, analysisdir=None):
 
     galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, analysisdir), gal)
                           for pix, gal in zip(pixnum, galaxy)])
+    if html:
+        htmlgalaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, htmldir), gal)
+                                  for pix, gal in zip(pixnum, galaxy)])
 
     if ngal == 1:
         galaxy = galaxy[0]
         galaxydir = galaxydir[0]
-            
-    return galaxy, galaxydir
+        if html:
+            htmlgalaxydir = htmlgalaxydir[0]
+
+    if html:
+        return galaxy, galaxydir
+    else:
+        return galaxy, galaxydir, htmlgalaxydir
 
 def _get_galaxy_galaxydir(cat, analysisdir=None):
-    """Retrieve the galaxy name and the (nested) directory based on CENTRAL_ID. 
+    """Retrieve the galaxy name and the (nested) directory based on cluster and
+    galaxy ID.
 
+    Need to deal with candidate centrals!
     """
     if analysisdir is None:
         analysisdir = analysis_dir()
 
     ngal = len(cat)
 
-    galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID'].data])
-    galid = galaxy.astype(np.int32)
-
+    memid = cat['MEM_MATCH_ID']
+    galaxy = ['{:07d}-{:09d}'.format(memid, cid) for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID_CENT'][:, 0])]
+    #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID'].data])
     galaxydir = np.zeros(ngal, dtype='U{}'.format( len(analysisdir) + 1 + 5 + 1 + 4 + 1 + 6) )
 
-    subdir1 = np.array(['{:05d}'.format(gg // 10000) for gg in galid])
+    subdir1 = np.array(['{:05d}'.format(gg // 10000) for gg in memid])
     
     for dir1 in sorted(set(subdir1)):
         indx1 = np.where(dir1 == subdir1)[0]
-        subdir2 = np.array(['{:04d}'.format(gg // 1000) for gg in galid[indx1]])
+        subdir2 = np.array(['{:04d}'.format(gg // 1000) for gg in memid[indx1]])
         for dir2 in sorted(set(subdir2)):
             indx2 = np.where(dir2 == subdir2)[0]
 
-            allgaldir = np.array(['{:06d}'.format(gg) for gg in galid[indx1[indx2]]])
+            allgaldir = np.array(['{:07d}'.format(gg) for gg in memid[indx1[indx2]]])
             galaxydir[indx1[indx2]] = [os.path.join(analysisdir, dir1, dir2, galdir) for galdir in allgaldir]
 
     if ngal == 1:
