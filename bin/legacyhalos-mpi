@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+should pass radius in pixels when making coadds since we are also passing pixscale!
+
 """MPI wrapper for the various computationally intensive legacyhalos analysis
 steps.
 

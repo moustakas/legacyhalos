@@ -49,9 +49,10 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} --unwise-coadds '
+    cmd += '--survey-dir {survey_dir} '
     #cmd += '--force-stage coadds '
     cmd += '--write-stage srcs --no-write --skip --no-wise-ceres '
-    cmd += '--checkpoint {archivedir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 600 '
+    cmd += '--checkpoint {archivedir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {archivedir}/{galaxy}-runbrick-%%(stage)s.p ' 
     if force:
         cmd += '--force-all '
@@ -61,7 +62,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal['RA'], dec=onegal['DEC'], width=2*radius,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     archivedir=archivedir)
+                     archivedir=archivedir, survey_dir=survey.survey_dir)
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)

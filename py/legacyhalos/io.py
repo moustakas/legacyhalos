@@ -467,8 +467,13 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
 
+    if kcorr:
+        ext = 2
+    else:
+        ext = 1
+
     info = fitsio.FITS(samplefile)
-    nrows = info[1].get_nrows()
+    nrows = info[ext].get_nrows()
 
     if first is None:
         first = 0
@@ -479,12 +484,7 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
 
     rows = np.arange(first, last)
 
-    if kcorr:
-        ext = 2
-    else:
-        ext = 1
-
-    sample = Table(info[1].read(rows=rows, ext=ext))
+    sample = Table(info[ext].read(rows=rows))
     if verbose:
         if len(rows) == 1:
             print('Read galaxy index {} from {}'.format(first, samplefile))
