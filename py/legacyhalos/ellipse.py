@@ -16,12 +16,16 @@ import matplotlib.pyplot as plt
 import legacyhalos.io
 import legacyhalos.misc
 
-def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
-                         nowrite=False, verbose=False):
+def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
+                         integrmode='median', nclip=2, sclip=3,
+                         step=0.1, fflag=0.7, linear=False, nofit=False,
+                         nowrite=False, verbose=False, nofit=False):
     """Ellipse-fit the multiband data.
 
     See
     https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
+
+    maxsma in arcsec
 
     """
     from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
@@ -44,15 +48,12 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
 
     # Set the maximum semi-major axis length to 100 kpc or three times the
     # semi-major axis estimated below (whichever is smaller).
-    maxsma_100kpc = 100 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
-    maxsma_major = 3 * mgefit['majoraxis']
-    maxsma = np.min( (maxsma_100kpc, maxsma_major) )
+    if maxsma is None:
+        maxsma_100kpc = 100 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
+        maxsma_major = 3 * mgefit['majoraxis']
+        maxsma = np.min( (maxsma_100kpc, maxsma_major) )
 
-    # Default parameters
-    #step_pix = 0.1
-    #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, step_pix/pixscale, 0.5, True
-    #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, 0.1, 0.5, False
-    integrmode, sclip, nclip, step, fflag, linear = 'median', 3, 2, 0.1, 0.7, False
+    pdb.set_trace()
     
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip
@@ -330,15 +331,17 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
 
     return mgefit
     
-def legacyhalos_ellipse(onegal, galaxydir=None, pixscale=0.262, refband='r',
-                        band=('g', 'r', 'z'), verbose=False, debug=False):
+def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
+                        refband='r', band=('g', 'r', 'z'), maxsma=None,
+                        integrmode='median', nclip=2, sclip=3, nofit=False,
+                        verbose=False, debug=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
+    nofit - do not fit for the ellipse parameters (use the mean values from MGE). 
+
     """
-    if galaxydir is None:
+    if galaxydir is None or galaxy is None:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
-    else:
-        galaxy = onegal['GALAXY'].lower()
 
     # Read the data.  
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, band=band,
@@ -349,7 +352,9 @@ def legacyhalos_ellipse(onegal, galaxydir=None, pixscale=0.262, refband='r',
 
         # Do ellipse-fitting.
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
-                                          mgefit, verbose=verbose)
+                                          mgefit, maxsma=maxsma, integrmode=integrmode,
+                                          nclip=nclip, sclip=sclip, verbose=verbose,
+                                          nofit=nofit)
         if ellipsefit['success']:
             return 1
         else:

@@ -349,7 +349,8 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     else:
         print('File {} exists.'.format(resultsfile))
 
-def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
+def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
+                   pixscale=0.262, maskfactor=2.0):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
@@ -367,9 +368,17 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r', pixscal
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
+    tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    if os.path.isfile(tractorfile):
+        cat = Table(fitsio.read(tractorfile, upper=True))
+        print('Read {} sources from {}'.format(len(cat), tractorfile))
+    else:
+        print('Missing Tractor catalog {}'.format(tractorfile))
+        found_data = False
+        
     if not found_data:
         return data
-    
+
     for filt in band:
         image = fitsio.read(os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, filt)))
         model = fitsio.read(os.path.join(galaxydir, '{}-custom-model-nocentral-{}.fits.fz'.format(galaxy, filt)))
