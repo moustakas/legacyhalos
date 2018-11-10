@@ -41,7 +41,6 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
                    for iccd, _ccd in enumerate(survey.ccds)]
         mp.map(_display_ccdmask_and_sky, ccdargs)
 
-    
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
 
