@@ -19,15 +19,16 @@ import legacyhalos.misc
 def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
                          integrmode='median', nclip=2, sclip=3,
                          step=0.1, fflag=0.7, linear=False, 
-                         nowrite=False, verbose=False, nofit=False):
+                         nowrite=False, verbose=False, noellipsefit=False):
     """Ellipse-fit the multiband data.
 
     See
     https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
 
-    maxsma in arcsec
+    maxsma in (optical) pixels
 
     """
+    import copy
     from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                     Isophote, IsophoteList)
     from photutils.isophote.sample import CentralEllipseSample
@@ -38,15 +39,16 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
     else:
         warnvalue = 'ignore'
 
-    # If nofit=True, use the mean geometry of the galaxy to extract the
+    # If noellipsefit=True, use the mean geometry of the galaxy to extract the
     # surface-brightness profile (turn off fitting).
-    if nofit:
+    if noellipsefit:
         maxrit = -1
     else:
         maxrit = None
 
     band, refband, pixscale = data['band'], data['refband'], data['pixscale']
 
+    # Populate the output dictionary
     ellipsefit = dict()
     ellipsefit['success'] = False
     ellipsefit['redshift'] = sample['Z']
@@ -57,6 +59,18 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
         ellipsefit['psfsigma_{}'.format(filt)] = ( sample['PSFSIZE_{}'.format(filt.upper())] /
                                                    np.sqrt(8 * np.log(2)) ) # [arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
+
+    # Create a pixel scale mapping to accommodate GALEX and unWISE imaging.
+    filt2pixscalefactor = {'g': 1.0, 'r': 1.0, 'z': 1.0}
+    if 'NUV' in band:
+        ellipsefit['galex_pixscale'] = data['galex_pixscale']
+        factor = pixscale / data['galex_pixscale']
+        filt2pixscalefactor.update({'FUV': factor, 'NUV': factor})
+        
+    if 'W1' in band:
+        ellipsefit['unwise_pixscale'] = data['unwise_pixscale']
+        factor = pixscale / data['unwise_pixscale']
+        filt2pixscalefactor.update({'W1': factor, 'W2': factor, 'W3': factor, 'W4': factor})
 
     # Set the maximum semi-major axis length to 100 kpc or XX times the
     # semi-major axis estimated below (whichever is smaller).
@@ -71,7 +85,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
     ellipsefit['step'] = step
     ellipsefit['fflag'] = fflag
     ellipsefit['linear'] = linear
-    #integrmode, sclip, nclip, step, fflag = 'median', 3, 0, 0.1, 0.5
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
@@ -160,6 +173,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
         if newmask is not None:
             img.mask = newmask
 
+        pixscalefactor = filt2pixscalefactor[filt]
+
         # Loop on the reference band isophotes but skip the first isophote,
         # which is a CentralEllipseSample object (see below).
         isobandfit = []
@@ -168,12 +183,16 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
             
             for iso in isophot:
             #for iso in isophot[1:]:
-                g = iso.sample.geometry # fixed geometry
+                g = copy.copy(iso.sample.geometry) # fixed geometry
+                g.sma *= pixscalefactor
+                g.x0 *= pixscalefactor
+                g.y0 *= pixscalefactor
 
                 # Use the same integration mode and clipping parameters.
                 sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
                                        sclip=sclip, nclip=nclip)
                 sample.update()
+                #print(filt, g.sma, sample.mean)
 
                 # Create an Isophote instance with the sample.
                 isobandfit.append(Isophote(sample, 0, True, 0))
@@ -197,9 +216,9 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
         if verbose:
             print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
 
-        if np.all( np.isnan(ellipsefit['g'].intens) ):
-            print('ERROR: Ellipse-fitting resulted in all NaN; please check the imaging for band {}'.format(filt))
-            ellipsefit['success'] = False
+        #if np.all( np.isnan(ellipsefit['g'].intens) ):
+        #    print('ERROR: Ellipse-fitting resulted in all NaN; please check the imaging for band {}'.format(filt))
+        #    ellipsefit['success'] = False
 
     if verbose:
         print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
@@ -262,7 +281,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
     return sbprofile
 
 def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
-                     nofit=True, verbose=False):
+                     noellipsefit=True, verbose=False):
     """MGE-fit the multiband data.
 
     See http://www-astro.physics.ox.ac.uk/~mxc/software/#mge
@@ -295,7 +314,7 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
         mgefit[key] = getattr(mgegalaxy, key)
 
-    if not nofit:
+    if not noellipsefit:
         t0 = time.time()
         for filt in band:
             if verbose:
@@ -331,11 +350,12 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
     
 def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         refband='r', band=('g', 'r', 'z'), maxsma=None,
-                        integrmode='median', nclip=2, sclip=3, nofit=False,
-                        verbose=False, debug=False):
+                        integrmode='median', nclip=2, sclip=3,
+                        galex_pixscale=1.5, unwise_pixscale=2.75,
+                        noellipsefit=False, verbose=False, debug=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
-    nofit - do not fit for the ellipse parameters (use the mean values from MGE). 
+    noellipsefit - do not fit for the ellipse parameters (use the mean values from MGE). 
 
     """
     if galaxydir is None or galaxy is None:
@@ -343,16 +363,19 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
     # Read the data.  
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, band=band,
-                                         refband=refband, pixscale=pixscale)
+                                         refband=refband, pixscale=pixscale,
+                                         galex_pixscale=galex_pixscale,
+                                         unwise_pixscale=unwise_pixscale)
     if bool(data):
-        # Find the galaxy and perform MGE fitting.
-        mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose, debug=debug)
+        # Find the galaxy and (optionally) perform MGE fitting.
+        mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose,
+                                  noellipsefit=True, debug=debug)
 
         # Do ellipse-fitting.
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
                                           mgefit, maxsma=maxsma, integrmode=integrmode,
                                           nclip=nclip, sclip=sclip, verbose=verbose,
-                                          nofit=nofit)
+                                          noellipsefit=noellipsefit)
         if ellipsefit['success']:
             return 1
         else:

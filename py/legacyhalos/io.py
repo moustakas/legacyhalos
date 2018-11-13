@@ -350,7 +350,8 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
         print('File {} exists.'.format(resultsfile))
 
 def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
-                   pixscale=0.262, maskfactor=2.0):
+                   pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
+                   maskfactor=2.0):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
@@ -358,12 +359,38 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     """
     from scipy.ndimage.morphology import binary_dilation
 
-    data = dict()
+    # Dictionary mapping between filter and filename coded up in coadds.py,
+    # galex.py, and unwise.py (see the LSLGA product, too).
+    filt2imfile = {
+        'g':   ['custom-image', 'custom-model-nocentral', 'invvar'],
+        'r':   ['custom-image', 'custom-model-nocentral', 'invvar'],
+        'z':   ['custom-image', 'custom-model-nocentral', 'invvar'],
+        'FUV': ['image', 'model-nocentral'],
+        'NUV': ['image', 'model-nocentral'],
+        'W1':  ['image', 'model-nocentral'],
+        'W2':  ['image', 'model-nocentral'],
+        'W3':  ['image', 'model-nocentral'],
+        'W4':  ['image', 'model-nocentral']}
+        
+    filt2pixscale =  {
+        'g':   pixscale,
+        'r':   pixscale,
+        'z':   pixscale,
+        'FUV': galex_pixscale,
+        'NUV': galex_pixscale,
+        'W1':  unwise_pixscale,
+        'W2':  unwise_pixscale,
+        'W3':  unwise_pixscale,
+        'W4':  unwise_pixscale}
 
     found_data = True
     for filt in band:
-        for imtype in ('custom-image', 'custom-model-nocentral', 'invvar'):
-            imfile = os.path.join(galaxydir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, filt))
+        for ii, imtype in enumerate(filt2imfile[filt]):
+            for suffix in ('.fz', ''):
+                imfile = os.path.join(galaxydir, '{}-{}-{}.fits{}'.format(galaxy, imtype, filt, suffix))
+                if os.path.isfile(imfile):
+                    filt2imfile[filt][ii] = imfile
+                    break
             if not os.path.isfile(imfile):
                 print('File {} not found.'.format(imfile))
                 found_data = False
@@ -376,29 +403,35 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         print('Missing Tractor catalog {}'.format(tractorfile))
         found_data = False
         
+    data = dict()
     if not found_data:
         return data
 
     for filt in band:
-        image = fitsio.read(os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, filt)))
-        model = fitsio.read(os.path.join(galaxydir, '{}-custom-model-nocentral-{}.fits.fz'.format(galaxy, filt)))
-        invvar = fitsio.read(os.path.join(galaxydir, '{}-invvar-{}.fits.fz'.format(galaxy, filt)))
+        image = fitsio.read(filt2imfile[filt][0])
+        model = fitsio.read(filt2imfile[filt][1])
+        if len(filt2imfile[filt]) == 3:
+            invvar = fitsio.read(filt2imfile[filt][2])
 
-        # Mask pixels with ivar<=0. Also build an object mask from the model
-        # image, to handle systematic residuals.
-        mask = (invvar <= 0) # 1=bad, 0=good
-        if np.sum(mask) > 0:
-            invvar[mask] = 1e-3
+            # Mask pixels with ivar<=0. Also build an object mask from the model
+            # image, to handle systematic residuals.
+            mask = (invvar <= 0) # 1=bad, 0=good
+            if np.sum(mask) > 0:
+                invvar[mask] = 1e-3
 
-        snr = model * np.sqrt(invvar)
-        mask = np.logical_or( mask, (snr > 1) ) 
+            snr = model * np.sqrt(invvar)
+            mask = np.logical_or( mask, (snr > 1) )
 
-        #sig1 = 1.0 / np.sqrt(np.median(invvar))
-        #mask = np.logical_or( mask, (image - model) > (3 * sig1) )
+            #sig1 = 1.0 / np.sqrt(np.median(invvar))
+            #mask = np.logical_or( mask, (image - model) > (3 * sig1) )
 
-        mask = binary_dilation(mask * 1, iterations=3)
+            mask = binary_dilation(mask * 1, iterations=3)
 
-        data[filt] = (image - model) / pixscale**2 # [nanomaggies/arcsec**2]
+        else:
+            mask = np.zeros_like(image).astype(bool)
+
+        thispixscale = filt2pixscale[filt]
+        data[filt] = (image - model) / thispixscale**2 # [nanomaggies/arcsec**2]
         
         data['{}_mask'.format(filt)] = mask == 0 # 1->bad
         data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)]) # 0->bad
@@ -407,6 +440,11 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     data['band'] = band
     data['refband'] = refband
     data['pixscale'] = pixscale
+
+    if 'NUV' in band:
+        data['galex_pixscale'] = galex_pixscale
+    if 'W1' in band:
+        data['unwise_pixscale'] = unwise_pixscale
 
     return data
 

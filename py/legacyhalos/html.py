@@ -44,13 +44,13 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
 
-    montagefile = os.path.join(htmlgalaxydir, '{}-coadd-montage.png'.format(galaxy))
+    montagefile = os.path.join(htmlgalaxydir, '{}-grz-montage.png'.format(galaxy))
 
     if not os.path.isfile(montagefile) or clobber:
         # Make sure all the files exist.
         check = True
         jpgfile = []
-        for suffix in ('custom-image', 'custom-model-nocentral', 'custom-image-central'):
+        for suffix in ('custom-image-grz', 'custom-model-nocentral-grz', 'custom-image-central-grz'):
             _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
             jpgfile.append(_jpgfile)
             if not os.path.isfile(_jpgfile):
@@ -441,7 +441,7 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<h2>Image mosaics</h2>\n')
             html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 300 kpc by 300 kpc.</p>\n')
             html.write('<table width="90%">\n')
-            html.write('<tr><td><a href="{}-coadd-montage.png"><img src="{}-coadd-montage.png" alt="Missing file {}-coadd-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(galaxy1, galaxy1, galaxy1))
+            html.write('<tr><td><a href="{}-grz-montage.png"><img src="{}-grz-montage.png" alt="Missing file {}-grz-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(galaxy1, galaxy1, galaxy1))
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
             html.write('</table>\n')
             #html.write('<br />\n')
