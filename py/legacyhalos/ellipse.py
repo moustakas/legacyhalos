@@ -16,6 +16,74 @@ import matplotlib.pyplot as plt
 import legacyhalos.io
 import legacyhalos.misc
 
+def ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor, warnvalue='ignore'):
+    """Perform elliptical aperture photometry for the curve-of-growth analysis.
+
+    maxsma in pixels
+
+    """
+    import astropy.table
+    from astropy.utils.exceptions import AstropyUserWarning
+    from photutils import EllipticalAperture, aperture_photometry
+
+    deltaa = 0.5 # pixel spacing 
+    theta = np.radians(mgefit['pa']-90)
+
+    results = {}
+
+    for filt in band:
+        pixscale = filt2pixscalefactor['{}_pixscale'.format(filt)]
+        pixscalefactor = filt2pixscalefactor[filt]
+
+        img = ma.getdata(data['{}_masked'.format(filt)]) * 0.262**2 
+        #img = ma.getdata(data['{}_masked'.format(filt)]) * pixscale**2 # [nanomaggies/arcsec2-->nanomaggies]
+        mask = ma.getmask(data['{}_masked'.format(filt)])
+        #img = data['{}_masked'.format(filt)]
+        #mask = data['{}_mask'.format(filt)]
+
+        #if filt == 'NUV':
+        #    bb = img.copy()
+        #    bb[mask] = 0
+        #    #plt.imshow(mask*1, origin='lower') ; plt.show()
+        #    plt.imshow(bb, origin='lower') ; plt.show()
+        #    #plt.imshow(img, origin='lower') ; plt.show()
+        #    pdb.set_trace()
+
+        deltaa_filt = deltaa * pixscalefactor
+        sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
+        smb = sma * mgefit['eps']
+        #sma_out = np.arange(0.0, maxsma * pixscalefactor, deltaa_filt)
+
+        x0 = mgefit['xpeak'] * pixscalefactor
+        y0 = mgefit['ypeak'] * pixscalefactor
+
+        apphot, apphot_nomask = [], []
+        with np.errstate(all='ignore'):
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category=AstropyUserWarning)
+                for aa, bb in zip(sma, smb):
+                    aperture = EllipticalAperture((x0, y0), aa, bb, theta)
+                    apphot.append(aperture_photometry(img, aperture, mask=mask, method='exact'))
+                    apphot_nomask.append(aperture_photometry(img, aperture, mask=None, method='exact'))
+                apphot = astropy.table.vstack(apphot)
+                apphot_nomask = astropy.table.vstack(apphot_nomask)
+        if filt == 'NUV':
+            pdb.set_trace()
+
+        results['apphot_sma_{}'.format(filt)] = sma * pixscale # [arcsec]
+        results['apphot_mag_{}'.format(filt)] = apphot['aperture_sum'].data
+
+    #fig, ax = plt.subplots()
+    #for filt in band:
+    #    ax.plot(results['apphot_sma_{}'.format(filt)],
+    #            22.5-2.5*np.log10(results['apphot_mag_{}'.format(filt)]), label=filt)
+    #ax.set_ylim(30, 5)
+    #ax.legend(loc='lower right')
+    #plt.show()
+    #pdb.set_trace()
+
+    return results
+
 def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
                          integrmode='median', nclip=2, sclip=3,
                          step=0.1, fflag=0.7, linear=False, 
@@ -61,16 +129,20 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
         ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
 
     # Create a pixel scale mapping to accommodate GALEX and unWISE imaging.
-    filt2pixscalefactor = {'g': 1.0, 'r': 1.0, 'z': 1.0}
+    filt2pixscalefactor = {'g': 1.0, 'r': 1.0, 'z': 1.0, 'g_pixscale': pixscale,
+                           'r_pixscale': pixscale, 'z_pixscale': pixscale}
     if 'NUV' in band:
         ellipsefit['galex_pixscale'] = data['galex_pixscale']
         factor = pixscale / data['galex_pixscale']
-        filt2pixscalefactor.update({'FUV': factor, 'NUV': factor})
+        filt2pixscalefactor.update({'FUV': factor, 'NUV': factor, 'FUV_pixscale': data['galex_pixscale'],
+                                    'NUV_pixscale': data['galex_pixscale']})
         
     if 'W1' in band:
         ellipsefit['unwise_pixscale'] = data['unwise_pixscale']
         factor = pixscale / data['unwise_pixscale']
-        filt2pixscalefactor.update({'W1': factor, 'W2': factor, 'W3': factor, 'W4': factor})
+        filt2pixscalefactor.update({'W1': factor, 'W2': factor, 'W3': factor, 'W4': factor,
+                                    'W1_pixscale': data['unwise_pixscale'], 'W2_pixscale': data['unwise_pixscale'],
+                                    'W3_pixscale': data['unwise_pixscale'], 'W4_pixscale': data['unwise_pixscale']})
 
     # Set the maximum semi-major axis length to 100 kpc or XX times the
     # semi-major axis estimated below (whichever is smaller).
@@ -85,6 +157,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
     ellipsefit['step'] = step
     ellipsefit['fflag'] = fflag
     ellipsefit['linear'] = linear
+
+    # Perform elliptical aperture photometry.
+    apphot = ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor)
+    ellipsefit.update(apphot)
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
@@ -361,7 +437,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     if galaxydir is None or galaxy is None:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
 
-    # Read the data.  
+    # Read the data.
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, band=band,
                                          refband=refband, pixscale=pixscale,
                                          galex_pixscale=galex_pixscale,

@@ -5,7 +5,7 @@ legacyhalos.io
 Code to read and write the various legacyhalos files.
 
 """
-import os
+import os, warnings
 import pickle, pdb
 import numpy as np
 import numpy.ma as ma
@@ -357,6 +357,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     convert to surface brightness by dividing by the pixel area.
 
     """
+    from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
 
     # Dictionary mapping between filter and filename coded up in coadds.py,
@@ -395,14 +396,14 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
-    if os.path.isfile(tractorfile):
-        cat = Table(fitsio.read(tractorfile, upper=True))
-        print('Read {} sources from {}'.format(len(cat), tractorfile))
-    else:
-        print('Missing Tractor catalog {}'.format(tractorfile))
-        found_data = False
-        
+    #tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    #if os.path.isfile(tractorfile):
+    #    cat = Table(fitsio.read(tractorfile, upper=True))
+    #    print('Read {} sources from {}'.format(len(cat), tractorfile))
+    #else:
+    #    print('Missing Tractor catalog {}'.format(tractorfile))
+    #    found_data = False
+
     data = dict()
     if not found_data:
         return data
@@ -410,31 +411,47 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     for filt in band:
         image = fitsio.read(filt2imfile[filt][0])
         model = fitsio.read(filt2imfile[filt][1])
+
         if len(filt2imfile[filt]) == 3:
             invvar = fitsio.read(filt2imfile[filt][2])
 
             # Mask pixels with ivar<=0. Also build an object mask from the model
             # image, to handle systematic residuals.
-            mask = (invvar <= 0) # 1=bad, 0=good
-            if np.sum(mask) > 0:
-                invvar[mask] = 1e-3
-
-            snr = model * np.sqrt(invvar)
-            mask = np.logical_or( mask, (snr > 1) )
+            mask = (invvar <= 0) # True-->bad, False-->good
+            
+            #if np.sum(mask) > 0:
+            #    invvar[mask] = 1e-3
+            #snr = model * np.sqrt(invvar)
+            #mask = np.logical_or( mask, (snr > 1) )
 
             #sig1 = 1.0 / np.sqrt(np.median(invvar))
             #mask = np.logical_or( mask, (image - model) > (3 * sig1) )
 
-            mask = binary_dilation(mask * 1, iterations=3)
-
         else:
             mask = np.zeros_like(image).astype(bool)
+
+        # Can give a divide-by-zero error for, e.g., GALEX imaging
+        #with np.errstate(divide='ignore', invalid='ignore'):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            with np.errstate(all='ignore'):
+                model_clipped, _, _ = sigmaclip(model, low=4.0, high=4.0)
+
+        #print(filt, 1-len(model_clipped)/image.size)
+        #if filt == 'W1':
+        #    pdb.set_trace()
+            
+        if len(model_clipped) > 0:
+            mask = np.logical_or( mask, model > 3 * np.std(model_clipped) )
+            #model_clipped = model
+        
+        mask = binary_dilation(mask, iterations=1) # True-->bad
 
         thispixscale = filt2pixscale[filt]
         data[filt] = (image - model) / thispixscale**2 # [nanomaggies/arcsec**2]
         
-        data['{}_mask'.format(filt)] = mask == 0 # 1->bad
-        data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)]) # 0->bad
+        #data['{}_mask'.format(filt)] = mask # True->bad
+        data['{}_masked'.format(filt)] = ma.masked_array(data[filt], mask)
         ma.set_fill_value(data['{}_masked'.format(filt)], 0)
 
     data['band'] = band
