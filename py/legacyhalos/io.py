@@ -15,7 +15,8 @@ import fitsio
 from astropy.table import Table
 from astropy.io import fits
 
-def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False):
+def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
+                         candidates=False):
     """Retrieve the galaxy name and the (nested) directory based on CENTRAL_ID. 
 
     """
@@ -36,11 +37,19 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False):
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
-        galaxy = [cat['CENTRAL_ID']]
+        memid = [cat['MEM_MATCH_ID']]
+        galaxy = ['{:07d}-{:09d}'.format(memid[0], cat['CENTRAL_ID'][0, 0])]
         pixnum = [radec2pix(nside, cat['RA'], cat['DEC'])]
     else:
         ngal = len(cat)
-        galaxy = np.array([cc for cc in cat['CENTRAL_ID']])
+        if candidates:
+            galaxy = np.array( ['{:07d}-{:09d}'.format(mid, cid)
+                                for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID'])] )
+        else:
+            galaxy = np.array( ['{:07d}-{:09d}'.format(mid, cid)
+                                for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID_CENT'][:, 0])] )
+
+        #galaxy = np.array(['{:07d}-{}' cc for cc in cat['MEM_MATCH_ID']])
         #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID']])
         pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
 
@@ -57,9 +66,9 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False):
             htmlgalaxydir = htmlgalaxydir[0]
 
     if html:
-        return galaxy, galaxydir
-    else:
         return galaxy, galaxydir, htmlgalaxydir
+    else:
+        return galaxy, galaxydir
 
 def _get_galaxy_galaxydir(cat, analysisdir=None):
     """Retrieve the galaxy name and the (nested) directory based on cluster and
