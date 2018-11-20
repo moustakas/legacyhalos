@@ -54,6 +54,119 @@ function lhphot_version
 return, ver
 end    
 
+function legacyhalos_maggies, maggies=maggies, ivarmaggies=ivarmaggies, $
+  ra=ra, dec=dec, legacyhalos_dir=legacyhalos_dir, sampleprefix=sampleprefix, $
+  lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_dr14, lhphot=lhphot, $
+  rows=rows
+
+; DR6/DR7 LegacySurvey (grz) + unWISE W1 & W2
+    if keyword_set(lsphot_dr6_dr7) then begin
+       catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
+       splog, 'Reading '+catfile
+       if n_elements(rows) ne 0 then begin
+          cat = mrdfits(catfile,1,rows=rows)
+       endif else begin
+          cat = mrdfits(catfile,1)
+       endelse
+       ngal = n_elements(cat)
+
+       ra = cat.ra
+       dec = cat.dec
+       zobj = cat.z
+       
+       factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
+         [cat.mw_transmission_z] ])
+       dmaggies = float(transpose([ [cat.flux_g], [cat.flux_r], [cat.flux_z] ]) * factor)
+       divarmaggies = float(transpose([ [cat.flux_ivar_g], [cat.flux_ivar_r], $
+         [cat.flux_ivar_z] ]) / factor^2)
+       
+       factor = 1D-9 / transpose([ [cat.mw_transmission_w1], [cat.mw_transmission_w2] ])
+       wmaggies = float(transpose([ [cat.flux_w1], [cat.flux_w2] ]) * factor)
+       wivarmaggies = float(transpose([ [cat.flux_ivar_w1], [cat.flux_ivar_w2] ]) / factor^2)
+
+       maggies = [dmaggies, wmaggies]
+       ivarmaggies = [divarmaggies, wivarmaggies]
+
+; mask out wonky unWISE photometry
+       snr = maggies*sqrt(ivarmaggies)
+       ww = where(abs(snr[3,*]) gt 1e3) & ivarmaggies[3,ww] = 0
+       ww = where(abs(snr[4,*]) gt 1e3) & ivarmaggies[4,ww] = 0
+
+; add minimum calibration uncertainties (in quadrature) to grzW1W2; see
+; [desi-targets 2084]
+       k_minerror, maggies, ivarmaggies, [0.003,0.003,0.006,0.005,0.02]
+    endif
+
+; custom LegacySurvey (grz) + unWISE W1 & W2    
+    if keyword_set(lhphot) then begin
+       catfile = legacyhalos_dir+'/sample/legacyhalos-results.fits'
+       splog, 'Reading '+catfile
+       if n_elements(rows) ne 0 then begin
+          cat = mrdfits(catfile,1,rows=rows)
+       endif else begin
+          cat = mrdfits(catfile,1)
+       endelse
+
+       ra = cat.ra
+       dec = cat.dec
+       zobj = cat.z
+
+       factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
+         [cat.mw_transmission_z] ])
+       dmaggies = float(transpose([ [cat.flux_g], [cat.flux_r], [cat.flux_z] ]) * factor)
+       divarmaggies = float(transpose([ [cat.flux_ivar_g], [cat.flux_ivar_r], $
+         [cat.flux_ivar_z] ]) / factor^2)
+       
+       factor = 1D-9 / transpose([ [cat.mw_transmission_w1], [cat.mw_transmission_w2] ])
+       wmaggies = float(transpose([ [cat.flux_w1], [cat.flux_w2] ]) * factor)
+       wivarmaggies = float(transpose([ [cat.flux_ivar_w1], [cat.flux_ivar_w2] ]) / factor^2)
+
+       maggies = [dmaggies, wmaggies]
+       ivarmaggies = [divarmaggies, wivarmaggies]
+
+; add minimum uncertainties to grzW1W2
+       k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.005,0.02]
+    endif
+
+; SDSS ugriz + forced WISE photometry from Lang & Schlegel    
+    if keyword_set(sdssphot_dr14) then begin
+       catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
+       splog, 'Reading '+catfile
+       if n_elements(rows) ne 0 then begin
+          cat = mrdfits(catfile,1,rows=rows)
+       endif else begin
+          cat = mrdfits(catfile,1)
+       endelse
+       ngal = n_elements(cat)
+
+       ra = cat.ra
+       dec = cat.dec
+       zobj = cat.z
+       
+       ratio = cat.cmodelmaggies[2,*]/cat.modelmaggies[2,*]
+       factor = 1D-9 * rebin(ratio, 5, ngal) * 10D^(0.4*cat.extinction)
+       smaggies = cat.modelmaggies * factor
+       sivarmaggies = cat.modelmaggies_ivar / factor^2
+
+       vega2ab = rebin([2.699,3.339],2,ngal) ; Vega-->AB from http://legacysurvey.org/dr5/description/#photometry
+       glactc, cat.ra, cat.dec, 2000.0, gl, gb, 1, /deg
+       ebv = rebin(reform(dust_getval(gl,gb,/interp,/noloop),1,ngal),2,ngal)
+       coeff = rebin(reform([0.184,0.113],2,1),2,ngal) ; Galactic extinction coefficients from http://legacysurvey.org/dr5/catalogs
+
+       factor = 1D-9 * 10^(0.4*coeff*ebv)*10^(-0.4*vega2ab)
+       wmaggies = float(cat.wise_nanomaggies * factor)
+       wivarmaggies = float(cat.wise_nanomaggies_ivar / factor^2)
+       
+       maggies = [smaggies, wmaggies]
+       ivarmaggies = [sivarmaggies, wivarmaggies]
+       
+; add minimum uncertainties to ugrizW1W2
+       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.005,0.02]
+    endif
+
+return, zobj
+end
+
 function get_pofm, prefix, outprefix, isedfit_rootdir, $
   thissfhgrid=thissfhgrid, kcorr=kcorr
 ; read the marginalized posterior on stellar mass, pack it into the iSEDfit
@@ -69,7 +182,7 @@ function get_pofm, prefix, outprefix, isedfit_rootdir, $
     
     npofm = 21 ; number of posterior samplings on stellar mass
     ngal = sxpar(headfits(fp.isedfit_dir+fp.isedfit_outfile+'.gz',ext=1), 'NAXIS2')
-
+    
     nperchunk = ngal            ; 50000
     nchunk = ceil(ngal/float(nperchunk))
     
@@ -111,16 +224,31 @@ function get_pofm, prefix, outprefix, isedfit_rootdir, $
 return, outphot
 end
 
-pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
-  sdssphot_dr14=sdssphot_dr14, $
+pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_dr14, lhphot=lhphot, $
   write_paramfile=write_paramfile, build_grids=build_grids, model_photometry=model_photometry, $
   isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, $
-  gather_results=gather_results, clobber=clobber, satellites=satellites
+  gather_results=gather_results, clobber=clobber, satellites=satellites, maxold=maxold, $
+  firstchunk=firstchunk, lastchunk=lastchunk
 
-; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7.log 2>&1 &
-; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, thissfhgrid=2, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sfhgrid02.log 2>&1 &
-; echo "legacyhalos_isedfit, /sdssphot_dr14, /write_param, /build_grids, /model_phot, /isedfit, /kcorrect, /cl" | /usr/bin/nohup idl > sdssphot-dr14.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/lsphot-dr6-dr7-1.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=2, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/lsphot-dr6-dr7-2.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=2, /maxold, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/lsphot-dr6-dr7-3.log 2>&1 &
 
+; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=1, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-dr14-1.log 2>&1 &
+; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=2, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-dr14-1.log 2>&1 &
+
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=0, lastchunk=4, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-9.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=5, lastchunk=9, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-0.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=10, lastchunk=14, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-1.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=15, lastchunk=19, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-2.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=20, lastchunk=24, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-3.log 2>&1 &
+
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /build_grids, /model_phot, thissfhgrid=1, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sfhgrid01.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /build_grids, /model_phot, thissfhgrid=2, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sfhgrid02.log 2>&1 &
+
+; echo "legacyhalos_isedfit, /sdssphot_dr14, /build_grids, /model_phot, thissfhgrid=1, /cl" | /usr/bin/nohup idl > sdssphot-dr14-sfhgrid01.log 2>&1 &
+; echo "legacyhalos_isedfit, /sdssphot_dr14, /build_grids, /model_phot, thissfhgrid=2, /cl" | /usr/bin/nohup idl > sdssphot-dr14-sfhgrid02.log 2>&1 &
+    
     legacyhalos_dir = getenv('LEGACYHALOS_DIR')
 
     if keyword_set(lsphot_dr6_dr7) eq 0 and keyword_set(lhphot) eq 0 and $
@@ -133,30 +261,42 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
        splog, 'THISSFHGRID is a required input!'
        return
     endif
+
     sfhgridstring = 'sfhgrid'+string(thissfhgrid,format='(I2.2)')
+    if keyword_set(maxold) then sfhgridstring = sfhgridstring+'-maxold'
     
 ; directories and prefixes for each dataset
     if keyword_set(lsphot_dr6_dr7) then begin
        prefix = 'lsphot'
        outprefix = 'lsphot_dr6_dr7'
+       outsuffix = sfhgridstring+'-lsphot-dr6-dr7'
+       extname = 'LSPHOT'
     endif
     if keyword_set(lhphot) then begin
        version = lhphot_version()
        prefix = 'lsphot'
        outprefix = 'lhphot_'+version
+       outsuffix = sfhgridstring+'-lhphot-'+version
+       extname = 'LHPHOT'
     endif
     if keyword_set(sdssphot_dr14) then begin
        prefix = 'sdssphot'
        outprefix = 'sdssphot_dr14'
+       outsuffix = sfhgridstring+'-sdssphot-dr14'
+       extname = 'SDSSPHOT'
     endif
+    if keyword_set(maxold) then outprefix = outprefix+'_maxold'
 
     if keyword_set(satellites) then begin
-       nsatchunk = 20
+       nsatchunk = 25
        sampleprefix = 'satellites'
+
+       if n_elements(firstchunk) eq 0 then firstchunk = 0
+       if n_elements(lastchunk) eq 0 then lastchunk = nsatchunk-1
     endif else begin
        sampleprefix = 'centrals'
     endelse
-    
+
     isedfit_rootdir = getenv('IM_WORK_DIR')+'/projects/legacyhalos/isedfit/'
     
     isedfit_dir = isedfit_rootdir+'isedfit_'+prefix+'/'
@@ -170,45 +310,51 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 ; gather the results and write out the final stellar mass catalog, including the
 ; posterior probability on stellar mass 
     if keyword_set(gather_results) then begin
+       if keyword_set(satellites) then begin
+          if keyword_set(lhphot) then $
+            catfile = legacyhalos_dir+'/sample/legacyhalos-results.fits' else $
+              catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
+          ngal = sxpar(headfits(catfile,ext=1), 'NAXIS2')
+          chunksize = ceil(ngal/float(nsatchunk))
 
-       if keyword_set(lsphot_dr6_dr7) then begin
-          lsphot = get_pofm(prefix,outprefix,isedfit_rootdir,$
-            thissfhgrid=thissfhgrid,kcorr=lsphot_kcorr)
+          delvarx, outphot, outkcorr
+          for ii = firstchunk, lastchunk do begin
+             splog, 'Working on CHUNK '+strtrim(ii,2)+', '+strtrim(lastchunk,2)
+             splog, im_today()
+             t0 = systime(1)
+             chunkprefix = outprefix+'_sat_chunk'+string(ii,format='(I2.2)')
+             these = lindgen(chunksize)+ii*chunksize
+             these = these[where(these lt ngal)]
+;            these = these[0:99] ; test!
 
-          outfile = legacyhalos_dir+'/sample/'+sampleprefix+'-'+sfhgridstring+'-lsphot-dr6-dr7.fits'
+             outphot1 = get_pofm(prefix,chunkprefix,isedfit_rootdir,$
+               thissfhgrid=thissfhgrid,kcorr=outkcorr1)
+             if n_elements(outphot) eq 0 then begin
+                outphot = im_empty_structure(outphot1[0], ncopies=ngal, empty_value=-999)
+                outkcorr = im_empty_structure(outkcorr1[0], ncopies=ngal, empty_value=-999)
+             endif
+             outphot[these] = temporary(outphot1)
+             outkcorr[these] = temporary(outkcorr1)
+          endfor
+       endif else begin
+          outphot = get_pofm(prefix,outprefix,isedfit_rootdir,$
+            thissfhgrid=thissfhgrid,kcorr=outkcorr)
+       endelse
+       outfile = legacyhalos_dir+'/sample/'+sampleprefix+'-'+outsuffix+'.fits'
 
-          splog, 'Writing '+outfile
-          mwrfits, lsphot, outfile, /create
-          mwrfits, lsphot_kcorr, outfile
-	
-          hdr = headfits(outfile,ext=1)
-          sxaddpar, hdr, 'EXTNAME', 'LSPHOT-ISEDFIT'
-          modfits, outfile, 0, hdr, exten_no=1
-	
-          hdr = headfits(outfile,ext=2)
-          sxaddpar, hdr, 'EXTNAME', 'LSPHOT-KCORR'
-          modfits, outfile, 0, hdr, exten_no=2
-       endif
+       splog, 'Writing '+outfile
+       mwrfits, outphot, outfile, /create
+       mwrfits, outkcorr, outfile
 
-       if keyword_set(sdssphot_dr14) then begin
-          sdssphot = get_pofm(prefix,outprefix,isedfit_rootdir,$
-            thissfhgrid=thissfhgrid,kcorr=sdssphot_kcorr)
-          
-          outfile = legacyhalos_dir+'/sample/'+sampleprefix+'-'+sfhgridstring+'-sdssphot-dr14.fits'
-          splog, 'Writing '+outfile
-          mwrfits, sdssphot, outfile, /create
-          mwrfits, sdssphot_kcorr, outfile
+       hdr = headfits(outfile,ext=1)
+       sxaddpar, hdr, 'EXTNAME', extname+'-ISEDFIT'
+       modfits, outfile, 0, hdr, exten_no=1
 
-          hdr = headfits(outfile,ext=1)
-          sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-ISEDFIT'
-          modfits, outfile, 0, hdr, exten_no=1
-
-          hdr = headfits(outfile,ext=2)
-          sxaddpar, hdr, 'EXTNAME', 'SDSSPHOT-KCORR'
-          modfits, outfile, 0, hdr, exten_no=2
-       endif
-    endif 
-
+       hdr = headfits(outfile,ext=2)
+       sxaddpar, hdr, 'EXTNAME', extname+'-KCORR'
+       modfits, outfile, 0, hdr, exten_no=2
+    endif
+    
 ; --------------------------------------------------
 ; define the filters and the redshift ranges
     if keyword_set(lsphot_dr6_dr7) or keyword_set(lhphot) then begin
@@ -226,117 +372,21 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
     band_shift = 0.1
     
 ; --------------------------------------------------
-; DR6/DR7 LegacySurvey (grz) + unWISE W1 & W2    
-    if keyword_set(lsphot_dr6_dr7) then begin
-       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits', 1)
-       ngal = n_elements(cat)
-
-       ra = cat.ra
-       dec = cat.dec
-       zobj = cat.z
-       
-       factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
-         [cat.mw_transmission_z] ])
-       dmaggies = float(transpose([ [cat.flux_g], [cat.flux_r], [cat.flux_z] ]) * factor)
-       divarmaggies = float(transpose([ [cat.flux_ivar_g], [cat.flux_ivar_r], $
-         [cat.flux_ivar_z] ]) / factor^2)
-       
-       factor = 1D-9 / transpose([ [cat.mw_transmission_w1], [cat.mw_transmission_w2] ])
-       wmaggies = float(transpose([ [cat.flux_w1], [cat.flux_w2] ]) * factor)
-       wivarmaggies = float(transpose([ [cat.flux_ivar_w1], [cat.flux_ivar_w2] ]) / factor^2)
-
-       maggies = [dmaggies, wmaggies]
-       ivarmaggies = [divarmaggies, wivarmaggies]
-
-; mask out wonky unWISE photometry
-       snr = maggies*sqrt(ivarmaggies)
-       ww = where(abs(snr[3,*]) gt 1e3) & ivarmaggies[3,ww] = 0
-       ww = where(abs(snr[4,*]) gt 1e3) & ivarmaggies[4,ww] = 0
-
-; add minimum calibration uncertainties (in quadrature) to grzW1W2; see
-; [desi-targets 2084]
-       k_minerror, maggies, ivarmaggies, [0.003,0.003,0.006,0.005,0.02]
-    endif
-    
-; --------------------------------------------------
-; custom LegacySurvey (grz) + unWISE W1 & W2    
-    if keyword_set(lhphot) then begin
-       cat = mrdfits(legacyhalos_dir+'/legacyhalos-results.fits', 'LHPHOT')
-
-       ra = cat.ra
-       dec = cat.dec
-       zobj = cat.z
-
-       factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
-         [cat.mw_transmission_z] ])
-       dmaggies = float(transpose([ [cat.flux_g], [cat.flux_r], [cat.flux_z] ]) * factor)
-       divarmaggies = float(transpose([ [cat.flux_ivar_g], [cat.flux_ivar_r], $
-         [cat.flux_ivar_z] ]) / factor^2)
-       
-       factor = 1D-9 / transpose([ [cat.mw_transmission_w1], [cat.mw_transmission_w2] ])
-       wmaggies = float(transpose([ [cat.flux_w1], [cat.flux_w2] ]) * factor)
-       wivarmaggies = float(transpose([ [cat.flux_ivar_w1], [cat.flux_ivar_w2] ]) / factor^2)
-
-       maggies = [dmaggies, wmaggies]
-       ivarmaggies = [divarmaggies, wivarmaggies]
-
-; add minimum uncertainties to grzW1W2
-       k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.005,0.02]
-    endif
-
-; --------------------------------------------------
-; SDSS ugriz + forced WISE photometry from Lang & Schlegel    
-    if keyword_set(sdssphot_dr14) then begin
-       cat = mrdfits(legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits', 1)
-       ngal = n_elements(cat)
-
-       ra = cat.ra
-       dec = cat.dec
-       zobj = cat.z
-       
-       ratio = cat.cmodelmaggies[2,*]/cat.modelmaggies[2,*]
-       factor = 1D-9 * rebin(ratio, 5, ngal) * 10D^(0.4*cat.extinction)
-       smaggies = cat.modelmaggies * factor
-       sivarmaggies = cat.modelmaggies_ivar / factor^2
-
-       vega2ab = rebin([2.699,3.339],2,ngal) ; Vega-->AB from http://legacysurvey.org/dr5/description/#photometry
-       glactc, cat.ra, cat.dec, 2000.0, gl, gb, 1, /deg
-       ebv = rebin(reform(dust_getval(gl,gb,/interp,/noloop),1,ngal),2,ngal)
-       coeff = rebin(reform([0.184,0.113],2,1),2,ngal) ; Galactic extinction coefficients from http://legacysurvey.org/dr5/catalogs
-
-       factor = 1D-9 * 10^(0.4*coeff*ebv)*10^(-0.4*vega2ab)
-       wmaggies = float(cat.wise_nanomaggies * factor)
-       wivarmaggies = float(cat.wise_nanomaggies_ivar / factor^2)
-       
-       maggies = [smaggies, wmaggies]
-       ivarmaggies = [sivarmaggies, wivarmaggies]
-       
-; add minimum uncertainties to ugrizW1W2
-       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.005,0.02]
-    endif
-
-; --------------------------------------------------
 ; write the parameter file
     if keyword_set(write_paramfile) then begin
-; SFHGRID01 - general SFH + dust, no emission lines
+; SFHGRID01 - general SFH + dust, emission lines
        write_isedfit_paramfile, params=params, isedfit_dir=isedfit_dir, $
          prefix=prefix, filterlist=filterlist, spsmodels='fsps_v2.4_miles', $
          imf='chab', redcurve='charlot', igm=0, zminmax=zminmax, nzz=nzz, $
-         nmodel=25000L, age=[0.1,13.0], tau=[0.0,6], Zmetal=[0.004,0.03], $
-         /delayed, nebular=0, clobber=clobber, sfhgrid=1
+         nmodel=50000L, age=[0.1,13.0], tau=[0.0,6], Zmetal=[0.004,0.03], $
+         /delayed, /nebular, clobber=clobber, sfhgrid=1
 ; SFHGRID02 - no dust, no emission lines
        write_isedfit_paramfile, params=params, isedfit_dir=isedfit_dir, $
          prefix=prefix, filterlist=filterlist, spsmodels='fsps_v2.4_miles', $
          imf='chab', redcurve='none', igm=0, zminmax=zminmax, nzz=nzz, $
-         nmodel=25000L, age=[0.1,13.0], tau=[0.0,6], Zmetal=[0.004,0.03], $
+         nmodel=50000L, age=[0.1,13.0], tau=[0.0,6], Zmetal=[0.004,0.03], $
          AV=[0,0], /delayed, nebular=0, clobber=clobber, sfhgrid=2, /append
     endif
-
-;   splog, 'HACK!!'
-;   index = lindgen(50)
-;   outprefix = 'test'
-;   jj = mrdfits('lsphot_dr6_dr7_fsps_v2.4_miles_chab_charlot_sfhgrid01.fits.gz',1)
-;   index = where(jj.mstar lt 0)
 
 ; --------------------------------------------------
 ; build the Monte Carlo grids    
@@ -357,40 +407,86 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
 ; fit!
     if keyword_set(isedfit) then begin
        if keyword_set(satellites) then begin
-          print('Ridiculously hard-coding ngal here to speed things up!')
-          ngal = 6682618L 
+          if keyword_set(lhphot) then $
+            catfile = legacyhalos_dir+'/sample/legacyhalos-results.fits' else $
+              catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
+          ngal = sxpar(headfits(catfile,ext=1), 'NAXIS2')
+;         splog, 'Ridiculously hard-coding ngal here to speed things up!'
+;         ngal = 6682618L 
           chunksize = ceil(ngal/float(nsatchunk))
-          if n_elements(firstchunk) eq 0 then firstchunk = 0
-          if n_elements(lastchunk) eq 0 then lastchunk = nsatchunk-1
 
           for ii = firstchunk, lastchunk do begin
              splog, 'Working on CHUNK '+strtrim(ii,2)+', '+strtrim(lastchunk,2)
              splog, im_today()
              t0 = systime(1)
-             outprefix = 'redmapper_chunk'+string(ii,format='(I3.3)')
+             chunkprefix = outprefix+'_sat_chunk'+string(ii,format='(I2.2)')
              these = lindgen(chunksize)+ii*chunksize
              these = these[where(these lt ngal)]
-             these = these[0:99] ; test!
+;            these = these[0:99] ; test!
 
-             phot = mrdfits(redmapper_dir+'catalogs/redmapper_'+ver+'_phot.fits.gz',1,rows=these)
+             zobj = legacyhalos_maggies(maggies=maggies,ivarmaggies=ivarmaggies,$
+               ra=ra,dec=dec,legacyhalos_dir=legacyhalos_dir,sampleprefix=sampleprefix, $
+               lsphot_dr6_dr7=lsphot_dr6_dr7,sdssphot_dr14=sdssphot_dr14,lhphot=lhphot, $
+               rows=these)
              isedfit, isedfit_paramfile, maggies, ivarmaggies, zobj, ra=ra, $
                dec=dec, isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, $
-               clobber=clobber, index=index, outprefix=outprefix
+               clobber=clobber, index=index, outprefix=chunkprefix, maxold=maxold
+             splog, 'Total time satellites (min) = '+strtrim((systime(1)-t0)/60.0,2)
           endfor
        endif else begin
+          zobj = legacyhalos_maggies(maggies=maggies,ivarmaggies=ivarmaggies,$
+            ra=ra,dec=dec,legacyhalos_dir=legacyhalos_dir,sampleprefix=sampleprefix, $
+            lsphot_dr6_dr7=lsphot_dr6_dr7,sdssphot_dr14=sdssphot_dr14,lhphot=lhphot)
+          t0 = systime(1)
           isedfit, isedfit_paramfile, maggies, ivarmaggies, zobj, ra=ra, $
             dec=dec, isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, $
-            clobber=clobber, index=index, outprefix=outprefix
+            clobber=clobber, index=index, outprefix=outprefix, maxold=maxold
+          splog, 'Total time for centrals (min) = '+strtrim((systime(1)-t0)/60.0,2)
        endelse
     endif 
 
 ; --------------------------------------------------
 ; compute K-corrections
     if keyword_set(kcorrect) then begin
-       isedfit_kcorrect, isedfit_paramfile, isedfit_dir=isedfit_dir, $
-         montegrids_dir=montegrids_dir, thissfhgrid=thissfhgrid, $
-         absmag_filterlist=absmag_filterlist, band_shift=band_shift, $
-         clobber=clobber, index=index, outprefix=outprefix
+       if keyword_set(satellites) then begin
+          if keyword_set(lhphot) then $
+            catfile = legacyhalos_dir+'/sample/legacyhalos-results.fits' else $
+              catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
+          ngal = sxpar(headfits(catfile,ext=1), 'NAXIS2')
+;         splog, 'Ridiculously hard-coding ngal here to speed things up!'
+;         ngal = 6682618L 
+          chunksize = ceil(ngal/float(nsatchunk))
+
+          for ii = firstchunk, lastchunk do begin
+             splog, 'Working on CHUNK '+strtrim(ii,2)+', '+strtrim(lastchunk,2)
+             splog, im_today()
+             t0 = systime(1)
+             chunkprefix = outprefix+'_sat_chunk'+string(ii,format='(I2.2)')
+             these = lindgen(chunksize)+ii*chunksize
+             these = these[where(these lt ngal)]
+;            these = these[0:99] ; test!
+
+             zobj = legacyhalos_maggies(maggies=maggies,ivarmaggies=ivarmaggies,$
+               ra=ra,dec=dec,legacyhalos_dir=legacyhalos_dir,sampleprefix=sampleprefix, $
+               lsphot_dr6_dr7=lsphot_dr6_dr7,sdssphot_dr14=sdssphot_dr14,lhphot=lhphot,$
+               rows=these)
+             isedfit_kcorrect, isedfit_paramfile, isedfit_dir=isedfit_dir, $
+               montegrids_dir=montegrids_dir, thissfhgrid=thissfhgrid, $
+               absmag_filterlist=absmag_filterlist, band_shift=band_shift, $
+               clobber=clobber, index=index, outprefix=chunkprefix
+             splog, 'Total time satellites (min) = '+strtrim((systime(1)-t0)/60.0,2)
+          endfor
+       endif else begin
+          zobj = legacyhalos_maggies(maggies=maggies,ivarmaggies=ivarmaggies,$
+            ra=ra,dec=dec,legacyhalos_dir=legacyhalos_dir,sampleprefix=sampleprefix, $
+            lsphot_dr6_dr7=lsphot_dr6_dr7,sdssphot_dr14=sdssphot_dr14,lhphot=lhphot)
+          t0 = systime(1)
+          isedfit_kcorrect, isedfit_paramfile, isedfit_dir=isedfit_dir, $
+            montegrids_dir=montegrids_dir, thissfhgrid=thissfhgrid, $
+            absmag_filterlist=absmag_filterlist, band_shift=band_shift, $
+            clobber=clobber, index=index, outprefix=outprefix
+          splog, 'Total time for centrals (min) = '+strtrim((systime(1)-t0)/60.0,2)
+       endelse
     endif 
 
 ; --------------------------------------------------
@@ -401,7 +497,6 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, lhphot=lhphot, $
          montegrids_dir=montegrids_dir, outprefix=outprefix, thissfhgrid=thissfhgrid, $
          clobber=clobber, index=these, /xlog
     endif
-
     
 return
 end
