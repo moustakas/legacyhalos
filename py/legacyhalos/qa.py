@@ -13,11 +13,12 @@ import os, pdb
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
-from legacyhalos.misc import arcsec2kpc
-from legacyhalos.misc import legacyhalos_plot_style
+import legacyhalos.io
+import legacyhalos.misc
 
-sns = legacyhalos_plot_style()
+sns, _ = legacyhalos.misc.plot_style()
 #snscolors = sns.color_palette()
 
 #import matplotlib as mpl 
@@ -45,7 +46,7 @@ def display_sersic(sersic, png=None, verbose=False):
     colors = _sbprofile_colors()
 
     if sersic['success']:
-        smascale = arcsec2kpc(sersic['redshift'])
+        smascale = legacyhalos.misc.arcsec2kpc(sersic['redshift'])
         model = sersic['bestfit']
     else:
         smascale = 1
@@ -381,8 +382,8 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
 
         im = ax1.imshow(img, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
                         interpolation='nearest')
-        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
-                 ha='center', va='center', color='k', fontsize=14)
+        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
+                 ha='center', va='center', color='k', fontsize=16)
 
         if mgefit:
             from mge.mge_print_contours import _multi_gauss, _gauss2d_mge
@@ -462,7 +463,7 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         
         band, refband = ellipsefit['band'], ellipsefit['refband']
         pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
-        smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
         
@@ -573,15 +574,18 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
     if ellipsefit['success']:
         sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr)
-
-        colors = _sbprofile_colors()
-
+        
         band, refband = ellipsefit['band'], ellipsefit['refband']
         redshift, pixscale = ellipsefit['redshift'], ellipsefit['pixscale']
-        smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+
+        if png:
+            sbfile = png.replace('.png', '.txt')
+            legacyhalos.io.write_sbprofile(sbprofile, smascale, sbfile)
 
         yminmax = [40, 0]
         xminmax = [0, 0]
+        colors = _sbprofile_colors()
 
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(10, 12), sharex=True,
                                                  gridspec_kw = {'height_ratios':[0.8, 0.8, 2, 1.2]})
@@ -761,7 +765,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         band, refband = ellipsefit['band'], ellipsefit['refband']
         redshift = ellipsefit['redshift']
-        smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
         yminmax = [40, 0]
         xminmax = [0, 0]
@@ -989,7 +993,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:                    
                     refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
-                    smascale = arcsec2kpc(redshift) # [kpc/arcsec]
+                    smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
                     sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.01)
 
                     sma = sbprofile['sma'] * smascale
@@ -1070,7 +1074,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:
                     refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
-                    smascale = ellipsefit['pixscale'] * arcsec2kpc(redshift) # [kpc/pixel]
+                    smascale = ellipsefit['pixscale'] * legacyhalos.misc.arcsec2kpc(redshift) # [kpc/pixel]
                     
                     good = (ellipsefit[refband].stop_code < 4)
                     #good = np.arange( len(ellipsefit[refband].sma) )
@@ -1099,3 +1103,256 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
     
     _color_vs_sma()       # color vs semi-major axis
     _ellipticity_vs_sma() # ellipticity vs semi-major axis
+
+def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=False):
+    """Visualize the position of all the CCDs contributing to the image stack of a
+    single galaxy.
+
+    """
+    if radius is None:
+        radius = legacyhalos.misc.cutout_radius_150kpc(
+            redshift=onegal['Z'], pixscale=pixscale) # [pixels]
+
+    wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius, pixscale=pixscale)
+    width, height = wcs.get_width() * pixscale / 3600, wcs.get_height() * pixscale / 3600 # [degrees]
+    bb, bbcc = wcs.radec_bounds(), wcs.radec_center() # [degrees]
+    pad = 0.2 # [degrees]
+
+    fig, allax = plt.subplots(1, 3, figsize=(12, 5), sharey=True, sharex=True)
+
+    for ax, band in zip(allax, ('g', 'r', 'z')):
+        ax.set_aspect('equal')
+        ax.set_xlim(bb[0]+width+pad, bb[0]-pad)
+        ax.set_ylim(bb[2]-pad, bb[2]+height+pad)
+        ax.set_xlabel('RA (deg)')
+        ax.text(0.9, 0.05, band, ha='center', va='bottom',
+                transform=ax.transAxes, fontsize=18)
+
+        if band == 'g':
+            ax.set_ylabel('Dec (deg)')
+        ax.get_xaxis().get_major_formatter().set_useOffset(False)
+        #ax.add_patch(patches.Rectangle((bb[0], bb[2]), bb[1]-bb[0], bb[3]-bb[2],
+        #                               fill=False, edgecolor='black', lw=3, ls='--'))
+        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), radius * pixscale / 3600,
+                                    fill=False, edgecolor='black', lw=2))
+
+        these = np.where(ccds.filter == band)[0]
+        col = plt.cm.Set1(np.linspace(0, 1, len(ccds)))
+        for ii, ccd in enumerate(ccds[these]):
+            print(ccd.expnum, ccd.ccdname, ccd.filter)
+            W, H, ccdwcs = legacyhalos.misc.ccdwcs(ccd)
+
+            cc = ccdwcs.radec_bounds()
+            ax.add_patch(patches.Rectangle((cc[0], cc[2]), cc[1]-cc[0],
+                                           cc[3]-cc[2], fill=False, lw=2, 
+                                           edgecolor=col[these[ii]],
+                                           label='ccd{:02d}'.format(these[ii])))
+            ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=10)
+
+    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.1, right=0.97)
+
+    if png:
+        if verbose:
+            print('Writing {}'.format(png))
+        fig.savefig(png)
+        plt.close(fig)
+    else:
+        plt.show()
+
+def display_ccd_apphot():
+    deltar = 5.0
+    rin = np.arange(0.0, radius/2, 1.0)
+    nap = len(rin)
+
+    apphot = Table(np.zeros(nap, dtype=[('RCEN', 'f4'), ('RIN', 'f4'),
+                                        ('ROUT', 'f4'), ('PIPEFLUX', 'f4'),
+                                        ('NEWFLUX', 'f4'), ('PIPESKYFLUX', 'f4'), 
+                                        ('NEWSKYFLUX', 'f4'), ('AREA', 'f4'),
+                                        ('SKYAREA', 'f4')]))
+    apphot['RIN'] = rin
+    apphot['ROUT'] = rin + deltar
+    apphot['RCEN'] = rin + deltar / 2.0
+    for ii in range(nap):
+        ap = CircularAperture((xcen, ycen), apphot['RCEN'][ii])
+        skyap = CircularAnnulus((xcen, ycen), r_in=apphot['RIN'][ii],
+                                r_out=apphot['ROUT'][ii])
+
+        #pdb.set_trace()
+        apphot['PIPEFLUX'][ii] = aperture_photometry(image_nopipesky, ap)['aperture_sum'].data
+        apphot['NEWFLUX'][ii] = aperture_photometry(image_nonewsky, ap)['aperture_sum'].data
+        apphot['PIPESKYFLUX'][ii] = aperture_photometry(image_nopipesky, skyap)['aperture_sum'].data
+        apphot['NEWSKYFLUX'][ii] = aperture_photometry(image_nonewsky, skyap)['aperture_sum'].data
+
+        apphot['AREA'][ii] = ap.area()
+        apphot['SKYAREA'][ii] = skyap.area()
+
+    # Convert to arcseconds
+    apphot['RIN'] *= im.pixscale
+    apphot['ROUT'] *= im.pixscale
+    apphot['RCEN'] *= im.pixscale
+    apphot['AREA'] *= im.pixscale**2
+    apphot['SKYAREA'] *= im.pixscale**2
+    print(apphot)
+    #pdb.set_trace()
+
+    # Now generate some QAplots related to the sky.
+    sbinsz = 0.001
+    srange = (-5 * sig1, +5 * sig1)
+    #sbins = 50
+    sbins = np.int( (srange[1]-srange[0]) / sbinsz )
+
+    qaccd = os.path.join('.', 'qa-{}-ccd{:02d}-sky.png'.format(prefix.lower(), iccd))
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    fig.suptitle('{} (ccd{:02d})'.format(tim.name, iccd), y=0.97)
+    for data1, label, color in zip((image_nopipesky.flat[pipeskypix],
+                                    image_nonewsky.flat[newskypix]),
+                                   ('Pipeline Sky', 'Custom Sky'), setcolors):
+        nn, bins = np.histogram(data1, bins=sbins, range=srange)
+        nn = nn/float(np.max(nn))
+        cbins = (bins[:-1] + bins[1:]) / 2.0
+        #pdb.set_trace()
+        ax[0].step(cbins, nn, color=color, lw=2, label=label)
+        ax[0].set_ylim(0, 1.2)
+        #(nn, bins, _) = ax[0].hist(data1, range=srange, bins=sbins,
+        #                           label=label, normed=True, lw=2, 
+        #                           histtype='step', color=color)
+    ylim = ax[0].get_ylim()
+    ax[0].vlines(0.0, ylim[0], 1.05, colors='k', linestyles='dashed')
+    ax[0].set_xlabel('Residuals (nmaggie)')
+    ax[0].set_ylabel('Relative Fraction of Pixels')
+    ax[0].legend(frameon=False, loc='upper left')
+
+    ax[1].plot(apphot['RCEN'], apphot['PIPESKYFLUX']/apphot['SKYAREA'], 
+                  label='Pipeline', color=setcolors[0])
+    ax[1].plot(apphot['RCEN'], apphot['NEWSKYFLUX']/apphot['SKYAREA'], 
+                  label='Custom', color=setcolors[1])
+    #ax[1].scatter(apphot['RCEN'], apphot['PIPESKYFLUX']/apphot['SKYAREA'], 
+    #              label='DR2 Pipeline', marker='o', color=setcolors[0])
+    #ax[1].scatter(apphot['RCEN']+1.0, apphot['NEWSKYFLUX']/apphot['SKYAREA'], 
+    #              label='Large Galaxy Pipeline', marker='s', color=setcolors[1])
+    ax[1].set_xlabel('Galactocentric Radius (arcsec)')
+    ax[1].set_ylabel('Flux in {:g}" Annulus (nmaggie/arcsec$^2$)'.format(deltar))
+    ax[1].set_xlim(-2.0, apphot['ROUT'][-1])
+    ax[1].legend(frameon=False, loc='upper right')
+
+    xlim = ax[1].get_xlim()
+    ylim = ax[1].get_ylim()
+    ax[1].hlines(0.0, xlim[0], xlim[1]*0.99999, colors='k', linestyles='dashed')
+    #ax[1].vlines(gal['RADIUS'], ylim[0], ylim[1]*0.5, colors='k', linestyles='dashed')
+
+    plt.tight_layout(w_pad=0.25)
+    plt.subplots_adjust(bottom=0.15, top=0.88)
+    print('Writing {}'.format(qaccd))
+    plt.savefig(qaccd)
+
+def _display_ccdmask_and_sky(ccdargs):
+    """Visualize the image, the custom mask, custom sky, and the pipeline sky (via
+    multiprocessing) of a single CCD.
+
+    """
+    import matplotlib.patches as patches
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    from scipy.ndimage.morphology import binary_dilation
+    from scipy.ndimage.filters import uniform_filter
+
+    import fitsio
+    from tractor.splinesky import SplineSky
+
+    onegal, ccd, iccd, survey, maskfile, qarootfile, pixscale = ccdargs
+
+    # Read the tim.
+    im = survey.get_image_object(ccd)
+    print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
+          'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
+          'object', getattr(ccd, 'object', None))
+
+    radius = legacyhalos.misc.cutout_radius_150kpc(
+        redshift=onegal['Z'], pixscale=im.pixscale) # [pixels]
+    
+    tim = im.get_tractor_image(splinesky=True, subsky=False,
+                               hybridPsf=True, normalizePsf=True)
+
+    targetwcs = tim.subwcs
+    H, W = targetwcs.shape
+    H, W = np.int(H), np.int(W)
+
+    # Get the image, read and instantiate the pipeline (splinesky) model.
+    image = tim.getImage()
+    weight = tim.getInvvar()
+    pipesky = np.zeros_like(image)
+    tim.getSky().addTo(pipesky)
+
+    # Reproduce the (pipeline) image mask derived in
+    # legacypipe.decam.run_calibs.
+    boxsize, boxcar = 512, 5
+    if min(image.shape) / boxsize < 4:
+        boxsize /= 2
+
+    good = weight > 0
+    if np.sum(good) == 0:
+        raise RuntimeError('No pixels with weight > 0.')
+    med = np.median(image[good])
+
+    skyobj = SplineSky.BlantonMethod(image - med, good, boxsize)
+    skymod = np.zeros_like(image)
+    skyobj.addTo(skymod)
+
+    bsig1 = ( 1 / np.sqrt( np.median(weight[good]) ) ) / boxcar
+    
+    mask = np.abs( uniform_filter(image - med - skymod, size=boxcar, mode='constant') > (3 * bsig1) )
+    mask = binary_dilation(mask, iterations=3)
+
+    # Read the custom mask and (constant) sky value.
+    extname = '{}-{:02d}'.format(im.name, im.hdu)
+    newmask = fitsio.read(maskfile, ext=extname)
+    hdr = fitsio.read_header(maskfile, ext=extname)
+    newsky = np.zeros_like(image) + hdr['SKY']
+
+    # Get the (pixel) coordinates of the galaxy on this CCD
+    _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
+    xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
+
+    # Visualize the data, the mask, and the sky.
+    fig, ax = plt.subplots(1, 5, sharey=True, figsize=(14, 4.5))
+    fig.suptitle('{} (ccd{:02d})'.format(extname, iccd), y=0.95, fontsize=20)
+
+    vmin_image, vmax_image = np.percentile(image, (1, 99))
+    vmin_weight, vmax_weight = np.percentile(weight, (1, 99))
+    vmin_mask, vmax_mask = (0, 1)
+    vmin_sky, vmax_sky = np.percentile(pipesky, (0.1, 99.9))
+
+    cmap = 'viridis' # 'inferno'
+
+    for thisax, data, title in zip(ax.flat, (image, mask, newmask, pipesky, newsky), 
+                                   ('Image', 'Pipeline Mask', 'Custom Mask',
+                                    'Pipeline Sky', 'Custom Sky')):
+        if 'Mask' in title:
+            vmin, vmax = vmin_mask, vmax_mask
+        elif 'Sky' in title:
+            vmin, vmax = vmin_sky, vmax_sky
+        elif 'Image' in title:
+            vmin, vmax = vmin_image, vmax_image
+        elif 'Weight' in title:
+            vmin, vmax = vmin_weight, vmax_weight
+
+        thisim = thisax.imshow(data, cmap=cmap, interpolation='nearest',
+                               origin='lower', vmin=vmin, vmax=vmax)
+        thisax.add_patch(patches.Circle((xcen, ycen), radius, fill=False, edgecolor='white', lw=2))
+        div = make_axes_locatable(thisax)
+        cax = div.append_axes('right', size='15%', pad=0.1)
+        cbar = fig.colorbar(thisim, cax=cax, format='%.4g')
+
+        thisax.set_title(title, fontsize=16)
+        thisax.xaxis.set_visible(False)
+        thisax.yaxis.set_visible(False)
+        thisax.set_aspect('equal')
+
+    ## Shared colorbar.
+    plt.tight_layout(w_pad=0.22)
+    plt.subplots_adjust(bottom=0.05, top=0.95)
+
+    qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
+    print('Writing {}'.format(qafile))
+    fig.savefig(qafile)
+    
+    #import pdb ; pdb.set_trace()

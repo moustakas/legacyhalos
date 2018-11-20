@@ -5,13 +5,15 @@ legacyhalos.io
 Code to read and write the various legacyhalos files.
 
 """
-from __future__ import absolute_import, division, print_function
-
 import os
 import pickle, pdb
 import numpy as np
 import numpy.ma as ma
 from glob import glob
+
+import fitsio
+from astropy.table import Table
+from astropy.io import fits
 
 def get_objid(cat, analysisdir=None):
     """Build a unique object ID based on the redmapper mem_match_id.
@@ -63,7 +65,7 @@ def sample_dir():
     return sdir
 
 def paper1_dir(figures=True):
-    pdir = os.path.join(legacyhalos_dir(), 'tex', 'paper1')
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper1')
     if not os.path.ipdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
@@ -84,21 +86,21 @@ def html_dir():
         os.makedirs(htmldir, exist_ok=True)
     return htmldir
 
-def write_ellipsefit(objid, objdir, ellipsefit, verbose=False):
+def write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
 
     """
-    ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
+    ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
     with open(ellipsefitfile, 'wb') as ell:
         pickle.dump(ellipsefit, ell)
 
-def read_ellipsefit(objid, objdir, verbose=True):
+def read_ellipsefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_ellipsefit."""
 
-    ellipsefitfile = os.path.join(objdir, '{}-ellipsefit.p'.format(objid))
+    ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
     try:
         with open(ellipsefitfile, 'rb') as ell:
             ellipsefit = pickle.load(ell)
@@ -110,20 +112,20 @@ def read_ellipsefit(objid, objdir, verbose=True):
 
     return ellipsefit
 
-def write_sky_ellipsefit(objid, objdir, skyellipsefit, verbose=False):
+def write_sky_ellipsefit(galaxy, galaxydir, skyellipsefit, verbose=False):
     """Pickle the sky ellipse-fitting results
 
     """
-    skyellipsefitfile = os.path.join(objdir, '{}-ellipsefit-sky.p'.format(objid))
+    skyellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit-sky.p'.format(galaxy))
     if verbose:
         print('Writing {}'.format(skyellipsefitfile))
     with open(skyellipsefitfile, 'wb') as ell:
         pickle.dump(skyellipsefit, ell)
 
-def read_sky_ellipsefit(objid, objdir, verbose=True):
+def read_sky_ellipsefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_skyellipsefit."""
 
-    skyellipsefitfile = os.path.join(objdir, '{}-ellipsefit-sky.p'.format(objid))
+    skyellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit-sky.p'.format(galaxy))
     try:
         with open(skyellipsefitfile, 'rb') as ell:
             skyellipsefit = pickle.load(ell)
@@ -135,21 +137,21 @@ def read_sky_ellipsefit(objid, objdir, verbose=True):
 
     return skyellipsefit
 
-def write_sersic(objid, objdir, sersic, modeltype='single', verbose=False):
+def write_sersic(galaxy, galaxydir, sersic, modeltype='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
 
     """
-    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, modeltype))
+    sersicfile = os.path.join(galaxydir, '{}-sersic-{}.p'.format(galaxy, modeltype))
     if verbose:
         print('Writing {}'.format(sersicfile))
     with open(sersicfile, 'wb') as ell:
         pickle.dump(sersic, ell)
 
-def read_sersic(objid, objdir, modeltype='single', verbose=True):
+def read_sersic(galaxy, galaxydir, modeltype='single', verbose=True):
     """Read the output of write_sersic."""
 
-    sersicfile = os.path.join(objdir, '{}-sersic-{}.p'.format(objid, modeltype))
+    sersicfile = os.path.join(galaxydir, '{}-sersic-{}.p'.format(galaxy, modeltype))
     try:
         with open(sersicfile, 'rb') as ell:
             sersic = pickle.load(ell)
@@ -161,20 +163,47 @@ def read_sersic(objid, objdir, modeltype='single', verbose=True):
 
     return sersic
 
-def write_mgefit(objid, objdir, mgefit, band='r', verbose=False):
+def write_sbprofile(sbprofile, smascale, sbfile):
+    """Write a (previously derived) surface brightness profile as a simple ASCII
+    file, for use on a webpage.
+
+    """
+    data = np.array( [
+        sbprofile['sma'],
+        sbprofile['sma'] * smascale,
+        sbprofile['mu_g'],
+        sbprofile['mu_r'],
+        sbprofile['mu_z'],
+        sbprofile['mu_g_err'],
+        sbprofile['mu_r_err'],
+        sbprofile['mu_z_err']
+        ] ).T
+
+    fixnan = np.isnan(data)
+    if np.sum(fixnan) > 0:
+        data[fixnan] = -999
+        
+    np.savetxt(sbfile, data, fmt='%.6f')
+    #with open(sbfile, 'wb') as sb:
+    #    sb.write('# Yo\n')
+    #pdb.set_trace()
+
+    print('Wrote {}'.format(sbfile))
+
+def write_mgefit(galaxy, galaxydir, mgefit, band='r', verbose=False):
     """Pickle an XXXXX object (see, e.g., ellipse.mgefit_multiband).
 
     """
-    mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
+    mgefitfile = os.path.join(galaxydir, '{}-mgefit.p'.format(galaxy))
     if verbose:
         print('Writing {}'.format(mgefitfile))
     with open(mgefitfile, 'wb') as mge:
         pickle.dump(mgefit, mge)
 
-def read_mgefit(objid, objdir, verbose=True):
+def read_mgefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_mgefit."""
 
-    mgefitfile = os.path.join(objdir, '{}-mgefit.p'.format(objid))
+    mgefitfile = os.path.join(galaxydir, '{}-mgefit.p'.format(galaxy))
     try:
         with open(mgefitfile, 'rb') as mge:
             mgefit = pickle.load(mge)
@@ -193,9 +222,6 @@ def read_parent(extname='LSPHOT', upenn=True, isedfit=False, columns=None, verbo
       upenn - Restrict to the UPenn-matched catalogs.
 
     """
-    import fitsio
-    from astropy.table import Table
-
     suffix = ''
     if isedfit:
         suffix = '-isedfit'
@@ -221,7 +247,6 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     lsdir = legacyhalos_dir()
     resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
     if not os.path.isfile(resultsfile) or clobber:
-        from astropy.io import fits
 
         hx = fits.HDUList()
 
@@ -245,21 +270,20 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     else:
         print('File {} exists.'.format(resultsfile))
 
-def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
+def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
 
     """
-    import fitsio
     from scipy.ndimage.morphology import binary_dilation
 
     data = dict()
 
     found_data = True
     for filt in band:
-        for imtype in ('image', 'model-nocentral', 'invvar'):
-            imfile = os.path.join(objdir, '{}-{}-{}.fits.fz'.format(objid, imtype, filt))
+        for imtype in ('custom-image', 'custom-model-nocentral', 'invvar'):
+            imfile = os.path.join(galaxydir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, filt))
             if not os.path.isfile(imfile):
                 print('File {} not found.'.format(imfile))
                 found_data = False
@@ -268,18 +292,23 @@ def read_multiband(objid, objdir, band=('g', 'r', 'z'), refband='r', pixscale=0.
         return data
     
     for filt in band:
-        image = fitsio.read(os.path.join(objdir, '{}-image-{}.fits.fz'.format(objid, filt)))
-        model = fitsio.read(os.path.join(objdir, '{}-model-nocentral-{}.fits.fz'.format(objid, filt)))
-        invvar = fitsio.read(os.path.join(objdir, '{}-invvar-{}.fits.fz'.format(objid, filt)))
+        image = fitsio.read(os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, filt)))
+        model = fitsio.read(os.path.join(galaxydir, '{}-custom-model-nocentral-{}.fits.fz'.format(galaxy, filt)))
+        invvar = fitsio.read(os.path.join(galaxydir, '{}-invvar-{}.fits.fz'.format(galaxy, filt)))
 
         # Mask pixels with ivar<=0. Also build an object mask from the model
-        # image, to handle systematic residuals.  However, don't mask too
-        # aggressively near the center of the galaxy.
-        sig1 = 1.0 / np.sqrt(np.median(invvar[invvar > 0]))
+        # image, to handle systematic residuals.
+        mask = (invvar <= 0) # 1=bad, 0=good
+        if np.sum(mask) > 0:
+            invvar[mask] = 1e-3
 
-        mask = (invvar <= 0)*1 # 1=bad, 0=good
-        mask = np.logical_or( mask, ( model > (1 * sig1) )*1 )
-        mask = binary_dilation(mask, iterations=5) * 1
+        snr = model * np.sqrt(invvar)
+        mask = np.logical_or( mask, (snr > 1) ) 
+
+        #sig1 = 1.0 / np.sqrt(np.median(invvar))
+        #mask = np.logical_or( mask, (image - model) > (3 * sig1) )
+
+        mask = binary_dilation(mask * 1, iterations=3)
 
         data[filt] = (image - model) / pixscale**2 # [nanomaggies/arcsec**2]
         
@@ -297,9 +326,6 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=N
     """Read the output of io.write_results.
 
     """
-    import fitsio
-    from astropy.table import Table
-
     lsdir = legacyhalos_dir()
     resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
 
@@ -315,54 +341,78 @@ def read_results(first=None, last=None, verbose=False, extname='RESULTS', rows=N
             print('Read {} objects from {} [{}]'.format(len(results), resultsfile, extname))
         return results
 
-def read_sample(first=None, last=None, verbose=False):
-    """Read the sample.
-
-    Temporary hack to add the DR to the catalog.
+def read_jackknife(verbose=False, dr='dr6-dr7'):
+    """Read the jackknife table (written by legacyhalos-sample-selection.ipynb).
 
     """
-    from astropy.table import hstack
-    import legacyhalos.io
+    jackfile = os.path.join(sample_dir(), 'legacyhalos-jackknife-{}.fits'.format(dr))
 
-    tractorcols = ('ra', 'dec', 'bx', 'by', 'brickname', 'objid', 'type',
-                   'shapeexp_r', 'shapeexp_e1', 'shapeexp_e2',
-                   'shapedev_r', 'shapedev_e1', 'shapedev_e2',
-                   'fracdev', 'psfsize_g', 'psfsize_r', 'psfsize_z')
-        
-    rmcols = ('mem_match_id', 'z', 'r_lambda', 'lambda_chisq', 'p_cen')
-    sdsscols = ('objid')
-        
-    sample = legacyhalos.io.read_parent(extname='LSPHOT', upenn=True,
-                                        columns=tractorcols, verbose=verbose)
+    if not os.path.isfile(jackfile):
+        print('File {} not found.'.format(jackfile))
+        return None, None
+
+    jack, hdr = fitsio.read(jackfile, extname='JACKKNIFE', header=True)
+    nside = hdr['NSIDE']
     
-    rm = legacyhalos.io.read_parent(extname='REDMAPPER', upenn=True,
-                                    columns=rmcols, verbose=verbose)
-    
-    sdss = legacyhalos.io.read_parent(extname='SDSSPHOT', upenn=True,
-                                      columns=np.atleast_1d(sdsscols),
-                                      verbose=verbose)
-    
-    sdss.rename_column('objid', 'sdss_objid')
     if verbose:
-        print('Renaming column objid-->sdss_objid in [SDSSPHOT] extension.')
-    sample = hstack( (sample, rm) )
-    sample = hstack( (sample, sdss) )
+        print('Read {} rows from {}'.format(len(jack), jackfile))
+    return Table(jack), nside
+
+def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
+                isedfit_lsphot=False, isedfit_sdssphot=False,
+                isedfit_lhphot=False, satellites=False,
+                kcorr=False, verbose=False):
+    """Read the sample.
+
+    """
+    if satellites:
+        prefix = 'satellites'
+    else:
+        prefix = 'centrals'
+
+    if isedfit_lsphot:
+        samplefile = os.path.join(sample_dir(), '{}-sfhgrid{:02d}-lsphot-{}.fits'.format(prefix, sfhgrid, dr))
+    elif isedfit_sdssphot:
+        samplefile = os.path.join(sample_dir(), '{}-sfhgrid{:02d}-sdssphot-dr14.fits'.format(prefix, sfhgrid))
+    elif isedfit_lhphot:
+        samplefile = os.path.join(sample_dir(), '{}-sfhgrid{:02d}-lhphot.fits'.format(prefix, sfhgrid))
+    else:
+        samplefile = os.path.join(sample_dir(), 'legacyhalos-{}-{}.fits'.format(prefix, dr))
+        
+    if not os.path.isfile(samplefile):
+        print('File {} not found.'.format(samplefile))
+        return None
 
     if first and last:
         if first > last:
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
 
+    info = fitsio.FITS(samplefile)
+    nrows = info[1].get_nrows()
+
     if first is None:
         first = 0
     if last is None:
-        last = len(sample)-1
+        last = nrows
+    if first == last:
+        last = last + 1
 
-    sample = sample[first:last+1]
+    rows = np.arange(first, last)
+
+    if kcorr:
+        ext = 2
+    else:
+        ext = 1
+
+    sample = Table(info[1].read(rows=rows, ext=ext))
     if verbose:
-        print('Sample contains {} objects with first, last indices {}, {}'.format(
-            len(sample), first, last))
-
+        if len(rows) == 1:
+            print('Read galaxy index {} from {}'.format(first, samplefile))
+        else:
+            print('Read galaxy indices {} through {} (N={}) from {}'.format(
+                first, last-1, len(sample), samplefile))
+            
     return sample
 
 def literature(kravtsov=True, gonzalez=False):
@@ -389,3 +439,21 @@ def literature(kravtsov=True, gonzalez=False):
         gonz['mbcg'] = np.log10(gonz['mbcg'])
         gonz['m500'] = np.log10(gonz['m500'])
         return gonz
+
+
+# For HSC vs DECaLS analysis:
+
+def hsc_vs_decals_dir():
+    ddir = os.path.join(legacyhalos_dir(), 'hsc-vs-decals')
+    if not os.path.isdir(ddir):
+        os.makedirs(ddir, exist_ok=True)
+    return ddir
+
+def read_hsc_vs_decals(verbose=False):
+    """Read the parent sample."""
+    ddir = hsc_vs_decals_dir()
+    catfile = os.path.join(ddir, 'hsc-vs-decals.fits')
+    cat = Table(fitsio.read(catfile, upper=True))
+    if verbose:
+        print('Read {} objects from {}'.format(len(cat), catfile))
+    return cat

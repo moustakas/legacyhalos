@@ -10,15 +10,71 @@ from __future__ import absolute_import, division, print_function
 import sys
 import numpy as np
 
-def legacyhalos_plot_style():
+from astrometry.util.util import Tan
+
+def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262):
+    '''Build a simple WCS object for a single galaxy.'''
+    if 'Z' in onegal.colnames:
+        galdiam = 2 * cutout_radius_150kpc(redshift=onegal['Z'], pixscale=pixscale)
+    else:
+        galdiam = radius # [pixels]
+    
+    diam = np.ceil(factor * galdiam).astype('int') # [pixels]
+    simplewcs = Tan(onegal['RA'], onegal['DEC'], diam/2+0.5, diam/2+0.5,
+                    -pixscale/3600.0, 0.0, 0.0, pixscale/3600.0, 
+                    float(diam), float(diam))
+    return simplewcs
+
+def ccdwcs(ccd):
+    '''Build a simple WCS object for a single CCD table.'''
+    W, H = ccd.width, ccd.height
+    ccdwcs = Tan(*[float(xx) for xx in [ccd.crval1, ccd.crval2, ccd.crpix1,
+                                        ccd.crpix2, ccd.cd1_1, ccd.cd1_2,
+                                        ccd.cd2_1, ccd.cd2_2, W, H]])
+    return W, H, ccdwcs
+
+def area():
+    """Return the area of the DR6+DR7 sample.  See the
+    `legacyhalos-sample-selection.ipynb` notebook for this calculation.
+
+    """
+    return 6717.906
+
+def cosmology(WMAP=False, Planck=False):
+    """Establish the default cosmology for the project."""
+
+    if WMAP:
+        from astropy.cosmology import WMAP9 as cosmo
+    elif Planck:
+        from astropy.cosmology import Planck15 as cosmo
+    else:
+        from astropy.cosmology import FlatLambdaCDM
+        cosmo = FlatLambdaCDM(H0=70, Om0=0.3)        
+
+    return cosmo
+
+def plot_style(paper=False, talk=False):
+
     import seaborn as sns
-    rc = {'font.family': 'serif', 'text.usetex': True}
+    rc = {'font.family': 'serif'}#, 'text.usetex': True}
     #rc = {'font.family': 'serif', 'text.usetex': True,
     #       'text.latex.preamble': r'\boldmath'})
-    sns.set(style='ticks', font_scale=1.5, palette='Set2', rc=rc)
+    palette = 'Set2'
+    
+    if paper:
+        palette = 'deep'
+        rc.update({'text.usetex': False})
+    
+    if talk:
+        pass
+
+    sns.set(style='ticks', font_scale=1.6, rc=rc)
+    sns.set_palette(palette, 12)
+
+    colors = sns.color_palette()
     #sns.reset_orig()
 
-    return sns
+    return sns, colors
 
 def get_logger(logfile):
     """Instantiate a simple logger.
@@ -61,7 +117,7 @@ def cutout_radius_150kpc(redshift, pixscale=0.262, radius_kpc=150):
     """Get a cutout radius of 150 kpc [in pixels] at the redshift of the cluster.
 
     """
-    from astropy.cosmology import WMAP9 as cosmo
+    cosmo = cosmology()
     arcsec_per_kpc = cosmo.arcsec_per_kpc_proper(redshift).value
     radius = np.rint(radius_kpc * arcsec_per_kpc / pixscale).astype(int) # [pixels]
     return radius
@@ -74,7 +130,7 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
     Optionally bound the radius to (rmin, rmax).
 
     """
-    from astropy.cosmology import WMAP9 as cosmo
+    cosmo = cosmology()
 
     radius_kpc = cluster_radius * 1e3 * cosmo.h # cluster radius in kpc
     radius = np.rint(factor * radius_kpc * cosmo.arcsec_per_kpc_proper(redshift).value / pixscale)
@@ -90,7 +146,7 @@ def arcsec2kpc(redshift):
     to kpc.
 
     """
-    from astropy.cosmology import WMAP9 as cosmo
+    cosmo = cosmology()
     return 1 / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/arcsec]
 
 def statsinbins(xx, yy, binsize=0.1, minpts=10, xmin=None, xmax=None):
@@ -176,8 +232,8 @@ def statsinbins(xx, yy, binsize=0.1, minpts=10, xmin=None, xmax=None):
         else:
             return stats[keep]
 
-def custom_brickname(ra, dec, prefix='custom-'):
-    brickname = 'custom-{:06d}{}{:05d}'.format(
+def custom_brickname(ra, dec):
+    brickname = '{:06d}{}{:05d}'.format(
         int(1000*ra), 'm' if dec < 0 else 'p',
         int(1000*np.abs(dec)))
     return brickname
@@ -205,3 +261,182 @@ def lambda2mhalo(richness, redshift=0.3, Saro=False):
     Mhalo = 10**logM0 * (richness / lam0)**Flam * ( (1 + redshift) / (1 + z0) )**Gz
     
     return Mhalo
+
+def radec2pix(nside, ra, dec):
+    '''Convert `ra`, `dec` to nested pixel number.
+
+    Args:
+        nside (int): HEALPix `nside`, ``2**k`` where 0 < k < 30.
+        ra (float or array): Right Accention in degrees.
+        dec (float or array): Declination in degrees.
+
+    Returns:
+        Array of integer pixel numbers using nested numbering scheme.
+
+    Notes:
+        This is syntactic sugar around::
+
+            hp.ang2pix(nside, ra, dec, lonlat=True, nest=True)
+
+        but also works with older versions of healpy that didn't have
+        `lonlat` yet.
+    '''
+    import healpy as hp
+    theta, phi = np.radians(90-dec), np.radians(ra)
+    if np.isnan(np.sum(theta)) :
+        raise ValueError("some NaN theta values")
+
+    if np.sum((theta < 0)|(theta > np.pi))>0 :
+        raise ValueError("some theta values are outside [0,pi]: {}".format(theta[(theta < 0)|(theta > np.pi)]))
+
+    return hp.ang2pix(nside, theta, phi, nest=True)
+
+def pix2radec(nside, pix):
+    '''Convert nested pixel number to `ra`, `dec`.
+
+    Args:
+        nside (int): HEALPix `nside`, ``2**k`` where 0 < k < 30.
+        ra (float or array): Right Accention in degrees.
+        dec (float or array): Declination in degrees.
+
+    Returns:
+        Array of RA, Dec coorindates using nested numbering scheme. 
+
+    Notes:
+        This is syntactic sugar around::
+            hp.pixelfunc.pix2ang(nside, pix, nest=True)
+    
+    '''
+    import healpy as hp
+
+    theta, phi = hp.pixelfunc.pix2ang(nside, pix, nest=True)
+    ra, dec = np.degrees(phi), 90-np.degrees(theta)
+    
+    return ra, dec
+    
+def get_lambdabins(verbose=False):
+    """Fixed bins of richness.
+    
+    nn = 7
+    ll = 10**np.linspace(np.log10(5), np.log10(500), nn)
+    #ll = np.linspace(5, 500, nn)
+    mh = np.log10(lambda2mhalo(ll))
+    for ii in range(nn):
+        print('{:.3f}, {:.3f}'.format(ll[ii], mh[ii]))    
+    """
+    
+    # Roughly 13.5, 13.9, 14.2, 14.6, 15, 15.7 Msun
+    lambdabins = np.array([5.0, 10.0, 20.0, 40.0, 80.0, 250.0])
+    #lambdabins = np.array([5, 25, 50, 100, 500])
+    nlbins = len(lambdabins)
+    
+    mhalobins = np.log10(lambda2mhalo(lambdabins))
+    
+    if verbose:
+        for ii in range(nlbins - 1):
+            print('Bin {}: lambda={:03d}-{:03d}, Mhalo={:.3f}-{:.3f} Msun'.format(
+                ii, lambdabins[ii], lambdabins[ii+1], mhalobins[ii], mhalobins[ii+1]))
+    return lambdabins
+
+def get_zbins(zmin=0.05, zmax=0.6, dt=1.0, verbose=False):
+    """Establish redshift bins which are equal in lookback time."""
+    import astropy.units as u
+    from astropy.cosmology import z_at_value
+    
+    cosmo = cosmology()
+    tmin, tmax = cosmo.lookback_time([zmin, zmax])
+    if verbose:
+        print('Cosmic time spanned = {:.3f} Gyr'.format(tmax - tmin))
+    
+    ntbins = np.round( (tmax.value - tmin.value) / dt + 1 ).astype('int')
+    #tbins = np.arange(tmin.value, tmax.value, dt) * u.Gyr
+    tbins = np.linspace(tmin.value, tmax.value, ntbins) * u.Gyr
+    zbins = np.around([z_at_value(cosmo.lookback_time, tt) for tt in tbins], decimals=3)
+    tbins = tbins.value
+    
+    # Now fix the bins:
+    # zbins = np.array([0.05, 0.15, 0.25, 0.35, 0.45, 0.6])
+    zbins = np.array([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6])
+    tbins = cosmo.lookback_time(zbins).value
+    
+    if verbose:
+        for ii in range(ntbins - 1):
+            print('Bin {}: z={:.3f}-{:.3f}, t={:.3f}-{:.3f} Gyr'.format(
+                ii, zbins[ii], zbins[ii+1], tbins[ii], tbins[ii+1]))
+    return zbins
+
+def get_mstarbins(deltam=0.1, satellites=False):
+    """Fixed bins of stellar mass.
+    
+    nn = 7
+    ll = 10**np.linspace(np.log10(5), np.log10(500), nn)
+    #ll = np.linspace(5, 500, nn)
+    mh = np.log10(lambda2mhalo(ll))
+    for ii in range(nn):
+        print('{:.3f}, {:.3f}'.format(ll[ii], mh[ii]))    
+    """
+
+    if satellites:
+        pass # code me
+    else:
+        mstarmin, mstarmax = 9.0, 14.0
+
+    nmstarbins = np.round( (mstarmax - mstarmin) / deltam ).astype('int') + 1
+    mstarbins = np.linspace(mstarmin, mstarmax, nmstarbins)
+    
+    return mstarbins
+
+def missing_files(sample, size=1, filetype='coadds', clobber=False):
+    """Find missing data of a given filetype."""    
+
+    if filetype == 'coadds':
+        filesuffix = 'image-central.jpg'
+    elif filetype == 'ellipse':
+        filesuffix = 'ellipsefit.p'
+    elif filetype == 'sersic':
+        filesuffix = 'sersic-single.p'
+    elif filetype == 'sky':
+        filesuffix = 'ellipsefit-sky.p'
+    else:
+        print('Unrecognized file type!')
+        raise ValueError
+
+    objdir = '.'
+    objid = sample['GALAXY']
+    #objid, objdir = legacyhalos.io.get_objid(sample)
+
+    ngal = len(sample)
+    indices = np.arange(ngal)
+    todo = np.ones(ngal, dtype=bool)
+    
+    for ii, (objid1, objdir1) in enumerate( zip(np.atleast_1d(objid), np.atleast_1d(objdir)) ):
+        residfile = os.path.join(objdir1, '{}-{}'.format(objid1, filesuffix))
+        if os.path.exists(residfile) and clobber is False:
+            todo[ii] = False
+
+    if np.sum(todo) == 0:
+        return list()
+    else:
+        indices = indices[todo]
+    return np.array_split(indices, size)
+
+def missing_coadds(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have coadds.'''
+    return _missing(sample, size=size, filetype='coadds',
+                    clobber=clobber)
+
+def missing_ellipse(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have ellipse fits.'''
+    return _missing(sample, size=size, filetype='ellipse',
+                    clobber=clobber)
+
+def missing_sersic(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have Sersic fits.'''
+    return _missing(sample, size=size, filetype='sersic',
+                    clobber=clobber)
+
+def missing_sky(sample, size=1, clobber=False):
+    '''Find the galaxies that do not yet have sky variance estimates.'''
+    return _missing(sample, size=size, filetype='sky',
+                    clobber=clobber)
+
