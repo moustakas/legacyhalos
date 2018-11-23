@@ -74,7 +74,6 @@ def build_sample(clobber=False):
     cat['RA'] = np.array([129.603676]).astype('f8')
     cat['DEC'] = np.array([-1.606419]).astype('f8')
     cat['Z'] = np.array([0.05204]).astype('f4')
-    cat['RADIUS'] = np.array([35.0]).astype('f4') # approximate "size", [arcsec]
 
     brickname = '1296m015' # hard-coded
     tractorfile = os.path.join(os.getenv('LEGACY_SURVEY_DIR'), 'tractor', brickname[:3],

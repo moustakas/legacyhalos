@@ -5,7 +5,7 @@ legacyhalos.io
 Code to read and write the various legacyhalos files.
 
 """
-import os
+import os, warnings
 import pickle, pdb
 import numpy as np
 import numpy.ma as ma
@@ -14,6 +14,94 @@ from glob import glob
 import fitsio
 from astropy.table import Table
 from astropy.io import fits
+
+def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
+                         candidates=False):
+    """Retrieve the galaxy name and the (nested) directory based on CENTRAL_ID. 
+
+    """
+    import astropy
+    import healpy as hp
+    from legacyhalos.misc import radec2pix
+    
+    nside = 8 # keep hard-coded
+    
+    if analysisdir is None:
+        analysisdir = analysis_dir()
+    if htmldir is None:
+        htmldir = html_dir()
+
+    def get_healpix_subdir(nside, pixnum, analysisdir):
+        subdir = os.path.join(str(pixnum // 100), str(pixnum))
+        return os.path.abspath(os.path.join(analysisdir, str(nside), subdir))
+
+    if type(cat) is astropy.table.row.Row:
+        ngal = 1
+        memid = [cat['MEM_MATCH_ID']]
+        galaxy = ['{:07d}-{:09d}'.format(memid[0], cat['CENTRAL_ID'][0, 0])]
+        pixnum = [radec2pix(nside, cat['RA'], cat['DEC'])]
+    else:
+        ngal = len(cat)
+        if candidates:
+            galaxy = np.array( ['{:07d}-{:09d}'.format(mid, cid)
+                                for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID'])] )
+        else:
+            galaxy = np.array( ['{:07d}-{:09d}'.format(mid, cid)
+                                for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID_CENT'][:, 0])] )
+
+        #galaxy = np.array(['{:07d}-{}' cc for cc in cat['MEM_MATCH_ID']])
+        #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID']])
+        pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
+
+    galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, analysisdir), gal)
+                          for pix, gal in zip(pixnum, galaxy)])
+    if html:
+        htmlgalaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, htmldir), gal)
+                                  for pix, gal in zip(pixnum, galaxy)])
+
+    if ngal == 1:
+        galaxy = galaxy[0]
+        galaxydir = galaxydir[0]
+        if html:
+            htmlgalaxydir = htmlgalaxydir[0]
+
+    if html:
+        return galaxy, galaxydir, htmlgalaxydir
+    else:
+        return galaxy, galaxydir
+
+def _get_galaxy_galaxydir(cat, analysisdir=None):
+    """Retrieve the galaxy name and the (nested) directory based on cluster and
+    galaxy ID.
+
+    Need to deal with candidate centrals!
+    """
+    if analysisdir is None:
+        analysisdir = analysis_dir()
+
+    ngal = len(cat)
+
+    memid = cat['MEM_MATCH_ID']
+    galaxy = ['{:07d}-{:09d}'.format(memid, cid) for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID_CENT'][:, 0])]
+    #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID'].data])
+    galaxydir = np.zeros(ngal, dtype='U{}'.format( len(analysisdir) + 1 + 5 + 1 + 4 + 1 + 6) )
+
+    subdir1 = np.array(['{:05d}'.format(gg // 10000) for gg in memid])
+    
+    for dir1 in sorted(set(subdir1)):
+        indx1 = np.where(dir1 == subdir1)[0]
+        subdir2 = np.array(['{:04d}'.format(gg // 1000) for gg in memid[indx1]])
+        for dir2 in sorted(set(subdir2)):
+            indx2 = np.where(dir2 == subdir2)[0]
+
+            allgaldir = np.array(['{:07d}'.format(gg) for gg in memid[indx1[indx2]]])
+            galaxydir[indx1[indx2]] = [os.path.join(analysisdir, dir1, dir2, galdir) for galdir in allgaldir]
+
+    if ngal == 1:
+        galaxy = galaxy[0]
+        galaxydir = galaxydir[0]
+            
+    return galaxy, galaxydir
 
 def get_objid(cat, analysisdir=None):
     """Build a unique object ID based on the redmapper mem_match_id.
@@ -270,55 +358,119 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     else:
         print('File {} exists.'.format(resultsfile))
 
-def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r', pixscale=0.262):
+def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
+                   pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
+                   maskfactor=2.0):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
 
     """
+    from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
 
-    data = dict()
+    # Dictionary mapping between filter and filename coded up in coadds.py,
+    # galex.py, and unwise.py (see the LSLGA product, too).
+    filt2imfile = {
+        'g':   ['custom-image', 'custom-model-nocentral', 'invvar'],
+        'r':   ['custom-image', 'custom-model-nocentral', 'invvar'],
+        'z':   ['custom-image', 'custom-model-nocentral', 'invvar'],
+        'FUV': ['image', 'model-nocentral'],
+        'NUV': ['image', 'model-nocentral'],
+        'W1':  ['image', 'model-nocentral'],
+        'W2':  ['image', 'model-nocentral'],
+        'W3':  ['image', 'model-nocentral'],
+        'W4':  ['image', 'model-nocentral']}
+        
+    filt2pixscale =  {
+        'g':   pixscale,
+        'r':   pixscale,
+        'z':   pixscale,
+        'FUV': galex_pixscale,
+        'NUV': galex_pixscale,
+        'W1':  unwise_pixscale,
+        'W2':  unwise_pixscale,
+        'W3':  unwise_pixscale,
+        'W4':  unwise_pixscale}
 
     found_data = True
     for filt in band:
-        for imtype in ('custom-image', 'custom-model-nocentral', 'invvar'):
-            imfile = os.path.join(galaxydir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, filt))
+        for ii, imtype in enumerate(filt2imfile[filt]):
+            for suffix in ('.fz', ''):
+                imfile = os.path.join(galaxydir, '{}-{}-{}.fits{}'.format(galaxy, imtype, filt, suffix))
+                if os.path.isfile(imfile):
+                    filt2imfile[filt][ii] = imfile
+                    break
             if not os.path.isfile(imfile):
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
+    #tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    #if os.path.isfile(tractorfile):
+    #    cat = Table(fitsio.read(tractorfile, upper=True))
+    #    print('Read {} sources from {}'.format(len(cat), tractorfile))
+    #else:
+    #    print('Missing Tractor catalog {}'.format(tractorfile))
+    #    found_data = False
+
+    data = dict()
     if not found_data:
         return data
-    
+
     for filt in band:
-        image = fitsio.read(os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, filt)))
-        model = fitsio.read(os.path.join(galaxydir, '{}-custom-model-nocentral-{}.fits.fz'.format(galaxy, filt)))
-        invvar = fitsio.read(os.path.join(galaxydir, '{}-invvar-{}.fits.fz'.format(galaxy, filt)))
+        image = fitsio.read(filt2imfile[filt][0])
+        model = fitsio.read(filt2imfile[filt][1])
 
-        # Mask pixels with ivar<=0. Also build an object mask from the model
-        # image, to handle systematic residuals.
-        mask = (invvar <= 0) # 1=bad, 0=good
-        if np.sum(mask) > 0:
-            invvar[mask] = 1e-3
+        if len(filt2imfile[filt]) == 3:
+            invvar = fitsio.read(filt2imfile[filt][2])
 
-        snr = model * np.sqrt(invvar)
-        mask = np.logical_or( mask, (snr > 1) ) 
+            # Mask pixels with ivar<=0. Also build an object mask from the model
+            # image, to handle systematic residuals.
+            mask = (invvar <= 0) # True-->bad, False-->good
+            
+            #if np.sum(mask) > 0:
+            #    invvar[mask] = 1e-3
+            #snr = model * np.sqrt(invvar)
+            #mask = np.logical_or( mask, (snr > 1) )
 
-        #sig1 = 1.0 / np.sqrt(np.median(invvar))
-        #mask = np.logical_or( mask, (image - model) > (3 * sig1) )
+            #sig1 = 1.0 / np.sqrt(np.median(invvar))
+            #mask = np.logical_or( mask, (image - model) > (3 * sig1) )
 
-        mask = binary_dilation(mask * 1, iterations=3)
+        else:
+            mask = np.zeros_like(image).astype(bool)
 
-        data[filt] = (image - model) / pixscale**2 # [nanomaggies/arcsec**2]
+        # Can give a divide-by-zero error for, e.g., GALEX imaging
+        #with np.errstate(divide='ignore', invalid='ignore'):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            with np.errstate(all='ignore'):
+                model_clipped, _, _ = sigmaclip(model, low=4.0, high=4.0)
+
+        #print(filt, 1-len(model_clipped)/image.size)
+        #if filt == 'W1':
+        #    pdb.set_trace()
+            
+        if len(model_clipped) > 0:
+            mask = np.logical_or( mask, model > 3 * np.std(model_clipped) )
+            #model_clipped = model
         
-        data['{}_mask'.format(filt)] = mask == 0 # 1->bad
-        data['{}_masked'.format(filt)] = ma.masked_array(data[filt], ~data['{}_mask'.format(filt)]) # 0->bad
+        mask = binary_dilation(mask, iterations=1) # True-->bad
+
+        thispixscale = filt2pixscale[filt]
+        data[filt] = (image - model) / thispixscale**2 # [nanomaggies/arcsec**2]
+        
+        #data['{}_mask'.format(filt)] = mask # True->bad
+        data['{}_masked'.format(filt)] = ma.masked_array(data[filt], mask)
         ma.set_fill_value(data['{}_masked'.format(filt)], 0)
 
     data['band'] = band
     data['refband'] = refband
     data['pixscale'] = pixscale
+
+    if 'NUV' in band:
+        data['galex_pixscale'] = galex_pixscale
+    if 'W1' in band:
+        data['unwise_pixscale'] = unwise_pixscale
 
     return data
 
@@ -388,8 +540,13 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
 
+    if kcorr:
+        ext = 2
+    else:
+        ext = 1
+
     info = fitsio.FITS(samplefile)
-    nrows = info[1].get_nrows()
+    nrows = info[ext].get_nrows()
 
     if first is None:
         first = 0
@@ -400,12 +557,7 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
 
     rows = np.arange(first, last)
 
-    if kcorr:
-        ext = 2
-    else:
-        ext = 1
-
-    sample = Table(info[1].read(rows=rows, ext=ext))
+    sample = Table(info[ext].read(rows=rows))
     if verbose:
         if len(rows) == 1:
             print('Read galaxy index {} from {}'.format(first, samplefile))

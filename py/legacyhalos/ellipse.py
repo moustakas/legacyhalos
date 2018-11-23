@@ -16,21 +16,107 @@ import matplotlib.pyplot as plt
 import legacyhalos.io
 import legacyhalos.misc
 
-def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
-                         nowrite=False, verbose=False):
+def ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor, warnvalue='ignore'):
+    """Perform elliptical aperture photometry for the curve-of-growth analysis.
+
+    maxsma in pixels
+
+    """
+    import astropy.table
+    from astropy.utils.exceptions import AstropyUserWarning
+    from photutils import EllipticalAperture, aperture_photometry
+
+    deltaa = 0.5 # pixel spacing 
+    theta = np.radians(mgefit['pa']-90)
+
+    results = {}
+
+    for filt in band:
+        pixscale = filt2pixscalefactor['{}_pixscale'.format(filt)]
+        pixscalefactor = filt2pixscalefactor[filt]
+
+        img = ma.getdata(data['{}_masked'.format(filt)]) * 0.262**2 
+        #img = ma.getdata(data['{}_masked'.format(filt)]) * pixscale**2 # [nanomaggies/arcsec2-->nanomaggies]
+        mask = ma.getmask(data['{}_masked'.format(filt)])
+        #img = data['{}_masked'.format(filt)]
+        #mask = data['{}_mask'.format(filt)]
+
+        #if filt == 'NUV':
+        #    bb = img.copy()
+        #    bb[mask] = 0
+        #    #plt.imshow(mask*1, origin='lower') ; plt.show()
+        #    plt.imshow(bb, origin='lower') ; plt.show()
+        #    #plt.imshow(img, origin='lower') ; plt.show()
+        #    pdb.set_trace()
+
+        deltaa_filt = deltaa * pixscalefactor
+        sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
+        smb = sma * mgefit['eps']
+        #sma_out = np.arange(0.0, maxsma * pixscalefactor, deltaa_filt)
+
+        x0 = mgefit['xpeak'] * pixscalefactor
+        y0 = mgefit['ypeak'] * pixscalefactor
+
+        apphot, apphot_nomask = [], []
+        with np.errstate(all='ignore'):
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category=AstropyUserWarning)
+                for aa, bb in zip(sma, smb):
+                    aperture = EllipticalAperture((x0, y0), aa, bb, theta)
+                    apphot.append(aperture_photometry(img, aperture, mask=mask, method='exact'))
+                    apphot_nomask.append(aperture_photometry(img, aperture, mask=None, method='exact'))
+                apphot = astropy.table.vstack(apphot)
+                apphot_nomask = astropy.table.vstack(apphot_nomask)
+        if filt == 'NUV':
+            pdb.set_trace()
+
+        results['apphot_sma_{}'.format(filt)] = sma * pixscale # [arcsec]
+        results['apphot_mag_{}'.format(filt)] = apphot['aperture_sum'].data
+
+    #fig, ax = plt.subplots()
+    #for filt in band:
+    #    ax.plot(results['apphot_sma_{}'.format(filt)],
+    #            22.5-2.5*np.log10(results['apphot_mag_{}'.format(filt)]), label=filt)
+    #ax.set_ylim(30, 5)
+    #ax.legend(loc='lower right')
+    #plt.show()
+    #pdb.set_trace()
+
+    return results
+
+def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
+                         integrmode='median', nclip=2, sclip=3,
+                         step=0.1, fflag=0.7, linear=False, 
+                         nowrite=False, verbose=False, noellipsefit=False):
     """Ellipse-fit the multiband data.
 
     See
     https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
 
+    maxsma in (optical) pixels
+
     """
+    import copy
     from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                     Isophote, IsophoteList)
     from photutils.isophote.sample import CentralEllipseSample
     from photutils.isophote.fitter import CentralEllipseFitter
 
+    if verbose:
+        warnvalue = 'ignore' # 'always'
+    else:
+        warnvalue = 'ignore'
+
+    # If noellipsefit=True, use the mean geometry of the galaxy to extract the
+    # surface-brightness profile (turn off fitting).
+    if noellipsefit:
+        maxrit = -1
+    else:
+        maxrit = None
+
     band, refband, pixscale = data['band'], data['refband'], data['pixscale']
 
+    # Populate the output dictionary
     ellipsefit = dict()
     ellipsefit['success'] = False
     ellipsefit['redshift'] = sample['Z']
@@ -42,25 +128,39 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
                                                    np.sqrt(8 * np.log(2)) ) # [arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
 
-    # Set the maximum semi-major axis length to 100 kpc or three times the
-    # semi-major axis estimated below (whichever is smaller).
-    maxsma_100kpc = 100 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
-    maxsma_major = 3 * mgefit['majoraxis']
-    maxsma = np.min( (maxsma_100kpc, maxsma_major) )
+    # Create a pixel scale mapping to accommodate GALEX and unWISE imaging.
+    filt2pixscalefactor = {'g': 1.0, 'r': 1.0, 'z': 1.0, 'g_pixscale': pixscale,
+                           'r_pixscale': pixscale, 'z_pixscale': pixscale}
+    if 'NUV' in band:
+        ellipsefit['galex_pixscale'] = data['galex_pixscale']
+        factor = pixscale / data['galex_pixscale']
+        filt2pixscalefactor.update({'FUV': factor, 'NUV': factor, 'FUV_pixscale': data['galex_pixscale'],
+                                    'NUV_pixscale': data['galex_pixscale']})
+        
+    if 'W1' in band:
+        ellipsefit['unwise_pixscale'] = data['unwise_pixscale']
+        factor = pixscale / data['unwise_pixscale']
+        filt2pixscalefactor.update({'W1': factor, 'W2': factor, 'W3': factor, 'W4': factor,
+                                    'W1_pixscale': data['unwise_pixscale'], 'W2_pixscale': data['unwise_pixscale'],
+                                    'W3_pixscale': data['unwise_pixscale'], 'W4_pixscale': data['unwise_pixscale']})
 
-    # Default parameters
-    #step_pix = 0.1
-    #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, step_pix/pixscale, 0.5, True
-    #integrmode, sclip, nclip, step, fflag, linear = 'bilinear', 2, 3, 0.1, 0.5, False
-    integrmode, sclip, nclip, step, fflag, linear = 'median', 3, 2, 0.1, 0.7, False
-    
+    # Set the maximum semi-major axis length to 100 kpc or XX times the
+    # semi-major axis estimated below (whichever is smaller).
+    if maxsma is None:
+        maxsma_100kpc = 100 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
+        maxsma_major = 4 * mgefit['majoraxis']
+        maxsma = np.min( (maxsma_100kpc, maxsma_major) )
+
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip
     ellipsefit['nclip'] = nclip
     ellipsefit['step'] = step
     ellipsefit['fflag'] = fflag
     ellipsefit['linear'] = linear
-    #integrmode, sclip, nclip, step, fflag = 'median', 3, 0, 0.1, 0.5
+
+    # Perform elliptical aperture photometry.
+    apphot = ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor)
+    ellipsefit.update(apphot)
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
@@ -73,27 +173,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
                                pa=np.radians(mgefit['pa']-90))
     ellipsefit['geometry'] = geometry
 
-    #def _sky(data, ellipsefit, diameter=2.0):
-    #    """Estimate the sky brightness in each band."""
-    #    #area = diameter**2 # arcsec^2
-    #    for filt in band:
-    #        img = data['{}_masked'.format(filt)]
-    #        #ellipsefit['{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
-    #        #ellipsefit['mu_{}_sky'.format(filt)] = ellipsefit['{}_sky'.format(filt)] # + 2.5 * np.log10(area)
-    #        ellipsefit['mu_{}_sky'.format(filt)] = 22.5 - 2.5 * np.log10( ma.std(img) )
-    #
-    #_sky(data, ellipsefit)
-
-    # Fit in the reference band...
-    if verbose:
-        print('Ellipse-fitting the reference {}-band image.'.format(refband))
-        warnvalue = 'ignore' # 'always'
-    else:
-        warnvalue = 'ignore'
-        
-    img = data['{}_masked'.format(refband)]
-    ellipse = Ellipse(img, geometry=geometry)
-
     def _unmask_center(img):
         # https://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
         nn = img.shape[0]
@@ -103,25 +182,33 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
         img.mask[xx**2 + yy**2 <= rad**2] = ma.nomask
         return img
 
-    # First fit with the default parameters.
+    # Fit the reference bands first then the other bands.
     newmask = None
+    if verbose:
+        print('Ellipse-fitting the reference {}-band image.'.format(refband))
+
+    img = data['{}_masked'.format(refband)]
+    ellipse = Ellipse(img, geometry=geometry)
+
+    # First fit with the default parameters.
     t0 = time.time()
     with warnings.catch_warnings():
         warnings.simplefilter(warnvalue)
         for sma0 in (1, 3, 6, 9, 12): # try a few different starting minor axes
             print('  Trying sma0 = {:.1f} pixels.'.format(sma0))
             try:
-                isophot = ellipse.fit_image(sma0, minsma=0.1, maxsma=3*mgefit['majoraxis'],
+                isophot = ellipse.fit_image(sma0, minsma=0.1, maxsma=maxsma,
                                             integrmode=integrmode, sclip=sclip, nclip=nclip,
-                                            step=step, fflag=fflag, linear=linear)
+                                            step=step, fflag=fflag, linear=linear,
+                                            maxrit=maxrit)
             except:
                 isophot = []
             if len(isophot) > 0:
                 break
-            
+
         if len(isophot) == 0:
             print('First iteration of ellipse-fitting failed.')
-            # try unmasking the image centered on the galaxy
+            # Try unmasking the image centered on the galaxy.
             img = _unmask_center(img)
             newmask = img.mask
             ellipse = Ellipse(img, geometry=geometry)
@@ -129,81 +216,88 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit,
             for sma0 in (1, 3, 6, 9, 12): # try a few different starting minor axes
                 print('  Second iteration: trying sma0 = {:.1f} pixels.'.format(sma0))
                 try:
-                    isophot = ellipse.fit_image(sma0, minsma=1, maxsma=2*mgefit['majoraxis'],
+                    isophot = ellipse.fit_image(sma0, minsma=1, maxsma=maxsma,
                                                 integrmode=integrmode, sclip=sclip, nclip=nclip,
                                                 step=step, fflag=fflag, linear=linear)
                 except:
                     isophot = []
                 if len(isophot) > 0:
                     break
-
     if verbose:
         print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
 
     if len(isophot) == 0:
         print('Ellipse-fitting failed, likely due to complex morphology or poor initial geometry.')
-        #print('Ellipse-fitting failed, likely due to too many masked pixels.')
+        return ellipsefit
     else:
         ellipsefit['success'] = True
         ellipsefit[refband] = isophot
 
-        tall = time.time()
-        for filt in band:
-            t0 = time.time()
-            if filt == refband: # we did it already!
-                continue
+    # Now do forced photometry at the other bandpasses (or do all the bandpasses
+    # if we didn't fit above).
+    tall = time.time()
+    for filt in band:
+        t0 = time.time()
 
-            if verbose:
-                print('Ellipse-fitting {}-band image.'.format(filt))
-
-            img = data['{}_masked'.format(filt)]
-            if newmask is not None:
-                img.mask = newmask
-
-            # Loop on the reference band isophotes but skip the first isophote,
-            # which is a CentralEllipseSample object (see below).
-            isobandfit = []
-            with warnings.catch_warnings():
-                warnings.simplefilter(warnvalue)
-                for iso in isophot:
-                #for iso in isophot[1:]:
-                    g = iso.sample.geometry # fixed geometry
-
-                    # Use the same integration mode and clipping parameters.
-                    # However, capture crappy bands using a try/except block, e.g.,
-                    # the g-band of 0013762, which leads to all nan.
-                    sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
-                                           sclip=sclip, nclip=nclip)
-                    sample.update()
-
-                    # Create an Isophote instance with the sample.
-                    isobandfit.append(Isophote(sample, 0, True, 0))
-
-                    # Now deal with the central pixel; see
-                    # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
-                    #import pdb ; pdb.set_trace()
-                    #g = EllipseGeometry(x0=geometry.x0, y0=geometry.y0, eps=mgefit['eps'], sma=1.0)
-                    #g.find_center(img)
-
-                    ## Use the same integration mode and clipping parameters.
-                    #sample = CentralEllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
-                    #                              sclip=sclip, nclip=nclip)
-                    #cen = CentralEllipseFitter(sample).fit()
-                    #isobandfit.append(cen)
-                    #isobandfit.sort()
-
-                    # Build the IsophoteList instance with the result.
-                    ellipsefit[filt] = IsophoteList(isobandfit)
-                
-            if verbose:
-                print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
-
-            if np.all( np.isnan(ellipsefit['g'].intens) ):
-                print('ERROR: Ellipse-fitting resulted in all NaN; please check the imaging for band {}'.format(filt))
-                ellipsefit['success'] = False
+        if filt == refband: # we did it already!
+            continue
 
         if verbose:
-            print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
+            print('Ellipse-fitting {}-band image.'.format(filt))
+
+        img = data['{}_masked'.format(filt)]
+        if newmask is not None:
+            img.mask = newmask
+
+        pixscalefactor = filt2pixscalefactor[filt]
+
+        # Loop on the reference band isophotes but skip the first isophote,
+        # which is a CentralEllipseSample object (see below).
+        isobandfit = []
+        with warnings.catch_warnings():
+            warnings.simplefilter(warnvalue)
+            
+            for iso in isophot:
+            #for iso in isophot[1:]:
+                g = copy.copy(iso.sample.geometry) # fixed geometry
+                g.sma *= pixscalefactor
+                g.x0 *= pixscalefactor
+                g.y0 *= pixscalefactor
+
+                # Use the same integration mode and clipping parameters.
+                sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
+                                       sclip=sclip, nclip=nclip)
+                sample.update()
+                #print(filt, g.sma, sample.mean)
+
+                # Create an Isophote instance with the sample.
+                isobandfit.append(Isophote(sample, 0, True, 0))
+
+                # Now deal with the central pixel; see
+                # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
+                #import pdb ; pdb.set_trace()
+                #g = EllipseGeometry(x0=geometry.x0, y0=geometry.y0, eps=mgefit['eps'], sma=1.0)
+                #g.find_center(img)
+
+                ## Use the same integration mode and clipping parameters.
+                #sample = CentralEllipseSample(img, g.sma, geometry=g, integrmode=integrmode,
+                #                              sclip=sclip, nclip=nclip)
+                #cen = CentralEllipseFitter(sample).fit()
+                #isobandfit.append(cen)
+                #isobandfit.sort()
+
+                # Build the IsophoteList instance with the result.
+                ellipsefit[filt] = IsophoteList(isobandfit)
+
+        if verbose:
+            print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
+
+        #if np.all( np.isnan(ellipsefit['g'].intens) ):
+        #    print('ERROR: Ellipse-fitting resulted in all NaN; please check the imaging for band {}'.format(filt))
+        #    ellipsefit['success'] = False
+
+    if verbose:
+        print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
 
     # Write out
     if not nowrite:
@@ -263,7 +357,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
     return sbprofile
 
 def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
-                     nofit=True, verbose=False):
+                     noellipsefit=True, verbose=False):
     """MGE-fit the multiband data.
 
     See http://www-astro.physics.ox.ac.uk/~mxc/software/#mge
@@ -296,7 +390,7 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
         mgefit[key] = getattr(mgegalaxy, key)
 
-    if not nofit:
+    if not noellipsefit:
         t0 = time.time()
         for filt in band:
             if verbose:
@@ -330,27 +424,34 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
 
     return mgefit
     
-def legacyhalos_ellipse(onegal, galaxydir=None, pixscale=0.262,
-                        refband='r', band=('g', 'r', 'z'),
-                        verbose=False, debug=False):
+def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
+                        refband='r', band=('g', 'r', 'z'), maxsma=None,
+                        integrmode='median', nclip=2, sclip=3,
+                        galex_pixscale=1.5, unwise_pixscale=2.75,
+                        noellipsefit=False, verbose=False, debug=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
-    """
-    if galaxydir is None:
-        galaxy, galaxydir = get_objid(onegal)
-    else:
-        galaxy = onegal['GALAXY'].lower()
+    noellipsefit - do not fit for the ellipse parameters (use the mean values from MGE). 
 
-    # Read the data.  
+    """
+    if galaxydir is None or galaxy is None:
+        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
+
+    # Read the data.
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, band=band,
-                                         refband=refband, pixscale=pixscale)
+                                         refband=refband, pixscale=pixscale,
+                                         galex_pixscale=galex_pixscale,
+                                         unwise_pixscale=unwise_pixscale)
     if bool(data):
-        # Find the galaxy and perform MGE fitting.
-        mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose, debug=debug)
+        # Find the galaxy and (optionally) perform MGE fitting.
+        mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose,
+                                  noellipsefit=True, debug=debug)
 
         # Do ellipse-fitting.
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
-                                          mgefit, verbose=verbose)
+                                          mgefit, maxsma=maxsma, integrmode=integrmode,
+                                          nclip=nclip, sclip=sclip, verbose=verbose,
+                                          noellipsefit=noellipsefit)
         if ellipsefit['success']:
             return 1
         else:

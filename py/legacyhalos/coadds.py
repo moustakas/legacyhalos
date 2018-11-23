@@ -18,6 +18,7 @@ from astrometry.util.multiproc import multiproc
 
 import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
+from legacyhalos.io import get_galaxy_galaxydir
 
 def _copyfile(infile, outfile):
     if os.path.isfile(infile):
@@ -48,9 +49,10 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} --unwise-coadds '
+    cmd += '--survey-dir {survey_dir} '
     #cmd += '--force-stage coadds '
     cmd += '--write-stage srcs --no-write --skip --no-wise-ceres '
-    cmd += '--checkpoint {archivedir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 600 '
+    cmd += '--checkpoint {archivedir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {archivedir}/{galaxy}-runbrick-%%(stage)s.p ' 
     if force:
         cmd += '--force-all '
@@ -60,7 +62,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal['RA'], dec=onegal['DEC'], width=2*radius,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     archivedir=archivedir)
+                     archivedir=archivedir, survey_dir=survey.survey_dir)
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
@@ -384,7 +386,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
                 os.path.join(survey.output_dir, 'coadd', brickname[:3], 
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
                     brickname, suffix, band)),
-                os.path.join(survey.output_dir, '{}-custom-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
+                os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
+                #os.path.join(survey.output_dir, '{}-custom-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
             if not ok:
                 return ok
 
@@ -396,13 +399,15 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
         C_nocentral = call_make_coadds(mods_nocentral)
 
     # Move (rename) the coadds into the desired output directory - no central.
-    for suffix in ('image', 'model'):
+    for suffix in np.atleast_1d('model'):
+    #for suffix in ('image', 'model'):
         for band in P['bands']:
             ok = _copyfile(
                 os.path.join(survey.output_dir, 'coadd', brickname[:3], 
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
                     brickname, suffix, band)),
-                os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
+                os.path.join(survey.output_dir, '{}-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
+                #os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
             if not ok:
                 return ok
             
@@ -435,4 +440,3 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
     call_make_png(C_nocentral, nocentral=True)
 
     return 1
-
