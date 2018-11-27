@@ -113,13 +113,15 @@ def destroy_logger(log):
         hndl.flush()
         hndl.close()
 
-def cutout_radius_150kpc(redshift, pixscale=0.262, radius_kpc=150):
+def cutout_radius_150kpc(redshift, pixscale=None, radius_kpc=150):
     """Get a cutout radius of 150 kpc [in pixels] at the redshift of the cluster.
 
     """
     cosmo = cosmology()
     arcsec_per_kpc = cosmo.arcsec_per_kpc_proper(redshift).value
-    radius = np.rint(radius_kpc * arcsec_per_kpc / pixscale).astype(int) # [pixels]
+    radius = radius_kpc * arcsec_per_kpc # [float arcsec]
+    if pixscale:
+        radius = np.rint(radius / pixscale).astype(int) # [integer/rounded pixels]
     return radius
 
 def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,

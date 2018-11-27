@@ -28,10 +28,12 @@ def _copyfile(infile, outfile):
         print('Missing file {}; please check the logfile.'.format(infile))
         return 0
 
-def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
+def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                     pixscale=0.262, splinesky=True, log=None, force=False,
                     archivedir=None, cleanup=True):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
+
+    radius in arcsec
 
     """
     import subprocess
@@ -48,8 +50,9 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
 
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
-    cmd += '--threads {threads} --outdir {outdir} --unwise-coadds '
+    cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} '
+    cmd += '--unwise-coadds '
     #cmd += '--force-stage coadds '
     cmd += '--write-stage srcs --no-write --skip --no-wise-ceres '
     cmd += '--checkpoint {archivedir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
@@ -59,8 +62,10 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
     if not splinesky:
         cmd += '--no-splinesky '
     
+    width = np.ceil(2 * radius / pixscale).astype('int') # [pixels]
+
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
-                     ra=onegal['RA'], dec=onegal['DEC'], width=2*radius,
+                     ra=onegal['RA'], dec=onegal['DEC'], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
                      archivedir=archivedir, survey_dir=survey.survey_dir)
     
@@ -127,29 +132,31 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
             if not ok:
                 return ok
 
-        for band in ('W1', 'W2'):
-            for imtype in ('image', 'model'):
-                ok = _copyfile(
-                    os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                                 'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                    os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
-                if not ok:
-                    return ok
-
         # JPG images
-        for imtype in ('wise', 'wisemodel'):
-            ok = _copyfile(
-                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                             'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-                os.path.join(survey.output_dir, '{}-{}.jpg'.format(galaxy, imtype)) )
-            if not ok:
-                return ok
+
+        # Look for WISE stuff in the unwise module--
+        #or band in ('W1', 'W2'):
+        #   for imtype in ('image', 'model'):
+        #       ok = _copyfile(
+        #           os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+        #                        'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+        #           os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
+        #       if not ok:
+        #           return ok
+
+        #for imtype in ('wise', 'wisemodel'):
+        #    ok = _copyfile(
+        #        os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+        #                     'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
+        #        os.path.join(survey.output_dir, '{}-{}.jpg'.format(galaxy, imtype)) )
+        #    if not ok:
+        #        return ok
 
         for imtype in ('image', 'model', 'resid'):
             ok = _copyfile(
                 os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-                os.path.join(survey.output_dir, '{}-pipeline-{}.jpg'.format(galaxy, imtype)) )
+                os.path.join(survey.output_dir, '{}-pipeline-{}-grz.jpg'.format(galaxy, imtype)) )
             if not ok:
                 return ok
 
@@ -169,15 +176,14 @@ def _custom_sky(skyargs):
     from scipy.ndimage.morphology import binary_dilation
     from legacypipe.runbrick import stage_srcs
 
-    survey, onegal, ccd = skyargs
+    survey, onegal, radius_arcsec, ccd = skyargs
 
     im = survey.get_image_object(ccd)
     print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
           'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
           'object', getattr(ccd, 'object', None))
 
-    radius = legacyhalos.misc.cutout_radius_150kpc(
-        redshift=onegal['Z'], pixscale=im.pixscale) # [pixels]
+    radius = np.round(radius_arcsec / im.pixscale).astype('int') # [pixels]
     
     tim = im.get_tractor_image(splinesky=True, subsky=False,
                                hybridPsf=True, normalizePsf=True)
@@ -224,11 +230,13 @@ def _custom_sky(skyargs):
     
     return out
 
-def custom_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
+def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                   pixscale=0.262, log=None, plots=False, verbose=False,
                   cleanup=True):
     """Build a custom set of coadds for a single galaxy, with a custom mask and sky
     model.
+
+    radius in arcsec
 
     """
     from astropy.io import fits
@@ -260,6 +268,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
 
     mp = multiproc(nthreads=nproc)
 
+    width = np.ceil(2 * radius / pixscale).astype('int') # [pixels]
+
     unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)    
 
     # [1] Initialize the "tims" stage of the pipeline, returning a
@@ -275,7 +285,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
 
         """
         return stage_tims(ra=onegal['RA'], dec=onegal['DEC'], brickname=brickname,
-                          survey=survey, W=2*radius, H=2*radius, pixscale=pixscale,
+                          survey=survey, W=width, H=width, pixscale=pixscale,
                           mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                           splinesky=True, subsky=False, # note!
                           depth_cut=False, apodize=False, do_calibs=False, rex=True, 
@@ -291,7 +301,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=100, nproc=1,
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
-    skyargs = [(survey, onegal, _ccd) for _ccd in survey.ccds]
+    skyargs = [(survey, onegal, radius, _ccd) for _ccd in survey.ccds]
     result = mp.map(_custom_sky, skyargs)
     #result = list( zip( *mp.map(_custom_sky, args) ) )
     sky = dict()
