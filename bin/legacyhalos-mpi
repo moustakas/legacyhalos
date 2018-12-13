@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-
-should pass radius in pixels when making coadds since we are also passing pixscale!
-
 """MPI wrapper for the various computationally intensive legacyhalos analysis
 steps.
 
@@ -47,7 +44,7 @@ def missing_files(sample, filetype='coadds', size=1, clobber=False):
     indices = np.arange(ngal)
     todo = np.ones(ngal, dtype=bool)
 
-    if filetype == 'html'
+    if filetype == 'html':
         galaxy, _, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
     else:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
@@ -260,8 +257,7 @@ def main():
         if args.coadds or args.custom_coadds:
             survey = LegacySurveyData()
             survey.output_dir = galaxydir
-            radius = legacyhalos.misc.cutout_radius_150kpc( 
-                redshift=onegal['Z'], pixscale=args.pixscale) # [pixels]
+            radius = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
             
         if args.coadds:
             _call_pipeline_coadds(onegal, galaxy, radius, survey, args.pixscale,

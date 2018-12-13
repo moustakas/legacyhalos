@@ -35,11 +35,9 @@ def ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor, warnvalue='i
         pixscale = filt2pixscalefactor['{}_pixscale'.format(filt)]
         pixscalefactor = filt2pixscalefactor[filt]
 
-        img = ma.getdata(data['{}_masked'.format(filt)]) * 0.262**2 
+        img = ma.getdata(data['{}_masked'.format(filt)]) # [nanomaggies/arcsec2]
         #img = ma.getdata(data['{}_masked'.format(filt)]) * pixscale**2 # [nanomaggies/arcsec2-->nanomaggies]
         mask = ma.getmask(data['{}_masked'.format(filt)])
-        #img = data['{}_masked'.format(filt)]
-        #mask = data['{}_mask'.format(filt)]
 
         #if filt == 'NUV':
         #    bb = img.copy()
@@ -52,7 +50,6 @@ def ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor, warnvalue='i
         deltaa_filt = deltaa * pixscalefactor
         sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
         smb = sma * mgefit['eps']
-        #sma_out = np.arange(0.0, maxsma * pixscalefactor, deltaa_filt)
 
         x0 = mgefit['xpeak'] * pixscalefactor
         y0 = mgefit['ypeak'] * pixscalefactor
@@ -63,15 +60,19 @@ def ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor, warnvalue='i
                 warnings.simplefilter('ignore', category=AstropyUserWarning)
                 for aa, bb in zip(sma, smb):
                     aperture = EllipticalAperture((x0, y0), aa, bb, theta)
-                    apphot.append(aperture_photometry(img, aperture, mask=mask, method='exact'))
-                    apphot_nomask.append(aperture_photometry(img, aperture, mask=None, method='exact'))
-                apphot = astropy.table.vstack(apphot)
-                apphot_nomask = astropy.table.vstack(apphot_nomask)
-        if filt == 'NUV':
-            pdb.set_trace()
+                    # Integrate the data to get the total surface brightness (in
+                    # nanomaggies/arcsec2) and the mask to get the fractional
+                    # area.
+                    #area = (aperture_photometry(~mask*1, aperture, mask=mask, method='exact'))['aperture_sum'].data * pixscale**2 # [arcsec**2]
+                    mu_flux = (aperture_photometry(img, aperture, mask=mask, method='exact'))['aperture_sum'].data # [nanomaggies/arcsec2]
+                    apphot.append(mu_flux * pixscale**2) # [nanomaggies]
+                apphot = np.array(apphot)
+        #if filt == 'NUV':
+        #    pdb.set_trace()
 
+        results['apphot_smaunit'] = 'arcsec'
         results['apphot_sma_{}'.format(filt)] = sma * pixscale # [arcsec]
-        results['apphot_mag_{}'.format(filt)] = apphot['aperture_sum'].data
+        results['apphot_mag_{}'.format(filt)] = apphot
 
     #fig, ax = plt.subplots()
     #for filt in band:

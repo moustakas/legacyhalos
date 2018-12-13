@@ -17,7 +17,7 @@ from astropy.io import fits
 
 def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
                          candidates=False):
-    """Retrieve the galaxy name and the (nested) directory based on CENTRAL_ID. 
+    """Retrieve the galaxy name and the (nested) directory.
 
     """
     import astropy
@@ -37,8 +37,10 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
-        memid = [cat['MEM_MATCH_ID']]
-        galaxy = ['{:07d}-{:09d}'.format(memid[0], cat['CENTRAL_ID'][0, 0])]
+        if candidates:
+            galaxy = ['{:07d}-{:09d}'.format(cat['MEM_MATCH_ID'], cat['ID'])]
+        else:
+            galaxy = ['{:07d}-{:09d}'.format(cat['MEM_MATCH_ID'], cat['ID_CENT'][0])]
         pixnum = [radec2pix(nside, cat['RA'], cat['DEC'])]
     else:
         ngal = len(cat)
@@ -49,8 +51,6 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
             galaxy = np.array( ['{:07d}-{:09d}'.format(mid, cid)
                                 for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID_CENT'][:, 0])] )
 
-        #galaxy = np.array(['{:07d}-{}' cc for cc in cat['MEM_MATCH_ID']])
-        #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID']])
         pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
 
     galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, analysisdir), gal)
@@ -70,69 +70,69 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
-def _get_galaxy_galaxydir(cat, analysisdir=None):
-    """Retrieve the galaxy name and the (nested) directory based on cluster and
-    galaxy ID.
-
-    Need to deal with candidate centrals!
-    """
-    if analysisdir is None:
-        analysisdir = analysis_dir()
-
-    ngal = len(cat)
-
-    memid = cat['MEM_MATCH_ID']
-    galaxy = ['{:07d}-{:09d}'.format(memid, cid) for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID_CENT'][:, 0])]
-    #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID'].data])
-    galaxydir = np.zeros(ngal, dtype='U{}'.format( len(analysisdir) + 1 + 5 + 1 + 4 + 1 + 6) )
-
-    subdir1 = np.array(['{:05d}'.format(gg // 10000) for gg in memid])
-    
-    for dir1 in sorted(set(subdir1)):
-        indx1 = np.where(dir1 == subdir1)[0]
-        subdir2 = np.array(['{:04d}'.format(gg // 1000) for gg in memid[indx1]])
-        for dir2 in sorted(set(subdir2)):
-            indx2 = np.where(dir2 == subdir2)[0]
-
-            allgaldir = np.array(['{:07d}'.format(gg) for gg in memid[indx1[indx2]]])
-            galaxydir[indx1[indx2]] = [os.path.join(analysisdir, dir1, dir2, galdir) for galdir in allgaldir]
-
-    if ngal == 1:
-        galaxy = galaxy[0]
-        galaxydir = galaxydir[0]
-            
-    return galaxy, galaxydir
-
-def get_objid(cat, analysisdir=None):
-    """Build a unique object ID based on the redmapper mem_match_id.
-
-    Args:
-      cat - must be a redmapper catalog or a catalog that has MEM_MATCH_ID.
-
-    """
-    if analysisdir is None:
-        analysisdir = analysis_dir()
-
-    ngal = len(np.atleast_1d(cat))
-    objid = np.zeros(ngal, dtype='U7')
-    objdir = np.zeros(ngal, dtype='U{}'.format(len(analysisdir)+1+7))
-
-    #objid, objdir = list(), list()
-    for ii, memid in enumerate(np.atleast_1d(cat['mem_match_id'])):
-        objid[ii] = '{:07d}'.format(memid)
-        objdir[ii] = os.path.join(analysisdir, objid[ii])
-        #objid.append('{:07d}'.format(memid))
-        #objdir.append(os.path.join(analysis_dir, objid[ii]))
-        if not os.path.isdir(objdir[ii]):
-            os.makedirs(objdir[ii], exist_ok=True)
-    #objid = np.array(objid)
-    #objdir = np.array(objdir)
-
-    if ngal == 1:
-        objid = objid[0]
-        objdir = objdir[0]
-            
-    return objid, objdir
+#def _get_galaxy_galaxydir(cat, analysisdir=None):
+#    """Retrieve the galaxy name and the (nested) directory based on cluster and
+#    galaxy ID.
+#
+#    Need to deal with candidate centrals!
+#    """
+#    if analysisdir is None:
+#        analysisdir = analysis_dir()
+#
+#    ngal = len(cat)
+#
+#    memid = cat['MEM_MATCH_ID']
+#    galaxy = ['{:07d}-{:09d}'.format(memid, cid) for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID_CENT'][:, 0])]
+#    #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID'].data])
+#    galaxydir = np.zeros(ngal, dtype='U{}'.format( len(analysisdir) + 1 + 5 + 1 + 4 + 1 + 6) )
+#
+#    subdir1 = np.array(['{:05d}'.format(gg // 10000) for gg in memid])
+#    
+#    for dir1 in sorted(set(subdir1)):
+#        indx1 = np.where(dir1 == subdir1)[0]
+#        subdir2 = np.array(['{:04d}'.format(gg // 1000) for gg in memid[indx1]])
+#        for dir2 in sorted(set(subdir2)):
+#            indx2 = np.where(dir2 == subdir2)[0]
+#
+#            allgaldir = np.array(['{:07d}'.format(gg) for gg in memid[indx1[indx2]]])
+#            galaxydir[indx1[indx2]] = [os.path.join(analysisdir, dir1, dir2, galdir) for galdir in allgaldir]
+#
+#    if ngal == 1:
+#        galaxy = galaxy[0]
+#        galaxydir = galaxydir[0]
+#            
+#    return galaxy, galaxydir
+#
+#def get_objid(cat, analysisdir=None):
+#    """Build a unique object ID based on the redmapper mem_match_id.
+#
+#    Args:
+#      cat - must be a redmapper catalog or a catalog that has MEM_MATCH_ID.
+#
+#    """
+#    if analysisdir is None:
+#        analysisdir = analysis_dir()
+#
+#    ngal = len(np.atleast_1d(cat))
+#    objid = np.zeros(ngal, dtype='U7')
+#    objdir = np.zeros(ngal, dtype='U{}'.format(len(analysisdir)+1+7))
+#
+#    #objid, objdir = list(), list()
+#    for ii, memid in enumerate(np.atleast_1d(cat['mem_match_id'])):
+#        objid[ii] = '{:07d}'.format(memid)
+#        objdir[ii] = os.path.join(analysisdir, objid[ii])
+#        #objid.append('{:07d}'.format(memid))
+#        #objdir.append(os.path.join(analysis_dir, objid[ii]))
+#        if not os.path.isdir(objdir[ii]):
+#            os.makedirs(objdir[ii], exist_ok=True)
+#    #objid = np.array(objid)
+#    #objdir = np.array(objdir)
+#
+#    if ngal == 1:
+#        objid = objid[0]
+#        objdir = objdir[0]
+#            
+#    return objid, objdir
 
 def legacyhalos_dir():
     if 'LEGACYHALOS_DIR' not in os.environ:
