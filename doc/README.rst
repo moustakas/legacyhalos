@@ -25,18 +25,20 @@ Input Data and Sample Selection
 
 3. *Select the parent sample.*
 
-   Finally, we build the parent sample of central and satellite galaxies as the
-   set of galaxies in the *redMaPPer/v6.3.1* catalogs with full-depth *grzW1W2*
-   photometry from the Legacy Surveys.  This step is documented in the
+   Finally, we build the parent sample of central and candidate central galaxies
+   as the set of galaxies in the *redMaPPer/v6.3.1* catalogs with full-depth
+   *grzW1W2* photometry from the Legacy Surveys.  This step is documented in the
    `legacyhalos-sample-selection.ipynb`_ Jupyter notebook, which also derives
    the area of the joint sample.
 
 Analysis for Paper 1
 --------------------
 
-1. Stellar masses.
+1. Sample selection.
 
-2. Stellar mass functions.
+2. Stellar masses.
+
+3. Stellar mass functions.
 
 Analysis for Paper 2
 --------------------
@@ -47,15 +49,12 @@ Analysis for Paper 2
 
 3. Surface brightness profile modeling.
 
-4. Stellar masses
-
-
+4. Stellar masses and mass densities.
 
 Future Work
 -----------
 
 What's next?
-
 
 References
 ----------
