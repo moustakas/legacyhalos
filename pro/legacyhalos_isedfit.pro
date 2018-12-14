@@ -94,7 +94,8 @@ function legacyhalos_maggies, maggies=maggies, ivarmaggies=ivarmaggies, $
 
 ; add minimum calibration uncertainties (in quadrature) to grzW1W2; see
 ; [desi-targets 2084]
-       k_minerror, maggies, ivarmaggies, [0.003,0.003,0.006,0.005,0.02]
+       k_minerror, maggies, ivarmaggies, [0.01,0.01,0.02,0.02,0.02]
+;      k_minerror, maggies, ivarmaggies, [0.003,0.003,0.006,0.005,0.02]
     endif
 
 ; custom LegacySurvey (grz) + unWISE W1 & W2    
@@ -125,7 +126,8 @@ function legacyhalos_maggies, maggies=maggies, ivarmaggies=ivarmaggies, $
        ivarmaggies = [divarmaggies, wivarmaggies]
 
 ; add minimum uncertainties to grzW1W2
-       k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.005,0.02]
+       k_minerror, maggies, ivarmaggies, [0.01,0.01,0.02,0.02,0.02]
+;      k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.005,0.02]
     endif
 
 ; SDSS ugriz + forced WISE photometry from Lang & Schlegel    
@@ -142,11 +144,21 @@ function legacyhalos_maggies, maggies=maggies, ivarmaggies=ivarmaggies, $
        ra = cat.ra
        dec = cat.dec
        zobj = cat.z
+
+; protect against no photometry in the following SDSS_OBJID
+; [1237654949982044274, 1237659146707141110, 1237654383056651070].  as far as I
+; can tell these are real sources---with photometry in SkyServer, but for
+; whatever reason they didn't match in my CasJobs query.  not tracking down, so
+; we just won't get stellar masses for these...
+
+       smaggies = fltarr(5, ngal)
+       sivarmaggies = fltarr(5, ngal)
+       notzero = where(cat.modelmaggies_ivar[2,*] gt 0,nnotzero)
        
-       ratio = cat.cmodelmaggies[2,*]/cat.modelmaggies[2,*]
-       factor = 1D-9 * rebin(ratio, 5, ngal) * 10D^(0.4*cat.extinction)
-       smaggies = cat.modelmaggies * factor
-       sivarmaggies = cat.modelmaggies_ivar / factor^2
+       ratio = cat[notzero].cmodelmaggies[2,*]/cat[notzero].modelmaggies[2,*]
+       factor = 1D-9 * rebin(ratio, 5, nnotzero) * 10D^(0.4*cat[notzero].extinction)
+       smaggies[*,notzero] = cat[notzero].modelmaggies * factor
+       sivarmaggies[*,notzero] = cat[notzero].modelmaggies_ivar / factor^2
 
        vega2ab = rebin([2.699,3.339],2,ngal) ; Vega-->AB from http://legacysurvey.org/dr5/description/#photometry
        glactc, cat.ra, cat.dec, 2000.0, gl, gb, 1, /deg
@@ -159,9 +171,9 @@ function legacyhalos_maggies, maggies=maggies, ivarmaggies=ivarmaggies, $
        
        maggies = [smaggies, wmaggies]
        ivarmaggies = [sivarmaggies, wivarmaggies]
-       
+
 ; add minimum uncertainties to ugrizW1W2
-       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.005,0.02]
+       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.02,0.02]
     endif
 
 return, zobj
@@ -235,8 +247,10 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_d
 ; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=2, /maxold, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/lsphot-dr6-dr7-3.log 2>&1 &
 
 ; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=1, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-dr14-1.log 2>&1 &
-; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=2, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-dr14-1.log 2>&1 &
+; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=2, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-dr14-2.log 2>&1 &
+; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=2, /maxold, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-dr14-3.log 2>&1 &
 
+    
 ; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=0, lastchunk=4, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-9.log 2>&1 &
 ; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=5, lastchunk=9, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-0.log 2>&1 &
 ; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=10, lastchunk=14, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-1.log 2>&1 &
