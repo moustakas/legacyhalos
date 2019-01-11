@@ -239,7 +239,7 @@ end
 pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_dr14, lhphot=lhphot, $
   write_paramfile=write_paramfile, build_grids=build_grids, model_photometry=model_photometry, $
   isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, thissfhgrid=thissfhgrid, $
-  gather_results=gather_results, clobber=clobber, satellites=satellites, maxold=maxold, $
+  gather_results=gather_results, clobber=clobber, candidate_centrals=candidate_centrals, maxold=maxold, $
   firstchunk=firstchunk, lastchunk=lastchunk
 
 ; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/lsphot-dr6-dr7-1.log 2>&1 &
@@ -250,12 +250,16 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_d
 ; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=2, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-dr14-2.log 2>&1 &
 ; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=2, /maxold, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-dr14-3.log 2>&1 &
 
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /candidate_centrals, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/lsphot-cand-dr6-dr7-1.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=2, /candidate_centrals, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/lsphot-cand-dr6-dr7-2.log 2>&1 &
+; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=1, /candidate_centrals, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-cand-dr6-dr7-1.log 2>&1 &
+; echo "legacyhalos_isedfit, /sdssphot_dr14, thissfhgrid=2, /candidate_centrals, /isedfit, /kcorrect, /qaplot_sed, /cl" | /usr/bin/nohup idl > logs/sdssphot-cand-dr6-dr7-2.log 2>&1 &
     
-; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=0, lastchunk=4, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-9.log 2>&1 &
-; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=5, lastchunk=9, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-0.log 2>&1 &
-; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=10, lastchunk=14, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-1.log 2>&1 &
-; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=15, lastchunk=19, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-2.log 2>&1 &
-; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /satellites, firstchunk=20, lastchunk=24, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-3.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /candidate_centrals, firstchunk=0, lastchunk=4, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-9.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /candidate_centrals, firstchunk=5, lastchunk=9, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-0.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /candidate_centrals, firstchunk=10, lastchunk=14, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-1.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /candidate_centrals, firstchunk=15, lastchunk=19, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-2.log 2>&1 &
+; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, thissfhgrid=1, /kcorrect, /candidate_centrals, firstchunk=20, lastchunk=24, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sat-3.log 2>&1 &
 
 ; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /build_grids, /model_phot, thissfhgrid=1, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sfhgrid01.log 2>&1 &
 ; echo "legacyhalos_isedfit, /lsphot_dr6_dr7, /build_grids, /model_phot, thissfhgrid=2, /cl" | /usr/bin/nohup idl > lsphot-dr6-dr7-sfhgrid02.log 2>&1 &
@@ -301,12 +305,12 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_d
     endif
     if keyword_set(maxold) then outprefix = outprefix+'_maxold'
 
-    if keyword_set(satellites) then begin
-       nsatchunk = 25
-       sampleprefix = 'satellites'
+    if keyword_set(candidate_centrals) then begin
+       ncandchunk = 5
+       sampleprefix = 'candidate-centrals'
 
        if n_elements(firstchunk) eq 0 then firstchunk = 0
-       if n_elements(lastchunk) eq 0 then lastchunk = nsatchunk-1
+       if n_elements(lastchunk) eq 0 then lastchunk = ncandchunk-1
     endif else begin
        sampleprefix = 'centrals'
     endelse
@@ -324,12 +328,12 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_d
 ; gather the results and write out the final stellar mass catalog, including the
 ; posterior probability on stellar mass 
     if keyword_set(gather_results) then begin
-       if keyword_set(satellites) then begin
+       if keyword_set(candidate_centrals) then begin
           if keyword_set(lhphot) then $
             catfile = legacyhalos_dir+'/sample/legacyhalos-results.fits' else $
               catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
           ngal = sxpar(headfits(catfile,ext=1), 'NAXIS2')
-          chunksize = ceil(ngal/float(nsatchunk))
+          chunksize = ceil(ngal/float(ncandchunk))
 
           delvarx, outphot, outkcorr
           for ii = firstchunk, lastchunk do begin
@@ -420,14 +424,14 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_d
 ; --------------------------------------------------
 ; fit!
     if keyword_set(isedfit) then begin
-       if keyword_set(satellites) then begin
+       if keyword_set(candidate_centrals) then begin
           if keyword_set(lhphot) then $
             catfile = legacyhalos_dir+'/sample/legacyhalos-results.fits' else $
               catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
           ngal = sxpar(headfits(catfile,ext=1), 'NAXIS2')
 ;         splog, 'Ridiculously hard-coding ngal here to speed things up!'
 ;         ngal = 6682618L 
-          chunksize = ceil(ngal/float(nsatchunk))
+          chunksize = ceil(ngal/float(ncandchunk))
 
           for ii = firstchunk, lastchunk do begin
              splog, 'Working on CHUNK '+strtrim(ii,2)+', '+strtrim(lastchunk,2)
@@ -445,7 +449,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_d
              isedfit, isedfit_paramfile, maggies, ivarmaggies, zobj, ra=ra, $
                dec=dec, isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, $
                clobber=clobber, index=index, outprefix=chunkprefix, maxold=maxold
-             splog, 'Total time satellites (min) = '+strtrim((systime(1)-t0)/60.0,2)
+             splog, 'Total time candidate_centrals (min) = '+strtrim((systime(1)-t0)/60.0,2)
           endfor
        endif else begin
           zobj = legacyhalos_maggies(maggies=maggies,ivarmaggies=ivarmaggies,$
@@ -462,14 +466,14 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_d
 ; --------------------------------------------------
 ; compute K-corrections
     if keyword_set(kcorrect) then begin
-       if keyword_set(satellites) then begin
+       if keyword_set(candidate_centrals) then begin
           if keyword_set(lhphot) then $
             catfile = legacyhalos_dir+'/sample/legacyhalos-results.fits' else $
               catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
           ngal = sxpar(headfits(catfile,ext=1), 'NAXIS2')
 ;         splog, 'Ridiculously hard-coding ngal here to speed things up!'
 ;         ngal = 6682618L 
-          chunksize = ceil(ngal/float(nsatchunk))
+          chunksize = ceil(ngal/float(ncandchunk))
 
           for ii = firstchunk, lastchunk do begin
              splog, 'Working on CHUNK '+strtrim(ii,2)+', '+strtrim(lastchunk,2)
@@ -488,7 +492,7 @@ pro legacyhalos_isedfit, lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_d
                montegrids_dir=montegrids_dir, thissfhgrid=thissfhgrid, $
                absmag_filterlist=absmag_filterlist, band_shift=band_shift, $
                clobber=clobber, index=index, outprefix=chunkprefix
-             splog, 'Total time satellites (min) = '+strtrim((systime(1)-t0)/60.0,2)
+             splog, 'Total time candidate_centrals (min) = '+strtrim((systime(1)-t0)/60.0,2)
           endfor
        endif else begin
           zobj = legacyhalos_maggies(maggies=maggies,ivarmaggies=ivarmaggies,$
