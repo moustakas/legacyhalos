@@ -34,7 +34,7 @@ Input Data and Sample Selection
 Analysis for Paper 1
 --------------------
 
-1. Sample selection.
+1. Build the sample by running the Python script `build-paper1-sample`_.
 
 2. Stellar masses.
 
@@ -101,6 +101,10 @@ References
 .. _`Legacy Surveys/DR7`: http://legacysurvey.org/dr7/files/#sweep-catalogs
 
 .. _`legacyhalos-sample-selection.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/legacyhalos-sample-selection.ipynb
+
+.. _`build-paper1-sample`: https://github.com/moustakas/legacyhalos/blob/paper1-sample/science/paper1/build-paper1-sample
+
+
 
 .. _`Rykoff et al. 2012, Robust Optical Richness Estimation with Reduced Scatter`: http://adsabs.harvard.edu/abs/2012ApJ...746..178R
 
