@@ -30,7 +30,7 @@ def write_mstarcat(prefix, dr, rows):
             kcorr = fitsio.read(samplefile, rows=rows, ext=2)
 
             print('Writing {}'.format(outfile))
-            fitsio.write(outfile, mstar, extname='ISEDFIT', overwrite=True)
+            fitsio.write(outfile, mstar, extname='ISEDFIT', clobber=True)
             fitsio.write(outfile, kcorr, extname='KCORR')
 
 def main():
@@ -51,8 +51,9 @@ def main():
     allcen = fitsio.read(samplefile, ext=1)
     rows = np.where( (allcen['Z'] >= 0.05) * (allcen['Z'] < 0.33) * (allcen['LAMBDA_CHISQ'] >= 10) )[0]
     cen = allcen[rows]
+
     print('Writing {}'.format(outfile))
-    fitsio.write(outfile, cen, overwrite=True)
+    fitsio.write(outfile, cen, clobber=True)
 
     #area, duparea, pixmap = legacyhalos.misc.get_area(cen, qaplot=True)
     #print('Unique area = {:.3f} deg2\nOverlapping area = {:.3f} deg2'.format(area, duparea))
@@ -69,7 +70,7 @@ def main():
     rows = np.where( np.isin( allcand['MEM_MATCH_ID'], cen['MEM_MATCH_ID'] ) )[0]
     cand = allcand[rows]
     print('Writing {}'.format(outfile))
-    fitsio.write(outfile, cen, overwrite=True)
+    fitsio.write(outfile, cen, clobber=True)
 
     write_mstarcat(prefix, args.dr, rows)
 

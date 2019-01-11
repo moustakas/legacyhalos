@@ -563,6 +563,63 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
             
     return sample
 
+def read_paper1_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
+                       isedfit_lsphot=False, isedfit_sdssphot=False,
+                       isedfit_lhphot=False, candidates=False,
+                       kcorr=False, verbose=False):
+    """Read the Paper 1 and Paper 2 samples.
+
+    """
+    if candidates:
+        prefix = 'candidate-centrals'
+    else:
+        prefix = 'centrals'
+
+    if isedfit_lsphot:
+        samplefile = os.path.join(paper1_dir(), 'data', 'paper1-{}-sfhgrid{:02d}-lsphot-{}.fits'.format(prefix, sfhgrid, dr))
+    elif isedfit_sdssphot:
+        samplefile = os.path.join(paper1_dir(), 'data', 'paper1-{}-sfhgrid{:02d}-sdssphot-dr14.fits'.format(prefix, sfhgrid))
+    elif isedfit_lhphot:
+        samplefile = os.path.join(paper1_dir(), 'data', 'paper1-{}-sfhgrid{:02d}-lhphot.fits'.format(prefix, sfhgrid))
+    else:
+        samplefile = os.path.join(paper1_dir(), 'data', 'paper1-{}-{}.fits'.format(prefix, dr))
+        
+    if not os.path.isfile(samplefile):
+        print('File {} not found.'.format(samplefile))
+        return None
+
+    if first and last:
+        if first > last:
+            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+            raise ValueError()
+
+    if kcorr:
+        ext = 2
+    else:
+        ext = 1
+
+    info = fitsio.FITS(samplefile)
+    nrows = info[ext].get_nrows()
+
+    if first is None:
+        first = 0
+    if last is None:
+        last = nrows
+    if first == last:
+        last = last + 1
+
+    rows = np.arange(first, last)
+
+    sample = Table(info[ext].read(rows=rows))
+    if verbose:
+        if len(rows) == 1:
+            print('Read galaxy index {} from {}'.format(first, samplefile))
+        else:
+            print('Read galaxy indices {} through {} (N={}) from {}'.format(
+                first, last-1, len(sample), samplefile))
+            
+    return sample
+
 def literature(kravtsov=True, gonzalez=False):
     """Assemble some data from the literature here."""
 
