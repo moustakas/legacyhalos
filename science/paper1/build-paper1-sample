@@ -1,0 +1,77 @@
+#!/usr/bin/env python
+
+"""Generate the sample for Paper 1.
+
+build-paper1-sample --clobber
+
+"""
+import os, argparse
+import numpy as np
+
+import fitsio
+from astropy.table import Table
+
+import legacyhalos.io
+import legacyhalos.misc
+
+sampledir = legacyhalos.io.sample_dir()
+paper1dir = os.path.join( legacyhalos.io.paper1_dir(), 'data' )
+
+def write_mstarcat(prefix, dr, rows):
+    """Read and write out the mstar catalogs for a given prefix.
+
+    """
+    for sfhgrid in np.atleast_1d( (1, 2) ):
+        for phot in ('lsphot-{}'.format(dr), 'sdssphot-dr14'):
+            samplefile = os.path.join(sampledir, '{}-sfhgrid{:02d}-{}.fits'.format(prefix, sfhgrid, phot))
+            outfile = os.path.join(paper1dir, 'paper1-{}-sfhgrid{:02d}-{}.fits'.format(prefix, sfhgrid, phot))
+
+            mstar = fitsio.read(samplefile, rows=rows, ext=1)
+            kcorr = fitsio.read(samplefile, rows=rows, ext=2)
+
+            print('Writing {}'.format(outfile))
+            fitsio.write(outfile, mstar, extname='ISEDFIT', overwrite=True)
+            fitsio.write(outfile, kcorr, extname='KCORR')
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dr', type=str, default='dr6-dr7', help='Data release to analyze.')
+
+    args = parser.parse_args()
+
+    #cen = legacyhalos.io.read_sample(verbose=True, dr='dr6-dr7', candidates=False)
+    #rows = np.where( (cen['Z'] >= 0.05) * (cen['Z'] < 0.33) * (cen['LAMBDA_CHISQ'] >= 10) )[0]
+
+    # Centrals--
+    prefix = 'centrals'
+    samplefile = os.path.join(sampledir, 'legacyhalos-{}-{}.fits'.format(prefix, args.dr))
+    outfile = os.path.join(paper1dir, 'paper1-{}-{}.fits'.format(prefix, args.dr))
+
+    allcen = fitsio.read(samplefile, ext=1)
+    rows = np.where( (allcen['Z'] >= 0.05) * (allcen['Z'] < 0.33) * (allcen['LAMBDA_CHISQ'] >= 10) )[0]
+    cen = allcen[rows]
+    print('Writing {}'.format(outfile))
+    fitsio.write(outfile, cen, overwrite=True)
+
+    #area, duparea, pixmap = legacyhalos.misc.get_area(cen, qaplot=True)
+    #print('Unique area = {:.3f} deg2\nOverlapping area = {:.3f} deg2'.format(area, duparea))
+
+    write_mstarcat(prefix, args.dr, rows)
+    print()
+
+    # Candidate centrals--
+    prefix = 'candidate-centrals'
+    samplefile = os.path.join(sampledir, 'legacyhalos-{}-{}.fits'.format(prefix, args.dr))
+    outfile = os.path.join(paper1dir, 'paper1-{}-{}.fits'.format(prefix, args.dr))
+
+    allcand = fitsio.read(samplefile, ext=1)
+    rows = np.where( np.isin( allcand['MEM_MATCH_ID'], cen['MEM_MATCH_ID'] ) )[0]
+    cand = allcand[rows]
+    print('Writing {}'.format(outfile))
+    fitsio.write(outfile, cen, overwrite=True)
+
+    write_mstarcat(prefix, args.dr, rows)
+
+if __name__ == '__main__':
+    main()

@@ -7,7 +7,7 @@ Miscellaneous utility code used by various scripts.
 """
 from __future__ import absolute_import, division, print_function
 
-import sys
+import os, sys
 import numpy as np
 
 from astrometry.util.util import Tan
@@ -441,4 +441,136 @@ def missing_sky(sample, size=1, clobber=False):
     '''Find the galaxies that do not yet have sky variance estimates.'''
     return _missing(sample, size=size, filetype='sky',
                     clobber=clobber)
+
+
+def get_area(cen, nside=256, qaplot=False):
+    """Get the unique area of the sample.
+
+    """
+    import fitsio
+    import healpy as hp
+    from astropy.table import Table, vstack
+    import legacyhalos.io
+    
+    areaperpix = hp.nside2pixarea(nside, degrees=True)
+    samplepix = radec2pix(nside, cen['RA'], cen['DEC'])
+    print('Subdividing the sample into nside={} healpixels with area={:.4f} deg2 per pixel.'.format(
+        nside, areaperpix))
+
+    outpixmap = []
+    for dr, release in zip( ('dr6.0', 'dr7.1'), (6000, 7000) ):
+        # Read the pixel weight map which quantifies the imaging footprint
+        pixfile = os.path.join( legacyhalos.io.sample_dir(), 'pixweight-{}-0.22.0.fits'.format(dr) )
+        pixmap = Table(fitsio.read(pixfile))
+        pixmap['DR'] = dr.upper()
+    
+        these = cen['RELEASE'] == release
+        thesepix = np.unique(samplepix[these])
+    
+        # Only keep non-empty healpixels.
+        keep = ( (pixmap['FRACAREA'][thesepix] > 0) * 
+                (pixmap['PSFDEPTH_G'][thesepix] > 0) * # p10depth[0]) * 
+                (pixmap['PSFDEPTH_R'][thesepix] > 0) * # p10depth[1]) * 
+                (pixmap['PSFDEPTH_Z'][thesepix] > 0)   # p10depth[2]) 
+               )
+        outpixmap.append(pixmap[thesepix][keep])
+    outpixmap = vstack(outpixmap)
+    
+    if False:
+        print('Clamping FRACAREA at unity!')
+        toobig = outpixmap['FRACAREA'] > 1
+        if np.sum(toobig) > 0:
+            outpixmap['FRACAREA'][toobig] = 1.0
+
+    # Don't double-count area, where DR6 and DR7 overlap.
+    _, keep = np.unique(outpixmap['HPXPIXEL'], return_index=True)
+    dup = np.delete( np.arange(len(outpixmap)), keep )
+    
+    # Code to double-check for duplicates and to ensure every object 
+    # has been assigned a healpixel.
+    # for pp in outpixmap['HPXPIXEL'][keep]:
+    #     if np.sum( pp == outpixmap['HPXPIXEL'][keep] ) > 1:
+    #         print('Duplicate!')
+    #         import pdb ; pdb.set_trace()
+    #     if np.sum( pp == samplepix ) == 0:
+    #         print('Missing healpixel!')
+    #         import pdb ; pdb.set_trace()
+    
+    area = np.sum(outpixmap['FRACAREA'][keep]) * areaperpix
+    duparea = np.sum(outpixmap['FRACAREA'][dup]) * areaperpix
+
+    if qaplot:
+        import matplotlib.pyplot as plt
+        uu = np.in1d(samplepix, outpixmap['HPXPIXEL'][keep])
+        dd = np.in1d(samplepix, outpixmap['HPXPIXEL'][dup])
+        fig, ax = plt.subplots()
+        ax.scatter(cen['RA'][uu], cen['DEC'][uu], s=1, marker='s',
+                   label=r'Unique: {:.1f} deg$^{{2}}$'.format(area))
+        ax.scatter(cen['RA'][dd], cen['DEC'][dd], s=1, marker='s',
+                   label=r'Overlapping: {:.1f} deg$^{{2}}$'.format(duparea))
+        ax.set_xlim(0, 360)
+        ax.set_ylim(-15, 80)
+        #ax.legend(loc='upper right', fontsize=12, frameon=False)
+        ax.invert_xaxis()
+        lgnd = ax.legend(loc='upper left', frameon=False, fontsize=10, ncol=2)
+        for ll in lgnd.legendHandles:
+            ll._sizes = [30]
+        plt.show()
+        
+    return area, duparea, outpixmap[keep]
+
+def jackknife_samples(cen, pixmap, nside_pixmap=256, nside_jack=4):
+    """Split the sample into ~equal area chunks and write out a table.
+    
+    """
+    from astropy.io import fits
+    
+    area_jack = hp.nside2pixarea(nside_jack, degrees=True)
+    area_pixmap = hp.nside2pixarea(nside_pixmap, degrees=True)
+    print('Jackknife nside = {} with area = {:.3f} deg2'.format(nside_jack, area_jack))
+    
+    pix_jack = radec2pix(nside_jack, cen['RA'].data, cen['DEC'].data)
+    pix_pixmap = radec2pix(nside_pixmap, cen['RA'].data, cen['DEC'].data)
+    
+    upix_jack = np.unique(pix_jack)
+    upix_jack = upix_jack[np.argsort(upix_jack)]
+    npix = len(upix_jack)
+    
+    ra_jack, dec_jack = pix2radec(nside_jack, upix_jack)
+    
+    out = Table()
+    out['HPXPIXEL'] = upix_jack
+    out['RA'] = ra_jack
+    out['DEC'] = dec_jack
+    out['AREA'] = np.zeros(npix).astype('f4')
+    out['NCEN'] = np.zeros(npix).astype('int')
+    
+    for ii, pp in enumerate(upix_jack):
+        these = np.where( pp == pix_jack )[0]
+        indx = np.where( np.in1d( pixmap['HPXPIXEL'].data, pix_pixmap[these] ) )[0]
+        uindx = np.unique(indx)
+        #print(pp, len(indx), len(uindx))
+
+        out['AREA'][ii] = np.sum(pixmap['FRACAREA'][indx].data) * area_pixmap
+        out['NCEN'][ii] = len(these)
+        
+        #if ii == 4:
+        #    rbig, dbig = pix2radec(nside_jack, pp)
+        #    rsmall, dsmall = pix2radec(nside_pixmap, pixmap['HPXPIXEL'][indx].data)
+        #    rgal, dgal = sample['RA'][these], sample['DEC'][these]
+        #    plt.scatter(rgal, dgal, s=3, marker='o', color='green')
+        #    plt.scatter(rsmall, dsmall, s=3, marker='s', color='blue')
+        #    plt.scatter(rbig, dbig, s=75, marker='x', color='k')
+        #    plt.show()
+        #    import pdb ; pdb.set_trace() 
+        
+    print('Writing {}'.format(jackfile))
+    hx = fits.HDUList()
+    hdu = fits.convenience.table_to_hdu(out)
+    hdu.header['EXTNAME'] = 'JACKKNIFE'
+    hdu.header['NSIDE'] = nside_jack
+    hx.append(hdu)
+    hx.writeto(jackfile, overwrite=True)
+
+    return out
 

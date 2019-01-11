@@ -152,13 +152,31 @@ def sample_dir():
         os.makedirs(sdir, exist_ok=True)
     return sdir
 
-def paper1_dir(figures=True):
+def paper1_dir(figures=False, data=False):
     pdir = os.path.join(legacyhalos_dir(), 'science', 'paper1')
-    if not os.path.ipdir(pdir):
+    if not os.path.isdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
         pdir = os.path.join(pdir, 'figures')
-        if not os.path.ipdir(pdir):
+        if not os.path.isdir(pdir):
+            os.makedirs(pdir, exist_ok=True)
+    if data:
+        pdir = os.path.join(pdir, 'data')
+        if not os.path.isdir(pdir):
+            os.makedirs(pdir, exist_ok=True)
+    return pdir
+
+def paper2_dir(figures=False, data=False):
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper2')
+    if not os.path.isdir(pdir):
+        os.makedirs(pdir, exist_ok=True)
+    if figures:
+        pdir = os.path.join(pdir, 'figures')
+        if not os.path.isdir(pdir):
+            os.makedirs(pdir, exist_ok=True)
+    if data:
+        pdir = os.path.join(pdir, 'data')
+        if not os.path.isdir(pdir):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
@@ -302,28 +320,6 @@ def read_mgefit(galaxy, galaxydir, verbose=True):
         mgefit = dict()
 
     return mgefit
-
-def read_parent(extname='LSPHOT', upenn=True, isedfit=False, columns=None, verbose=False):
-    """Read the various parent catalogs.
-
-    Args:
-      upenn - Restrict to the UPenn-matched catalogs.
-
-    """
-    suffix = ''
-    if isedfit:
-        suffix = '-isedfit'
-    elif upenn:
-        suffix = '-upenn'
-
-    lsdir = legacyhalos_dir()
-    catfile = os.path.join(lsdir, 'legacyhalos-parent{}.fits'.format(suffix))
-    
-    cat = Table(fitsio.read(catfile, ext=extname, columns=columns, lower=True))
-    if verbose:
-        print('Read {} objects from {} [{}]'.format(len(cat), catfile, extname))
-
-    return cat
 
 def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
                   sersic_exponential=None, sersic_single_nowavepower=None,
@@ -512,13 +508,13 @@ def read_jackknife(verbose=False, dr='dr6-dr7'):
 
 def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
                 isedfit_lsphot=False, isedfit_sdssphot=False,
-                isedfit_lhphot=False, satellites=False,
+                isedfit_lhphot=False, candidates=False,
                 kcorr=False, verbose=False):
     """Read the sample.
 
     """
-    if satellites:
-        prefix = 'satellites'
+    if candidates:
+        prefix = 'candidate-centrals'
     else:
         prefix = 'centrals'
 
