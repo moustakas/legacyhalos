@@ -36,6 +36,15 @@ Analysis for Paper 1
 
 1. Build the sample by running the Python script `build-paper1-sample`_.
 
+2. Build the n(z) and n(lambda) relations:
+   `legacyhalos-paper1-smf --nofz --noflambda --dr dr6-dr7 --clobber --verbose`
+
+2. Build the stellar mass functions:
+   `legacyhalos-paper1-smf --smf --sfhgrid 1 --lsphot --dr dr6-dr7 --clobber --verbose`
+   `legacyhalos-paper1-smf --smf --sfhgrid 2 --lsphot --dr dr6-dr7 --clobber --verbose`
+   `legacyhalos-paper1-smf --smf --sfhgrid 1 --sdssphot --clobber --verbose`
+   `legacyhalos-paper1-smf --smf --sfhgrid 2 --sdssphot --clobber --verbose`
+
 2. Stellar masses.
 
 3. Stellar mass functions.

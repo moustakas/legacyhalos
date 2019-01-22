@@ -53,7 +53,7 @@ def get_outfile(prefix, suffix, descale=False, clobber=False):
         else:
             outsuffix = '-{}'.format(suffix)
         
-    outfile = os.path.join( legacyhalos.io.sample_dir(), '{}{}.fits'.format(prefix, outsuffix) )
+    outfile = os.path.join( legacyhalos.io.paper1_dir(), 'data', 'paper1-{}{}.fits'.format(prefix, outsuffix) )
     if os.path.isfile(outfile) and not clobber:
         print('Output file {} exists; use clobber.'.format(outfile))
         return None

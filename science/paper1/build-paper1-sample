@@ -13,6 +13,7 @@ from astropy.table import Table
 
 import legacyhalos.io
 import legacyhalos.misc
+from legacyhalos.redmapper import pzutils
 
 sampledir = legacyhalos.io.sample_dir()
 paper1dir = os.path.join( legacyhalos.io.paper1_dir(), 'data' )
@@ -40,16 +41,53 @@ def main():
 
     args = parser.parse_args()
 
-    #cen = legacyhalos.io.read_sample(verbose=True, dr='dr6-dr7', candidates=False)
-    #rows = np.where( (cen['Z'] >= 0.05) * (cen['Z'] < 0.33) * (cen['LAMBDA_CHISQ'] >= 10) )[0]
-
     # Centrals--
     prefix = 'centrals'
     samplefile = os.path.join(sampledir, 'legacyhalos-{}-{}.fits'.format(prefix, args.dr))
     outfile = os.path.join(paper1dir, 'paper1-{}-{}.fits'.format(prefix, args.dr))
 
     allcen = fitsio.read(samplefile, ext=1)
-    rows = np.where( (allcen['Z'] >= 0.05) * (allcen['Z'] < 0.33) * (allcen['LAMBDA_CHISQ'] >= 10) )[0]
+    ngal = len(allcen)
+
+    lam, lam_err = allcen['LAMBDA_CHISQ'], allcen['LAMBDA_CHISQ_E'] # descale??
+
+    # Keep galaxies that have a non-zero probability (in detail, a probability
+    # >1%) of being in any of our nominal redshift or richness bins.
+    zbins = legacyhalos.misc.get_zbins()
+    zmin, zmax = zbins[:-1], zbins[1:]
+    nz = len(zmin)
+
+    p_zbin = np.zeros([nz, ngal]) # compute P(z)
+    for ii in range(nz):
+        p_zbin[ii, :] = pzutils.p_in_zbin(allcen['PZ'], allcen['PZBINS'],
+                                          zmin[ii], zmax[ii], verbose=False)
+
+    lambins = legacyhalos.misc.get_lambdabins()
+    lammin, lammax = lambins[:-1], lambins[1:]
+    nlam = len(lammin)
+    
+    p_lambin = np.zeros([nlam, ngal]) # compute P(lambda)
+    for jj in range(nlam):
+        p_lambin[jj, :] = pzutils.p_in_lambdabin(lam, lam_err, lammin[jj], lammax[jj])
+
+    # Require the total probability to be >1%
+    rows = np.where( (np.sum(p_zbin, axis=0) > 1e-2) * (np.sum(p_lambin, axis=0) > 1e-2) )[0]
+
+    if False:
+        import matplotlib.pyplot as plt
+
+        w1 = np.where( (np.sum(p_zbin, axis=0) > 1e-2) )[0]
+        _ = plt.hist(allcen['Z'], bins=100, range=(0, 0.6))
+        _ = plt.hist(allcen['Z'][w1], bins=100, range=(0, 0.6), alpha=0.5)
+        plt.show()
+    
+        w2 = np.where( (np.sum(p_lambin, axis=0) > 1e-2) )[0]
+        _ = plt.hist(np.log10(lam), bins=100, range=(-1, 2))
+        _ = plt.hist(np.log10(lam[w2]), bins=100, range=(-1, 2), alpha=0.5)
+        plt.show()
+
+    # Old-school, hard cut-off way.
+    #rows = np.where( (allcen['Z'] >= 0.05) * (allcen['Z'] <= 0.35) * (allcen['LAMBDA_CHISQ'] >= 10) )[0]
     cen = allcen[rows]
 
     print('Writing {}'.format(outfile))

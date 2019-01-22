@@ -325,22 +325,27 @@ def get_lambdabins(verbose=False):
     mh = np.log10(lambda2mhalo(ll))
     for ii in range(nn):
         print('{:.3f}, {:.3f}'.format(ll[ii], mh[ii]))    
+
     """
-    
     # Roughly 13.5, 13.9, 14.2, 14.6, 15, 15.7 Msun
-    lambdabins = np.array([5.0, 10.0, 20.0, 40.0, 80.0, 250.0])
+    #lambdabins = np.array([5.0, 10.0, 20.0, 40.0, 80.0, 250.0])
+
+    # Roughly 13.9, 14.2, 14.6, 15, 15.7 Msun
+    lambdabins = np.array([10.0, 20.0, 40.0, 80.0, 250.0])
     #lambdabins = np.array([5, 25, 50, 100, 500])
     nlbins = len(lambdabins)
     
     mhalobins = np.log10(lambda2mhalo(lambdabins))
-    
+
     if verbose:
         for ii in range(nlbins - 1):
             print('Bin {}: lambda={:03d}-{:03d}, Mhalo={:.3f}-{:.3f} Msun'.format(
-                ii, lambdabins[ii], lambdabins[ii+1], mhalobins[ii], mhalobins[ii+1]))
+                ii, lambdabins[ii].astype('int'), lambdabins[ii+1].astype('int'),
+                mhalobins[ii], mhalobins[ii+1]))
+            
     return lambdabins
 
-def get_zbins(zmin=0.05, zmax=0.6, dt=1.0, verbose=False):
+def get_zbins(zmin=0.05, zmax=0.35, dt=0.5, verbose=False):
     """Establish redshift bins which are equal in lookback time."""
     import astropy.units as u
     from astropy.cosmology import z_at_value
@@ -358,13 +363,15 @@ def get_zbins(zmin=0.05, zmax=0.6, dt=1.0, verbose=False):
     
     # Now fix the bins:
     # zbins = np.array([0.05, 0.15, 0.25, 0.35, 0.45, 0.6])
-    zbins = np.array([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6])
+    zbins = np.array([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35])
+    #zbins = np.array([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6])
     tbins = cosmo.lookback_time(zbins).value
     
     if verbose:
         for ii in range(ntbins - 1):
-            print('Bin {}: z={:.3f}-{:.3f}, t={:.3f}-{:.3f} Gyr'.format(
-                ii, zbins[ii], zbins[ii+1], tbins[ii], tbins[ii+1]))
+            print('Bin {}: z={:.3f}-{:.3f}, t={:.3f}-{:.3f} Gyr, dt={:.3f} Gyr'.format(
+                ii, zbins[ii], zbins[ii+1], tbins[ii], tbins[ii+1], tbins[ii+1]-tbins[ii]))
+            
     return zbins
 
 def get_mstarbins(deltam=0.1, satellites=False):

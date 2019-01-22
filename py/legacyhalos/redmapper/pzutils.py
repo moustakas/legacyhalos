@@ -11,7 +11,7 @@ import numpy as np
 
 def p_in_lambdabin(lambda_val, lambda_err, lm_min, lm_max):
     """Compute the probability P(lm_min < lambda < lm_max) for an input sample of
-    galaxies assuming a Gaussia distribution.
+    galaxies assuming a Gaussian distribution.
 
     """
     from scipy.special import erf
@@ -26,6 +26,7 @@ def p_in_lambdabin(lambda_val, lambda_err, lm_min, lm_max):
     if len(alist) > 0:
         p[alist] = 0.5*(erf( (lm_max - lambda_val[alist]) / lambda_err[alist] / np.sqrt(2) ) -
                         erf( (lm_min - lambda_val[alist]) / lambda_err[alist] / np.sqrt(2)) )
+        
     if len(blist) > 0:
         clist = np.where( (lambda_val[blist] >= lm_min) * (lambda_val[blist] < lm_max) )[0]
         p[blist][clist] = 1
