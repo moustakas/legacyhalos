@@ -105,10 +105,11 @@ def main():
     outfile = os.path.join(paper1dir, 'paper1-{}-{}.fits'.format(prefix, args.dr))
 
     allcand = fitsio.read(samplefile, ext=1)
+
     rows = np.where( np.isin( allcand['MEM_MATCH_ID'], cen['MEM_MATCH_ID'] ) )[0]
     cand = allcand[rows]
     print('Writing {}'.format(outfile))
-    fitsio.write(outfile, cen, clobber=True)
+    fitsio.write(outfile, cand, clobber=True)
 
     write_mstarcat(prefix, args.dr, rows)
 
