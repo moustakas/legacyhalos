@@ -146,6 +146,12 @@ def analysis_dir():
         os.makedirs(adir, exist_ok=True)
     return adir
 
+def archive_dir():
+    adir = os.path.join(legacyhalos_dir(), 'archive')
+    if not os.path.isdir(adir):
+        os.makedirs(adir, exist_ok=True)
+    return adir
+
 def sample_dir():
     sdir = os.path.join(legacyhalos_dir(), 'sample')
     if not os.path.isdir(sdir):

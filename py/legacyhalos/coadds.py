@@ -195,8 +195,8 @@ def _custom_sky(skyargs):
 
     S = stage_srcs(pixscale=im.pixscale, targetwcs=targetwcs, W=W, H=H,
                    bands=bands, tims=[tim], mp=mp, nsigma=5, survey=survey,
-                   brick=brickname, gaia_stars=True, star_clusters=False,
-                   large_galaxies=False)
+                   brick=brickname, brickname=brickname, gaia_stars=False,
+                   star_clusters=False, large_galaxies=False)
 
     mask = S['blobs'] != -1 # 1 = bad
     mask = np.logical_or( mask, tim.getInvvar() <= 0 )
@@ -346,20 +346,18 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cat = fits_table(tractorfile)
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
-    # Find and remove the central.  For some reason, match_radec
-    # occassionally returns two matches, even though nearest=True.
-    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                              1/3600.0, nearest=True)
+    # Find and remove all the objects within XX arcsec of the target
+    # coordinates.
+    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'], 3/3600.0, nearest=False)
     if len(d12) == 0:
-        print('No matching central found -- definitely a problem.')
-        raise ValueError
-    elif len(d12) > 1:
-        m1 = m1[np.argmin(d12)]
+        print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
+        #raise ValueError
+        keep = np.ones(len(T)).astype(bool)
+    else:
+        keep = ~np.isin(cat.objid, cat[m1].objid)        
 
-    print('Removing central galaxy with index = {}, objid = {}'.format(
-        m1, cat[m1].objid), flush=True, file=log)
-
-    keep = ~np.in1d(cat.objid, cat[m1].objid)
+    #print('Removing central galaxy with index = {}, objid = {}'.format(
+    #    m1, cat[m1].objid), flush=True, file=log)
 
     print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')
