@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+
+"""Generate the sample for Paper 2.
+
+build-paper2-sample --clobber
+
+"""
+import os, argparse
+import numpy as np
+
+import fitsio
+from astropy.table import Table
+
+import legacyhalos.io
+import legacyhalos.misc
+from legacyhalos.redmapper import pzutils
+
+sampledir = legacyhalos.io.sample_dir()
+paper1dir = os.path.join( legacyhalos.io.paper1_dir(), 'data' )
+paper2dir = os.path.join( legacyhalos.io.paper2_dir(), 'data' )
+
+def write_mstarcat(prefix, dr, rows):
+    """Read and write out the mstar catalogs for a given prefix.
+
+    """
+    for sfhgrid in np.atleast_1d(1):
+    #for sfhgrid in np.atleast_1d( (1, 2) ):
+        for phot in ('lsphot-{}'.format(dr), 'sdssphot-dr14'):
+            samplefile = os.path.join(paper1dir, 'paper1-{}-sfhgrid{:02d}-{}.fits'.format(prefix, sfhgrid, phot))
+            outfile = os.path.join(paper2dir, 'paper2-{}-sfhgrid{:02d}-{}.fits'.format(prefix, sfhgrid, phot))
+
+            mstar = fitsio.read(samplefile, rows=rows, ext=1)
+            kcorr = fitsio.read(samplefile, rows=rows, ext=2)
+
+            print('Writing {}'.format(outfile))
+            fitsio.write(outfile, mstar, extname='ISEDFIT', clobber=True)
+            fitsio.write(outfile, kcorr, extname='KCORR')
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dr', type=str, default='dr6-dr7', help='Data release to analyze.')
+    parser.add_argument('--minpcen', type=float, default='0.9', help='Minimum P(cen) to make it into the sample.')
+
+    args = parser.parse_args()
+
+    prefix = 'centrals'
+    samplefile = os.path.join(paper1dir, 'paper1-{}-{}.fits'.format(prefix, args.dr))
+    outfile = os.path.join(paper2dir, 'paper2-{}-{}.fits'.format(prefix, args.dr))
+
+    allcen = fitsio.read(samplefile, ext=1)
+
+    rows = np.where(allcen['P_CEN'][:, 0] > args.minpcen)[0]
+    cen = allcen[rows]
+    
+    print('Writing {} / {} centrals to {}'.format(len(cen), len(allcen), outfile))
+    fitsio.write(outfile, cen, clobber=True)
+
+    # Also write out the stellar masses and K-corrections based on the Tractor
+    # photometry, but just based on SFHGRID01.
+    write_mstarcat(prefix, args.dr, rows)
+    
+if __name__ == '__main__':
+    main()
