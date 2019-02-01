@@ -174,7 +174,13 @@ def _custom_sky(skyargs):
     """
     from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
-    from legacypipe.runbrick import stage_srcs
+    from scipy.ndimage.filters import uniform_filter
+
+    from tractor.splinesky import SplineSky
+    from astrometry.util.miscutils import estimate_mode
+
+    from legacypipe.reference import get_reference_sources
+    from legacypipe.oneblob import get_inblob_map
 
     survey, brickname, onegal, radius_arcsec, ccd = skyargs
 
@@ -187,47 +193,95 @@ def _custom_sky(skyargs):
     
     tim = im.get_tractor_image(splinesky=True, subsky=False,
                                hybridPsf=True, normalizePsf=True)
-
-    mp = multiproc()
     targetwcs, bands = tim.subwcs, tim.band
     H, W = targetwcs.shape
     H, W = np.int(H), np.int(W)
 
-    S = stage_srcs(pixscale=im.pixscale, targetwcs=targetwcs, W=W, H=H,
-                   bands=bands, tims=[tim], mp=mp, nsigma=5, survey=survey,
-                   brick=brickname, brickname=brickname, gaia_stars=False,
-                   star_clusters=False, large_galaxies=False)
+    img = tim.getImage()
+    ivar = tim.getInvvar()
 
-    mask = S['blobs'] != -1 # 1 = bad
-    mask = np.logical_or( mask, tim.getInvvar() <= 0 )
-    mask = binary_dilation(mask, iterations=2)
+    ## Old method
+    #if False:
+    #    mp = multiproc()
+    #    
+    #    S = stage_srcs(pixscale=im.pixscale, targetwcs=targetwcs, W=W, H=H,
+    #                   bands=bands, tims=[tim], mp=mp, nsigma=5, survey=survey,
+    #                   brick=brickname, brickname=brickname, gaia_stars=False,
+    #                   star_clusters=False, large_galaxies=False)
+    #    
+    #    mask = S['blobs'] != -1 # 1 = bad
+    #    mask = np.logical_or( mask, ivar <= 0 )
+    #    mask = binary_dilation(mask, iterations=2)
 
-    # Mask the full extent of the central galaxy.
+    # Masked pixels in the inverse variance map.
+    ivarmask = ivar <= 0
+
+    # Mask known stars and large galaxies.
+    refs, _ = get_reference_sources(survey, tim.subwcs, im.pixscale, ['r'], True, True, False)
+    refmask = (get_inblob_map(tim.subwcs, refs) != 0)
+
+    # Mask the object of interest.
     #http://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
     _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
     xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
-
     ymask, xmask = np.ogrid[-ycen:H-ycen, -xcen:W-xcen]
     galmask = (xmask**2 + ymask**2) <= radius**2
 
-    #if im.name == 'decam-00603132-S5':
-    #    import matplotlib.pyplot as plt
-    #    plt.imshow(mask, origin='lower') ; plt.show()
-    #    import pdb ; pdb.set_trace()
-    mask = np.logical_or( mask, galmask )
+    # Get an initial guess of the sky using the mode, otherwise the median.
+    good = (ivarmask*1 + refmask*1 + galmask*1) == 0
+    skysig1 = 1.0 / np.sqrt(np.median(ivar[good]))
+    try:
+        skyval = estimate_mode(img[good], raiseOnWarn=True)
+    except:
+        skyval = np.median(img[good])
+   
+    # Mask objects in a boxcar-smoothed (image - initial sky model), smoothed by
+    # a boxcar filter before cutting pixels above the n-sigma threshold.
+    boxcar = 5
+    boxsize = 1024
+    if min(img.shape) / boxsize < 4: # handle half-DECam chips
+        boxsize /= 2
 
-    # Finally estimate the new (constant) sky background.
-    # sigma_clipped_stats(image, mask=mask)
-    image = tim.getImage()
-    good = np.flatnonzero(~mask)
-    cimage, _, _ = sigmaclip(image.flat[good], low=2.0, high=2.0)
-    newsky = np.median(cimage)
-    #newsky = 2.5 * np.median(cimage) - 1.5 * np.mean(cimage)
+    # Compute initial model...
+    skyobj = SplineSky.BlantonMethod(img - skyval, good, boxsize)
+    skymod = np.zeros_like(img)
+    skyobj.addTo(skymod)
+
+    bskysig1 = skysig1 / boxcar # sigma of boxcar-smoothed image.
+    objmask = np.abs(uniform_filter(img-skyval-skymod, size=boxcar, mode='constant') > (3 * bskysig1))
+    objmask = binary_dilation(objmask, iterations=3)
+
+    good = (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0
+    skysig = 1.0 / np.sqrt(np.median(ivar[good]))
+    skymed = np.median(img[good])
+    try:
+        skymode = estimate_mode(img[good], raiseOnWarn=True)
+    except:
+        skymode = 0.0
+
+    # Build the final bit-mask image.
+    #   0    = good
+    #   2**0 = ivarmask - CP-masked pixels
+    #   2**1 = refmask  - reference stars and galaxies
+    #   2**2 = galmask  - central galaxy & system
+    #   2**3 = objmask  - threshold detected objects
+    mask = np.zeros_like(img).astype(np.int16)
+    mask[ivarmask] += 2**0
+    mask[refmask]  += 2**1
+    mask[galmask]  += 2**2
+    mask[objmask]  += 2**3
+
+    #if im.name == 'decam-00603132-S5':
+        #import matplotlib.pyplot as plt
+        #plt.imshow(mask, origin='lower') ; plt.show()
+    #import pdb ; pdb.set_trace()
 
     out = dict()
     key = '{}-{:02d}'.format(im.name, im.hdu)
     out['{}-mask'.format(key)] = mask
-    out['{}-sky'.format(key)] = newsky
+    out['{}-skymode'.format(key)] = skymode
+    out['{}-skymed'.format(key)] = skymed
+    out['{}-skysig'.format(key)] = skysig
     
     return out
 
@@ -243,9 +297,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     from astropy.io import fits
 
     from astrometry.util.fits import fits_table
+    from astrometry.util.resample import resample_with_wcs, OverlapError
     from astrometry.libkd.spherematch import match_radec
     from tractor.sky import ConstantSky
-
+    
     from legacypipe.runbrick import stage_tims
     from legacypipe.catalog import read_fits_catalog
     from legacypipe.runbrick import _get_mod
@@ -309,24 +364,47 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     [sky.update(res) for res in result]
     del result
 
+    H, W = P['targetwcs'].shape
+    comask = np.zeros((len(tims), H, W), np.int16)
+    for ii, tim in enumerate(tims):
+        key = '{}-{:02d}'.format(tim.imobj.name, tim.imobj.hdu)
+        mask = sky['{}-mask'.format(key)]#.astype('uint8')
+        Yo, Xo, Yi, Xi, _ = resample_with_wcs(P['targetwcs'], tim.subwcs)
+        comask[ii, Yo, Xo] = mask[Yi, Xi]
+        #comask[Yo, Xo] += (((mask[Yi, Xi] & 2**0 + mask[Yi, Xi] & 2**3) * (mask[Yi, Xi] & 2**2 == 0)) > 0)*1
+
+    comask = np.sum(comask, axis=0)
+
+    hx = fits.HDUList()
+    hdu = fits.ImageHDU(comask)
+    hx.append(hdu)
+    
+    maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
+    print('Writing {}'.format(maskfile))
+    hx.writeto(maskfile, overwrite=True)
+
     hx = fits.HDUList()
     for ii, ccd in enumerate(survey.ccds):
         im = survey.get_image_object(ccd)
         key = '{}-{:02d}'.format(im.name, im.hdu)
-        mask = sky['{}-mask'.format(key)].astype('uint8')
+        mask = sky['{}-mask'.format(key)]#.astype('uint8')
         hdu = fits.ImageHDU(mask, name=key)
-        hdu.header['SKY'] = sky['{}-sky'.format(key)]
+        hdu.header['SKYMODE'] = sky['{}-skymode'.format(key)]
+        hdu.header['SKYMED'] = sky['{}-skymed'.format(key)]
+        hdu.header['SKYSIG'] = sky['{}-skysig'.format(key)]
         hx.append(hdu)
 
-    maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
-    print('Writing {}'.format(maskfile))
-    hx.writeto(maskfile, overwrite=True)
+    ccdmaskfile = os.path.join(survey.output_dir, '{}-custom-ccdmasks.fits.gz'.format(galaxy))
+    print('Writing {}'.format(ccdmaskfile))
+    hx.writeto(ccdmaskfile, overwrite=True)
+
+    import pdb ; pdb.set_trace()
 
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
     for tim in tims:
         image = tim.getImage()
-        newsky = sky['{}-{:02d}-sky'.format(tim.imobj.name, tim.imobj.hdu)]
+        newsky = sky['{}-{:02d}-skymode'.format(tim.imobj.name, tim.imobj.hdu)]
         if False:
             pipesky = tim.getSky()
             splinesky = np.zeros_like(image)
@@ -440,7 +518,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
         for suffix, ims, rgbkw in coadd_list:
             rgb = get_rgb(ims, P['bands'], **rgbkw)
             kwa = {}
-            outfn = os.path.join(survey.output_dir, '{}-{}.jpg'.format(galaxy, suffix))
+            outfn = os.path.join(survey.output_dir, '{}-{}-grz.jpg'.format(galaxy, suffix))
             print('Writing {}'.format(outfn), flush=True, file=log)
             imsave_jpeg(outfn, rgb, origin='lower', **kwa)
             del rgb
