@@ -182,7 +182,7 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
             display_sersic(serexp, png=serexpfile, verbose=verbose)
 
 def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband='r',
-               band=('g', 'r', 'z'), pixscale=0.262, survey=None, nproc=1, trends=True,
+               band=('g', 'r', 'z'), pixscale=0.262, survey=None, nproc=1, trends=False,
                ccdqa=False, clobber=False, verbose=True):
     """Make QA plots.
 
@@ -529,4 +529,4 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
     if makeplots:
         make_plots(sample, analysisdir=analysisdir, htmldir=htmldir, refband=refband,
                    band=band, pixscale=pixscale, clobber=clobber, verbose=verbose,
-                   nproc=nproc)
+                   nproc=nproc, trends=False)

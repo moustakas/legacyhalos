@@ -160,26 +160,28 @@ def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
             print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
                 rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
 
-def _call_ellipse(onegal, pixscale, verbose, debug, logfile):
+def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile):
     """Wrapper script to do ellipse-fitting."""
     if debug:
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
-                                                      verbose=verbose, debug=debug)
+                                                      verbose=verbose, debug=debug,
+                                                      noellipsefit=True)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
         print('Finished galaxy {} in {:.3f} minutes.'.format(
             galaxy, (time.time() - t0)/60), flush=True)
     else:
         with open(logfile, 'w') as log:
-            with redirect_stdout(log), redirect_stderr(log):
-                print('Rank {} started working on galaxy {} at {}'.format(
-                    rank, galaxy, time.asctime()), flush=True)
-                err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
-                                                              verbose=verbose, debug=debug)
-                if err == 0:
-                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-                print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
-                    rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
+            #with redirect_stdout(log), redirect_stderr(log):
+            #print('Rank {} started working on galaxy {} at {}'.format(
+            #    rank, galaxy, time.asctime()), flush=True)
+            err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
+                                                          verbose=verbose, debug=debug,
+                                                          noellipsefit=True)
+            if err == 0:
+                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+            #print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
+            #    rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
 
@@ -295,7 +297,7 @@ def main():
                                 args.nproc, args.debug, logfile)
                     
         if args.ellipse:
-            _call_ellipse(onegal, args.pixscale, args.verbose, args.debug, logfile)
+            _call_ellipse(onegal, galaxy, args.pixscale, args.verbose, args.debug, logfile)
                         
         if args.sersic:
             from legacyhalos.sersic import legacyhalos_sersic
@@ -347,7 +349,18 @@ def main():
                             rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
                 if err == 0:
                     print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-                        
+
+    if rank == 0 and args.html:
+        from legacyhalos.html import make_html
+        htmldir = legacyhalos.io.html_dir()
+
+        make_html(sample, htmldir=htmldir, pixscale=args.pixscale, nproc=args.nproc,
+                  clobber=args.clobber, makeplots=not args.nomakeplots, verbose=args.verbose,
+                  ccdqa=True)
+        #if 'NERSC_HOST' in os.environ:
+        #    print('Execute the following command to publish the webpage.')
+        #    print('rsync -auvP --delete ~/scratch/legacyhalos/html/* {}'.format(htmldir))
+
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)

@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import legacyhalos.io
 import legacyhalos.misc
 
-def ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor, warnvalue='ignore'):
+def ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor, warnvalue='ignore'):
     """Perform elliptical aperture photometry for the curve-of-growth analysis.
 
     maxsma in pixels
@@ -27,7 +27,7 @@ def ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor, warnvalue='i
     from photutils import EllipticalAperture, aperture_photometry
 
     deltaa = 0.5 # pixel spacing 
-    theta = np.radians(mgefit['pa']-90)
+    theta = np.radians(ellipsefit['pa']-90)
 
     results = {}
 
@@ -49,10 +49,10 @@ def ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor, warnvalue='i
 
         deltaa_filt = deltaa * pixscalefactor
         sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
-        smb = sma * mgefit['eps']
+        smb = sma * ellipsefit['eps']
 
-        x0 = mgefit['xpeak'] * pixscalefactor
-        y0 = mgefit['ypeak'] * pixscalefactor
+        x0 = ellipsefit['xpeak'] * pixscalefactor
+        y0 = ellipsefit['ypeak'] * pixscalefactor
 
         apphot, apphot_nomask = [], []
         with np.errstate(all='ignore'):
@@ -85,10 +85,11 @@ def ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor, warnvalue='i
 
     return results
 
-def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
+def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
                          integrmode='median', nclip=2, sclip=3,
                          step=0.1, fflag=0.7, linear=False, 
-                         nowrite=False, verbose=False, noellipsefit=False):
+                         nowrite=False, verbose=False, noellipsefit=False,
+                         debug=False):
     """Ellipse-fit the multiband data.
 
     See
@@ -103,6 +104,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
     from photutils.isophote.sample import CentralEllipseSample
     from photutils.isophote.fitter import CentralEllipseFitter
 
+    from legacyhalos.mge import find_galaxy
+    
     if verbose:
         warnvalue = 'ignore' # 'always'
     else:
@@ -117,8 +120,24 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
 
     band, refband, pixscale = data['band'], data['refband'], data['pixscale']
 
+    # Get the geometry of the galaxy in the reference band.
+    if verbose:
+        print('Finding the galaxy in the reference {}-band image.'.format(refband))
+
+    mgegalaxy = find_galaxy(data[refband], nblob=1, binning=3,
+                            plot=debug, quiet=not verbose)
+
+    #mgegalaxy.xmed -= 1
+    #mgegalaxy.ymed -= 1
+    #mgegalaxy.xpeak -= 1
+    #mgegalaxy.ypeak -= 1
+
     # Populate the output dictionary
     ellipsefit = dict()
+    for key in ('eps', 'majoraxis', 'pa', 'theta',
+                'xmed', 'ymed', 'xpeak', 'ypeak'):
+        ellipsefit[key] = getattr(mgegalaxy, key)
+
     ellipsefit['success'] = False
     ellipsefit['redshift'] = sample['Z']
     ellipsefit['band'] = band
@@ -148,8 +167,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
     # Set the maximum semi-major axis length to 100 kpc or XX times the
     # semi-major axis estimated below (whichever is smaller).
     if maxsma is None:
-        maxsma_100kpc = 100 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
-        maxsma_major = 4 * mgefit['majoraxis']
+        maxsma_100kpc = 120 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
+        maxsma_major = 4 * ellipsefit['majoraxis']
         maxsma = np.min( (maxsma_100kpc, maxsma_major) )
 
     ellipsefit['integrmode'] = integrmode
@@ -160,18 +179,18 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, mgefit, maxsma=None,
     ellipsefit['linear'] = linear
 
     # Perform elliptical aperture photometry.
-    apphot = ellipse_apphot(band, data, mgefit, maxsma, filt2pixscalefactor)
+    apphot = ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor)
     ellipsefit.update(apphot)
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
     # x-axis, while .pa in MGE measured counter-clockwise from the y-axis.
-    geometry = EllipseGeometry(x0=mgefit['xpeak'], y0=mgefit['ypeak'],
-                               eps=mgefit['eps'],
+    geometry = EllipseGeometry(x0=ellipsefit['xpeak'], y0=ellipsefit['ypeak'],
+                               eps=ellipsefit['eps'],
                                #sma=0.5*mgefit['majoraxis'], 
-                               sma=mgefit['majoraxis'], 
+                               sma=ellipsefit['majoraxis'], 
                                #sma=10,
-                               pa=np.radians(mgefit['pa']-90))
+                               pa=np.radians(ellipsefit['pa']-90))
     ellipsefit['geometry'] = geometry
 
     def _unmask_center(img):
@@ -444,13 +463,13 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          galex_pixscale=galex_pixscale,
                                          unwise_pixscale=unwise_pixscale)
     if bool(data):
-        # Find the galaxy and (optionally) perform MGE fitting.
-        mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose,
-                                  noellipsefit=True, debug=debug)
+        ## Find the galaxy and (optionally) perform MGE fitting.
+        #mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose,
+        #                          noellipsefit=True, debug=debug)
 
         # Do ellipse-fitting.
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
-                                          mgefit, maxsma=maxsma, integrmode=integrmode,
+                                          maxsma=maxsma, integrmode=integrmode,
                                           nclip=nclip, sclip=sclip, verbose=verbose,
                                           noellipsefit=noellipsefit)
         if ellipsefit['success']:

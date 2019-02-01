@@ -227,13 +227,18 @@ def _custom_sky(skyargs):
     ymask, xmask = np.ogrid[-ycen:H-ycen, -xcen:W-xcen]
     galmask = (xmask**2 + ymask**2) <= radius**2
 
+    # Define an annulus of sky pixels centered on the object of interest.
+    inmask = (xmask**2 + ymask**2) <= 3*radius**2
+    outmask = (xmask**2 + ymask**2) <= 8*radius**2
+    skymask = (outmask*1 - inmask*1 - galmask*1) == 1
+
     # Get an initial guess of the sky using the mode, otherwise the median.
-    good = (ivarmask*1 + refmask*1 + galmask*1) == 0
-    skysig1 = 1.0 / np.sqrt(np.median(ivar[good]))
+    skypix = (ivarmask*1 + refmask*1 + galmask*1) == 0
+    skysig1 = 1.0 / np.sqrt(np.median(ivar[skypix]))
     try:
-        skyval = estimate_mode(img[good], raiseOnWarn=True)
+        skyval = estimate_mode(img[skypix], raiseOnWarn=True)
     except:
-        skyval = np.median(img[good])
+        skyval = np.median(img[skypix])
    
     # Mask objects in a boxcar-smoothed (image - initial sky model), smoothed by
     # a boxcar filter before cutting pixels above the n-sigma threshold.
@@ -243,7 +248,7 @@ def _custom_sky(skyargs):
         boxsize /= 2
 
     # Compute initial model...
-    skyobj = SplineSky.BlantonMethod(img - skyval, good, boxsize)
+    skyobj = SplineSky.BlantonMethod(img - skyval, skypix, boxsize)
     skymod = np.zeros_like(img)
     skyobj.addTo(skymod)
 
@@ -251,25 +256,27 @@ def _custom_sky(skyargs):
     objmask = np.abs(uniform_filter(img-skyval-skymod, size=boxcar, mode='constant') > (3 * bskysig1))
     objmask = binary_dilation(objmask, iterations=3)
 
-    good = (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0
-    skysig = 1.0 / np.sqrt(np.median(ivar[good]))
-    skymed = np.median(img[good])
+    skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
+    skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
+    skymed = np.median(img[skypix])
     try:
-        skymode = estimate_mode(img[good], raiseOnWarn=True)
+        skymode = estimate_mode(img[skypix], raiseOnWarn=True)
     except:
         skymode = 0.0
 
     # Build the final bit-mask image.
-    #   0    = good
+    #   0    = 
     #   2**0 = ivarmask - CP-masked pixels
     #   2**1 = refmask  - reference stars and galaxies
     #   2**2 = galmask  - central galaxy & system
     #   2**3 = objmask  - threshold detected objects
     mask = np.zeros_like(img).astype(np.int16)
-    mask[ivarmask] += 2**0
-    mask[refmask]  += 2**1
-    mask[galmask]  += 2**2
-    mask[objmask]  += 2**3
+    mask[galmask] = 1
+    #mask[skymask] = 1
+    #mask[ivarmask] += 2**0
+    #mask[refmask]  += 2**1
+    #mask[galmask]  += 2**2
+    #mask[objmask]  += 2**3
 
     #if im.name == 'decam-00603132-S5':
         #import matplotlib.pyplot as plt
@@ -365,15 +372,16 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     del result
 
     H, W = P['targetwcs'].shape
-    comask = np.zeros((len(tims), H, W), np.int16)
+    _comask = np.zeros((len(tims), H, W), np.int16)
     for ii, tim in enumerate(tims):
         key = '{}-{:02d}'.format(tim.imobj.name, tim.imobj.hdu)
         mask = sky['{}-mask'.format(key)]#.astype('uint8')
         Yo, Xo, Yi, Xi, _ = resample_with_wcs(P['targetwcs'], tim.subwcs)
-        comask[ii, Yo, Xo] = mask[Yi, Xi]
+        _comask[ii, Yo, Xo] = mask[Yi, Xi]
         #comask[Yo, Xo] += (((mask[Yi, Xi] & 2**0 + mask[Yi, Xi] & 2**3) * (mask[Yi, Xi] & 2**2 == 0)) > 0)*1
 
-    comask = np.sum(comask, axis=0)
+    comask = np.sum(_comask, axis=0)
+    comask = _comask[0, :, :]
 
     hx = fits.HDUList()
     hdu = fits.ImageHDU(comask)
@@ -382,6 +390,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
     print('Writing {}'.format(maskfile))
     hx.writeto(maskfile, overwrite=True)
+
+    import pdb ; pdb.set_trace()
 
     hx = fits.HDUList()
     for ii, ccd in enumerate(survey.ccds):
@@ -398,18 +408,16 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     print('Writing {}'.format(ccdmaskfile))
     hx.writeto(ccdmaskfile, overwrite=True)
 
-    import pdb ; pdb.set_trace()
-
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
     for tim in tims:
         image = tim.getImage()
         newsky = sky['{}-{:02d}-skymode'.format(tim.imobj.name, tim.imobj.hdu)]
-        if False:
-            pipesky = tim.getSky()
-            splinesky = np.zeros_like(image)
-            pipesky.addTo(splinesky)
-            newsky = splinesky
+        #if False:
+        #    pipesky = tim.getSky()
+        #    splinesky = np.zeros_like(image)
+        #    pipesky.addTo(splinesky)
+        #    newsky = splinesky
         tim.setImage(image - newsky)
         tim.sky = ConstantSky(0)
         newtims.append(tim)
@@ -473,7 +481,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                 os.path.join(survey.output_dir, 'coadd', brickname[:3], 
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
                     brickname, suffix, band)),
-                os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
+                os.path.join(survey.output_dir, '{}-custom-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
                 #os.path.join(survey.output_dir, '{}-custom-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
             if not ok:
                 return ok
@@ -493,7 +501,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                 os.path.join(survey.output_dir, 'coadd', brickname[:3], 
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
                     brickname, suffix, band)),
-                os.path.join(survey.output_dir, '{}-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
+                os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
                 #os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
             if not ok:
                 return ok
