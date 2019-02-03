@@ -1,17 +1,5 @@
 #!/usr/bin/env python
 """MPI wrapper for the various computationally intensive legacyhalos analysis
-steps.
-
-python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
-
-time legacyhalos-mpi --first 0 --last 0 --custom-coadds --nproc 4 --dry-run --debug
-
-To get 24 MPI tasks and 8 cores per MPI task for multiprocessing, on cori I do 
-  srun -N 6 -n 24 -c 8
-and on edison
-  srun -N 8 -n 24 -c 8
-
-where N = 8 * 24 / 32 (e.g., on cori).
 
 """
 import os, sys, time, pdb
@@ -24,6 +12,7 @@ from legacypipe.survey import LegacySurveyData
 import legacyhalos.io
 import legacyhalos.coadds
 import legacyhalos.ellipse
+import legacyhalos.html
 
 def get_survey_dir(onegal):
     if onegal['RELEASE'] == 6000:
@@ -92,6 +81,7 @@ def _missing_files(args, sample, size):
         suffix = 'html'
         groups = missing_files(sample, filetype=suffix, size=size, clobber=args.clobber)
     else:
+        suffix = ''
         groups = []
 
     return suffix, groups
@@ -101,27 +91,26 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
     if debug:
-        err = legacyhalos.coadds.pipeline_coadds(
-            onegal, galaxy=galaxy, radius=radius, survey=survey, 
-            pixscale=pixscale, nproc=nproc, force=force,
-            archivedir=archivedir)
+        err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
+                                                 survey=survey, pixscale=pixscale,
+                                                 nproc=nproc, force=force, archivedir=archivedir)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
         print('Finished galaxy {} in {:.3f} minutes.'.format(
-            galaxy, (time.time() - t0)/60), flush=True)
+              galaxy, (time.time() - t0)/60), flush=True)
     else:
         with open(logfile, 'w') as log:
             #with redirect_stdout(log), redirect_stderr(log):
-            print('Rank {} started working on galaxy {} at {}'.format(
-                rank, galaxy, time.asctime()), flush=True, file=log)
+            print('Started working on galaxy {} at {}'.format(
+                    galaxy, time.asctime()), flush=True, file=log)
             err = legacyhalos.coadds.pipeline_coadds(
                 onegal, galaxy=galaxy, radius=radius, survey=survey, 
                 pixscale=args.pixscale, nproc=args.nproc, force=args.force,
                 archivedir=archivedir)
             if err == 0:
                 print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
-            print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
-                rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
+            print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
+                  galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
 
 def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
                         nproc, debug, logfile):
@@ -137,12 +126,11 @@ def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
             print('CCDs file {} not found.'.format(ccdsfile), flush=True, file=log)
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
         return
+    survey.ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
             
     if debug:
-        survey.ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
-        err = legacyhalos.coadds.custom_coadds(
-                onegal, galaxy=galaxy, radius=radius, survey=survey, 
-                pixscale=pixscale, nproc=nproc)
+        err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
+                                               survey=survey, pixscale=pixscale, nproc=nproc)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
         print('Finished galaxy {} in {:.3f} minutes.'.format(
@@ -150,19 +138,21 @@ def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
     else:
         with open(logfile, 'w') as log:
             #with redirect_stdout(log), redirect_stderr(log):
-            print('Rank {} started working on galaxy {} at {}'.format(
-                rank, galaxy, time.asctime()), flush=True, file=log)
-            err = legacyhalos.coadds.custom_coadds(
-                onegal, galaxy=galaxy, radius=radius, survey=survey, 
-                pixscale=args.pixscale, nproc=args.nproc)
+            print('Started working on galaxy {} at {}'.format(
+                    galaxy, time.asctime()), flush=True, file=log)
+            err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
+                                                   survey=survey, pixscale=args.pixscale,
+                                                   nproc=args.nproc)
             if err == 0:
                 print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
-            print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
-                rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
+            print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
+                galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
 
 def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile):
     """Wrapper script to do ellipse-fitting."""
     if debug:
+        print('Started working on galaxy {} at {}'.format(
+              galaxy, time.asctime()), flush=True, file=log)
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
                                                       verbose=verbose, debug=debug,
                                                       noellipsefit=True)
@@ -172,18 +162,51 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile):
             galaxy, (time.time() - t0)/60), flush=True)
     else:
         with open(logfile, 'w') as log:
-            #with redirect_stdout(log), redirect_stderr(log):
-            #print('Rank {} started working on galaxy {} at {}'.format(
-            #    rank, galaxy, time.asctime()), flush=True)
             err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
                                                           verbose=verbose, debug=debug,
                                                           noellipsefit=True)
             if err == 0:
                 print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-            #print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
-            #    rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
+            print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
+                  galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+
+def _call_html(onegal, galaxy, survey, pixscale, nproc, debug, clobber, verbose, logfile):
+    """Wrapper script to build the pipeline coadds."""
+    t0 = time.time()
+
+    htmldir = legacyhalos.io.html_dir()
+
+    ccdsfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy))
+    if not os.path.isfile(ccdsfile):
+        if debug:
+            print('CCDs file {} not found.'.format(ccdsfile), flush=True)
+            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+        else:
+            print('CCDs file {} not found.'.format(ccdsfile), flush=True, file=log)
+            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+        return
+    survey.ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+            
+    if debug:
+        err = legacyhalos.html.make_html(onegal, htmldir=htmldir, pixscale=pixscale, nproc=nproc,
+                                         clobber=clobber, makeplots=True, verbose=verbose, ccdqa=True)
+        if err == 0:
+            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+        print('Finished galaxy {} in {:.3f} minutes.'.format(
+            galaxy, (time.time() - t0)/60), flush=True)
+    else:
+        with open(logfile, 'w') as log:
+            #with redirect_stdout(log), redirect_stderr(log):
+            print('Started working on galaxy {} at {}'.format(
+                  galaxy, time.asctime()), flush=True, file=log)
+            err = legacyhalos.html.make_html(onegal, htmldir=htmldir, pixscale=pixscale, nproc=nproc,
+                                             clobber=clobber, makeplots=True, verbose=verbose, ccdqa=True)
+            if err == 0:
+                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+            print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
+                  galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
 
 def main():
     from contextlib import redirect_stdout, redirect_stderr
@@ -281,7 +304,7 @@ def main():
             print('Logging to {} '.format(logfile), flush=True)
 
         # Need the cluster "radius" to build the coadds.
-        if args.coadds or args.custom_coadds:
+        if args.coadds or args.custom_coadds or args.html:
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)
             survey.output_dir = galaxydir
@@ -350,13 +373,14 @@ def main():
                 if err == 0:
                     print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
 
-    if rank == 0 and args.html:
-        from legacyhalos.html import make_html
-        htmldir = legacyhalos.io.html_dir()
+        if args.html and not args.nomakeplots:
+            _call_html(onegal, galaxy, survey, args.pixscale, args.nproc,
+                       args.debug, args.clobber, args.verbose, logfile)
 
-        make_html(sample, htmldir=htmldir, pixscale=args.pixscale, nproc=args.nproc,
-                  clobber=args.clobber, makeplots=not args.nomakeplots, verbose=args.verbose,
-                  ccdqa=True)
+    if args.html and rank == 0:
+        legacyhalos.html.make_html(sample, htmldir=htmldir, pixscale=args.pixscale, nproc=args.nproc,
+                                   clobber=args.clobber, makeplots=True, verbose=args.verbose)
+
         #if 'NERSC_HOST' in os.environ:
         #    print('Execute the following command to publish the webpage.')
         #    print('rsync -auvP --delete ~/scratch/legacyhalos/html/* {}'.format(htmldir))

@@ -52,7 +52,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} '
-    cmd += '--unwise-coadds '
+    cmd += '--unwise-coadds --no-gaia '
     #cmd += '--force-stage coadds '
     cmd += '--write-stage srcs --no-write --skip --no-wise-ceres '
     cmd += '--checkpoint {archivedir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
@@ -229,7 +229,7 @@ def _custom_sky(skyargs):
 
     # Define an annulus of sky pixels centered on the object of interest.
     inmask = (xmask**2 + ymask**2) <= 3*radius**2
-    outmask = (xmask**2 + ymask**2) <= 8*radius**2
+    outmask = (xmask**2 + ymask**2) <= 10*radius**2
     skymask = (outmask*1 - inmask*1 - galmask*1) == 1
 
     # Get an initial guess of the sky using the mode, otherwise the median.
@@ -271,12 +271,10 @@ def _custom_sky(skyargs):
     #   2**2 = galmask  - central galaxy & system
     #   2**3 = objmask  - threshold detected objects
     mask = np.zeros_like(img).astype(np.int16)
-    mask[galmask] = 1
-    #mask[skymask] = 1
-    #mask[ivarmask] += 2**0
-    #mask[refmask]  += 2**1
-    #mask[galmask]  += 2**2
-    #mask[objmask]  += 2**3
+    mask[ivarmask] += 2**0
+    mask[refmask]  += 2**1
+    mask[galmask]  += 2**2
+    mask[objmask]  += 2**3
 
     #if im.name == 'decam-00603132-S5':
         #import matplotlib.pyplot as plt
@@ -372,16 +370,19 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     del result
 
     H, W = P['targetwcs'].shape
+
     _comask = np.zeros((len(tims), H, W), np.int16)
-    for ii, tim in enumerate(tims):
-        key = '{}-{:02d}'.format(tim.imobj.name, tim.imobj.hdu)
+    for ii, ccd in enumerate(survey.ccds):
+        im = survey.get_image_object(ccd)
+        key = '{}-{:02d}'.format(im.name, im.hdu)
         mask = sky['{}-mask'.format(key)]#.astype('uint8')
-        Yo, Xo, Yi, Xi, _ = resample_with_wcs(P['targetwcs'], tim.subwcs)
-        _comask[ii, Yo, Xo] = mask[Yi, Xi]
-        #comask[Yo, Xo] += (((mask[Yi, Xi] & 2**0 + mask[Yi, Xi] & 2**3) * (mask[Yi, Xi] & 2**2 == 0)) > 0)*1
+        try:
+            Yo, Xo, Yi, Xi, _ = resample_with_wcs(P['targetwcs'], im.get_wcs())
+            _comask[ii, Yo, Xo] = mask[Yi, Xi]
+        except:
+            continue
 
     comask = np.sum(_comask, axis=0)
-    comask = _comask[0, :, :]
 
     hx = fits.HDUList()
     hdu = fits.ImageHDU(comask)
@@ -390,8 +391,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
     print('Writing {}'.format(maskfile))
     hx.writeto(maskfile, overwrite=True)
-
-    import pdb ; pdb.set_trace()
 
     hx = fits.HDUList()
     for ii, ccd in enumerate(survey.ccds):

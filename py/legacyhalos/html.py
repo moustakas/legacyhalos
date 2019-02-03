@@ -280,6 +280,8 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
     if htmldir is None:
         htmldir = legacyhalos.io.html_dir()
 
+    import pdb ; pdb.set_trace()
+
     if sample is None:
         sample = legacyhalos.io.read_sample(first=first, last=last)
         
@@ -527,6 +529,8 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
             nextgalaxy = galaxy[0] # wrap around
 
     if makeplots:
-        make_plots(sample, analysisdir=analysisdir, htmldir=htmldir, refband=refband,
-                   band=band, pixscale=pixscale, clobber=clobber, verbose=verbose,
-                   nproc=nproc, trends=False)
+        err = make_plots(sample, analysisdir=analysisdir, htmldir=htmldir, refband=refband,
+                         band=band, pixscale=pixscale, clobber=clobber, verbose=verbose,
+                         nproc=nproc, ccdqa=ccdqa, trends=False)
+
+    return 1
