@@ -15,7 +15,7 @@ import fitsio
 from astropy.table import Table
 from astropy.io import fits
 
-def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
+def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
                          candidates=False):
     """Retrieve the galaxy name and the (nested) directory.
 
@@ -26,14 +26,14 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
     
     nside = 8 # keep hard-coded
     
-    if analysisdir is None:
-        analysisdir = analysis_dir()
+    if datadir is None:
+        datadir = legacyhalos_data_dir()
     if htmldir is None:
-        htmldir = html_dir()
+        htmldir = legacyhalos_html_dir()
 
-    def get_healpix_subdir(nside, pixnum, analysisdir):
+    def get_healpix_subdir(nside, pixnum, datadir):
         subdir = os.path.join(str(pixnum // 100), str(pixnum))
-        return os.path.abspath(os.path.join(analysisdir, str(nside), subdir))
+        return os.path.abspath(os.path.join(datadir, str(nside), subdir))
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
@@ -53,7 +53,7 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
 
         pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
 
-    galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, analysisdir), gal)
+    galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, datadir), gal)
                           for pix, gal in zip(pixnum, galaxy)])
     if html:
         htmlgalaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, htmldir), gal)
@@ -70,87 +70,32 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
-#def _get_galaxy_galaxydir(cat, analysisdir=None):
-#    """Retrieve the galaxy name and the (nested) directory based on cluster and
-#    galaxy ID.
-#
-#    Need to deal with candidate centrals!
-#    """
-#    if analysisdir is None:
-#        analysisdir = analysis_dir()
-#
-#    ngal = len(cat)
-#
-#    memid = cat['MEM_MATCH_ID']
-#    galaxy = ['{:07d}-{:09d}'.format(memid, cid) for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID_CENT'][:, 0])]
-#    #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID'].data])
-#    galaxydir = np.zeros(ngal, dtype='U{}'.format( len(analysisdir) + 1 + 5 + 1 + 4 + 1 + 6) )
-#
-#    subdir1 = np.array(['{:05d}'.format(gg // 10000) for gg in memid])
-#    
-#    for dir1 in sorted(set(subdir1)):
-#        indx1 = np.where(dir1 == subdir1)[0]
-#        subdir2 = np.array(['{:04d}'.format(gg // 1000) for gg in memid[indx1]])
-#        for dir2 in sorted(set(subdir2)):
-#            indx2 = np.where(dir2 == subdir2)[0]
-#
-#            allgaldir = np.array(['{:07d}'.format(gg) for gg in memid[indx1[indx2]]])
-#            galaxydir[indx1[indx2]] = [os.path.join(analysisdir, dir1, dir2, galdir) for galdir in allgaldir]
-#
-#    if ngal == 1:
-#        galaxy = galaxy[0]
-#        galaxydir = galaxydir[0]
-#            
-#    return galaxy, galaxydir
-#
-#def get_objid(cat, analysisdir=None):
-#    """Build a unique object ID based on the redmapper mem_match_id.
-#
-#    Args:
-#      cat - must be a redmapper catalog or a catalog that has MEM_MATCH_ID.
-#
-#    """
-#    if analysisdir is None:
-#        analysisdir = analysis_dir()
-#
-#    ngal = len(np.atleast_1d(cat))
-#    objid = np.zeros(ngal, dtype='U7')
-#    objdir = np.zeros(ngal, dtype='U{}'.format(len(analysisdir)+1+7))
-#
-#    #objid, objdir = list(), list()
-#    for ii, memid in enumerate(np.atleast_1d(cat['mem_match_id'])):
-#        objid[ii] = '{:07d}'.format(memid)
-#        objdir[ii] = os.path.join(analysisdir, objid[ii])
-#        #objid.append('{:07d}'.format(memid))
-#        #objdir.append(os.path.join(analysis_dir, objid[ii]))
-#        if not os.path.isdir(objdir[ii]):
-#            os.makedirs(objdir[ii], exist_ok=True)
-#    #objid = np.array(objid)
-#    #objdir = np.array(objdir)
-#
-#    if ngal == 1:
-#        objid = objid[0]
-#        objdir = objdir[0]
-#            
-#    return objid, objdir
-
 def legacyhalos_dir():
     if 'LEGACYHALOS_DIR' not in os.environ:
         print('Required ${LEGACYHALOS_DIR environment variable not set.')
         raise EnvironmentError
-    return os.path.abspath(os.getenv('LEGACYHALOS_DIR'))
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
 
-def analysis_dir():
-    adir = os.path.join(legacyhalos_dir(), 'analysis')
-    if not os.path.isdir(adir):
-        os.makedirs(adir, exist_ok=True)
-    return adir
+def legacyhalos_data_dir():
+    if 'LEGACYHALOS_DATA_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_DATA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DATA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
 
-def archive_dir():
-    adir = os.path.join(legacyhalos_dir(), 'archive')
-    if not os.path.isdir(adir):
-        os.makedirs(adir, exist_ok=True)
-    return adir
+def legacyhalos_html_dir():
+    if 'LEGACYHALOS_HTML_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_HTML_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_HTML_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
 
 def sample_dir():
     sdir = os.path.join(legacyhalos_dir(), 'sample')
@@ -185,17 +130,6 @@ def paper2_dir(figures=False, data=False):
         if not os.path.isdir(pdir):
             os.makedirs(pdir, exist_ok=True)
     return pdir
-
-def html_dir():
-    if 'NERSC_HOST' in os.environ:
-        htmldir = '/global/project/projectdirs/cosmo/www/temp/ioannis/legacyhalos'
-    else:
-        htmldir = os.path.join(legacyhalos_dir(), 'html')
-    #htmldir = os.path.join(legacyhalos_dir(), 'html')
-
-    if not os.path.isdir(htmldir):
-        os.makedirs(htmldir, exist_ok=True)
-    return htmldir
 
 def write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,

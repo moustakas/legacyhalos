@@ -7,6 +7,7 @@ Code to generate HTML content.
 """
 import os, subprocess, pdb
 import numpy as np
+from astrometry.util.fits import fits_table
 
 import legacyhalos.io
 
@@ -21,11 +22,10 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
     """Build CCD-level QA.
 
     """
-    from astrometry.util.fits import fits_table
     from legacyhalos.qa import display_ccdpos, _display_ccdmask_and_sky
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
-    maskfile = os.path.join(galaxydir, '{}-custom-mask.fits.gz'.format(galaxy))
+    maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.gz'.format(galaxy))
 
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
     if not os.path.isfile(ccdposfile) or clobber:
@@ -197,6 +197,10 @@ def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband=
         from astrometry.util.multiproc import multiproc
         mp = multiproc(nthreads=nproc)
 
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+
     for ii, onegal in enumerate( sample ):
     #for ii, onegal in enumerate( np.atleast_1d(sample) ):
 
@@ -266,7 +270,7 @@ def _javastring():
 
     return js
         
-def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
+def make_html(sample=None, analysisdir=None, htmldir=None, survey=None, band=('g', 'r', 'z'),
               refband='r', pixscale=0.262, dr='dr7', first=None, last=None, nproc=1,
               makeplots=True, clobber=False, verbose=True, ccdqa=True):
     """Make the HTML pages.
@@ -280,11 +284,13 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
     if htmldir is None:
         htmldir = legacyhalos.io.html_dir()
 
-    import pdb ; pdb.set_trace()
-
     if sample is None:
         sample = legacyhalos.io.read_sample(first=first, last=last)
-        
+
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+
     galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
 
     # Write the last-updated date to a webpage.
@@ -392,6 +398,10 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
         htmlgalaxydir = os.path.join(htmldir, '{}'.format(galaxy1))
         if not os.path.exists(htmlgalaxydir):
             os.makedirs(htmlgalaxydir)
+
+        ccdsfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy))
+        if os.path.isfile(ccdsfile):
+            survey.ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
 
         nexthtmlgalaxydir = os.path.join('../', '{}'.format(nextgalaxy), '{}.html'.format(nextgalaxy))
         prevhtmlgalaxydir = os.path.join('../', '{}'.format(prevgalaxy), '{}.html'.format(prevgalaxy))
@@ -509,6 +519,24 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
                 html.write('</tr>\n')
                 html.write('</table>\n')
 
+            if survey.ccds is not None:
+                html.write('<h2>CCD Diagnostics</h2>\n')
+                html.write('<table width="90%">\n')
+                html.write('<tr>\n')
+                pngfile = '{}-ccdpos.png'.format(galaxy)
+                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
+                    pngfile))
+                html.write('</tr>\n')
+
+                for iccd in range(len(survey.ccds)):
+                    html.write('<tr>\n')
+                    pngfile = '{}-2d-ccd{:02d}.png'.format(galaxy, iccd)
+                    html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
+                        pngfile))
+                    html.write('</tr>\n')
+                html.write('</table>\n')
+                html.write('<br />\n')
+
             html.write('<a href="../{}">Home</a>\n'.format(homehtml))
             html.write('<br />\n')
             html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir, nextgalaxy))
@@ -530,7 +558,7 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
 
     if makeplots:
         err = make_plots(sample, analysisdir=analysisdir, htmldir=htmldir, refband=refband,
-                         band=band, pixscale=pixscale, clobber=clobber, verbose=verbose,
-                         nproc=nproc, ccdqa=ccdqa, trends=False)
+                         band=band, pixscale=pixscale, survey=survey, clobber=clobber,
+                         verbose=verbose, nproc=nproc, ccdqa=ccdqa, trends=False)
 
     return 1

@@ -6,18 +6,18 @@
 #SBATCH --mail-user=jmoustakas@siena.edu
 #SBATCH --mail-type=ALL
 
-#SBATCH -p regular
-#SBATCH -N 32
-#SBATCH -n 48
-#SBATCH -t 01:00:00
-
-# #SBATCH -p debug
+# #SBATCH -p regular
 # #SBATCH -N 32
 # #SBATCH -n 48
-# #SBATCH -t 00:30:00
+# #SBATCH -t 01:00:00
+
+#SBATCH -p debug
+#SBATCH -N 2
+#SBATCH -n 4
+#SBATCH -t 00:30:00
 
 # for cori only
-# #SBATCH -C haswell
+#SBATCH -C haswell
 
 # sbatch ~/scratch/repos/legacyhalos/bin/legacyhalos-coadds.slurm
 
@@ -32,11 +32,11 @@
 #   ngal = 1562      # [number of galaxies]
 #   hourpergal = 0.5 # [hours per galaxy]
 #   ntask = 48
-#   ncpu = 4
+#   nproc = 4
 #   nnode = 32
-#   totaltime = int(ngal*hourpergal*ncpu/nnode/24)
+#   totaltime = int(ngal*hourpergal*nproc/nnode/24)
 # 
-#     print('Edison: -n {} -N {:.0f} -c {} -t 00:{:02d}:00'.format(ntask, nnode, ncpu, totaltime))
+#     print('Edison: -n {} -N {:.0f} -c {} -t 00:{:02d}:00'.format(ntask, nnode, nproc, totaltime))
 #       Edison: -n 48 -N 32 -c 4 -t 00:04:00
 #
 # Some notes: Running over 1562 galaxies with "-n 48 -N 32 -c 4 -t 00:04:00" left 917/1562 galaxies.
@@ -48,26 +48,25 @@
 #   ngal = 1562      # [number of galaxies]
 #   hourpergal = 0.5 # [hours per galaxy]
 #   ntask = 32*5
-#   ncpu = 4
-#   nnode = ntask*ncpu//32
+#   nproc = 4
+#   nnode = ntask*nproc//32
 #   totaltime = int(ngal/ntask*hourpergal)
 #
-#     print('Cori: -n {} -N {:.0f} -c {} -t 00:{:02d}:00'.format(ntask, nnode, ncpu, totaltime))
+#     print('Cori: -n {} -N {:.0f} -c {} -t 00:{:02d}:00'.format(ntask, nnode, nproc, totaltime))
 #       Cori: -n 160 -N 20 -c 4 -t 00:04:00
 
 export IMPY_DIR=$HOME/repos/git/impy
 source $IMPY_DIR/bin/legacyhalos-env-nersc
 
 # do the whole sample!
-time srun -N 32 -n 48 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --ncpu 4 --mpi
+# time srun -N 32 -n 48 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 4 --mpi
 
-# time $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 4 --last 4 --custom-coadds --ncpu 12 --clobber
+# time $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 4 --last 4 --custom-coadds --nproc 12 --clobber
 
 #time srun -N 3 -n 20 -c 4 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 19 \
-#    --custom-coadds --ncpu 4 --mpi --clobber
+#    --custom-coadds --nproc 4 --mpi --clobber
 
 #time srun -N 4 -n 32 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 31 \
-#    --coadds --ncpu 4 --mpi --clobber
+#    --coadds --nproc 4 --mpi --clobber
 
-#time srun -N 3 -n 24 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 \
-#    --coadds --ncpu 4 --mpi
+time srun -N 2 -n 4 -c 16 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 3 --coadds --custom-coadds --nproc 16 --clobber
