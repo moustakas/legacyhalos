@@ -1135,15 +1135,15 @@ def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=
         #                               fill=False, edgecolor='black', lw=3, ls='--'))
         ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), radius * pixscale / 3600,
                                     fill=False, edgecolor='black', lw=2))
-        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), 3*radius * pixscale / 3600, # inner sky annulus
+        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), 2*radius * pixscale / 3600, # inner sky annulus
                                     fill=False, edgecolor='black', lw=1))
-        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), 10*radius * pixscale / 3600, # outer sky annulus
+        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), 5*radius * pixscale / 3600, # outer sky annulus
                                     fill=False, edgecolor='black', lw=1))
 
         these = np.where(ccds.filter == band)[0]
         col = plt.cm.Set1(np.linspace(0, 1, len(ccds)))
         for ii, ccd in enumerate(ccds[these]):
-            print(ccd.expnum, ccd.ccdname, ccd.filter)
+            #print(ccd.expnum, ccd.ccdname, ccd.filter)
             W, H, ccdwcs = legacyhalos.misc.ccdwcs(ccd)
 
             cc = ccdwcs.radec_bounds()
@@ -1260,60 +1260,62 @@ def _display_ccdmask_and_sky(ccdargs):
     from scipy.ndimage.filters import uniform_filter
 
     import fitsio
+    from astrometry.util.util import Tan
     from tractor.splinesky import SplineSky
 
     onegal, ccd, iccd, survey, maskfile, qarootfile, pixscale = ccdargs
 
     # Read the tim.
     im = survey.get_image_object(ccd)
-    print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
-          'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
-          'object', getattr(ccd, 'object', None))
-
+    targetwcs = im.get_wcs()
+    #print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
+    #      'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
+    #      'object', getattr(ccd, 'object', None))
+    
     radius = legacyhalos.misc.cutout_radius_150kpc(
         redshift=onegal['Z'], pixscale=im.pixscale) # [pixels]
     
-    tim = im.get_tractor_image(splinesky=True, subsky=False,
-                               hybridPsf=True, normalizePsf=True)
+    #tim = im.get_tractor_image(splinesky=True, subsky=False,
+    #                           hybridPsf=True, normalizePsf=True)
+    #
+    #targetwcs = tim.subwcs
+    #H, W = targetwcs.shape
+    #H, W = np.int(H), np.int(W)
 
-    targetwcs = tim.subwcs
-    H, W = targetwcs.shape
-    H, W = np.int(H), np.int(W)
-
-    # Get the image, read and instantiate the pipeline (splinesky) model.
-    image = tim.getImage()
-    weight = tim.getInvvar()
-    pipesky = np.zeros_like(image)
-    tim.getSky().addTo(pipesky)
+    ## Get the image, read and instantiate the pipeline (splinesky) model.
+    #image = tim.getImage()
+    #weight = tim.getInvvar()
+    #pipesky = np.zeros_like(image)
+    #tim.getSky().addTo(pipesky)
 
     # Reproduce the (pipeline) image mask derived in
     # legacypipe.decam.run_calibs.
-    if False:
-        boxsize, boxcar = 512, 5
-        if min(image.shape) / boxsize < 4:
-            boxsize /= 2
-
-        good = weight > 0
-        if np.sum(good) == 0:
-            raise RuntimeError('No pixels with weight > 0.')
-        med = np.median(image[good])
-
-        skyobj = SplineSky.BlantonMethod(image - med, good, boxsize)
-        skymod = np.zeros_like(image)
-        skyobj.addTo(skymod)
-
-        bsig1 = ( 1 / np.sqrt( np.median(weight[good]) ) ) / boxcar
-
-        mask = np.abs( uniform_filter(image - med - skymod, size=boxcar, mode='constant') > (3 * bsig1) )
-        mask = binary_dilation(mask, iterations=3)
+    #if False:
+    #    boxsize, boxcar = 512, 5
+    #    if min(image.shape) / boxsize < 4:
+    #        boxsize /= 2
+    #
+    #    good = weight > 0
+    #    if np.sum(good) == 0:
+    #        raise RuntimeError('No pixels with weight > 0.')
+    #    med = np.median(image[good])
+    #
+    #    skyobj = SplineSky.BlantonMethod(image - med, good, boxsize)
+    #    skymod = np.zeros_like(image)
+    #    skyobj.addTo(skymod)
+    #
+    #    bsig1 = ( 1 / np.sqrt( np.median(weight[good]) ) ) / boxcar
+    #
+    #    mask = np.abs( uniform_filter(image - med - skymod, size=boxcar, mode='constant') > (3 * bsig1) )
+    #    mask = binary_dilation(mask, iterations=3)
 
     # Read the custom mask and (constant) sky value.
-    extname = '{}-{:02d}'.format(im.name, im.hdu)
-    newmask = fitsio.read(maskfile, ext=extname)
-    hdr = fitsio.read_header(maskfile, ext=extname)
-    newsky = np.zeros_like(image) + hdr['SKYMODE']
+    key = '{}-{:02d}'.format(im.name, im.hdu)
+    image, hdr = fitsio.read(maskfile, header=True, ext='{}-image'.format(key).upper())
+    pipesky = fitsio.read(maskfile, ext='{}-pipesky'.format(key).upper())
+    newmask = fitsio.read(maskfile, ext='{}-mask'.format(key).upper())
 
-    #import pdb ; pdb.set_trace()
+    newsky = np.zeros_like(newmask).astype('f4') + hdr['SKYMODE']
 
     # Get the (pixel) coordinates of the galaxy on this CCD
     _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
@@ -1322,10 +1324,10 @@ def _display_ccdmask_and_sky(ccdargs):
     # Visualize the data, the mask, and the sky.
     fig, ax = plt.subplots(1, 4, sharey=True, figsize=(14, 4.5))
     #fig, ax = plt.subplots(1, 5, sharey=True, figsize=(14, 4.5))
-    fig.suptitle('{} (ccd{:02d})'.format(extname, iccd), y=0.95, fontsize=20)
+    fig.suptitle('{} (ccd{:02d})'.format(key, iccd), y=0.95, fontsize=20)
 
     vmin_image, vmax_image = np.percentile(image, (1, 99))
-    vmin_weight, vmax_weight = np.percentile(weight, (1, 99))
+    #vmin_weight, vmax_weight = np.percentile(weight, (1, 99))
     vmin_mask, vmax_mask = (0, 1)
     vmin_sky, vmax_sky = np.percentile(pipesky, (0.1, 99.9))
 
@@ -1343,14 +1345,14 @@ def _display_ccdmask_and_sky(ccdargs):
             vmin, vmax = vmin_sky, vmax_sky
         elif 'Image' in title:
             vmin, vmax = vmin_image, vmax_image
-        elif 'Weight' in title:
-            vmin, vmax = vmin_weight, vmax_weight
+        #elif 'Weight' in title:
+        #    vmin, vmax = vmin_weight, vmax_weight
 
         thisim = thisax.imshow(data, cmap=cmap, interpolation='nearest',
                                origin='lower', vmin=vmin, vmax=vmax)
         thisax.add_patch(patches.Circle((xcen, ycen), radius, fill=False, edgecolor='white', lw=2))
-        thisax.add_patch(patches.Circle((xcen, ycen), 3*radius, fill=False, edgecolor='white', lw=1))
-        thisax.add_patch(patches.Circle((xcen, ycen), 10*radius, fill=False, edgecolor='white', lw=1))
+        thisax.add_patch(patches.Circle((xcen, ycen), 2*radius, fill=False, edgecolor='white', lw=1))
+        thisax.add_patch(patches.Circle((xcen, ycen), 5*radius, fill=False, edgecolor='white', lw=1))
 
         div = make_axes_locatable(thisax)
         cax = div.append_axes('right', size='15%', pad=0.1)

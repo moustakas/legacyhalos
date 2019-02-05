@@ -15,7 +15,7 @@ from legacyhalos.html import make_plots, _javastring
 from legacyhalos.misc import plot_style
 sns = plot_style()
 
-def make_html(sample, analysisdir, htmldir, band=('g', 'r', 'z'),
+def make_html(sample, datadir, htmldir, band=('g', 'r', 'z'),
               refband='r', pixscale=0.262, nproc=1, dr='dr7', 
               makeplots=True, survey=None, clobber=False, verbose=True):
     """Make the HTML pages.
@@ -24,10 +24,10 @@ def make_html(sample, analysisdir, htmldir, band=('g', 'r', 'z'),
     import legacyhalos.io
     from legacyhalos.misc import cutout_radius_150kpc
 
-    if analysisdir is None:
-        analysisdir = legacyhalos.io.analysis_dir()
+    if datadir is None:
+        datadir = legacyhalos.io.legacyhalos_data_dir()
     if htmldir is None:
-        htmldir = legacyhalos.io.html_dir()
+        htmldir = legacyhalos.io.legacyhalos_html_dir()
 
     # Write the last-updated date to a webpage.
     js = _javastring()       
@@ -95,7 +95,7 @@ def make_html(sample, analysisdir, htmldir, band=('g', 'r', 'z'),
         galaxy = onegal['GALAXY'].decode('utf-8').upper()
         gal = galaxy.lower()
 
-        survey.output_dir = os.path.join(analysisdir, gal)
+        survey.output_dir = os.path.join(datadir, gal)
         survey.ccds = fits_table(os.path.join(survey.output_dir, '{}-ccds.fits'.format(gal)))
         
         htmlgalaxydir = os.path.join(htmldir, '{}'.format(gal))
@@ -240,10 +240,10 @@ def make_html(sample, analysisdir, htmldir, band=('g', 'r', 'z'),
             #galaxy = onegal['GALAXY'].decode('utf-8').upper()
             gal = galaxy.lower()
 
-            survey.output_dir = os.path.join(analysisdir, gal)
+            survey.output_dir = os.path.join(datadir, gal)
             survey.ccds = fits_table(os.path.join(survey.output_dir, '{}-ccds.fits'.format(gal)))
             
-            make_plots([onegal], galaxylist=[gal], analysisdir=analysisdir,
+            make_plots([onegal], galaxylist=[gal], datadir=datadir,
                        htmldir=htmldir, clobber=clobber, verbose=verbose,
                        survey=survey, refband=refband, pixscale=pixscale,
                        band=band, nproc=nproc, ccdqa=True, trends=False)

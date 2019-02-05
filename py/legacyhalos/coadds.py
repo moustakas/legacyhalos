@@ -30,7 +30,7 @@ def _copyfile(infile, outfile):
 
 def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                     pixscale=0.262, splinesky=True, log=None, force=False,
-                    archivedir=None, cleanup=True):
+                    cleanup=True):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
 
     radius in arcsec
@@ -41,9 +41,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     if survey is None:
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
-
-    if archivedir is None:
-        archivedir = survey.output_dir
+        
+    galaxydir = survey.output_dir
 
     if galaxy is None:
         galaxy = 'galaxy'
@@ -55,8 +54,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd += '--unwise-coadds --no-gaia '
     #cmd += '--force-stage coadds '
     cmd += '--write-stage srcs --no-write --skip --no-wise-ceres '
-    cmd += '--checkpoint {archivedir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
-    cmd += '--pickle {archivedir}/{galaxy}-runbrick-%%(stage)s.p ' 
+    cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
+    cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p ' 
     if force:
         cmd += '--force-all '
     if not splinesky:
@@ -67,12 +66,12 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal['RA'], dec=onegal['DEC'], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     archivedir=archivedir, survey_dir=survey.survey_dir)
+                     galaxydir=galaxydir, survey_dir=survey.survey_dir)
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
     if err != 0:
-        print('Something we wrong; please check the logfile.')
+        print('Something went wrong; please check the logfile.')
         return 0
     else:
         # Move (rename) files into the desired output directory and clean up.
@@ -185,6 +184,7 @@ def _custom_sky(skyargs):
     survey, brickname, onegal, radius_arcsec, ccd = skyargs
 
     im = survey.get_image_object(ccd)
+    hdr = im.read_image_header()
     print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
           'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
           'object', getattr(ccd, 'object', None))
@@ -193,12 +193,17 @@ def _custom_sky(skyargs):
     
     tim = im.get_tractor_image(splinesky=True, subsky=False,
                                hybridPsf=True, normalizePsf=True)
+
     targetwcs, bands = tim.subwcs, tim.band
     H, W = targetwcs.shape
     H, W = np.int(H), np.int(W)
 
     img = tim.getImage()
     ivar = tim.getInvvar()
+
+    # Instantiate (and store) the pipeline sky model, for comparison purposes.
+    pipesky = np.zeros_like(img)
+    tim.getSky().addTo(pipesky)
 
     ## Old method
     #if False:
@@ -217,8 +222,8 @@ def _custom_sky(skyargs):
     ivarmask = ivar <= 0
 
     # Mask known stars and large galaxies.
-    refs, _ = get_reference_sources(survey, tim.subwcs, im.pixscale, ['r'], True, True, False)
-    refmask = (get_inblob_map(tim.subwcs, refs) != 0)
+    refs, _ = get_reference_sources(survey, targetwcs, im.pixscale, ['r'], True, True, False)
+    refmask = (get_inblob_map(targetwcs, refs) != 0)
 
     # Mask the object of interest.
     #http://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
@@ -228,8 +233,8 @@ def _custom_sky(skyargs):
     galmask = (xmask**2 + ymask**2) <= radius**2
 
     # Define an annulus of sky pixels centered on the object of interest.
-    inmask = (xmask**2 + ymask**2) <= 3*radius**2
-    outmask = (xmask**2 + ymask**2) <= 10*radius**2
+    inmask = (xmask**2 + ymask**2) <= 2*radius**2
+    outmask = (xmask**2 + ymask**2) <= 5*radius**2
     skymask = (outmask*1 - inmask*1 - galmask*1) == 1
 
     # Get an initial guess of the sky using the mode, otherwise the median.
@@ -281,12 +286,18 @@ def _custom_sky(skyargs):
         #plt.imshow(mask, origin='lower') ; plt.show()
     #import pdb ; pdb.set_trace()
 
+    for card, value in zip(('SKYMODE', 'SKYMED', 'SKYSIG'), (skymode, skymed, skysig)):
+        hdr.add_record(dict(name=card, value=value))
+
     out = dict()
     key = '{}-{:02d}'.format(im.name, im.hdu)
     out['{}-mask'.format(key)] = mask
-    out['{}-skymode'.format(key)] = skymode
-    out['{}-skymed'.format(key)] = skymed
-    out['{}-skysig'.format(key)] = skysig
+    out['{}-image'.format(key)] = img
+    out['{}-pipesky'.format(key)] = pipesky
+    out['{}-header'.format(key)] = hdr
+    #out['{}-skymode'.format(key)] = skymode
+    #out['{}-skymed'.format(key)] = skymed
+    #out['{}-skysig'.format(key)] = skysig
     
     return out
 
@@ -299,7 +310,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     radius in arcsec
 
     """
-    from astropy.io import fits
+    #from astropy.io import fits
+    import fitsio
 
     from astrometry.util.fits import fits_table
     from astrometry.util.resample import resample_with_wcs, OverlapError
@@ -383,43 +395,38 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
             continue
 
     comask = np.sum(_comask, axis=0)
-
-    hx = fits.HDUList()
-    hdu = fits.ImageHDU(comask)
-    hx.append(hdu)
+    hdr = fitsio.FITSHDR()
+    P['targetwcs'].add_to_header(hdr)
+    hdr.delete('IMAGEW')
+    hdr.delete('IMAGEH')
     
     maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
     print('Writing {}'.format(maskfile))
-    hx.writeto(maskfile, overwrite=True)
+    fitsio.write(maskfile, comask, header=hdr, clobber=True)
 
-    hx = fits.HDUList()
-    for ii, ccd in enumerate(survey.ccds):
-        im = survey.get_image_object(ccd)
-        key = '{}-{:02d}'.format(im.name, im.hdu)
-        mask = sky['{}-mask'.format(key)]#.astype('uint8')
-        hdu = fits.ImageHDU(mask, name=key)
-        hdu.header['SKYMODE'] = sky['{}-skymode'.format(key)]
-        hdu.header['SKYMED'] = sky['{}-skymed'.format(key)]
-        hdu.header['SKYSIG'] = sky['{}-skysig'.format(key)]
-        hx.append(hdu)
-
-    ccdmaskfile = os.path.join(survey.output_dir, '{}-custom-ccdmasks.fits.gz'.format(galaxy))
+    ccdmaskfile = os.path.join(survey.output_dir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
     print('Writing {}'.format(ccdmaskfile))
-    hx.writeto(ccdmaskfile, overwrite=True)
+    if os.path.isfile(ccdmaskfile):
+        os.remove(ccdmaskfile)
+
+    with fitsio.FITS(ccdmaskfile, 'rw') as ff:
+        for ii, ccd in enumerate(survey.ccds):
+            im = survey.get_image_object(ccd)
+            key = '{}-{:02d}'.format(im.name, im.hdu)
+            hdr = sky['{}-header'.format(key)]
+            ff.write(sky['{}-mask'.format(key)].astype('uint8'), extname='{}-mask'.format(key).upper(), header=hdr)
+            ff.write(sky['{}-image'.format(key)].astype('f4'), extname='{}-image'.format(key).upper(), header=hdr)
+            ff.write(sky['{}-pipesky'.format(key)].astype('f4'), extname='{}-pipesky'.format(key).upper(), header=hdr)
 
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
     for tim in tims:
         image = tim.getImage()
-        newsky = sky['{}-{:02d}-skymode'.format(tim.imobj.name, tim.imobj.hdu)]
-        #if False:
-        #    pipesky = tim.getSky()
-        #    splinesky = np.zeros_like(image)
-        #    pipesky.addTo(splinesky)
-        #    newsky = splinesky
+        newsky = sky['{}-{:02d}-header'.format(tim.imobj.name, tim.imobj.hdu)]['SKYMODE']
         tim.setImage(image - newsky)
         tim.sky = ConstantSky(0)
         newtims.append(tim)
+    del sky
 
     # [4] Read the Tractor catalog and render the model image of each CCD, with
     # and without the central large galaxy.
