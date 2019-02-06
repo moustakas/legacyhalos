@@ -1153,7 +1153,7 @@ def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=
                                            label='ccd{:02d}'.format(these[ii])))
             ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=10)
 
-    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.1, right=0.97)
+    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.1, right=0.97, top=0.95)
 
     if png:
         if verbose:
@@ -1248,6 +1248,7 @@ def display_ccd_apphot():
     plt.subplots_adjust(bottom=0.15, top=0.88)
     print('Writing {}'.format(qaccd))
     plt.savefig(qaccd)
+    plt.close(fig)
 
 def _display_ccdmask_and_sky(ccdargs):
     """Visualize the image, the custom mask, custom sky, and the pipeline sky (via
@@ -1322,7 +1323,7 @@ def _display_ccdmask_and_sky(ccdargs):
     xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
 
     # Visualize the data, the mask, and the sky.
-    fig, ax = plt.subplots(1, 4, sharey=True, figsize=(14, 4.5))
+    fig, ax = plt.subplots(1, 4, sharey=True, figsize=(12, 4.5))
     #fig, ax = plt.subplots(1, 5, sharey=True, figsize=(14, 4.5))
     fig.suptitle('{} (ccd{:02d})'.format(key, iccd), y=0.95, fontsize=20)
 
@@ -1345,8 +1346,6 @@ def _display_ccdmask_and_sky(ccdargs):
             vmin, vmax = vmin_sky, vmax_sky
         elif 'Image' in title:
             vmin, vmax = vmin_image, vmax_image
-        #elif 'Weight' in title:
-        #    vmin, vmax = vmin_weight, vmax_weight
 
         thisim = thisax.imshow(data, cmap=cmap, interpolation='nearest',
                                origin='lower', vmin=vmin, vmax=vmax)
@@ -1358,17 +1357,16 @@ def _display_ccdmask_and_sky(ccdargs):
         cax = div.append_axes('right', size='15%', pad=0.1)
         cbar = fig.colorbar(thisim, cax=cax, format='%.4g')
 
-        thisax.set_title(title, fontsize=16)
+        thisax.set_title(title, fontsize=14)
         thisax.xaxis.set_visible(False)
         thisax.yaxis.set_visible(False)
         thisax.set_aspect('equal')
 
     ## Shared colorbar.
     plt.tight_layout(w_pad=0.22)
-    plt.subplots_adjust(bottom=0.05, top=0.95)
+    plt.subplots_adjust(bottom=0.05, top=0.92)
 
     qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
     print('Writing {}'.format(qafile))
     fig.savefig(qafile)
-    
-    #import pdb ; pdb.set_trace()
+    plt.close(fig)

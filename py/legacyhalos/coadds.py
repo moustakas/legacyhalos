@@ -51,7 +51,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} '
-    cmd += '--unwise-coadds --no-gaia '
+    cmd += '--unwise-coadds --no-gaia --no-tycho --no-large-galaxies '
     #cmd += '--force-stage coadds '
     cmd += '--write-stage srcs --no-write --skip --no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
@@ -110,8 +110,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                 os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
                 os.path.join(survey.output_dir, '{}-depth-{}.fits.fz'.format(galaxy, band)) )
-        if not ok:
-            return ok
+            if not ok:
+                return ok
         
         # Data and model images
         for band in ('g', 'r', 'z'):
@@ -222,7 +222,9 @@ def _custom_sky(skyargs):
     ivarmask = ivar <= 0
 
     # Mask known stars and large galaxies.
-    refs, _ = get_reference_sources(survey, targetwcs, im.pixscale, ['r'], True, True, False)
+    refs, _ = get_reference_sources(survey, targetwcs, im.pixscale, ['r'],
+                                    tycho_stars=True, gaia_stars=True,
+                                    large_galaxies=False, star_clusters=False)
     refmask = (get_inblob_map(targetwcs, refs) != 0)
 
     # Mask the object of interest.

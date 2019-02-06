@@ -6,6 +6,7 @@ import os, sys, time, pdb
 import argparse
 import numpy as np
 from astropy.table import Table
+from contextlib import redirect_stdout, redirect_stderr
 
 from astrometry.util.fits import fits_table
 from legacypipe.survey import LegacySurveyData
@@ -101,16 +102,16 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
               galaxy, (time.time() - t0)/60), flush=True)
     else:
         with open(logfile, 'w') as log:
-            #with redirect_stdout(log), redirect_stderr(log):
-            print('Started working on galaxy {} at {}'.format(
-                    galaxy, time.asctime()), flush=True, file=log)
-            err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
-                                                     survey=survey, pixscale=pixscale,
-                                                     nproc=nproc, force=force)
-            if err == 0:
-                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
-            print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
-                  galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
+            with redirect_stdout(log), redirect_stderr(log):
+                print('Started working on galaxy {} at {}'.format(
+                        galaxy, time.asctime()), flush=True, file=log)
+                err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
+                                                         survey=survey, pixscale=pixscale,
+                                                         nproc=nproc, force=force, log=log)
+                if err == 0:
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+                print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
+                      galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
 
 def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
                         nproc, debug, logfile):
@@ -125,14 +126,16 @@ def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
             galaxy, (time.time() - t0)/60), flush=True)
     else:
         with open(logfile, 'w') as log:
-            print('Started working on galaxy {} at {}'.format(
-                    galaxy, time.asctime()), flush=True, file=log)
-            err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
-                                                   survey=survey, pixscale=pixscale, nproc=nproc)
-            if err == 0:
-                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
-            print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
-                galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
+            with redirect_stdout(log), redirect_stderr(log):
+                print('Started working on galaxy {} at {}'.format(
+                        galaxy, time.asctime()), flush=True, file=log)
+                err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
+                                                       survey=survey, pixscale=pixscale,
+                                                       nproc=nproc, log=log)
+                if err == 0:
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+                print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
+                    galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
 
 def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile):
     """Wrapper script to do ellipse-fitting."""
@@ -241,7 +244,7 @@ def main():
     if len(groups) == 0:
         ntodo = 0
     else:
-        ntodo = len( np.hstack( np.atleast_1d(groups) ) )
+        ntodo = len(np.hstack(np.atleast_1d(groups)))
         
     if rank == 0:
         if ntodo == 0:
@@ -270,6 +273,8 @@ def main():
 
         onegal = sample[ii]
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
+        if not os.path.isdir(galaxydir):
+            os.makedirs(galaxydir, exist_ok=True)
 
         if args.debug:
             logfile = None
