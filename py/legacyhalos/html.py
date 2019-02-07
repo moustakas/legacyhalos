@@ -10,6 +10,7 @@ import numpy as np
 import astropy.table
 
 import legacyhalos.io
+import legacyhalos.misc
 
 from legacyhalos.misc import plot_style
 sns = plot_style()
@@ -29,8 +30,11 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     if mp is None:
         mp = multiproc(nthreads=1)
 
+    radius_pixel = legacyhalos.misc.cutout_radius_150kpc(
+        redshift=onegal['Z'], pixscale=pixscale) # [pixels]
+
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
-    maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
+    #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
 
     ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
     if os.path.isfile(ccdsfile):
@@ -47,7 +51,7 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         okfiles *= os.path.isfile(qafile)
 
     if not okfiles or clobber and survey is not None:
-        ccdargs = [(onegal, _ccd, iccd, maskfile, qarootfile, pixscale, survey)
+        ccdargs = [(galaxy, galaxydir, qarootfile, radius_pixel, _ccd, iccd, survey)
                    for iccd, _ccd in enumerate(ccds)]
         mp.map(_display_ccdmask_and_sky, ccdargs)
 
@@ -230,8 +234,6 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         if ccdqa:
             qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
                    mp=mp, survey=survey, clobber=clobber, verbose=verbose)
-
-        pdb.set_trace()
 
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,

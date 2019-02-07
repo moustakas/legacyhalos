@@ -13,6 +13,7 @@ import os, sys, pdb
 import shutil
 import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
+import fitsio
 
 from astrometry.util.multiproc import multiproc
 
@@ -177,6 +178,8 @@ def _custom_sky(skyargs):
 
     from tractor.splinesky import SplineSky
     from astrometry.util.miscutils import estimate_mode
+    from astrometry.util.fits import fits_table
+    from astropy.table import Table
 
     from legacypipe.reference import get_reference_sources
     from legacypipe.oneblob import get_inblob_map
@@ -201,9 +204,25 @@ def _custom_sky(skyargs):
     img = tim.getImage()
     ivar = tim.getInvvar()
 
-    # Instantiate (and store) the pipeline sky model, for comparison purposes.
-    pipesky = np.zeros_like(img)
-    tim.getSky().addTo(pipesky)
+    # Read the splinesky model (for comparison purposes).  Code snippet taken
+    # from image.LegacySurveyImage.read_sky_model.
+    #T = Table.read(im.merged_splineskyfn)
+    #T.remove_column('skyclass') # causes problems when writing out with fitsio
+    #T = fitsio.read(im.merged_splineskyfn)
+    #I, = np.nonzero((T['expnum'] == im.expnum) * np.array([c.strip() == im.ccdname for c in T['ccdname']]))
+
+    T = fits_table(im.merged_splineskyfn)
+    I, = np.nonzero((T.expnum == im.expnum) * np.array([c.strip() == im.ccdname for c in T.ccdname]))
+    if len(I) != 1:
+        print('Multiple splinesky models!')
+        return 0
+    splineskytable = T[I]
+
+    #splineskytable = T[I].as_array() # convert to ndarray
+    #splineskytable = tim.getSky()
+
+    #pipesky = np.zeros_like(img)
+    #tim.getSky().addTo(pipesky)
 
     ## Old method
     #if False:
@@ -283,19 +302,18 @@ def _custom_sky(skyargs):
     mask[galmask]  += 2**2
     mask[objmask]  += 2**3
 
-    #if im.name == 'decam-00603132-S5':
-        #import matplotlib.pyplot as plt
-        #plt.imshow(mask, origin='lower') ; plt.show()
-    #import pdb ; pdb.set_trace()
-
+    # Add the sky values and also the central pixel coordinates of the object of
+    # interest (so we won't need the WCS object downstream, in QA).
     for card, value in zip(('SKYMODE', 'SKYMED', 'SKYSIG'), (skymode, skymed, skysig)):
         hdr.add_record(dict(name=card, value=value))
+    hdr.add_record(dict(name='XCEN', value=x0-1)) # 0-indexed
+    hdr.add_record(dict(name='YCEN', value=y0-1))
 
     out = dict()
     key = '{}-{:02d}'.format(im.name, im.hdu)
     out['{}-mask'.format(key)] = mask
     out['{}-image'.format(key)] = img
-    out['{}-pipesky'.format(key)] = pipesky
+    out['{}-splinesky'.format(key)] = splineskytable
     out['{}-header'.format(key)] = hdr
     #out['{}-skymode'.format(key)] = skymode
     #out['{}-skymed'.format(key)] = skymed
@@ -312,10 +330,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     radius in arcsec
 
     """
-    #from astropy.io import fits
-    import fitsio
-
-    from astrometry.util.fits import fits_table
+    from astrometry.util.fits import fits_table, merge_tables
     from astrometry.util.resample import resample_with_wcs, OverlapError
     from astrometry.libkd.spherematch import match_radec
     from tractor.sky import ConstantSky
@@ -406,20 +421,40 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     print('Writing {}'.format(maskfile))
     fitsio.write(maskfile, comask, header=hdr, clobber=True)
 
-    ccdmaskfile = os.path.join(survey.output_dir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
-    print('Writing {}'.format(ccdmaskfile))
-    if os.path.isfile(ccdmaskfile):
-        os.remove(ccdmaskfile)
-
-    with fitsio.FITS(ccdmaskfile, 'rw') as ff:
+    # Write out separate CCD-level files with the images/data, individual masks
+    # (converted to unsigned integer), and the pipeline/splinesky binary FITS
+    # tables.
+    ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask.fits.gz'.format(galaxy))
+    print('Writing {}'.format(ccdfile))
+    if os.path.isfile(ccdfile):
+        os.remove(ccdfile)
+    with fitsio.FITS(ccdfile, 'rw') as ff:
         for ii, ccd in enumerate(survey.ccds):
             im = survey.get_image_object(ccd)
             key = '{}-{:02d}'.format(im.name, im.hdu)
             hdr = sky['{}-header'.format(key)]
-            ff.write(sky['{}-mask'.format(key)].astype('uint8'), extname='{}-mask'.format(key).upper(), header=hdr)
-            ff.write(sky['{}-image'.format(key)].astype('f4'), extname='{}-image'.format(key).upper(), header=hdr)
-            ff.write(sky['{}-pipesky'.format(key)].astype('f4'), extname='{}-pipesky'.format(key).upper(), header=hdr)
+            ff.write(sky['{}-mask'.format(key)].astype('uint8'), extname=key.upper(), header=hdr)
 
+    ccdfile = os.path.join(survey.output_dir, '{}-custom-ccddata.fits.fz'.format(galaxy))
+    print('Writing {}'.format(ccdfile))
+    if os.path.isfile(ccdfile):
+        os.remove(ccdfile)
+    with fitsio.FITS(ccdfile, 'rw') as ff:
+        for ii, ccd in enumerate(survey.ccds):
+            im = survey.get_image_object(ccd)
+            key = '{}-{:02d}'.format(im.name, im.hdu)
+            hdr = sky['{}-header'.format(key)]
+            ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key.upper(), header=hdr)
+
+    skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
+    print('Writing {}'.format(skyfile))
+    if os.path.isfile(skyfile):
+        os.remove(skyfile)
+    for ii, ccd in enumerate(survey.ccds):
+        im = survey.get_image_object(ccd)
+        key = '{}-{:02d}'.format(im.name, im.hdu)
+        sky['{}-splinesky'.format(key)].write_to(skyfile, append=ii>0, extname=key.upper())
+        
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
     for tim in tims:

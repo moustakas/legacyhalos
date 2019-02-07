@@ -1262,20 +1262,18 @@ def _display_ccdmask_and_sky(ccdargs):
 
     import fitsio
     from astrometry.util.util import Tan
+    from astrometry.util.fits import fits_table
     from tractor.splinesky import SplineSky
 
-    onegal, ccd, iccd, maskfile, qarootfile, pixscale, survey = ccdargs
+    galaxy, galaxydir, qarootfile, radius_pixel, ccd, iccd, survey = ccdargs
+
+    im = survey.get_image_object(ccd)
 
     # Read the tim.
-    pdb.set_trace()
-    im = survey.get_image_object(ccd)
-    targetwcs = im.get_wcs()
+    # targetwcs = im.get_wcs()
     #print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
     #      'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
     #      'object', getattr(ccd, 'object', None))
-    
-    radius = legacyhalos.misc.cutout_radius_150kpc(
-        redshift=onegal['Z'], pixscale=im.pixscale) # [pixels]
     
     #tim = im.get_tractor_image(splinesky=True, subsky=False,
     #                           hybridPsf=True, normalizePsf=True)
@@ -1312,16 +1310,29 @@ def _display_ccdmask_and_sky(ccdargs):
     #    mask = binary_dilation(mask, iterations=3)
 
     # Read the custom mask and (constant) sky value.
-    key = '{}-{:02d}'.format(im.name, im.hdu)
-    image, hdr = fitsio.read(maskfile, header=True, ext='{}-image'.format(key).upper())
-    pipesky = fitsio.read(maskfile, ext='{}-pipesky'.format(key).upper())
-    newmask = fitsio.read(maskfile, ext='{}-mask'.format(key).upper())
-
+    key = '{}-{:02d}'.format(im.name, im.hdu).upper()
+    image, hdr = fitsio.read(os.path.join(galaxydir, '{}-custom-ccddata.fits.fz'.format(galaxy)), header=True, ext=key)
+    
+    newmask = fitsio.read(os.path.join(galaxydir, '{}-custom-ccdmask.fits.gz'.format(galaxy)), ext=key)
     newsky = np.zeros_like(newmask).astype('f4') + hdr['SKYMODE']
 
+    newmask = fitsio.read(os.path.join(galaxydir, '{}-custom-ccdmask.fits.gz'.format(galaxy)), ext=key)
+
+    # Rebuild the pipeline (spline) sky model (see legacypipe.image.LegacySurveyImage.read_sky_model)
+    Ti = fits_table(os.path.join(galaxydir, '{}-pipeline-sky.fits'.format(galaxy)), ext=key)[0]
+    h, w = Ti.gridh, Ti.gridw
+    Ti.gridvals = Ti.gridvals[:h, :w]
+    Ti.xgrid = Ti.xgrid[:w]
+    Ti.ygrid = Ti.ygrid[:h]
+    splinesky = SplineSky.from_fits_row(Ti)
+
+    pipesky = np.zeros_like(image)
+    splinesky.addTo(pipesky)
+
     # Get the (pixel) coordinates of the galaxy on this CCD
-    _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
-    xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
+    #_, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
+    #xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
+    xcen, ycen = hdr['XCEN'], hdr['YCEN']
 
     # Visualize the data, the mask, and the sky.
     fig, ax = plt.subplots(1, 4, sharey=True, figsize=(12, 4.5))
@@ -1350,22 +1361,22 @@ def _display_ccdmask_and_sky(ccdargs):
 
         thisim = thisax.imshow(data, cmap=cmap, interpolation='nearest',
                                origin='lower', vmin=vmin, vmax=vmax)
-        thisax.add_patch(patches.Circle((xcen, ycen), radius, fill=False, edgecolor='white', lw=2))
-        thisax.add_patch(patches.Circle((xcen, ycen), 2*radius, fill=False, edgecolor='white', lw=1))
-        thisax.add_patch(patches.Circle((xcen, ycen), 5*radius, fill=False, edgecolor='white', lw=1))
+        thisax.add_patch(patches.Circle((xcen, ycen), radius_pixel, fill=False, edgecolor='white', lw=2))
+        thisax.add_patch(patches.Circle((xcen, ycen), 2*radius_pixel, fill=False, edgecolor='white', lw=1))
+        thisax.add_patch(patches.Circle((xcen, ycen), 5*radius_pixel, fill=False, edgecolor='white', lw=1))
 
         div = make_axes_locatable(thisax)
         cax = div.append_axes('right', size='15%', pad=0.1)
         cbar = fig.colorbar(thisim, cax=cax, format='%.4g')
 
-        thisax.set_title(title, fontsize=14)
+        thisax.set_title(title, fontsize=10)
         thisax.xaxis.set_visible(False)
         thisax.yaxis.set_visible(False)
         thisax.set_aspect('equal')
 
     ## Shared colorbar.
     plt.tight_layout(w_pad=0.22)
-    plt.subplots_adjust(bottom=0.05, top=0.92)
+    plt.subplots_adjust(bottom=0.05, top=0.88)
 
     qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
     print('Writing {}'.format(qafile))
