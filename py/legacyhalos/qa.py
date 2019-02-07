@@ -1264,9 +1264,10 @@ def _display_ccdmask_and_sky(ccdargs):
     from astrometry.util.util import Tan
     from tractor.splinesky import SplineSky
 
-    onegal, ccd, iccd, survey, maskfile, qarootfile, pixscale = ccdargs
+    onegal, ccd, iccd, maskfile, qarootfile, pixscale, survey = ccdargs
 
     # Read the tim.
+    pdb.set_trace()
     im = survey.get_image_object(ccd)
     targetwcs = im.get_wcs()
     #print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,

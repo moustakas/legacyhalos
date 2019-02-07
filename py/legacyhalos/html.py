@@ -8,7 +8,6 @@ Code to generate HTML content.
 import os, subprocess, pdb
 import numpy as np
 import astropy.table
-from astrometry.util.fits import fits_table
 
 import legacyhalos.io
 
@@ -18,11 +17,12 @@ sns = plot_style()
 #import seaborn as sns
 #sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
-def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
-           mp=None, clobber=False, verbose=True):
+def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
+           survey=None, mp=None, clobber=False, verbose=True):
     """Build CCD-level QA.
 
     """
+    from astrometry.util.fits import fits_table
     from legacyhalos.qa import display_ccdpos, _display_ccdmask_and_sky
     from astrometry.util.multiproc import multiproc
 
@@ -32,18 +32,23 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
 
+    ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
+    if os.path.isfile(ccdsfile):
+        ccds = fits_table(ccdsfile)
+        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
     if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, survey.ccds, png=ccdposfile)
+        display_ccdpos(onegal, ccds, png=ccdposfile)
     
     okfiles = True
-    for iccd in range(len(survey.ccds)):
+    for iccd in range(len(ccds)):
         qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
         okfiles *= os.path.isfile(qafile)
 
-    if not okfiles or clobber:
-        ccdargs = [(onegal, _ccd, iccd, survey, maskfile, qarootfile, pixscale)
-                   for iccd, _ccd in enumerate(survey.ccds)]
+    if not okfiles or clobber and survey is not None:
+        ccdargs = [(onegal, _ccd, iccd, maskfile, qarootfile, pixscale, survey)
+                   for iccd, _ccd in enumerate(ccds)]
         mp.map(_display_ccdmask_and_sky, ccdargs)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
@@ -205,11 +210,7 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         from astrometry.util.multiproc import multiproc
         mp = multiproc(nthreads=nproc)
 
-    if survey is None:
-        from legacypipe.survey import LegacySurveyData
-        survey = LegacySurveyData()
-
-    for ii, onegal in enumerate( sample ):
+    for ii, onegal in enumerate(sample):
     #for ii, onegal in enumerate( np.atleast_1d(sample) ):
 
         if galaxylist is None:
@@ -227,8 +228,10 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
 
         # Build the CCD-level QA.
         if ccdqa:
-            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey,
-                   pixscale=pixscale, mp=mp, clobber=clobber, verbose=verbose)
+            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                   mp=mp, survey=survey, clobber=clobber, verbose=verbose)
+
+        pdb.set_trace()
 
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
@@ -278,13 +281,16 @@ def _javastring():
 
     return js
         
-def make_html(sample=None, datadir=None, htmldir=None, survey=None, band=('g', 'r', 'z'),
+def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
               refband='r', pixscale=0.262, first=None, last=None, nproc=1,
-              makeplots=True, clobber=False, verbose=True, ccdqa=True):
+              survey=None, makeplots=True, clobber=False, verbose=True,
+              ccdqa=True):
     """Make the HTML pages.
 
     """
     import subprocess
+    import fitsio
+
     import legacyhalos.io
     from legacyhalos.misc import cutout_radius_150kpc
 
@@ -298,10 +304,6 @@ def make_html(sample=None, datadir=None, htmldir=None, survey=None, band=('g', '
 
     if type(sample) is astropy.table.row.Row:
         sample = astropy.table.Table(sample)
-
-    if survey is None:
-        from legacypipe.survey import LegacySurveyData
-        survey = LegacySurveyData()
 
     galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
 
@@ -425,9 +427,11 @@ def make_html(sample=None, datadir=None, htmldir=None, survey=None, band=('g', '
         if not os.path.exists(htmlgalaxydir1):
             os.makedirs(htmlgalaxydir1)
 
-        ccdsfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy))
+        ccdsfile = os.path.join(galaxydir1, '{}-ccds.fits'.format(galaxy1))
         if os.path.isfile(ccdsfile):
-            survey.ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+            nccds = fitsio.FITS(ccdsfile)[1].get_nrows()
+        else:
+            nccds = None
 
         nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir.replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy))
         prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir.replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy))
@@ -533,7 +537,7 @@ def make_html(sample=None, datadir=None, htmldir=None, survey=None, band=('g', '
 
             html.write('<br />\n')
 
-            if survey.ccds is not None:
+            if nccds:
                 html.write('<h2>CCD Diagnostics</h2>\n')
                 html.write('<table width="90%">\n')
                 html.write('<tr>\n')
@@ -542,7 +546,7 @@ def make_html(sample=None, datadir=None, htmldir=None, survey=None, band=('g', '
                     pngfile))
                 html.write('</tr>\n')
 
-                for iccd in range(len(survey.ccds)):
+                for iccd in range(nccds):
                     html.write('<tr>\n')
                     pngfile = '{}-2d-ccd{:02d}.png'.format(galaxy1, iccd)
                     html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
