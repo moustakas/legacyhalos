@@ -12,8 +12,8 @@
 # #SBATCH -t 01:00:00
 
 #SBATCH -p debug
-#SBATCH -N 2
-#SBATCH -n 8
+#SBATCH -N 4
+#SBATCH -n 32
 #SBATCH -t 00:30:00
 
 # for cori only
@@ -62,10 +62,14 @@ source $IMPY_DIR/bin/legacyhalos-env-nersc
 # time srun -N 32 -n 48 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 4 --mpi
 
 # pipeline coadds
-# time srun -N 4 -n 16 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 49 --coadds --nproc 8 --mpi
+#time srun -N 4 -n 16 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 49 --coadds --nproc 8 --mpi
+#time srun -N 1 -n 2 -c 16 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 49 --coadds --nproc 16 --mpi
 
 # custom coadds
-time srun -N 2 -n 8 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 49 --custom-coadds --nproc 8 --mpi --clobber
+# time srun -N 2 -n 8 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 49 --custom-coadds --nproc 8 --mpi --clobber
 
 # ellipse
 # time srun -N 1 -n 32 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 49 --ellipse --mpi
+
+# html
+time srun -N 4 -n 32 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 49 --html --nproc 4 --mpi --clobber

@@ -30,6 +30,10 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     if mp is None:
         mp = multiproc(nthreads=1)
 
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+
     radius_pixel = legacyhalos.misc.cutout_radius_150kpc(
         redshift=onegal['Z'], pixscale=pixscale) # [pixels]
 
@@ -38,7 +42,7 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
 
     ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
     if os.path.isfile(ccdsfile):
-        ccds = fits_table(ccdsfile)
+        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
         print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
 
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
@@ -205,6 +209,10 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         datadir = legacyhalos.io.legacyhalos_data_dir()
     if htmldir is None:
         htmldir = legacyhalos.io.legacyhalos_html_dir()
+
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
 
     if trends:
         from legacyhalos.qa import sample_trends
@@ -578,8 +586,17 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
 
     cmd = '/usr/bin/chgrp -R cosmo {}'.format(htmldir)
     print(cmd)
-    err = subprocess.call(cmd.split())
-    if err != 0:
+    err1 = subprocess.call(cmd.split())
+
+    cmd = 'find {} -type d -exec chmod 775 {{}} +'.format(htmldir)
+    print(cmd)
+    err2 = subprocess.call(cmd.split())
+
+    cmd = 'find {} -type f -exec chmod 664 {{}} +'.format(htmldir)
+    print(cmd)
+    err3 = subprocess.call(cmd.split())
+
+    if err1 != 0 or err2 != 0 or err3 != 0:
         print('Something went wrong updating permissions; please check the logfile.')
         return 0
     
