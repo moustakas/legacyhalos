@@ -1312,13 +1312,11 @@ def _display_ccdmask_and_sky(ccdargs):
     #    mask = binary_dilation(mask, iterations=3)
 
     # Read the custom mask and (constant) sky value.
-    key = '{}-{:02d}'.format(im.name, im.hdu).upper()
-    image, hdr = fitsio.read(os.path.join(galaxydir, '{}-custom-ccddata.fits.fz'.format(galaxy)), header=True, ext=key)
+    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+    image, hdr = fitsio.read(os.path.join(galaxydir, '{}-ccddata.fits.fz'.format(galaxy)), header=True, ext=key)
     
     newmask = fitsio.read(os.path.join(galaxydir, '{}-custom-ccdmask.fits.gz'.format(galaxy)), ext=key)
-    newsky = np.zeros_like(newmask).astype('f4') + hdr['SKYMODE']
-
-    newmask = fitsio.read(os.path.join(galaxydir, '{}-custom-ccdmask.fits.gz'.format(galaxy)), ext=key)
+    newsky = np.zeros_like(image).astype('f4') + hdr['SKYMODE']
 
     # Rebuild the pipeline (spline) sky model (see legacypipe.image.LegacySurveyImage.read_sky_model)
     Ti = fits_table(os.path.join(galaxydir, '{}-pipeline-sky.fits'.format(galaxy)), ext=key)[0]
@@ -1330,7 +1328,7 @@ def _display_ccdmask_and_sky(ccdargs):
 
     pipesky = np.zeros_like(image)
     splinesky.addTo(pipesky)
-    pipesky /= NanoMaggies.zeropointToScale(ccd.ccdzpt)
+    pipesky /= NanoMaggies.zeropointToScale(im.ccdzpt)
 
     # Get the (pixel) coordinates of the galaxy on this CCD
     #_, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
@@ -1346,8 +1344,6 @@ def _display_ccdmask_and_sky(ccdargs):
     #vmin_weight, vmax_weight = np.percentile(weight, (1, 99))
     vmin_mask, vmax_mask = (0, 1)
     vmin_sky, vmax_sky = np.percentile(pipesky, (0.1, 99.9))
-
-    pdb.set_trace()
 
     cmap = 'viridis' # 'inferno'
 

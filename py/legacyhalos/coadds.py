@@ -54,11 +54,14 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd += '--survey-dir {survey_dir} '
     cmd += '--unwise-coadds --no-gaia --no-tycho --no-large-galaxies '
     #cmd += '--force-stage coadds '
-    cmd += '--write-stage srcs --no-write --skip --no-wise-ceres '
+    cmd += '--write-stage srcs --skip-calibs --no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p ' 
     if force:
         cmd += '--force-all '
+        checkpointfile = '{galaxydir}/{galaxy}-runbrick-checkpoint.p'.format(galaxydir=galaxydir, galaxy=galaxy)
+        if os.path.isfile(checkpointfile):
+            os.remove(checkpointfile)
     if not splinesky:
         cmd += '--no-splinesky '
     
@@ -188,6 +191,9 @@ def _custom_sky(skyargs):
 
     im = survey.get_image_object(ccd)
     hdr = im.read_image_header()
+    hdr.delete('INHERIT')
+    hdr.delete('EXTVER')
+
     print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
           'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
           'object', getattr(ccd, 'object', None))
@@ -223,8 +229,6 @@ def _custom_sky(skyargs):
 
     #pipesky = np.zeros_like(img)
     #tim.getSky().addTo(pipesky)
-
-    pdb.set_trace()
 
     ## Old method
     #if False:
@@ -312,7 +316,7 @@ def _custom_sky(skyargs):
     hdr.add_record(dict(name='YCEN', value=y0-1))
 
     out = dict()
-    key = '{}-{:02d}'.format(im.name, im.hdu)
+    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
     out['{}-mask'.format(key)] = mask
     out['{}-image'.format(key)] = img
     out['{}-splinesky'.format(key)] = splineskytable
@@ -405,7 +409,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     _comask = np.zeros((len(tims), H, W), np.int16)
     for ii, ccd in enumerate(survey.ccds):
         im = survey.get_image_object(ccd)
-        key = '{}-{:02d}'.format(im.name, im.hdu)
+        key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
         mask = sky['{}-mask'.format(key)]#.astype('uint8')
         try:
             Yo, Xo, Yi, Xi, _ = resample_with_wcs(P['targetwcs'], im.get_wcs())
@@ -433,20 +437,20 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     with fitsio.FITS(ccdfile, 'rw') as ff:
         for ii, ccd in enumerate(survey.ccds):
             im = survey.get_image_object(ccd)
-            key = '{}-{:02d}'.format(im.name, im.hdu)
+            key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
             hdr = sky['{}-header'.format(key)]
-            ff.write(sky['{}-mask'.format(key)].astype('uint8'), extname=key.upper(), header=hdr)
+            ff.write(sky['{}-mask'.format(key)].astype('uint8'), extname=key, header=hdr)
 
-    ccdfile = os.path.join(survey.output_dir, '{}-custom-ccddata.fits.fz'.format(galaxy))
+    ccdfile = os.path.join(survey.output_dir, '{}-ccddata.fits.fz'.format(galaxy))
     print('Writing {}'.format(ccdfile))
     if os.path.isfile(ccdfile):
         os.remove(ccdfile)
     with fitsio.FITS(ccdfile, 'rw') as ff:
         for ii, ccd in enumerate(survey.ccds):
             im = survey.get_image_object(ccd)
-            key = '{}-{:02d}'.format(im.name, im.hdu)
+            key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
             hdr = sky['{}-header'.format(key)]
-            ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key.upper(), header=hdr)
+            ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
 
     skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
     print('Writing {}'.format(skyfile))
@@ -454,14 +458,15 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
         os.remove(skyfile)
     for ii, ccd in enumerate(survey.ccds):
         im = survey.get_image_object(ccd)
-        key = '{}-{:02d}'.format(im.name, im.hdu)
-        sky['{}-splinesky'.format(key)].write_to(skyfile, append=ii>0, extname=key.upper())
+        key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+        sky['{}-splinesky'.format(key)].write_to(skyfile, append=ii>0, extname=key)
         
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
     for tim in tims:
         image = tim.getImage()
-        newsky = sky['{}-{:02d}-header'.format(tim.imobj.name, tim.imobj.hdu)]['SKYMODE']
+        key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
+        newsky = sky['{}-header'.format(key)]['SKYMODE']
         tim.setImage(image - newsky)
         tim.sky = ConstantSky(0)
         newtims.append(tim)
