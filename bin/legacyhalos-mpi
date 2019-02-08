@@ -2,6 +2,9 @@
 """MPI wrapper for the various computationally intensive legacyhalos analysis. 
 
 """
+import matplotlib
+matplotlib.use('Agg')
+
 import os, sys, time, pdb
 import argparse
 import numpy as np
@@ -36,7 +39,7 @@ def missing_files(sample, filetype='coadds', size=1, clobber=False):
     elif filetype == 'ellipse':
         filesuffix = '-ellipsefit.p'
     elif filetype == 'html':
-        filesuffix = '.html'
+        filesuffix = '-ccdpos.png'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -270,7 +273,7 @@ def main():
     for count, ii in enumerate(groups[rank]):
         if (count % 10) == 0:
             print('Rank {}: Building {} {} / {}'.format(
-                rank, suffix.upper(), count+1, len(groups[rank])), flush=True)
+                rank, suffix.upper(), count, len(groups[rank])), flush=True)
 
         onegal = sample[ii]
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)

@@ -7,7 +7,8 @@ Code to do produce various QA (quality assurance) plots.
 https://xkcd.com/color/rgb/
 
 """
-from __future__ import absolute_import, division, print_function
+import matplotlib
+matplotlib.use('Agg')
 
 import os, pdb
 import warnings
@@ -1264,7 +1265,8 @@ def _display_ccdmask_and_sky(ccdargs):
     from astrometry.util.util import Tan
     from astrometry.util.fits import fits_table
     from tractor.splinesky import SplineSky
-
+    from tractor.basics import NanoMaggies
+        
     galaxy, galaxydir, qarootfile, radius_pixel, ccd, iccd, survey = ccdargs
 
     im = survey.get_image_object(ccd)
@@ -1328,6 +1330,7 @@ def _display_ccdmask_and_sky(ccdargs):
 
     pipesky = np.zeros_like(image)
     splinesky.addTo(pipesky)
+    pipesky /= NanoMaggies.zeropointToScale(ccd.ccdzpt)
 
     # Get the (pixel) coordinates of the galaxy on this CCD
     #_, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
@@ -1337,12 +1340,14 @@ def _display_ccdmask_and_sky(ccdargs):
     # Visualize the data, the mask, and the sky.
     fig, ax = plt.subplots(1, 4, sharey=True, figsize=(12, 4.5))
     #fig, ax = plt.subplots(1, 5, sharey=True, figsize=(14, 4.5))
-    fig.suptitle('{} (ccd{:02d})'.format(key, iccd), y=0.95, fontsize=20)
+    fig.suptitle('{} (ccd{:02d})'.format(key.lower(), iccd), y=0.95, fontsize=14)
 
     vmin_image, vmax_image = np.percentile(image, (1, 99))
     #vmin_weight, vmax_weight = np.percentile(weight, (1, 99))
     vmin_mask, vmax_mask = (0, 1)
     vmin_sky, vmax_sky = np.percentile(pipesky, (0.1, 99.9))
+
+    pdb.set_trace()
 
     cmap = 'viridis' # 'inferno'
 

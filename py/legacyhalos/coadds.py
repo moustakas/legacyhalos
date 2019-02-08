@@ -224,6 +224,8 @@ def _custom_sky(skyargs):
     #pipesky = np.zeros_like(img)
     #tim.getSky().addTo(pipesky)
 
+    pdb.set_trace()
+
     ## Old method
     #if False:
     #    mp = multiproc()
