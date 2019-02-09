@@ -25,7 +25,7 @@ The key science goals are to:
 4. Measure the fraction of stars formed *in situ* versus *ex situ* in massive
    spheroidal galaxies.
 
-5. And lots more!   
+5. And lots more...!
 
 We gratefully acknowledge partial funding support for this work from the
 National Science Foundation (NSF) grant AST-1616414.

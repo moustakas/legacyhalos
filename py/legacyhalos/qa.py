@@ -7,7 +7,8 @@ Code to do produce various QA (quality assurance) plots.
 https://xkcd.com/color/rgb/
 
 """
-from __future__ import absolute_import, division, print_function
+import matplotlib
+matplotlib.use('Agg')
 
 import os, pdb
 import warnings
@@ -1135,11 +1136,15 @@ def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=
         #                               fill=False, edgecolor='black', lw=3, ls='--'))
         ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), radius * pixscale / 3600,
                                     fill=False, edgecolor='black', lw=2))
+        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), 2*radius * pixscale / 3600, # inner sky annulus
+                                    fill=False, edgecolor='black', lw=1))
+        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), 5*radius * pixscale / 3600, # outer sky annulus
+                                    fill=False, edgecolor='black', lw=1))
 
         these = np.where(ccds.filter == band)[0]
         col = plt.cm.Set1(np.linspace(0, 1, len(ccds)))
         for ii, ccd in enumerate(ccds[these]):
-            print(ccd.expnum, ccd.ccdname, ccd.filter)
+            #print(ccd.expnum, ccd.ccdname, ccd.filter)
             W, H, ccdwcs = legacyhalos.misc.ccdwcs(ccd)
 
             cc = ccdwcs.radec_bounds()
@@ -1149,7 +1154,7 @@ def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=
                                            label='ccd{:02d}'.format(these[ii])))
             ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=10)
 
-    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.1, right=0.97)
+    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.1, right=0.97, top=0.95)
 
     if png:
         if verbose:
@@ -1244,6 +1249,7 @@ def display_ccd_apphot():
     plt.subplots_adjust(bottom=0.15, top=0.88)
     print('Writing {}'.format(qaccd))
     plt.savefig(qaccd)
+    plt.close(fig)
 
 def _display_ccdmask_and_sky(ccdargs):
     """Visualize the image, the custom mask, custom sky, and the pipeline sky (via
@@ -1256,103 +1262,124 @@ def _display_ccdmask_and_sky(ccdargs):
     from scipy.ndimage.filters import uniform_filter
 
     import fitsio
+    from astrometry.util.util import Tan
+    from astrometry.util.fits import fits_table
     from tractor.splinesky import SplineSky
+    from tractor.basics import NanoMaggies
+        
+    galaxy, galaxydir, qarootfile, radius_pixel, ccd, iccd, survey = ccdargs
 
-    onegal, ccd, iccd, survey, maskfile, qarootfile, pixscale = ccdargs
+    im = survey.get_image_object(ccd)
 
     # Read the tim.
-    im = survey.get_image_object(ccd)
-    print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
-          'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
-          'object', getattr(ccd, 'object', None))
-
-    radius = legacyhalos.misc.cutout_radius_150kpc(
-        redshift=onegal['Z'], pixscale=im.pixscale) # [pixels]
+    # targetwcs = im.get_wcs()
+    #print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
+    #      'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
+    #      'object', getattr(ccd, 'object', None))
     
-    tim = im.get_tractor_image(splinesky=True, subsky=False,
-                               hybridPsf=True, normalizePsf=True)
+    #tim = im.get_tractor_image(splinesky=True, subsky=False,
+    #                           hybridPsf=True, normalizePsf=True)
+    #
+    #targetwcs = tim.subwcs
+    #H, W = targetwcs.shape
+    #H, W = np.int(H), np.int(W)
 
-    targetwcs = tim.subwcs
-    H, W = targetwcs.shape
-    H, W = np.int(H), np.int(W)
-
-    # Get the image, read and instantiate the pipeline (splinesky) model.
-    image = tim.getImage()
-    weight = tim.getInvvar()
-    pipesky = np.zeros_like(image)
-    tim.getSky().addTo(pipesky)
+    ## Get the image, read and instantiate the pipeline (splinesky) model.
+    #image = tim.getImage()
+    #weight = tim.getInvvar()
+    #pipesky = np.zeros_like(image)
+    #tim.getSky().addTo(pipesky)
 
     # Reproduce the (pipeline) image mask derived in
     # legacypipe.decam.run_calibs.
-    boxsize, boxcar = 512, 5
-    if min(image.shape) / boxsize < 4:
-        boxsize /= 2
-
-    good = weight > 0
-    if np.sum(good) == 0:
-        raise RuntimeError('No pixels with weight > 0.')
-    med = np.median(image[good])
-
-    skyobj = SplineSky.BlantonMethod(image - med, good, boxsize)
-    skymod = np.zeros_like(image)
-    skyobj.addTo(skymod)
-
-    bsig1 = ( 1 / np.sqrt( np.median(weight[good]) ) ) / boxcar
-    
-    mask = np.abs( uniform_filter(image - med - skymod, size=boxcar, mode='constant') > (3 * bsig1) )
-    mask = binary_dilation(mask, iterations=3)
+    #if False:
+    #    boxsize, boxcar = 512, 5
+    #    if min(image.shape) / boxsize < 4:
+    #        boxsize /= 2
+    #
+    #    good = weight > 0
+    #    if np.sum(good) == 0:
+    #        raise RuntimeError('No pixels with weight > 0.')
+    #    med = np.median(image[good])
+    #
+    #    skyobj = SplineSky.BlantonMethod(image - med, good, boxsize)
+    #    skymod = np.zeros_like(image)
+    #    skyobj.addTo(skymod)
+    #
+    #    bsig1 = ( 1 / np.sqrt( np.median(weight[good]) ) ) / boxcar
+    #
+    #    mask = np.abs( uniform_filter(image - med - skymod, size=boxcar, mode='constant') > (3 * bsig1) )
+    #    mask = binary_dilation(mask, iterations=3)
 
     # Read the custom mask and (constant) sky value.
-    extname = '{}-{:02d}'.format(im.name, im.hdu)
-    newmask = fitsio.read(maskfile, ext=extname)
-    hdr = fitsio.read_header(maskfile, ext=extname)
-    newsky = np.zeros_like(image) + hdr['SKY']
+    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+    image, hdr = fitsio.read(os.path.join(galaxydir, '{}-ccddata.fits.fz'.format(galaxy)), header=True, ext=key)
+    
+    newmask = fitsio.read(os.path.join(galaxydir, '{}-custom-ccdmask.fits.gz'.format(galaxy)), ext=key)
+    newsky = np.zeros_like(image).astype('f4') + hdr['SKYMODE']
+
+    # Rebuild the pipeline (spline) sky model (see legacypipe.image.LegacySurveyImage.read_sky_model)
+    Ti = fits_table(os.path.join(galaxydir, '{}-pipeline-sky.fits'.format(galaxy)), ext=key)[0]
+    h, w = Ti.gridh, Ti.gridw
+    Ti.gridvals = Ti.gridvals[:h, :w]
+    Ti.xgrid = Ti.xgrid[:w]
+    Ti.ygrid = Ti.ygrid[:h]
+    splinesky = SplineSky.from_fits_row(Ti)
+
+    pipesky = np.zeros_like(image)
+    splinesky.addTo(pipesky)
+    pipesky /= NanoMaggies.zeropointToScale(im.ccdzpt)
 
     # Get the (pixel) coordinates of the galaxy on this CCD
-    _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
-    xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
+    #_, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
+    #xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
+    xcen, ycen = hdr['XCEN'], hdr['YCEN']
 
     # Visualize the data, the mask, and the sky.
-    fig, ax = plt.subplots(1, 5, sharey=True, figsize=(14, 4.5))
-    fig.suptitle('{} (ccd{:02d})'.format(extname, iccd), y=0.95, fontsize=20)
+    fig, ax = plt.subplots(1, 4, sharey=True, figsize=(12, 4.5))
+    #fig, ax = plt.subplots(1, 5, sharey=True, figsize=(14, 4.5))
+    fig.suptitle('{} (ccd{:02d})'.format(key.lower(), iccd), y=0.95, fontsize=14)
 
     vmin_image, vmax_image = np.percentile(image, (1, 99))
-    vmin_weight, vmax_weight = np.percentile(weight, (1, 99))
+    #vmin_weight, vmax_weight = np.percentile(weight, (1, 99))
     vmin_mask, vmax_mask = (0, 1)
     vmin_sky, vmax_sky = np.percentile(pipesky, (0.1, 99.9))
 
     cmap = 'viridis' # 'inferno'
 
-    for thisax, data, title in zip(ax.flat, (image, mask, newmask, pipesky, newsky), 
-                                   ('Image', 'Pipeline Mask', 'Custom Mask',
+    for thisax, data, title in zip(ax.flat, (image, newmask, pipesky, newsky), 
+                                   ('Image', 'Custom Mask',
                                     'Pipeline Sky', 'Custom Sky')):
+    #for thisax, data, title in zip(ax.flat, (image, mask, newmask, pipesky, newsky), 
+    #                               ('Image', 'Pipeline Mask', 'Custom Mask',
+    #                                'Pipeline Sky', 'Custom Sky')):
         if 'Mask' in title:
             vmin, vmax = vmin_mask, vmax_mask
         elif 'Sky' in title:
             vmin, vmax = vmin_sky, vmax_sky
         elif 'Image' in title:
             vmin, vmax = vmin_image, vmax_image
-        elif 'Weight' in title:
-            vmin, vmax = vmin_weight, vmax_weight
 
         thisim = thisax.imshow(data, cmap=cmap, interpolation='nearest',
                                origin='lower', vmin=vmin, vmax=vmax)
-        thisax.add_patch(patches.Circle((xcen, ycen), radius, fill=False, edgecolor='white', lw=2))
+        thisax.add_patch(patches.Circle((xcen, ycen), radius_pixel, fill=False, edgecolor='white', lw=2))
+        thisax.add_patch(patches.Circle((xcen, ycen), 2*radius_pixel, fill=False, edgecolor='white', lw=1))
+        thisax.add_patch(patches.Circle((xcen, ycen), 5*radius_pixel, fill=False, edgecolor='white', lw=1))
+
         div = make_axes_locatable(thisax)
         cax = div.append_axes('right', size='15%', pad=0.1)
         cbar = fig.colorbar(thisim, cax=cax, format='%.4g')
 
-        thisax.set_title(title, fontsize=16)
+        thisax.set_title(title, fontsize=10)
         thisax.xaxis.set_visible(False)
         thisax.yaxis.set_visible(False)
         thisax.set_aspect('equal')
 
     ## Shared colorbar.
     plt.tight_layout(w_pad=0.22)
-    plt.subplots_adjust(bottom=0.05, top=0.95)
+    plt.subplots_adjust(bottom=0.05, top=0.88)
 
     qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
     print('Writing {}'.format(qafile))
     fig.savefig(qafile)
-    
-    #import pdb ; pdb.set_trace()
+    plt.close(fig)

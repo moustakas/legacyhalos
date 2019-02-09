@@ -15,7 +15,7 @@ import fitsio
 from astropy.table import Table
 from astropy.io import fits
 
-def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
+def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
                          candidates=False):
     """Retrieve the galaxy name and the (nested) directory.
 
@@ -26,14 +26,14 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
     
     nside = 8 # keep hard-coded
     
-    if analysisdir is None:
-        analysisdir = analysis_dir()
+    if datadir is None:
+        datadir = legacyhalos_data_dir()
     if htmldir is None:
-        htmldir = html_dir()
+        htmldir = legacyhalos_html_dir()
 
-    def get_healpix_subdir(nside, pixnum, analysisdir):
+    def get_healpix_subdir(nside, pixnum, datadir):
         subdir = os.path.join(str(pixnum // 100), str(pixnum))
-        return os.path.abspath(os.path.join(analysisdir, str(nside), subdir))
+        return os.path.abspath(os.path.join(datadir, str(nside), subdir))
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
@@ -53,7 +53,7 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
 
         pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
 
-    galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, analysisdir), gal)
+    galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, datadir), gal)
                           for pix, gal in zip(pixnum, galaxy)])
     if html:
         htmlgalaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, htmldir), gal)
@@ -70,81 +70,32 @@ def get_galaxy_galaxydir(cat, analysisdir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
-#def _get_galaxy_galaxydir(cat, analysisdir=None):
-#    """Retrieve the galaxy name and the (nested) directory based on cluster and
-#    galaxy ID.
-#
-#    Need to deal with candidate centrals!
-#    """
-#    if analysisdir is None:
-#        analysisdir = analysis_dir()
-#
-#    ngal = len(cat)
-#
-#    memid = cat['MEM_MATCH_ID']
-#    galaxy = ['{:07d}-{:09d}'.format(memid, cid) for mid, cid in zip(cat['MEM_MATCH_ID'], cat['ID_CENT'][:, 0])]
-#    #galaxy = np.array([cc.decode('utf-8') for cc in cat['CENTRAL_ID'].data])
-#    galaxydir = np.zeros(ngal, dtype='U{}'.format( len(analysisdir) + 1 + 5 + 1 + 4 + 1 + 6) )
-#
-#    subdir1 = np.array(['{:05d}'.format(gg // 10000) for gg in memid])
-#    
-#    for dir1 in sorted(set(subdir1)):
-#        indx1 = np.where(dir1 == subdir1)[0]
-#        subdir2 = np.array(['{:04d}'.format(gg // 1000) for gg in memid[indx1]])
-#        for dir2 in sorted(set(subdir2)):
-#            indx2 = np.where(dir2 == subdir2)[0]
-#
-#            allgaldir = np.array(['{:07d}'.format(gg) for gg in memid[indx1[indx2]]])
-#            galaxydir[indx1[indx2]] = [os.path.join(analysisdir, dir1, dir2, galdir) for galdir in allgaldir]
-#
-#    if ngal == 1:
-#        galaxy = galaxy[0]
-#        galaxydir = galaxydir[0]
-#            
-#    return galaxy, galaxydir
-#
-#def get_objid(cat, analysisdir=None):
-#    """Build a unique object ID based on the redmapper mem_match_id.
-#
-#    Args:
-#      cat - must be a redmapper catalog or a catalog that has MEM_MATCH_ID.
-#
-#    """
-#    if analysisdir is None:
-#        analysisdir = analysis_dir()
-#
-#    ngal = len(np.atleast_1d(cat))
-#    objid = np.zeros(ngal, dtype='U7')
-#    objdir = np.zeros(ngal, dtype='U{}'.format(len(analysisdir)+1+7))
-#
-#    #objid, objdir = list(), list()
-#    for ii, memid in enumerate(np.atleast_1d(cat['mem_match_id'])):
-#        objid[ii] = '{:07d}'.format(memid)
-#        objdir[ii] = os.path.join(analysisdir, objid[ii])
-#        #objid.append('{:07d}'.format(memid))
-#        #objdir.append(os.path.join(analysis_dir, objid[ii]))
-#        if not os.path.isdir(objdir[ii]):
-#            os.makedirs(objdir[ii], exist_ok=True)
-#    #objid = np.array(objid)
-#    #objdir = np.array(objdir)
-#
-#    if ngal == 1:
-#        objid = objid[0]
-#        objdir = objdir[0]
-#            
-#    return objid, objdir
-
 def legacyhalos_dir():
     if 'LEGACYHALOS_DIR' not in os.environ:
         print('Required ${LEGACYHALOS_DIR environment variable not set.')
         raise EnvironmentError
-    return os.path.abspath(os.getenv('LEGACYHALOS_DIR'))
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
 
-def analysis_dir():
-    adir = os.path.join(legacyhalos_dir(), 'analysis')
-    if not os.path.isdir(adir):
-        os.makedirs(adir, exist_ok=True)
-    return adir
+def legacyhalos_data_dir():
+    if 'LEGACYHALOS_DATA_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_DATA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DATA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def legacyhalos_html_dir():
+    if 'LEGACYHALOS_HTML_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_HTML_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_HTML_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
 
 def sample_dir():
     sdir = os.path.join(legacyhalos_dir(), 'sample')
@@ -152,27 +103,33 @@ def sample_dir():
         os.makedirs(sdir, exist_ok=True)
     return sdir
 
-def paper1_dir(figures=True):
+def paper1_dir(figures=False, data=False):
     pdir = os.path.join(legacyhalos_dir(), 'science', 'paper1')
-    if not os.path.ipdir(pdir):
+    if not os.path.isdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
         pdir = os.path.join(pdir, 'figures')
-        if not os.path.ipdir(pdir):
+        if not os.path.isdir(pdir):
+            os.makedirs(pdir, exist_ok=True)
+    if data:
+        pdir = os.path.join(pdir, 'data')
+        if not os.path.isdir(pdir):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
-def html_dir():
-    #if 'NERSC_HOST' in os.environ:
-    #    htmldir = '/global/project/projectdirs/cosmo/www/temp/ioannis/legacyhalos'
-    #else:
-    #    htmldir = os.path.join(legacyhalos_dir(), 'html')
-
-    htmldir = os.path.join(legacyhalos_dir(), 'html')
-
-    if not os.path.isdir(htmldir):
-        os.makedirs(htmldir, exist_ok=True)
-    return htmldir
+def paper2_dir(figures=False, data=False):
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper2')
+    if not os.path.isdir(pdir):
+        os.makedirs(pdir, exist_ok=True)
+    if figures:
+        pdir = os.path.join(pdir, 'figures')
+        if not os.path.isdir(pdir):
+            os.makedirs(pdir, exist_ok=True)
+    if data:
+        pdir = os.path.join(pdir, 'data')
+        if not os.path.isdir(pdir):
+            os.makedirs(pdir, exist_ok=True)
+    return pdir
 
 def write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
@@ -303,28 +260,6 @@ def read_mgefit(galaxy, galaxydir, verbose=True):
 
     return mgefit
 
-def read_parent(extname='LSPHOT', upenn=True, isedfit=False, columns=None, verbose=False):
-    """Read the various parent catalogs.
-
-    Args:
-      upenn - Restrict to the UPenn-matched catalogs.
-
-    """
-    suffix = ''
-    if isedfit:
-        suffix = '-isedfit'
-    elif upenn:
-        suffix = '-upenn'
-
-    lsdir = legacyhalos_dir()
-    catfile = os.path.join(lsdir, 'legacyhalos-parent{}.fits'.format(suffix))
-    
-    cat = Table(fitsio.read(catfile, ext=extname, columns=columns, lower=True))
-    if verbose:
-        print('Read {} objects from {} [{}]'.format(len(cat), catfile, extname))
-
-    return cat
-
 def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
                   sersic_exponential=None, sersic_single_nowavepower=None,
                   sersic_double_nowavepower=None, sersic_exponential_nowavepower=None,
@@ -405,13 +340,13 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    #tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
-    #if os.path.isfile(tractorfile):
-    #    cat = Table(fitsio.read(tractorfile, upper=True))
-    #    print('Read {} sources from {}'.format(len(cat), tractorfile))
-    #else:
-    #    print('Missing Tractor catalog {}'.format(tractorfile))
-    #    found_data = False
+    tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    if os.path.isfile(tractorfile):
+        cat = Table(fitsio.read(tractorfile, upper=True))
+        print('Read {} sources from {}'.format(len(cat), tractorfile))
+    else:
+        print('Missing Tractor catalog {}'.format(tractorfile))
+        found_data = False
 
     data = dict()
     if not found_data:
@@ -512,13 +447,13 @@ def read_jackknife(verbose=False, dr='dr6-dr7'):
 
 def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
                 isedfit_lsphot=False, isedfit_sdssphot=False,
-                isedfit_lhphot=False, satellites=False,
+                isedfit_lhphot=False, candidates=False,
                 kcorr=False, verbose=False):
     """Read the sample.
 
     """
-    if satellites:
-        prefix = 'satellites'
+    if candidates:
+        prefix = 'candidate-centrals'
     else:
         prefix = 'centrals'
 
@@ -552,10 +487,79 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
         first = 0
     if last is None:
         last = nrows
-    if first == last:
-        last = last + 1
+        rows = np.arange(first, last)
+    else:
+        if last >= nrows:
+            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
+            raise ValueError()
+        rows = np.arange(first, last + 1)
+    
+    sample = Table(info[ext].read(rows=rows))
+    if verbose:
+        if len(rows) == 1:
+            print('Read galaxy index {} from {}'.format(first, samplefile))
+        else:
+            print('Read galaxy indices {} through {} (N={}) from {}'.format(
+                first, last, len(sample), samplefile))
+            
+    return sample
 
-    rows = np.arange(first, last)
+def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
+                       sfhgrid=1, isedfit_lsphot=False, isedfit_sdssphot=False,
+                       isedfit_lhphot=False, candidates=False, kcorr=False,
+                       verbose=False):
+    """Wrapper to read a sample for a given paper.
+
+    """
+    if paper == 'paper1':
+        paperdir = paper1_dir(data=True)
+    elif paper == 'paper2':
+        paperdir = paper2_dir(data=True)
+    else:
+        print('Unrecognized paper {}!'.format(paper))
+        raise ValueError()
+        
+    if candidates:
+        prefix = 'candidate-centrals'
+    else:
+        prefix = 'centrals'
+
+    if isedfit_lsphot:
+        samplefile = os.path.join(paperdir, '{}-{}-sfhgrid{:02d}-lsphot-{}.fits'.format(paper, prefix, sfhgrid, dr))
+    elif isedfit_sdssphot:
+        samplefile = os.path.join(paperdir, '{}-{}-sfhgrid{:02d}-sdssphot-dr14.fits'.format(paper, prefix, sfhgrid))
+    elif isedfit_lhphot:
+        samplefile = os.path.join(paperdir, '{}-{}-sfhgrid{:02d}-lhphot.fits'.format(paper, prefix, sfhgrid))
+    else:
+        samplefile = os.path.join(paperdir, '{}-{}-{}.fits'.format(paper, prefix, dr))
+        
+    if not os.path.isfile(samplefile):
+        print('File {} not found.'.format(samplefile))
+        return None
+
+    if first and last:
+        if first > last:
+            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+            raise ValueError()
+
+    if kcorr:
+        ext = 2
+    else:
+        ext = 1
+
+    info = fitsio.FITS(samplefile)
+    nrows = info[ext].get_nrows()
+
+    if first is None:
+        first = 0
+    if last is None:
+        last = nrows
+        rows = np.arange(first, last)
+    else:
+        if last >= nrows:
+            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
+            raise ValueError()
+        rows = np.arange(first, last + 1)
 
     sample = Table(info[ext].read(rows=rows))
     if verbose:
@@ -563,10 +567,36 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
             print('Read galaxy index {} from {}'.format(first, samplefile))
         else:
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
-                first, last-1, len(sample), samplefile))
-            
+                first, last, len(sample), samplefile))
+
     return sample
 
+def read_paper1_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
+                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                       kcorr=False, verbose=False):
+    """Read the Paper 1 sample.
+
+    """
+    sample = _read_paper_sample(paper='paper1', first=first, last=last, dr=dr,
+                                sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
+                                isedfit_sdssphot=isedfit_sdssphot,
+                                isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
+                                candidates=candidates, verbose=verbose)
+    return sample
+    
+def read_paper2_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
+                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                       kcorr=False, verbose=False):
+    """Read the Paper 1 sample.
+
+    """
+    sample = _read_paper_sample(paper='paper2', first=first, last=last, dr=dr,
+                                sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
+                                isedfit_sdssphot=isedfit_sdssphot,
+                                isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
+                                candidates=candidates, verbose=verbose)
+    return sample
+    
 def literature(kravtsov=True, gonzalez=False):
     """Assemble some data from the literature here."""
 

@@ -7,8 +7,10 @@ Code to generate HTML content.
 """
 import os, subprocess, pdb
 import numpy as np
+import astropy.table
 
 import legacyhalos.io
+import legacyhalos.misc
 
 from legacyhalos.misc import plot_style
 sns = plot_style()
@@ -16,30 +18,46 @@ sns = plot_style()
 #import seaborn as sns
 #sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
-def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey, pixscale=0.262,
-           mp=None, clobber=False, verbose=True):
+def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
+           survey=None, mp=None, clobber=False, verbose=True):
     """Build CCD-level QA.
 
     """
     from astrometry.util.fits import fits_table
     from legacyhalos.qa import display_ccdpos, _display_ccdmask_and_sky
+    from astrometry.util.multiproc import multiproc
+
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+
+    radius_pixel = legacyhalos.misc.cutout_radius_150kpc(
+        redshift=onegal['Z'], pixscale=pixscale) # [pixels]
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
-    maskfile = os.path.join(galaxydir, '{}-custom-mask.fits.gz'.format(galaxy))
+    #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
 
-    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
-    if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, survey.ccds, png=ccdposfile)
-    
+    ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
+    if os.path.isfile(ccdsfile):
+        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+
     okfiles = True
-    for iccd in range(len(survey.ccds)):
+    for iccd in range(len(ccds)):
         qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
         okfiles *= os.path.isfile(qafile)
 
     if not okfiles or clobber:
-        ccdargs = [(onegal, _ccd, iccd, survey, maskfile, qarootfile, pixscale)
-                   for iccd, _ccd in enumerate(survey.ccds)]
+        if mp is None:
+            mp = multiproc(nthreads=1)
+            
+        ccdargs = [(galaxy, galaxydir, qarootfile, radius_pixel, _ccd, iccd, survey)
+                   for iccd, _ccd in enumerate(ccds)]
         mp.map(_display_ccdmask_and_sky, ccdargs)
+        
+    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+    if not os.path.isfile(ccdposfile) or clobber:
+        display_ccdpos(onegal, ccds, png=ccdposfile)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
@@ -181,53 +199,58 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
         if not os.path.isfile(serexpfile) or clobber:
             display_sersic(serexp, png=serexpfile, verbose=verbose)
 
-def make_plots(sample, analysisdir=None, htmldir=None, galaxylist=None, refband='r',
-               band=('g', 'r', 'z'), pixscale=0.262, survey=None, nproc=1, trends=True,
-               ccdqa=False, clobber=False, verbose=True):
+def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
+               band=('g', 'r', 'z'), pixscale=0.262, survey=None, nproc=1,
+               maketrends=False, ccdqa=False, clobber=False, verbose=True):
     """Make QA plots.
 
     """
-    #from legacyhalos.io import get_galaxy
+    if datadir is None:
+        datadir = legacyhalos.io.legacyhalos_data_dir()
+    if htmldir is None:
+        htmldir = legacyhalos.io.legacyhalos_html_dir()
 
-    if trends:
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+
+    if maketrends:
         from legacyhalos.qa import sample_trends
-        sample_trends(sample, htmldir, analysisdir=analysisdir, verbose=verbose)
+        sample_trends(sample, htmldir, datadir=datadir, verbose=verbose)
 
     if ccdqa:
         from astrometry.util.multiproc import multiproc
         mp = multiproc(nthreads=nproc)
 
-    for ii, onegal in enumerate( sample ):
-    #for ii, onegal in enumerate( np.atleast_1d(sample) ):
+    for ii, onegal in enumerate(sample):
 
         if galaxylist is None:
-            galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
-            #galaxy, galaxydir = get_galaxy(onegal, analysisdir=analysisdir)
-            #galaxy, galaxydir = onegal['GALAXY'].decode('utf-8').lower(), 'cgcg004-096'
-            #galaxy, galaxydir, htmlgalaxydir = get_galaxy(onegal, analysisdir=analysisdir, html=True)
+            galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
         else:
             galaxy = galaxylist[ii]
-            galaxydir = os.path.join(analysisdir, galaxy)
+            galaxydir = os.path.join(datadir, galaxy)
+            htmlgalaxydir = os.path.join(htmldir, galaxy)
             
-        htmlgalaxydir = os.path.join(htmldir, galaxy)
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
+
+        # Build the montage coadds.
+        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
+                          clobber=clobber, verbose=verbose)
 
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                            clobber=clobber, verbose=verbose)
         
-        # Build the montage coadds.
-        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
-                          clobber=clobber, verbose=verbose)
-
         qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                           clobber=clobber, verbose=verbose)
 
-        # Build the CCD-level QA.
+        # Build the CCD-level QA.  This QA script needs to be last, because we
+        # check the completeness of the HTML portion of legacyhalos-mpi based on
+        # the ccdpos file.
         if ccdqa:
-            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, survey,
-                   pixscale=pixscale, mp=mp, clobber=clobber, verbose=verbose)
+            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                   mp=mp, survey=survey, clobber=clobber, verbose=verbose)
 
         # Build the MGE plots.
         #qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', band=band,
@@ -266,38 +289,46 @@ def _javastring():
 
     return js
         
-def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, dr='dr7', first=None, last=None, nproc=1,
-              makeplots=True, clobber=False, verbose=True, ccdqa=True):
+def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
+              refband='r', pixscale=0.262, first=None, last=None, nproc=1,
+              survey=None, makeplots=True, clobber=False, verbose=True,
+              maketrends=False, ccdqa=True):
     """Make the HTML pages.
 
     """
+    import subprocess
+    import fitsio
+
     import legacyhalos.io
     from legacyhalos.misc import cutout_radius_150kpc
 
-    if analysisdir is None:
-        analysisdir = legacyhalos.io.analysis_dir()
+    if datadir is None:
+        datadir = legacyhalos.io.legacyhalos_data_dir()
     if htmldir is None:
-        htmldir = legacyhalos.io.html_dir()
+        htmldir = legacyhalos.io.legacyhalos_html_dir()
 
     if sample is None:
         sample = legacyhalos.io.read_sample(first=first, last=last)
-        
-    galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
+
+    if type(sample) is astropy.table.row.Row:
+        sample = astropy.table.Table(sample)
+
+    galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
 
     # Write the last-updated date to a webpage.
     js = _javastring()       
 
     # Get the viewer link
-    def _viewer_link(gal, dr):
+    def _viewer_link(gal):
         baseurl = 'http://legacysurvey.org/viewer/'
         width = 2 * cutout_radius_150kpc(redshift=gal['Z'], pixscale=0.262) # [pixels]
         if width > 400:
             zoom = 14
         else:
             zoom = 15
-        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=decals-{}'.format(
-            baseurl, gal['RA'], gal['DEC'], zoom, dr)
+        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=ls-dr67'.format(
+            baseurl, gal['RA'], gal['DEC'], zoom)
+        
         return viewer
 
     def _skyserver_link(gal):
@@ -309,19 +340,20 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
     # Build the home (index.html) page--
     if not os.path.exists(htmldir):
         os.makedirs(htmldir)
-    htmlfile = os.path.join(htmldir, homehtml)
+    homehtmlfile = os.path.join(htmldir, homehtml)
 
-    with open(htmlfile, 'w') as html:
+    with open(homehtmlfile, 'w') as html:
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')
         html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
         html.write('</style>\n')
 
         html.write('<h1>LegacyHalos: Central Galaxies</h1>\n')
-        html.write('<p>\n')
-        html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
-        html.write('<a href="https://github.com/moustakas/legacyhalos">Code and documentation</a>\n')
-        html.write('</p>\n')
+        if maketrends:
+            html.write('<p>\n')
+            html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
+            html.write('<a href="https://github.com/moustakas/legacyhalos">Code and documentation</a>\n')
+            html.write('</p>\n')
 
         html.write('<table>\n')
         html.write('<tr>\n')
@@ -335,18 +367,20 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
         html.write('<th>Viewer</th>\n')
         html.write('<th>SkyServer</th>\n')
         html.write('</tr>\n')
-        for ii, (gal, galaxy1) in enumerate(zip( sample, np.atleast_1d(galaxy) )):
-            htmlfile = os.path.join('{}'.format(galaxy1), '{}.html'.format(galaxy1))
+        for ii, (gal, galaxy1, htmlgalaxydir1) in enumerate(zip(
+            sample, np.atleast_1d(galaxy), np.atleast_1d(htmlgalaxydir) )):
+
+            htmlfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}.html'.format(galaxy1))
 
             html.write('<tr>\n')
             html.write('<td>{:g}</td>\n'.format(ii))
-            html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile, galaxy1))
+            html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
             html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
             html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
             html.write('<td>{:.5f}</td>\n'.format(gal['Z']))
             html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
             html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
-            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
+            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
         html.write('</table>\n')
@@ -357,44 +391,47 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
         html.close()
 
     # Build the trends (trends.html) page--
-    htmlfile = os.path.join(htmldir, trendshtml)
-    with open(htmlfile, 'w') as html:
-        html.write('<html><body>\n')
-        html.write('<style type="text/css">\n')
-        html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
-        html.write('</style>\n')
+    if maketrends:
+        trendshtmlfile = os.path.join(htmldir, trendshtml)
+        with open(trendshtmlfile, 'w') as html:
+            html.write('<html><body>\n')
+            html.write('<style type="text/css">\n')
+            html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
+            html.write('</style>\n')
 
-        html.write('<h1>LegacyHalos: Sample Trends</h1>\n')
-        html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
-        html.write('<a href="trends/ellipticity_vs_sma.png"><img src="trends/ellipticity_vs_sma.png" alt="Missing file ellipticity_vs_sma.png" height="auto" width="50%"></a>')
-        html.write('<a href="trends/gr_vs_sma.png"><img src="trends/gr_vs_sma.png" alt="Missing file gr_vs_sma.png" height="auto" width="50%"></a>')
-        html.write('<a href="trends/rz_vs_sma.png"><img src="trends/rz_vs_sma.png" alt="Missing file rz_vs_sma.png" height="auto" width="50%"></a>')
+            html.write('<h1>LegacyHalos: Sample Trends</h1>\n')
+            html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
+            html.write('<a href="trends/ellipticity_vs_sma.png"><img src="trends/ellipticity_vs_sma.png" alt="Missing file ellipticity_vs_sma.png" height="auto" width="50%"></a>')
+            html.write('<a href="trends/gr_vs_sma.png"><img src="trends/gr_vs_sma.png" alt="Missing file gr_vs_sma.png" height="auto" width="50%"></a>')
+            html.write('<a href="trends/rz_vs_sma.png"><img src="trends/rz_vs_sma.png" alt="Missing file rz_vs_sma.png" height="auto" width="50%"></a>')
 
-        html.write('<br /><br />\n')
-        html.write('<b><i>Last updated {}</b></i>\n'.format(js))
-        html.write('</html></body>\n')
-        html.close()
+            html.write('<br /><br />\n')
+            html.write('<b><i>Last updated {}</b></i>\n'.format(js))
+            html.write('</html></body>\n')
+            html.close()
 
-    # Set up the object iterators
-    itergalaxy = iter(galaxy)
-    if len(galaxy) > 1:
-        next(itergalaxy)
-        nextgalaxy = next(itergalaxy) # advance by one
-    else:
-        nextgalaxy = galaxy[0]
-    prevgalaxy = galaxy[-1]
+    nextgalaxy = np.roll(np.atleast_1d(galaxy), -1)
+    prevgalaxy = np.roll(np.atleast_1d(galaxy), 1)
+    nexthtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), -1)
+    prevhtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), 1)
 
     # Make a separate HTML page for each object.
-    for ii, (gal, galaxy1, galaxydir1) in enumerate( zip(sample, np.atleast_1d(galaxy),
-                                                     np.atleast_1d(galaxydir)) ):
-        htmlgalaxydir = os.path.join(htmldir, '{}'.format(galaxy1))
-        if not os.path.exists(htmlgalaxydir):
-            os.makedirs(htmlgalaxydir)
+    for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate( zip(
+        sample, np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir) ) ):
+        
+        if not os.path.exists(htmlgalaxydir1):
+            os.makedirs(htmlgalaxydir1)
 
-        nexthtmlgalaxydir = os.path.join('../', '{}'.format(nextgalaxy), '{}.html'.format(nextgalaxy))
-        prevhtmlgalaxydir = os.path.join('../', '{}'.format(prevgalaxy), '{}.html'.format(prevgalaxy))
+        ccdsfile = os.path.join(galaxydir1, '{}-ccds.fits'.format(galaxy1))
+        if os.path.isfile(ccdsfile):
+            nccds = fitsio.FITS(ccdsfile)[1].get_nrows()
+        else:
+            nccds = None
 
-        htmlfile = os.path.join(htmlgalaxydir, '{}.html'.format(galaxy1))
+        nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
+        prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
+
+        htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
             html.write('<style type="text/css">\n')
@@ -403,11 +440,11 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
 
             html.write('<h1>Central Galaxy {}</h1>\n'.format(galaxy1))
 
-            html.write('<a href="../{}">Home</a>\n'.format(homehtml))
+            html.write('<a href="../../../../{}">Home</a>\n'.format(homehtml))
             html.write('<br />\n')
-            html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir, nextgalaxy))
+            html.write('<a href="../../../../{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
             html.write('<br />\n')
-            html.write('<a href="{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlgalaxydir, prevgalaxy))
+            html.write('<a href="../../../../{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
             html.write('<br />\n')
             html.write('<br />\n')
 
@@ -433,7 +470,7 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<td>{:.5f}</td>\n'.format(gal['Z']))
             html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
             html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
-            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal, dr)))
+            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
             html.write('</tr>\n')
             html.write('</table>\n')
@@ -495,23 +532,29 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
 
             html.write('<br />\n')
 
-            if False:
-                html.write('<h2>Multi-Gaussian Expansion Fitting</h2>\n')
-                html.write('<p>The figures below are a work in progress.</p>\n')
+            if nccds:
+                html.write('<h2>CCD Diagnostics</h2>\n')
                 html.write('<table width="90%">\n')
                 html.write('<tr>\n')
-                html.write('<td><a href="{}-mge-multiband.png"><img src="{}-mge-multiband.png" alt="Missing file {}-mge-multiband.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                pngfile = '{}-ccdpos.png'.format(galaxy1)
+                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
+                    pngfile))
                 html.write('</tr>\n')
-                html.write('<tr>\n')
-                html.write('<td><a href="{}-mge-sbprofile.png"><img src="{}-mge-sbprofile.png" alt="Missing file {}-mge-sbprofile.png" height="auto" width="50%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                html.write('</tr>\n')
-                html.write('</table>\n')
 
-            html.write('<a href="../{}">Home</a>\n'.format(homehtml))
+                for iccd in range(nccds):
+                    html.write('<tr>\n')
+                    pngfile = '{}-2d-ccd{:02d}.png'.format(galaxy1, iccd)
+                    html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
+                        pngfile))
+                    html.write('</tr>\n')
+                html.write('</table>\n')
+                html.write('<br />\n')
+
+            html.write('<a href="../../../../{}">Home</a>\n'.format(homehtml))
             html.write('<br />\n')
-            html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir, nextgalaxy))
+            html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
             html.write('<br />\n')
-            html.write('<a href="{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlgalaxydir, prevgalaxy))
+            html.write('<a href="{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
             html.write('<br />\n')
 
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
@@ -519,14 +562,26 @@ def make_html(sample=None, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</html></body>\n')
             html.close()
 
-        # Update the iterator.
-        prevgalaxy = galaxy1
-        try:
-            nextgalaxy = next(itergalaxy)
-        except:
-            nextgalaxy = galaxy[0] # wrap around
-
+    # Make the plots.
     if makeplots:
-        make_plots(sample, analysisdir=analysisdir, htmldir=htmldir, refband=refband,
-                   band=band, pixscale=pixscale, clobber=clobber, verbose=verbose,
-                   nproc=nproc)
+        err = make_plots(sample, datadir=datadir, htmldir=htmldir, refband=refband,
+                         band=band, pixscale=pixscale, survey=survey, clobber=clobber,
+                         verbose=verbose, nproc=nproc, ccdqa=ccdqa, maketrends=maketrends)
+
+    cmd = '/usr/bin/chgrp -R cosmo {}'.format(htmldir)
+    print(cmd)
+    err1 = subprocess.call(cmd.split())
+
+    cmd = 'find {} -type d -exec chmod 775 {{}} +'.format(htmldir)
+    print(cmd)
+    err2 = subprocess.call(cmd.split())
+
+    cmd = 'find {} -type f -exec chmod 664 {{}} +'.format(htmldir)
+    print(cmd)
+    err3 = subprocess.call(cmd.split())
+
+    if err1 != 0 or err2 != 0 or err3 != 0:
+        print('Something went wrong updating permissions; please check the logfile.')
+        return 0
+    
+    return 1

@@ -1,0 +1,640 @@
+#!/usr/bin/env python
+
+"""Compute n(z) and n(lambda) for the full sample, including bootstrap estimates
+of the variance.  May be presented in Paper 1.
+
+"""
+import os, argparse, time, pdb
+import numpy as np
+
+from astropy.io import fits
+from astropy.table import Table
+
+import legacyhalos.io
+import legacyhalos.misc
+from legacyhalos.redmapper import pzutils
+
+cosmo = legacyhalos.misc.cosmology()
+
+def get_vol(zmin, zmax, area):
+    """Compute the comoving volume in each redshift slice."""
+    nz = len(zmin)
+    vol = np.zeros(nz)
+    for ii in range(nz):
+        vol[ii] = ( ( cosmo.comoving_volume(zmax[ii]) - cosmo.comoving_volume(zmin[ii]) ).value *
+                    area / (4*np.pi*180**2/np.pi**2) )
+        
+    return vol
+
+def get_lambda(cat, descale=False):
+    lam = cat['LAMBDA_CHISQ'].data
+    lam_err = cat['LAMBDA_CHISQ_E'].data
+    if descale:
+        lam /= cat['SCALEVAL'].data
+        lam_err /= cat['SCALEVAL'].data
+    return lam, lam_err
+
+def _renormalize(p):
+    """Renormalize a probability so it sums to zero in some set of bins."""
+    norm = np.sum(p, axis=0) # renormalize
+    notzero = norm > 0
+    if np.sum(notzero) > 0:
+        p[:, notzero] /= norm[notzero]
+
+def get_outfile(prefix, suffix, descale=False, clobber=False):
+    if descale:
+        if suffix is None:
+            outsuffix = '-descaled'
+        else:
+            outsuffix = '-{}-descaled'.format(suffix)
+    else:
+        if suffix is None:
+            outsuffix = ''
+        else:
+            outsuffix = '-{}'.format(suffix)
+        
+    outfile = os.path.join( legacyhalos.io.paper1_dir(), 'data', 'paper1-{}{}.fits'.format(prefix, outsuffix) )
+    if os.path.isfile(outfile) and not clobber:
+        print('Output file {} exists; use clobber.'.format(outfile))
+        return None
+    else:
+        return outfile
+
+def compute_nofz(cat=None, area=None, nboot=100, seed=None, suffix=None,
+                 dz=0.025, descale=False, verbose=True, clobber=False):
+    '''Calculate n(z) on a fine redshift grid for several broad thresholds of
+    lambda.  Estimate the variance using bootstrap resampling.
+
+    Parameters
+    ----------
+    cat : :class:`astropy.table.Table`
+        Input catalog.
+    area : :class:`float`
+        Area of the input catalog [deg**2].
+    nboot : :class:`int`, optional
+        Number of bootstrap samples to use for error estimation.  Default 100. 
+    seed : :class:`int`, optional, default None
+        Seed for reproducibility; only used with nboot.
+    suffix : :class:`str`, optional, default None
+        Suffix to append to output filename.
+    dz : :class:`float`, optional, default 0.025
+        Redshift binning width.
+    descale : :class:`bool`, optional, default False
+        Apply scaleval correction to lambda_chisq (see Sec 5.1 in Rykoff+14).
+    verbose : :class:`bool`, optional, default True
+        Be loquacious! 
+    clobber : :class:`bool`, optional, default False
+        Overwrite an existing file.
+
+    Returns
+    -------
+    nofz : :class:`numpy.ndarray`
+        Comoving number density of central galaxies as a function of redshift in
+        several broad, threshold bins of richness.
+    nofz_err : :class:`numpy.ndarray`
+        Statistical uncertainty in nofz (only computed if nboot>0).
+
+    Raises
+    ------
+    IOError
+        If either cat or area are not passed.
+
+    '''
+    if cat is None or area is None:
+        print('Cat and area inputs are required.')
+        raise IOError
+
+    outfile = get_outfile('nofz', suffix, descale=descale, clobber=clobber)
+    if outfile is None:
+        return
+
+    ngal = len(cat)
+
+    # Optionally create bootstrap subsamples.
+    if nboot > 0:
+        bootindx = pzutils.bootstrap_resample_simple(ngal, nboot=nboot, seed=seed)
+
+    lam, lam_err = get_lambda(cat, descale=descale)
+
+    # Use pre-defined, wide thresholds in lambda.
+    lmin = np.array([5, 10, 20, 40, 50, 60, 80])
+    lmax = np.array([10, 20, 250, 250, 250, 250, 250])
+    nlam = len(lmin)
+
+    # Define the (fine) redshift binning and compute p_zbin, the summed
+    # probability that each galaxy is in a given redshift bin.
+    zbins = legacyhalos.misc.get_zbins()
+    _zmin, _zmax = zbins.min().astype('f4'), zbins.max().astype('f4')
+
+    nz = np.round( (_zmax - _zmin) / dz ).astype('int')
+    zmin = np.linspace(_zmin, _zmax - dz, nz)
+    zmax = np.linspace(_zmin + dz, _zmax, nz)
+
+    # Get the comoving volume in each redshift slice.
+    vol = get_vol(zmin, zmax, area)
+
+    if verbose:
+        print('Computing P(z) for all galaxies.')
+    p_zbin = np.zeros([nz, ngal])
+    for ii in range(nz):
+        if verbose and (ii + 1) % 5 == 0:
+            print('  Redshift bin {:02d}/{:02d}, {:.3f}-{:.3f}'.format(
+                ii + 1, nz, zmin[ii], zmax[ii]))
+        p_zbin[ii, :] = pzutils.p_in_zbin(cat['PZ'].data, cat['PZBINS'].data,
+                                          zmin[ii], zmax[ii], verbose=False)
+    _renormalize(p_zbin) # correct for numerical round-off [0,1]
+
+    # Compute the summed probability that each galaxy is in each lambda bin.
+    if verbose:
+        print('Computing P(lambda) for all galaxies.')
+    p_lbin = np.zeros([nlam, ngal])
+    for jj in range(nlam):
+        if verbose:
+            print('  Lambda bin {:02d}/{:02d}, {:.2f}-{:.2f}'.format(
+                jj + 1, nlam, lmin[jj], lmax[jj]))
+        p_lbin[jj, :] = pzutils.p_in_lambdabin(lam, lam_err, lmin[jj], lmax[jj])
+    _renormalize(p_lbin)
+
+    # Finally build n(z).
+    nofz = np.sum( p_lbin[:, np.newaxis, :] * p_zbin[np.newaxis, :, :], axis=2) / vol[np.newaxis, :]
+
+    # Estimate the variance from the bootstrap samples.
+    nofz_err = np.zeros_like(nofz)
+    if nboot > 0:
+        if verbose:
+            print('Computing the variance.')
+        nofz_boot = np.zeros([nboot, nlam, nz])
+        for kk in range(nboot):
+            if verbose and (kk + 1) % 10 == 0:
+                print('  Bootstrap sample {:02d}/{:02d}'.format(ii+1, nboot))
+                nofz_boot[kk, :, :] = np.sum( p_lbin[:, np.newaxis, bootindx[kk]] *
+                                              p_zbin[np.newaxis, :, bootindx[kk]], axis=2) / vol[np.newaxis, :]
+
+        for jj in range(nlam):
+            for ii in range(nz):
+                nofz_err[jj, ii] = np.sqrt( np.sum( (nofz[jj, ii] - nofz_boot[:, jj, ii])**2 ) / (nboot - 1) )
+
+    print('Writing {}'.format(outfile))
+
+    hx = fits.HDUList()
+    hdu = fits.ImageHDU(nofz.astype('f4'), name='NOFZ')
+    hdu.header['NZ'] = nz
+    hdu.header['ZMIN'] = np.float('{:.4f}'.format(_zmin))
+    hdu.header['ZMAX'] = np.float('{:.4f}'.format(_zmax))
+    hdu.header['DZ'] = np.float(dz)
+    hdu.header['NLAM'] = nlam
+    for jj in range(nlam):
+        hdu.header['LAMMIN{:02d}'.format(jj)] = lmin[jj].astype('f4')
+    for jj in range(nlam):
+        hdu.header['LAMMAX{:02d}'.format(jj)] = lmax[jj].astype('f4')
+    hx.append(hdu)
+
+    hdu = fits.ImageHDU(nofz_err.astype('f4'), name='NOFZERR')
+    hx.append(hdu)
+
+    hx.writeto(outfile, overwrite=True)
+
+    return nofz, nofz_err
+                
+def compute_noflambda(cat=None, area=None, nboot=100, seed=None, suffix=None,
+                      dlam=1.0, descale=False, verbose=True, clobber=False):
+    '''Calculate n(lambda) in fine bins of lambda for several broad redshift bins.
+    Estimate the variance and the full covariance matrix using bootstrap
+    resampling.
+
+    Parameters
+    ----------
+    cat : :class:`astropy.table.Table`
+        Input catalog.
+    area : :class:`float`
+        Area of the input catalog [deg**2].
+    nboot : :class:`int`, optional
+        Number of bootstrap samples to use for error estimation.  Default 100. 
+    seed : :class:`int`, optional, default None
+        Seed for reproducibility; only used with nboot.
+    suffix : :class:`str`, optional, default None
+        Suffix to append to output filename.
+    dlam : :class:`float`, optional, default 1.0
+        Lambda binning width.
+    descale : :class:`bool`, optional, default False
+        Apply scaleval correction to lambda_chisq (see Sec 5.1 in Rykoff+14).
+    verbose : :class:`bool`, optional, default True
+        Be loquacious! 
+    clobber : :class:`bool`, optional, default False
+        Overwrite an existing file.
+
+    Returns
+    -------
+    noflambda : :class:`numpy.ndarray`
+        Comoving number density of central galaxies as a function of richness in
+        several broad bins of redshift.
+    noflambda_err : :class:`numpy.ndarray`
+        Statistical uncertainty in noflambda (only computed if nboot>0).
+    noflambda_covar : :class:`numpy.ndarray`
+        Covariance matrix for noflambda (only computed if nboot>0).
+
+    Raises
+    ------
+    IOError
+        If either cat or area are not passed.
+
+    '''
+    if cat is None or area is None:
+        print('Cat and area inputs are required.')
+        raise IOError
+    
+    outfile = get_outfile('noflambda', suffix, descale=descale, clobber=clobber)
+    if outfile is None:
+        return
+
+    ngal = len(cat)
+
+    # Optionally create bootstrap subsamples.
+    if nboot > 0:
+        bootindx = pzutils.bootstrap_resample_simple(ngal, nboot=nboot, seed=seed)
+
+    lam, lam_err = get_lambda(cat, descale=descale)
+
+    # Define fine bins of lambda.
+    lambins = legacyhalos.misc.get_lambdabins()
+    _lmin, _lmax = lambins.min().astype('f4'), 100.0
+
+    nlam = np.round( (_lmax - _lmin) / dlam ).astype('int')
+    lmin = np.linspace(_lmin, _lmax - dlam, nlam)
+    lmax = np.linspace(_lmin + dlam, _lmax, nlam)
+
+    # Define wide redshift bins and compute p_zbin, the summed probability that
+    # each galaxy is in each bin.
+    zbins = legacyhalos.misc.get_zbins()
+    zmin, zmax = zbins[:-1], zbins[1:]
+    nz = len(zmin)
+
+    # Get the comoving volume in each redshift slice.
+    vol = get_vol(zmin, zmax, area)
+
+    if verbose:
+        print('Computing P(z) for all galaxies.')
+    p_zbin = np.zeros([nz, ngal])
+    for ii in range(nz):
+        if verbose:
+            print('  Redshift bin {:02d}/{:02d}, {:.3f}-{:.3f}'.format(
+                ii + 1, nz, zmin[ii], zmax[ii]))
+        p_zbin[ii, :] = pzutils.p_in_zbin(cat['PZ'].data, cat['PZBINS'].data,
+                                          zmin[ii], zmax[ii], verbose=False)
+    _renormalize(p_zbin)
+
+    # Compute the summed probability that each galaxy is in each lambda bin.
+    if verbose:
+        print('Computing P(lambda) for all galaxies.')
+    p_lbin = np.zeros([nlam, ngal])
+    for jj in range(nlam):
+        if verbose and (jj + 1) % 25 == 0:
+            print('  Lambda bin {:02d}/{:02d}, {:.2f}-{:.2f}'.format(
+                jj + 1, nlam, lmin[jj], lmax[jj]))
+        p_lbin[jj, :] = pzutils.p_in_lambdabin(lam, lam_err, lmin[jj], lmax[jj])
+    _renormalize(p_lbin)
+
+    # Finally build n(lambda).
+    noflambda = np.sum( p_zbin[:, np.newaxis, :] * p_lbin[np.newaxis, :, :], axis=2 ) / vol[:, np.newaxis]
+    
+    # Estimate the variance and the covariance from the bootstrap samples.
+    noflambda_err = np.zeros([nz, nlam])
+    if nboot > 0:
+        if verbose:
+            print('Computing the variance.')
+        noflambda_boot = np.zeros([nboot, nz, nlam])
+        for kk in range(nboot):
+            if verbose and (kk + 1) % 10 == 0:
+                print('  Bootstrap sample {:02d}/{:02d}'.format(kk + 1, nboot))
+            noflambda_boot[kk, :, :] = np.sum( p_zbin[:, np.newaxis, bootindx[kk]] *
+                                               p_lbin[np.newaxis, :, bootindx[kk]], axis=2 ) / vol[:, np.newaxis]
+
+        for ii in range(nz):
+            for jj in range(nlam):
+                noflambda_err[ii, jj] = np.sqrt( np.sum( (noflambda[ii, jj] - noflambda_boot[:, ii, jj])**2 ) / (nboot - 1) )
+
+        print('Computing the covariance matrix.')
+        noflambda_covar = np.zeros([nz, nlam, nlam])
+        for ii in range(nz):
+            for jj in range(nlam):
+                for kk in range(nlam):
+                    noflambda_covar[ii, jj, kk] = np.sum(
+                        (noflambda[ii, jj] - noflambda_boot[:, ii, jj]) *
+                        (noflambda[ii, kk] - noflambda_boot[:, ii, kk]) ) / (nboot - 1)
+
+    print('Writing {}'.format(outfile))
+    hx = fits.HDUList()
+    hdu = fits.ImageHDU(noflambda.astype('f4'), name='NOFLAMBDA')
+    hdu.header['NLAM'] = nlam
+    hdu.header['LAMMIN'] = np.float(_lmin)
+    hdu.header['LAMMAX'] = np.float(_lmax)
+    hdu.header['DLAM'] = np.float(dlam)
+    hdu.header['NZ'] = nz
+    for ii in range(nz):
+        hdu.header['ZMIN{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmin[ii]))
+    for ii in range(nz):
+        hdu.header['ZMAX{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmax[ii]))
+    hx.append(hdu)
+
+    hdu = fits.ImageHDU(noflambda_err.astype('f4'), name='NOFLAMBDAERR')
+    hx.append(hdu)
+
+    hdu = fits.ImageHDU(noflambda_covar.astype('f4'), name='NOFLAMBDACOVAR')
+    hx.append(hdu)
+
+    hx.writeto(outfile, overwrite=True)
+
+    return noflambda, noflambda_err, noflambda_covar
+
+def compute_smf(cat=None, mstarcat=None, area=None, nboot=100, seed=None,
+                suffix=None, deltam=0.1, descale=False, verbose=True, clobber=False,
+                nowrite=False):
+    '''Construct the stellar mass function (SMF) in several bins of redshift and
+    lambda.  Estimate the variance using bootstrap resampling.
+
+    Parameters
+    ----------
+    cat : :class:`astropy.table.Table`
+        Input catalog.
+    mstarcat : :class:`astropy.table.Table`
+        Row-matched stellar mass catalog.
+    area : :class:`float`
+        Area of the input catalog [deg**2].
+    nboot : :class:`int`, optional
+        Number of bootstrap samples to use for error estimation.  Default 100. 
+    seed : :class:`int`, optional, default None
+        Seed for reproducibility; only used with nboot.
+    suffix : :class:`str`, optional, default None
+        Suffix to append to output filename.
+    deltam : :class:`float`, optional, default 0.1
+        Stellar mass binning width.
+    descale : :class:`bool`, optional, default False
+        Apply scaleval correction to lambda_chisq (see Sec 5.1 in Rykoff+14).
+    verbose : :class:`bool`, optional, default True
+        Be loquacious! 
+    clobber : :class:`bool`, optional, default False
+        Overwrite an existing file.
+    nowrite : :class:`bool`, optional, default False
+        Do not write out the resulting SMF.
+
+    Returns
+    -------
+    smf : :class:`numpy.ndarray`
+        Comoving number density of central galaxies as a function of richness in
+        several broad bins of redshift.
+    smf_err : :class:`numpy.ndarray`
+        Statistical uncertainty in smf (only computed if nboot>0).
+    smf_covar : :class:`numpy.ndarray`
+        Covariance matrix for smf (only computed if nboot>0).
+    smffile : :class:`str`
+        Output file name (needed if doing jackknife resampling outside this
+        function).
+
+    Raises
+    ------
+    IOError
+        If either cat or area are not passed.
+
+    '''
+    if cat is None or area is None:
+        print('Cat and area inputs are required.')
+        raise IOError
+
+    if nowrite:
+        smffile = ''
+    else:
+        smffile = get_outfile('smf', suffix, descale=descale, clobber=clobber)
+        if smffile is None:
+            return
+    ngal = len(cat)
+
+    # Optionally create bootstrap subsamples.
+    if nboot > 0:
+        bootindx = pzutils.bootstrap_resample_simple(ngal, nboot=nboot, seed=seed)
+
+    # Bin the sample by redshift and richness.
+    zbins = legacyhalos.misc.get_zbins()
+    zmin, zmax = zbins[:-1], zbins[1:]
+    zmid = (zmax - zmin) / 2 + zmin
+    nz = len(zmin)
+
+    lambins = legacyhalos.misc.get_lambdabins()
+    lmin, lmax = lambins[:-1], lambins[1:]
+    lmid = (lmax - lmin) / 2 + lmin
+    nlam = len(lmin)
+
+    mstarbins = legacyhalos.misc.get_mstarbins(deltam=deltam)
+    mstarmin, mstarmax = mstarbins[:-1], mstarbins[1:]
+    mstarmid = (mstarmax - mstarmin) / 2 + mstarmin
+    nmstar = len(mstarmin)
+
+    lam, lam_err = get_lambda(cat, descale=descale)
+
+    # Get the comoving volume in each redshift slice.
+    vol = get_vol(zmin, zmax, area)
+
+    # Compute the summed probability that each galaxy is in each stellar mass bin.
+    #print('Need to account for p_cen!')
+    if verbose:
+        print('Computing P(mstar) for all galaxies.')
+    p_mstarbin = np.zeros([nmstar, ngal])
+    for mm in range(nmstar):
+        if verbose and (mm + 1) % 5 == 0:
+            print('  Mstar bin {:02d}/{:02d}, {:.2f}-{:.2f}'.format(
+                mm + 1, nmstar, mstarmin[mm], mstarmax[mm]))
+        p_mstarbin[mm, :] = pzutils.p_in_mstarbin(mstarcat['POFM'].data, mstarcat['POFM_BINS'].data,
+                                                  mstarmin[mm], mstarmax[mm])
+    _renormalize(p_mstarbin)
+
+    if verbose:
+        print('Computing P(z) for all galaxies.')
+    p_zbin = np.zeros([nz, ngal])
+    for ii in range(nz):
+        if verbose:
+            print('  Redshift bin {:02d}/{:02d}, {:.3f}-{:.3f}'.format(
+                ii + 1, nz, zmin[ii], zmax[ii]))
+        p_zbin[ii, :] = pzutils.p_in_zbin(cat['PZ'].data, cat['PZBINS'].data,
+                                          zmin[ii], zmax[ii], verbose=False)
+    _renormalize(p_zbin) # correct for numerical round-off [0,1]
+
+    # Compute the summed probability that each galaxy is in each lambda bin.
+    if verbose:
+        print('Computing P(lambda) for all galaxies.')
+    p_lbin = np.zeros([nlam, ngal])
+    for jj in range(nlam):
+        if verbose:
+            print('  Lambda bin {:02d}/{:02d}, {:.2f}-{:.2f}'.format(
+                jj + 1, nlam, lmin[jj], lmax[jj]))
+        p_lbin[jj, :] = pzutils.p_in_lambdabin(lam, lam_err, lmin[jj], lmax[jj])        
+    _renormalize(p_lbin) # correct for numerical round-off [0,1]
+
+    # Sum over all galaxies to get the SMF.
+    smf = np.sum(p_zbin[:, np.newaxis, np.newaxis, :] *
+                 p_mstarbin[np.newaxis, np.newaxis, :, :] *
+                 p_lbin[np.newaxis, :, np.newaxis, :], axis=3) # [nz, nlam, nmstar]
+
+    # Estimate the variance and the covariance from the bootstrap samples.
+    smf_err, smf_covar = np.zeros([nz, nlam, nmstar]), np.zeros([nz, nlam, nmstar, nmstar])
+    if nboot > 0:
+        if verbose:
+            print('Computing the variance.')
+        smf_boot = np.zeros([nboot, nz, nlam, nmstar])
+        for kk in range(nboot):
+            if verbose and (kk + 1) % 10 == 0:
+                print('  Bootstrap sample {:02d}/{:02d}'.format(kk + 1, nboot))
+
+            smf_boot[kk, :, :, :] = np.sum(p_zbin[:, np.newaxis, np.newaxis, bootindx[kk]] *
+                                           p_mstarbin[np.newaxis, np.newaxis, :, bootindx[kk]] *
+                                           p_lbin[np.newaxis, :, np.newaxis, bootindx[kk]], axis=3) # [nz, nlam, nmstar]
+
+        for ii in range(nz):
+            for jj in range(nlam):
+                for mm in range(nmstar):
+                    smf_err[ii, jj, mm] = np.sqrt( np.sum( (smf[ii, jj, mm] - smf_boot[:, ii, jj, mm])**2 ) / (nboot - 1) )
+
+        print('Computing the covariance matrix.')
+        for ii in range(nz):
+            for jj in range(nlam):
+                for mm in range(nmstar):
+                    for kk in range(nmstar):
+                        smf_covar[ii, jj, mm, kk] = np.sum(
+                            (smf[ii, jj, mm] - smf_boot[:, ii, jj, mm]) *
+                            (smf[ii, jj, kk] - smf_boot[:, ii, jj, kk]) ) / (nboot - 1)
+
+    if nowrite == False:
+        print('Writing {}'.format(smffile))
+        hx = fits.HDUList()
+        hdu = fits.ImageHDU(smf.astype('f4'), name='SMF')
+        hdu.header['NZ'] = nz
+        hdu.header['NLAM'] = nlam
+        hdu.header['NMSTAR'] = nmstar
+
+        for ii in range(nz):
+            hdu.header['ZMIN{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmin[ii]))
+        for ii in range(nz):
+            hdu.header['ZMAX{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmax[ii]))
+        for ii in range(nz):
+            hdu.header['ZMID{:02d}'.format(ii)] = np.float('{:.4f}'.format(zmid[ii]))
+
+        for jj in range(nlam):
+            hdu.header['LAMMIN{:02d}'.format(jj)] = np.float('{:.2f}'.format(lmin[jj]))
+        for jj in range(nlam):
+            hdu.header['LAMMAX{:02d}'.format(jj)] = np.float('{:.2f}'.format(lmax[jj]))
+        for jj in range(nlam):
+            hdu.header['LAMMID{:02d}'.format(jj)] = np.float('{:.2f}'.format(lmid[jj]))
+
+        for mm in range(nmstar):
+            hdu.header['MMIN{:02d}'.format(mm)] = np.float('{:.2f}'.format(mstarmin[mm]))
+        for mm in range(nmstar):
+            hdu.header['MMAX{:02d}'.format(mm)] = np.float('{:.4f}'.format(mstarmax[mm]))
+        for mm in range(nmstar):
+            hdu.header['MMID{:02d}'.format(mm)] = np.float('{:.4f}'.format(mstarmid[mm]))
+
+        hx.append(hdu)
+
+        hdu = fits.ImageHDU(smf_err.astype('f4'), name='SMFERR')
+        hx.append(hdu)
+
+        hdu = fits.ImageHDU(smf_covar.astype('f4'), name='SMFCOVAR')
+        hx.append(hdu)
+
+        hx.writeto(smffile, overwrite=True)
+
+    return smf, smf_err, smf_covar, smffile
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--smf', action='store_true', help='Construct the stellar mass function (SMF).')
+    parser.add_argument('--nofz', action='store_true', help='Compute n(z)')
+    parser.add_argument('--noflambda', action='store_true', help='Compute n(lambda)')
+
+    parser.add_argument('--lsphot', action='store_true', help='Use Legacy Surveys grzW1W2 photometry (default).')
+    parser.add_argument('--sdssphot', action='store_true', help='Use SDSS ugriz1W2 photometry.')
+    parser.add_argument('--lhphot', action='store_true', help='Use custom legacyhalos grzW1W2 photometry.')
+
+    parser.add_argument('--sfhgrid', type=int, default='1', help='SFH grid number.')
+    parser.add_argument('--dr', type=str, default='dr6-dr7', help='Data release to analyze.')
+
+    parser.add_argument('--dz', type=float, default=0.025, help='Redshift binning interval for n(z).')
+    parser.add_argument('--dlam', type=float, default=1.0, help='Lambda binning interval for n(lambda).')
+    parser.add_argument('--deltam', type=float, default=0.1, help='Stellar mass binning interval for SMF.')
+    parser.add_argument('--nboot', type=int, default=100, help='Number of bootstrap samples.')
+
+    parser.add_argument('--no-jackknife', action='store_true', help='Skip jackknife resampling.')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
+    args = parser.parse_args()
+
+    # Read the full sample catalog
+    cat = legacyhalos.io.read_paper1_sample(dr=args.dr, verbose=args.verbose)
+    area = legacyhalos.misc.area() # [deg2]
+
+    #to match the ids of the other possible centrals back to the satellite catalog use this bit of code;
+    #note that we have to loop to maintain proper indexing order
+    #
+    #memid, cenid = cen['MEM_MATCH_ID'][0], cen['ID_CENT'][0]
+    #indx = np.hstack([ np.where((sat['MEM_MATCH_ID'] == memid) * (sat['ID'] == cid))[0] for cid in cenid ])
+
+    if args.smf:
+        print('Building the stellar mass function.')
+        if args.sdssphot:
+            suffix = 'sfhgrid{:02d}-sdssphot-dr14'.format(args.sfhgrid)
+            mstarcat = legacyhalos.io.read_paper1_sample(verbose=args.verbose, isedfit_sdssphot=True,
+                                                         sfhgrid=args.sfhgrid)
+        elif args.lhphot:
+            suffix = 'sfhgrid{:02d}-lhphot'.format(args.sfhgrid)
+            mstarcat = legacyhalos.io.read_paper1_sample(verbose=args.verbose, isedfit_lhphot=True,
+                                                         sfhgrid=args.sfhgrid)
+        else:
+            suffix = 'sfhgrid{:02d}-lsphot-{}'.format(args.sfhgrid, args.dr)
+            mstarcat = legacyhalos.io.read_paper1_sample(dr=args.dr, verbose=args.verbose,
+                                                         isedfit_lsphot=True, sfhgrid=args.sfhgrid)
+            
+        t0 = time.time()
+        smf, smf_err, smf_covar, smffile = compute_smf(cat, mstarcat, area, suffix=suffix,
+                                                       deltam=args.deltam, nboot=args.nboot,
+                                                       verbose=args.verbose, clobber=args.clobber)
+
+        if not args.no_jackknife:
+            print('Estimating the sample variance using jackknife resampling.')
+            jack, nside_jack = legacyhalos.io.read_jackknife(verbose=args.verbose)
+            njack = len(jack)
+
+            smf_jack = np.zeros( smf.shape + tuple([njack]) )
+            
+            jackpix = legacyhalos.misc.radec2pix(nside_jack, cat['RA'].data, cat['DEC'].data)
+            for ii in range(njack):
+                if args.verbose and (ii +1) % 10 == 0:
+                    print('  Jackknife sample {:02d}/{:02d}'.format(ii + 1, njack))
+                
+                indx = np.where( jack['HPXPIXEL'][ii] == jackpix )[0]
+                smf_jack1, _, _, _ = compute_smf(cat[indx], mstarcat[indx], jack['AREA'][ii],
+                                                suffix=suffix, deltam=args.deltam, nboot=0,
+                                                verbose=False, nowrite=True)
+                smf_jack[:, :, :, ii] = smf_jack1
+
+            smf_jack_err = np.sqrt( (njack - 1) * np.mean( (smf_jack - smf[:, :, :, np.newaxis])**2, axis=3) )
+
+        with fits.open(smffile, 'update') as hx:
+            hdu = fits.ImageHDU(smf_jack_err.astype('f4'), name='SMFCVERR')
+            hx.append(hdu)
+            hx.flush(verbose=args.verbose)
+        
+        print('Time to compute SMF = {:.2f} min'.format( (time.time() - t0) / 60 ))
+        
+    if args.nofz:
+        print('Building n(lambda, z).')
+        t0 = time.time()
+        compute_nofz(cat, area, dz=args.dz, suffix=args.dr, nboot=args.nboot,
+                     verbose=args.verbose, clobber=args.clobber)
+        print('Time to compute n(z) = {:.2f} min'.format( (time.time() - t0) / 60 ))
+        
+    if args.noflambda:
+        print('Building n(z, lambda).')
+        t0 = time.time()
+        compute_noflambda(cat, area, dlam=args.dlam, suffix=args.dr, nboot=args.nboot,
+                          verbose=args.verbose, clobber=args.clobber)
+        print('Time to compute n(lambda) = {:.2f} min'.format( (time.time() - t0) / 60 ))
+
+if __name__ == '__main__':
+    main()

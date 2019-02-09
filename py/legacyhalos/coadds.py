@@ -13,6 +13,7 @@ import os, sys, pdb
 import shutil
 import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
+import fitsio
 
 from astrometry.util.multiproc import multiproc
 
@@ -30,7 +31,7 @@ def _copyfile(infile, outfile):
 
 def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                     pixscale=0.262, splinesky=True, log=None, force=False,
-                    archivedir=None, cleanup=True):
+                    cleanup=True):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
 
     radius in arcsec
@@ -41,9 +42,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     if survey is None:
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
-
-    if archivedir is None:
-        archivedir = survey.output_dir
+        
+    galaxydir = survey.output_dir
 
     if galaxy is None:
         galaxy = 'galaxy'
@@ -52,13 +52,16 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} '
-    cmd += '--unwise-coadds '
+    cmd += '--unwise-coadds --no-gaia --no-tycho --no-large-galaxies '
     #cmd += '--force-stage coadds '
-    cmd += '--write-stage srcs --no-write --skip --no-wise-ceres '
-    cmd += '--checkpoint {archivedir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
-    cmd += '--pickle {archivedir}/{galaxy}-runbrick-%%(stage)s.p ' 
+    cmd += '--write-stage srcs --skip-calibs --no-wise-ceres '
+    cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
+    cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p ' 
     if force:
         cmd += '--force-all '
+        checkpointfile = '{galaxydir}/{galaxy}-runbrick-checkpoint.p'.format(galaxydir=galaxydir, galaxy=galaxy)
+        if os.path.isfile(checkpointfile):
+            os.remove(checkpointfile)
     if not splinesky:
         cmd += '--no-splinesky '
     
@@ -67,12 +70,12 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal['RA'], dec=onegal['DEC'], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     archivedir=archivedir, survey_dir=survey.survey_dir)
+                     galaxydir=galaxydir, survey_dir=survey.survey_dir)
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
     if err != 0:
-        print('Something we wrong; please check the logfile.')
+        print('Something went wrong; please check the logfile.')
         return 0
     else:
         # Move (rename) files into the desired output directory and clean up.
@@ -95,8 +98,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
 
         ok = _copyfile(
             os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                         'legacysurvey-{}-maskbits.fits.gz'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-maskbits.fits.gz'.format(galaxy)) )
+                         'legacysurvey-{}-maskbits.fits.fz'.format(brickname)),
+            os.path.join(survey.output_dir, '{}-maskbits.fits.fz'.format(galaxy)) )
         if not ok:
             return ok
 
@@ -111,8 +114,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                 os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
                 os.path.join(survey.output_dir, '{}-depth-{}.fits.fz'.format(galaxy, band)) )
-        if not ok:
-            return ok
+            if not ok:
+                return ok
         
         # Data and model images
         for band in ('g', 'r', 'z'):
@@ -135,22 +138,22 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
         # JPG images
 
         # Look for WISE stuff in the unwise module--
-        #or band in ('W1', 'W2'):
-        #   for imtype in ('image', 'model'):
-        #       ok = _copyfile(
-        #           os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-        #                        'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-        #           os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
-        #       if not ok:
-        #           return ok
+        for band in ('W1', 'W2', 'W3', 'W4'):
+            for imtype in ('image', 'model', 'invvar'):
+                ok = _copyfile(
+                    os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                                 'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                    os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
+                if not ok:
+                    return ok
 
-        #for imtype in ('wise', 'wisemodel'):
-        #    ok = _copyfile(
-        #        os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-        #                     'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-        #        os.path.join(survey.output_dir, '{}-{}.jpg'.format(galaxy, imtype)) )
-        #    if not ok:
-        #        return ok
+        for imtype in ('wise', 'wisemodel'):
+            ok = _copyfile(
+                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
+                os.path.join(survey.output_dir, '{}-{}.jpg'.format(galaxy, imtype)) )
+            if not ok:
+                return ok
 
         for imtype in ('image', 'model', 'resid'):
             ok = _copyfile(
@@ -174,11 +177,23 @@ def _custom_sky(skyargs):
     """
     from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
-    from legacypipe.runbrick import stage_srcs
+    from scipy.ndimage.filters import uniform_filter
 
-    survey, onegal, radius_arcsec, ccd = skyargs
+    from tractor.splinesky import SplineSky
+    from astrometry.util.miscutils import estimate_mode
+    from astrometry.util.fits import fits_table
+    from astropy.table import Table
+
+    from legacypipe.reference import get_reference_sources
+    from legacypipe.oneblob import get_inblob_map
+
+    survey, brickname, onegal, radius_arcsec, ccd = skyargs
 
     im = survey.get_image_object(ccd)
+    hdr = im.read_image_header()
+    hdr.delete('INHERIT')
+    hdr.delete('EXTVER')
+
     print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
           'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
           'object', getattr(ccd, 'object', None))
@@ -188,45 +203,127 @@ def _custom_sky(skyargs):
     tim = im.get_tractor_image(splinesky=True, subsky=False,
                                hybridPsf=True, normalizePsf=True)
 
-    mp = multiproc()
     targetwcs, bands = tim.subwcs, tim.band
     H, W = targetwcs.shape
     H, W = np.int(H), np.int(W)
 
-    S = stage_srcs(pixscale=im.pixscale, targetwcs=targetwcs, W=W, H=H,
-                   bands=bands, tims=[tim], mp=mp, nsigma=5, survey=survey,
-                   gaia_stars=True, star_clusters=False)
+    img = tim.getImage()
+    ivar = tim.getInvvar()
 
-    mask = S['blobs'] != -1 # 1 = bad
-    mask = np.logical_or( mask, tim.getInvvar() <= 0 )
-    mask = binary_dilation(mask, iterations=2)
+    # Read the splinesky model (for comparison purposes).  Code snippet taken
+    # from image.LegacySurveyImage.read_sky_model.
+    #T = Table.read(im.merged_splineskyfn)
+    #T.remove_column('skyclass') # causes problems when writing out with fitsio
+    #T = fitsio.read(im.merged_splineskyfn)
+    #I, = np.nonzero((T['expnum'] == im.expnum) * np.array([c.strip() == im.ccdname for c in T['ccdname']]))
 
-    # Mask the full extent of the central galaxy.
+    T = fits_table(im.merged_splineskyfn)
+    I, = np.nonzero((T.expnum == im.expnum) * np.array([c.strip() == im.ccdname for c in T.ccdname]))
+    if len(I) != 1:
+        print('Multiple splinesky models!')
+        return 0
+    splineskytable = T[I]
+
+    #splineskytable = T[I].as_array() # convert to ndarray
+    #splineskytable = tim.getSky()
+
+    #pipesky = np.zeros_like(img)
+    #tim.getSky().addTo(pipesky)
+
+    ## Old method
+    #if False:
+    #    mp = multiproc()
+    #    
+    #    S = stage_srcs(pixscale=im.pixscale, targetwcs=targetwcs, W=W, H=H,
+    #                   bands=bands, tims=[tim], mp=mp, nsigma=5, survey=survey,
+    #                   brick=brickname, brickname=brickname, gaia_stars=False,
+    #                   star_clusters=False, large_galaxies=False)
+    #    
+    #    mask = S['blobs'] != -1 # 1 = bad
+    #    mask = np.logical_or( mask, ivar <= 0 )
+    #    mask = binary_dilation(mask, iterations=2)
+
+    # Masked pixels in the inverse variance map.
+    ivarmask = ivar <= 0
+
+    # Mask known stars and large galaxies.
+    refs, _ = get_reference_sources(survey, targetwcs, im.pixscale, ['r'],
+                                    tycho_stars=True, gaia_stars=True,
+                                    large_galaxies=False, star_clusters=False)
+    refmask = (get_inblob_map(targetwcs, refs) != 0)
+
+    # Mask the object of interest.
     #http://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
     _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
     xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
-
     ymask, xmask = np.ogrid[-ycen:H-ycen, -xcen:W-xcen]
     galmask = (xmask**2 + ymask**2) <= radius**2
 
-    #if im.name == 'decam-00603132-S5':
-    #    import matplotlib.pyplot as plt
-    #    plt.imshow(mask, origin='lower') ; plt.show()
-    #    import pdb ; pdb.set_trace()
-    mask = np.logical_or( mask, galmask )
+    # Define an annulus of sky pixels centered on the object of interest.
+    inmask = (xmask**2 + ymask**2) <= 2*radius**2
+    outmask = (xmask**2 + ymask**2) <= 5*radius**2
+    skymask = (outmask*1 - inmask*1 - galmask*1) == 1
 
-    # Finally estimate the new (constant) sky background.
-    # sigma_clipped_stats(image, mask=mask)
-    image = tim.getImage()
-    good = np.flatnonzero(~mask)
-    cimage, _, _ = sigmaclip(image.flat[good], low=2.0, high=2.0)
-    newsky = np.median(cimage)
-    #newsky = 2.5 * np.median(cimage) - 1.5 * np.mean(cimage)
+    # Get an initial guess of the sky using the mode, otherwise the median.
+    skypix = (ivarmask*1 + refmask*1 + galmask*1) == 0
+    skysig1 = 1.0 / np.sqrt(np.median(ivar[skypix]))
+    try:
+        skyval = estimate_mode(img[skypix], raiseOnWarn=True)
+    except:
+        skyval = np.median(img[skypix])
+   
+    # Mask objects in a boxcar-smoothed (image - initial sky model), smoothed by
+    # a boxcar filter before cutting pixels above the n-sigma threshold.
+    boxcar = 5
+    boxsize = 1024
+    if min(img.shape) / boxsize < 4: # handle half-DECam chips
+        boxsize /= 2
+
+    # Compute initial model...
+    skyobj = SplineSky.BlantonMethod(img - skyval, skypix, boxsize)
+    skymod = np.zeros_like(img)
+    skyobj.addTo(skymod)
+
+    bskysig1 = skysig1 / boxcar # sigma of boxcar-smoothed image.
+    objmask = np.abs(uniform_filter(img-skyval-skymod, size=boxcar, mode='constant') > (3 * bskysig1))
+    objmask = binary_dilation(objmask, iterations=3)
+
+    skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
+    skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
+    skymed = np.median(img[skypix])
+    try:
+        skymode = estimate_mode(img[skypix], raiseOnWarn=True)
+    except:
+        skymode = 0.0
+
+    # Build the final bit-mask image.
+    #   0    = 
+    #   2**0 = ivarmask - CP-masked pixels
+    #   2**1 = refmask  - reference stars and galaxies
+    #   2**2 = galmask  - central galaxy & system
+    #   2**3 = objmask  - threshold detected objects
+    mask = np.zeros_like(img).astype(np.int16)
+    mask[ivarmask] += 2**0
+    mask[refmask]  += 2**1
+    mask[galmask]  += 2**2
+    mask[objmask]  += 2**3
+
+    # Add the sky values and also the central pixel coordinates of the object of
+    # interest (so we won't need the WCS object downstream, in QA).
+    for card, value in zip(('SKYMODE', 'SKYMED', 'SKYSIG'), (skymode, skymed, skysig)):
+        hdr.add_record(dict(name=card, value=value))
+    hdr.add_record(dict(name='XCEN', value=x0-1)) # 0-indexed
+    hdr.add_record(dict(name='YCEN', value=y0-1))
 
     out = dict()
-    key = '{}-{:02d}'.format(im.name, im.hdu)
+    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
     out['{}-mask'.format(key)] = mask
-    out['{}-sky'.format(key)] = newsky
+    out['{}-image'.format(key)] = img
+    out['{}-splinesky'.format(key)] = splineskytable
+    out['{}-header'.format(key)] = hdr
+    #out['{}-skymode'.format(key)] = skymode
+    #out['{}-skymed'.format(key)] = skymed
+    #out['{}-skysig'.format(key)] = skysig
     
     return out
 
@@ -239,12 +336,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     radius in arcsec
 
     """
-    from astropy.io import fits
-
-    from astrometry.util.fits import fits_table
+    from astrometry.util.fits import fits_table, merge_tables
+    from astrometry.util.resample import resample_with_wcs, OverlapError
     from astrometry.libkd.spherematch import match_radec
     from tractor.sky import ConstantSky
-
+    
     from legacypipe.runbrick import stage_tims
     from legacypipe.catalog import read_fits_catalog
     from legacypipe.runbrick import _get_mod
@@ -301,39 +397,80 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
-    skyargs = [(survey, onegal, radius, _ccd) for _ccd in survey.ccds]
+    skyargs = [(survey, brickname, onegal, radius, _ccd) for _ccd in survey.ccds]
     result = mp.map(_custom_sky, skyargs)
     #result = list( zip( *mp.map(_custom_sky, args) ) )
     sky = dict()
     [sky.update(res) for res in result]
     del result
 
-    hx = fits.HDUList()
+    H, W = P['targetwcs'].shape
+
+    _comask = np.zeros((len(tims), H, W), np.int16)
     for ii, ccd in enumerate(survey.ccds):
         im = survey.get_image_object(ccd)
-        key = '{}-{:02d}'.format(im.name, im.hdu)
-        mask = sky['{}-mask'.format(key)].astype('uint8')
-        hdu = fits.ImageHDU(mask, name=key)
-        hdu.header['SKY'] = sky['{}-sky'.format(key)]
-        hx.append(hdu)
+        key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+        mask = sky['{}-mask'.format(key)]#.astype('uint8')
+        try:
+            Yo, Xo, Yi, Xi, _ = resample_with_wcs(P['targetwcs'], im.get_wcs())
+            _comask[ii, Yo, Xo] = mask[Yi, Xi]
+        except:
+            continue
 
+    comask = np.sum(_comask, axis=0)
+    hdr = fitsio.FITSHDR()
+    P['targetwcs'].add_to_header(hdr)
+    hdr.delete('IMAGEW')
+    hdr.delete('IMAGEH')
+    
     maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
     print('Writing {}'.format(maskfile))
-    hx.writeto(maskfile, overwrite=True)
+    fitsio.write(maskfile, comask, header=hdr, clobber=True)
 
+    # Write out separate CCD-level files with the images/data, individual masks
+    # (converted to unsigned integer), and the pipeline/splinesky binary FITS
+    # tables.
+    ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask.fits.gz'.format(galaxy))
+    print('Writing {}'.format(ccdfile))
+    if os.path.isfile(ccdfile):
+        os.remove(ccdfile)
+    with fitsio.FITS(ccdfile, 'rw') as ff:
+        for ii, ccd in enumerate(survey.ccds):
+            im = survey.get_image_object(ccd)
+            key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+            hdr = sky['{}-header'.format(key)]
+            ff.write(sky['{}-mask'.format(key)].astype('uint8'), extname=key, header=hdr)
+
+    ccdfile = os.path.join(survey.output_dir, '{}-ccddata.fits.fz'.format(galaxy))
+    print('Writing {}'.format(ccdfile))
+    if os.path.isfile(ccdfile):
+        os.remove(ccdfile)
+    with fitsio.FITS(ccdfile, 'rw') as ff:
+        for ii, ccd in enumerate(survey.ccds):
+            im = survey.get_image_object(ccd)
+            key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+            hdr = sky['{}-header'.format(key)]
+            ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
+
+    skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
+    print('Writing {}'.format(skyfile))
+    if os.path.isfile(skyfile):
+        os.remove(skyfile)
+    for ii, ccd in enumerate(survey.ccds):
+        im = survey.get_image_object(ccd)
+        key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+        sky['{}-splinesky'.format(key)].write_to(skyfile, append=ii>0, extname=key)
+        
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
     for tim in tims:
         image = tim.getImage()
-        newsky = sky['{}-{:02d}-sky'.format(tim.imobj.name, tim.imobj.hdu)]
-        if False:
-            pipesky = tim.getSky()
-            splinesky = np.zeros_like(image)
-            pipesky.addTo(splinesky)
-            newsky = splinesky
+        key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
+        newsky = sky['{}-header'.format(key)]['SKYMODE']
         tim.setImage(image - newsky)
         tim.sky = ConstantSky(0)
         newtims.append(tim)
+    del sky
 
     # [4] Read the Tractor catalog and render the model image of each CCD, with
     # and without the central large galaxy.
@@ -345,20 +482,18 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cat = fits_table(tractorfile)
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
-    # Find and remove the central.  For some reason, match_radec
-    # occassionally returns two matches, even though nearest=True.
-    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                              1/3600.0, nearest=True)
+    # Find and remove all the objects within XX arcsec of the target
+    # coordinates.
+    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'], 3/3600.0, nearest=False)
     if len(d12) == 0:
-        print('No matching central found -- definitely a problem.')
-        raise ValueError
-    elif len(d12) > 1:
-        m1 = m1[np.argmin(d12)]
+        print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
+        #raise ValueError
+        keep = np.ones(len(T)).astype(bool)
+    else:
+        keep = ~np.isin(cat.objid, cat[m1].objid)        
 
-    print('Removing central galaxy with index = {}, objid = {}'.format(
-        m1, cat[m1].objid), flush=True, file=log)
-
-    keep = ~np.in1d(cat.objid, cat[m1].objid)
+    #print('Removing central galaxy with index = {}, objid = {}'.format(
+    #    m1, cat[m1].objid), flush=True, file=log)
 
     print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')
@@ -396,7 +531,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                 os.path.join(survey.output_dir, 'coadd', brickname[:3], 
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
                     brickname, suffix, band)),
-                os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
+                os.path.join(survey.output_dir, '{}-custom-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
                 #os.path.join(survey.output_dir, '{}-custom-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
             if not ok:
                 return ok
@@ -416,7 +551,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                 os.path.join(survey.output_dir, 'coadd', brickname[:3], 
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
                     brickname, suffix, band)),
-                os.path.join(survey.output_dir, '{}-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
+                os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
                 #os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
             if not ok:
                 return ok
@@ -441,7 +576,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
         for suffix, ims, rgbkw in coadd_list:
             rgb = get_rgb(ims, P['bands'], **rgbkw)
             kwa = {}
-            outfn = os.path.join(survey.output_dir, '{}-{}.jpg'.format(galaxy, suffix))
+            outfn = os.path.join(survey.output_dir, '{}-{}-grz.jpg'.format(galaxy, suffix))
             print('Writing {}'.format(outfn), flush=True, file=log)
             imsave_jpeg(outfn, rgb, origin='lower', **kwa)
             del rgb
