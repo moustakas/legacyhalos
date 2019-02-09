@@ -487,41 +487,51 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
         first = 0
     if last is None:
         last = nrows
-    if first == last:
-        last = last + 1
-
-    rows = np.arange(first, last)
-
+        rows = np.arange(first, last)
+    else:
+        if last >= nrows:
+            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
+            raise ValueError()
+        rows = np.arange(first, last + 1)
+    
     sample = Table(info[ext].read(rows=rows))
     if verbose:
         if len(rows) == 1:
             print('Read galaxy index {} from {}'.format(first, samplefile))
         else:
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
-                first, last-1, len(sample), samplefile))
+                first, last, len(sample), samplefile))
             
     return sample
 
-def read_paper1_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
-                       isedfit_lsphot=False, isedfit_sdssphot=False,
-                       isedfit_lhphot=False, candidates=False,
-                       kcorr=False, verbose=False):
-    """Read the Paper 1 and Paper 2 samples.
+def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
+                       sfhgrid=1, isedfit_lsphot=False, isedfit_sdssphot=False,
+                       isedfit_lhphot=False, candidates=False, kcorr=False,
+                       verbose=False):
+    """Wrapper to read a sample for a given paper.
 
     """
+    if paper == 'paper1':
+        paperdir = paper1_dir(data=True)
+    elif paper == 'paper2':
+        paperdir = paper2_dir(data=True)
+    else:
+        print('Unrecognized paper {}!'.format(paper))
+        raise ValueError()
+        
     if candidates:
         prefix = 'candidate-centrals'
     else:
         prefix = 'centrals'
 
     if isedfit_lsphot:
-        samplefile = os.path.join(paper1_dir(), 'data', 'paper1-{}-sfhgrid{:02d}-lsphot-{}.fits'.format(prefix, sfhgrid, dr))
+        samplefile = os.path.join(paperdir, '{}-{}-sfhgrid{:02d}-lsphot-{}.fits'.format(paper, prefix, sfhgrid, dr))
     elif isedfit_sdssphot:
-        samplefile = os.path.join(paper1_dir(), 'data', 'paper1-{}-sfhgrid{:02d}-sdssphot-dr14.fits'.format(prefix, sfhgrid))
+        samplefile = os.path.join(paperdir, '{}-{}-sfhgrid{:02d}-sdssphot-dr14.fits'.format(paper, prefix, sfhgrid))
     elif isedfit_lhphot:
-        samplefile = os.path.join(paper1_dir(), 'data', 'paper1-{}-sfhgrid{:02d}-lhphot.fits'.format(prefix, sfhgrid))
+        samplefile = os.path.join(paperdir, '{}-{}-sfhgrid{:02d}-lhphot.fits'.format(paper, prefix, sfhgrid))
     else:
-        samplefile = os.path.join(paper1_dir(), 'data', 'paper1-{}-{}.fits'.format(prefix, dr))
+        samplefile = os.path.join(paperdir, '{}-{}-{}.fits'.format(paper, prefix, dr))
         
     if not os.path.isfile(samplefile):
         print('File {} not found.'.format(samplefile))
@@ -544,21 +554,49 @@ def read_paper1_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
         first = 0
     if last is None:
         last = nrows
-    if first == last:
-        last = last + 1
-
-    rows = np.arange(first, last)
-
+        rows = np.arange(first, last)
+    else:
+        if last >= nrows:
+            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
+            raise ValueError()
+        rows = np.arange(first, last + 1)
+    
     sample = Table(info[ext].read(rows=rows))
     if verbose:
         if len(rows) == 1:
             print('Read galaxy index {} from {}'.format(first, samplefile))
         else:
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
-                first, last-1, len(sample), samplefile))
-            
+                first, last, len(sample), samplefile))
+
     return sample
 
+def read_paper1_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
+                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                       kcorr=False, verbose=False):
+    """Read the Paper 1 sample.
+
+    """
+    sample = _read_paper_sample(paper='paper1', first=first, last=last, dr=dr,
+                                sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
+                                isedfit_sdssphot=isedfit_sdssphot,
+                                isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
+                                candidates=candidates, verbose=verbose)
+    return sample
+    
+def read_paper2_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
+                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                       kcorr=False, verbose=False):
+    """Read the Paper 1 sample.
+
+    """
+    sample = _read_paper_sample(paper='paper2', first=first, last=last, dr=dr,
+                                sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
+                                isedfit_sdssphot=isedfit_sdssphot,
+                                isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
+                                candidates=candidates, verbose=verbose)
+    return sample
+    
 def literature(kravtsov=True, gonzalez=False):
     """Assemble some data from the literature here."""
 

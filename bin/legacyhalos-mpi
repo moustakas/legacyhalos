@@ -228,7 +228,7 @@ def main():
 
     # Read and broadcast the sample.
     if rank == 0:
-        sample = legacyhalos.io.read_paper1_sample(first=args.first, last=args.last)
+        sample = legacyhalos.io.read_paper2_sample(first=args.first, last=args.last)
     else:
         sample = None
 
