@@ -560,7 +560,7 @@ def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
             print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
             raise ValueError()
         rows = np.arange(first, last + 1)
-    
+
     sample = Table(info[ext].read(rows=rows))
     if verbose:
         if len(rows) == 1:

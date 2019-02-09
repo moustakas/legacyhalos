@@ -52,7 +52,7 @@ def main():
 
     rows = np.where(allcen['P_CEN'][:, 0] > args.minpcen)[0]
     cen = allcen[rows]
-    
+
     print('Writing {} / {} centrals to {}'.format(len(cen), len(allcen), outfile))
     fitsio.write(outfile, cen, clobber=True)
 
