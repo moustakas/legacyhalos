@@ -198,6 +198,8 @@ def main():
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
 
+    parser.add_argument('--hsc', action='store_true', help='Analyze the HSC massive-galaxy sample.')
+
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
     parser.add_argument('--seed', type=int, default=None, help='Random seed (used with --sky).')
@@ -228,7 +230,10 @@ def main():
 
     # Read and broadcast the sample.
     if rank == 0:
-        sample = legacyhalos.io.read_paper2_sample(first=args.first, last=args.last)
+        if args.hsc:
+            sample = legacyhalos.io.read_paper2_sample(first=args.first, last=args.last)
+        else:
+            sample = legacyhalos.io.read_paper2_sample(first=args.first, last=args.last)
     else:
         sample = None
 

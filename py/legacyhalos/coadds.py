@@ -54,7 +54,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} '
     #cmd += '--stage image_coadds --early-coadds '
-    cmd += '--write-stage srcs --skip-calibs --no-wise-ceres '
+    cmd += '--write-stage tims --write-stage srcs --skip-calibs --no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
     if unwise_coadds:

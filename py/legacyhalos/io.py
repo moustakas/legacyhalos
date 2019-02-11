@@ -622,11 +622,22 @@ def literature(kravtsov=True, gonzalez=False):
         gonz['m500'] = np.log10(gonz['m500'])
         return gonz
 
+# For the HSC analysis---
 
-# For HSC vs DECaLS analysis:
+def hsc_dir():
+    ddir = os.path.join(legacyhalos_dir(), 'hsc')
+    if not os.path.isdir(ddir):
+        os.makedirs(ddir, exist_ok=True)
+    return ddir
 
-def hsc_vs_decals_dir():
-    ddir = os.path.join(legacyhalos_dir(), 'hsc-vs-decals')
+def hsc_data_dir():
+    ddir = os.path.join(legacyhalos_data_dir(), 'hsc')
+    if not os.path.isdir(ddir):
+        os.makedirs(ddir, exist_ok=True)
+    return ddir
+
+def hsc_data_dir():
+    ddir = os.path.join(legacyhalos_data_dir(), 'hsc')
     if not os.path.isdir(ddir):
         os.makedirs(ddir, exist_ok=True)
     return ddir

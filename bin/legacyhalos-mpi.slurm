@@ -1,6 +1,6 @@
 #! /bin/bash
 
-#SBATCH -A cosmo
+#SBATCH -A desi
 #SBATCH -L project
 #SBATCH -o legacyhalos.log.%j
 #SBATCH --mail-user=jmoustakas@siena.edu
