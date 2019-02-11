@@ -273,7 +273,7 @@ def main():
     for count, ii in enumerate(groups[rank]):
         if (count % 10) == 0:
             print('Rank {}: Building {} {} / {}'.format(
-                rank, suffix.upper(), count, len(groups[rank])), flush=True)
+                rank, suffix.upper(), count+1, len(groups[rank])), flush=True)
 
         onegal = sample[ii]
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
