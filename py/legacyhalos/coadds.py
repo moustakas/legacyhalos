@@ -31,7 +31,8 @@ def _copyfile(infile, outfile):
 
 def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                     pixscale=0.262, splinesky=True, log=None, force=False,
-                    cleanup=True):
+                    no_large_galaxies=True, no_gaia=True, no_tycho=True,
+                    unwise_coadds=True, cleanup=True):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
 
     radius in arcsec
@@ -52,11 +53,19 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} '
-    cmd += '--unwise-coadds --no-gaia --no-tycho --no-large-galaxies '
-    #cmd += '--force-stage coadds '
+    #cmd += '--stage image_coadds --early-coadds '
     cmd += '--write-stage srcs --skip-calibs --no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
-    cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p ' 
+    cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
+    if unwise_coadds:
+        cmd += '--unwise-coadds '
+    if no_gaia:
+        cmd += '--no-gaia '
+    if no_tycho:
+        cmd += '--no-tycho '
+    if no_large_galaxies:
+        cmd += '--no-large-galaxies '
+        
     if force:
         cmd += '--force-all '
         checkpointfile = '{galaxydir}/{galaxy}-runbrick-checkpoint.p'.format(galaxydir=galaxydir, galaxy=galaxy)
@@ -138,22 +147,23 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
         # JPG images
 
         # Look for WISE stuff in the unwise module--
-        for band in ('W1', 'W2', 'W3', 'W4'):
-            for imtype in ('image', 'model', 'invvar'):
+        if unwise_coadds:
+            for band in ('W1', 'W2', 'W3', 'W4'):
+                for imtype in ('image', 'model', 'invvar'):
+                    ok = _copyfile(
+                        os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                                     'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                        os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
+                    if not ok:
+                        return ok
+
+            for imtype in ('wise', 'wisemodel'):
                 ok = _copyfile(
                     os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                                 'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                    os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
+                                 'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
+                    os.path.join(survey.output_dir, '{}-{}.jpg'.format(galaxy, imtype)) )
                 if not ok:
                     return ok
-
-        for imtype in ('wise', 'wisemodel'):
-            ok = _copyfile(
-                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                             'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-                os.path.join(survey.output_dir, '{}-{}.jpg'.format(galaxy, imtype)) )
-            if not ok:
-                return ok
 
         for imtype in ('image', 'model', 'resid'):
             ok = _copyfile(

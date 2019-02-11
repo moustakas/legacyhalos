@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""MPI wrapper for the various computationally intensive legacyhalos analysis. 
+"""MPI wrapper for the various computationally intensive LSBs analysis. 
 
 """
 import matplotlib
@@ -14,7 +14,7 @@ from contextlib import redirect_stdout, redirect_stderr
 from astrometry.util.fits import fits_table
 from legacypipe.survey import LegacySurveyData
 
-import legacyhalos.io
+import legacyhalos.lsbs
 import legacyhalos.coadds
 import legacyhalos.ellipse
 import legacyhalos.html
@@ -49,9 +49,9 @@ def missing_files(sample, filetype='coadds', size=1, clobber=False):
     todo = np.ones(ngal, dtype=bool)
 
     if filetype == 'html':
-        galaxy, _, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
+        galaxy, _, galaxydir = legacyhalos.lsbs.get_galaxy_galaxydir(sample, html=True)
     else:
-        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
+        galaxy, galaxydir = legacyhalos.lsbs.get_galaxy_galaxydir(sample)
 
     for ii, (gal, gdir) in enumerate( zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)) ):
         checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
@@ -98,7 +98,8 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
     if debug:
         err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
                                                  survey=survey, pixscale=pixscale,
-                                                 nproc=nproc, force=force)
+                                                 nproc=nproc, force=force, unwise_coadds=False,
+                                                 no_large_galaxies=False, no_gaia=False, no_tycho=False)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
         print('Finished galaxy {} in {:.3f} minutes.'.format(
@@ -110,7 +111,8 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
                         galaxy, time.asctime()), flush=True, file=log)
                 err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
                                                          survey=survey, pixscale=pixscale,
-                                                         nproc=nproc, force=force, log=log)
+                                                         nproc=nproc, force=force, log=log, unwise_coadds=False,
+                                                         no_large_galaxies=False, no_gaia=False, no_tycho=False)
                 if err == 0:
                     print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
                 print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
@@ -228,10 +230,10 @@ def main():
 
     # Read and broadcast the sample.
     if rank == 0:
-        sample = legacyhalos.io.read_paper2_sample(first=args.first, last=args.last)
+        sample = legacyhalos.lsbs.read_parent()
     else:
         sample = None
-
+        
     if comm:
         sample = comm.bcast(sample, root=0)
 
@@ -261,7 +263,7 @@ def main():
 
     if len(groups[rank]) == 0 or args.count:
         if len(groups[rank]) > 0 and args.debug:
-            galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample[groups])
+            galaxy, galaxydir = legacyhalos.lsbs.get_galaxy_galaxydir(sample[groups])
             for ii, dd in zip(groups[rank], galaxydir):
                 print('  {} {}'.format(ii, dd))
             #[print('  {}'.format(dd)) for dd in np.atleast_1d(galaxydir)]
@@ -276,7 +278,7 @@ def main():
                 rank, suffix.upper(), count, len(groups[rank])), flush=True)
 
         onegal = sample[ii]
-        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
+        galaxy, galaxydir = legacyhalos.lsbs.get_galaxy_galaxydir(onegal)
         if not os.path.isdir(galaxydir):
             os.makedirs(galaxydir, exist_ok=True)
 
@@ -288,7 +290,7 @@ def main():
 
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.html:
-            radius_arcsec = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
+            radius_arcsec = onegal['RADIUS'] # [arcsec]
             
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)
