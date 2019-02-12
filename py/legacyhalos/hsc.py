@@ -271,11 +271,11 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
 
             html.write('<h1>HSC Galaxy {}</h1>\n'.format(galaxy1))
 
-            html.write('<a href="../../../../{}">Home</a>\n'.format(homehtml))
+            html.write('<a href="../../../{}">Home</a>\n'.format(homehtml))
             html.write('<br />\n')
-            html.write('<a href="../../../../{}">Next Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
+            html.write('<a href="../../../{}">Next Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
             html.write('<br />\n')
-            html.write('<a href="../../../../{}">Previous Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
+            html.write('<a href="../../../{}">Previous Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
             html.write('<br />\n')
             html.write('<br />\n')
 
@@ -382,11 +382,11 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
                 html.write('</table>\n')
                 html.write('<br />\n')
 
-            html.write('<a href="../../../../{}">Home</a>\n'.format(homehtml))
+            html.write('<a href="../../../{}">Home</a>\n'.format(homehtml))
             html.write('<br />\n')
-            html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
+            html.write('<a href="../../../{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
             html.write('<br />\n')
-            html.write('<a href="{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
+            html.write('<a href="../../../{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
             html.write('<br />\n')
 
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))

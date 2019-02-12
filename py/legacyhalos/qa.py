@@ -1380,7 +1380,7 @@ def _display_ccdmask_and_sky(ccdargs):
         thisax.set_aspect('equal')
 
     ## Shared colorbar.
-    plt.tight_layout()
+    #plt.tight_layout()
     plt.subplots_adjust(left=0.05, bottom=0.05, top=0.88, wspace=0.6)
 
     qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
