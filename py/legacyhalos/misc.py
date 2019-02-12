@@ -12,6 +12,12 @@ import numpy as np
 
 from astrometry.util.util import Tan
 
+def ellipse_mask(xcen, ycen, semia, semib, phi, x, y):
+    """Simple elliptical mask."""
+    xp = (x-xcen) * np.cos(phi) + (y-ycen) * np.sin(phi)
+    yp = -(x-xcen) * np.sin(phi) + (y-ycen) * np.cos(phi)
+    return (xp / semia)**2 + (yp/semib)**2 <= 1
+
 def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262):
     '''Build a simple WCS object for a single galaxy.'''
     if 'Z' in onegal.colnames:

@@ -304,6 +304,9 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
 
+    from legacyhalos.mge import find_galaxy
+    from legacyhalos.misc import ellipse_mask
+
     # Dictionary mapping between filter and filename coded up in coadds.py,
     # galex.py, and unwise.py (see the LSLGA product, too).
     filt2imfile = {
@@ -340,17 +343,30 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
-    if os.path.isfile(tractorfile):
-        cat = Table(fitsio.read(tractorfile, upper=True))
-        print('Read {} sources from {}'.format(len(cat), tractorfile))
-    else:
-        print('Missing Tractor catalog {}'.format(tractorfile))
-        found_data = False
+    #tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    #if os.path.isfile(tractorfile):
+    #    cat = Table(fitsio.read(tractorfile, upper=True))
+    #    print('Read {} sources from {}'.format(len(cat), tractorfile))
+    #else:
+    #    print('Missing Tractor catalog {}'.format(tractorfile))
+    #    found_data = False
 
     data = dict()
     if not found_data:
         return data
+
+    # Find the central galaxy in the reference band.
+    image = fitsio.read(filt2imfile[refband][0])
+    mgegalaxy = find_galaxy(image, nblob=1, binning=3, quiet=True)
+    
+    pdb.set_trace()
+
+    H, W = image.shape
+    ymask, xmask = np.ogrid[0:H, 0:W] # mask the galaxy
+    galmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, mgegalaxy.majoraxis,
+                           mgegalaxy.majoraxis*(1-mgegalaxy.eps), mgegalaxy.theta,
+                           xmask, ymask)
+            
 
     for filt in band:
         image = fitsio.read(filt2imfile[filt][0])
