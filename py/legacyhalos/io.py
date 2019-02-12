@@ -301,9 +301,11 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     convert to surface brightness by dividing by the pixel area.
 
     """
-    from scipy.stats import sigmaclip
+    #from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
 
+    from astropy.stats import sigma_clipped_stats
+    #from astropy.stats import sigma_clip
     from legacyhalos.mge import find_galaxy
     from legacyhalos.misc import ellipse_mask
 
@@ -358,56 +360,67 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     # Find the central galaxy in the reference band.
     image = fitsio.read(filt2imfile[refband][0])
     mgegalaxy = find_galaxy(image, nblob=1, binning=3, quiet=True)
-    
-    pdb.set_trace()
 
-    H, W = image.shape
-    ymask, xmask = np.ogrid[0:H, 0:W] # mask the galaxy
-    galmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, mgegalaxy.majoraxis,
-                           mgegalaxy.majoraxis*(1-mgegalaxy.eps), mgegalaxy.theta,
-                           xmask, ymask)
-            
-
+    maskfile = os.path.join(galaxydir, '{}-custom-mask.fits.gz'.format(galaxy))
+    if os.path.isfile(maskfile):
+        print('Reading {}'.format(maskfile))
+        custom_mask = fitsio.read(maskfile)
+    else:
+        custom_mask = np.zeros_like(image).astype(bool)
+   
     for filt in band:
+        thispixscale = filt2pixscale[filt]
+
         image = fitsio.read(filt2imfile[filt][0])
         model = fitsio.read(filt2imfile[filt][1])
 
-        if len(filt2imfile[filt]) == 3:
-            invvar = fitsio.read(filt2imfile[filt][2])
+        # Identify the pixels belonging to the object of interest.
+        majoraxis = 0.75*mgegalaxy.majoraxis * filt2pixscale[refband] / thispixscale # [pixels]
+        
+        H, W = image.shape
+        xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
+        objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
+                               mgegalaxy.majoraxis*(1-mgegalaxy.eps),
+                               mgegalaxy.theta, xobj, yobj)
 
-            # Mask pixels with ivar<=0. Also build an object mask from the model
-            # image, to handle systematic residuals.
-            mask = (invvar <= 0) # True-->bad, False-->good
-            
-            #if np.sum(mask) > 0:
-            #    invvar[mask] = 1e-3
-            #snr = model * np.sqrt(invvar)
-            #mask = np.logical_or( mask, (snr > 1) )
+        ## Initialize the mask with the inverse variance map, if available.
+        #if len(filt2imfile[filt]) == 3:
+        #    invvar = fitsio.read(filt2imfile[filt][2])
+        #    mask = (invvar <= 0) # True-->bad, False-->good
+        #else:
+        #    mask = np.zeros_like(image).astype(bool)
 
-            #sig1 = 1.0 / np.sqrt(np.median(invvar))
-            #mask = np.logical_or( mask, (image - model) > (3 * sig1) )
+        #mask = np.logical_or(custom_mask & 2**1 != 0, custom_mask & 2**3 != 0)
+        mask = custom_mask & 2**3 != 0
 
-        else:
-            mask = np.zeros_like(image).astype(bool)
+        # Compute sigma-clipped statistics on the residual image, ignoring the
+        # central object.
+        #resid = image - model
+        #sigma_clip(ma.masked_array(image - model, objmask), sigma=3)
+        
+        #_, _, sig = sigma_clipped_stats(image - model, mask=objmask, sigma=5.0)
+        #mask = np.logical_or(mask, model > sig)
 
-        # Can give a divide-by-zero error for, e.g., GALEX imaging
-        #with np.errstate(divide='ignore', invalid='ignore'):
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            with np.errstate(all='ignore'):
-                model_clipped, _, _ = sigmaclip(model, low=4.0, high=4.0)
+        ## Can give a divide-by-zero error for, e.g., GALEX imaging
+        ##with np.errstate(divide='ignore', invalid='ignore'):
+        #with warnings.catch_warnings():
+        #    warnings.simplefilter('ignore')
+        #    with np.errstate(all='ignore'):
+        #        model_clipped, _, _ = sigmaclip(model, low=4.0, high=4.0)
 
         #print(filt, 1-len(model_clipped)/image.size)
         #if filt == 'W1':
         #    pdb.set_trace()
             
-        if len(model_clipped) > 0:
-            mask = np.logical_or( mask, model > 3 * np.std(model_clipped) )
-            #model_clipped = model
+        #if len(model_clipped) > 0:
+        #    mask = np.logical_or( mask, model > 5 * np.std(model_clipped) )
+        #    #model_clipped = model
         
-        mask = binary_dilation(mask, iterations=1) # True-->bad
+        mask = binary_dilation(mask, iterations=3) # True-->bad
 
-        thispixscale = filt2pixscale[filt]
+        # Do not mask the central galaxy.
+        mask[objmask] = 0
+
         data[filt] = (image - model) / thispixscale**2 # [nanomaggies/arcsec**2]
         
         #data['{}_mask'.format(filt)] = mask # True->bad
