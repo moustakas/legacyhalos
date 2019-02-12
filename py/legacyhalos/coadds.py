@@ -29,13 +29,13 @@ def _copyfile(infile, outfile):
         print('Missing file {}; please check the logfile.'.format(infile))
         return 0
 
-def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
+def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=1,
                     pixscale=0.262, splinesky=True, log=None, force=False,
                     no_large_galaxies=True, no_gaia=True, no_tycho=True,
                     unwise=True, apodize=False, cleanup=True):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
 
-    radius in arcsec
+    radius_mosaic in arcsec
 
     """
     import subprocess
@@ -78,7 +78,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     if not splinesky:
         cmd += '--no-splinesky '
     
-    width = np.ceil(2 * radius / pixscale).astype('int') # [pixels]
+    width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
 
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal['RA'], dec=onegal['DEC'], width=width,
@@ -201,7 +201,7 @@ def _custom_sky(skyargs):
     from legacypipe.reference import get_reference_sources
     from legacypipe.oneblob import get_inblob_map
 
-    survey, brickname, onegal, radius_arcsec, ccd = skyargs
+    survey, brickname, onegal, radius_mask_arcsec, ccd = skyargs
 
     im = survey.get_image_object(ccd)
     hdr = im.read_image_header()
@@ -212,7 +212,7 @@ def _custom_sky(skyargs):
           'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
           'object', getattr(ccd, 'object', None))
 
-    radius = np.round(radius_arcsec / im.pixscale).astype('int') # [pixels]
+    radius_mask = np.round(radius_mask_arcsec / im.pixscale).astype('int') # [pixels]
     
     tim = im.get_tractor_image(splinesky=True, subsky=False,
                                hybridPsf=True, normalizePsf=True)
@@ -271,11 +271,11 @@ def _custom_sky(skyargs):
     _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
     xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
     ymask, xmask = np.ogrid[-ycen:H-ycen, -xcen:W-xcen]
-    galmask = (xmask**2 + ymask**2) <= radius**2
+    galmask = (xmask**2 + ymask**2) <= radius_mask**2
 
     # Define an annulus of sky pixels centered on the object of interest.
-    inmask = (xmask**2 + ymask**2) <= 2*radius**2
-    outmask = (xmask**2 + ymask**2) <= 5*radius**2
+    inmask = (xmask**2 + ymask**2) <= 2*radius_mask**2
+    outmask = (xmask**2 + ymask**2) <= 5*radius_mask**2
     skymask = (outmask*1 - inmask*1 - galmask*1) == 1
 
     # Get an initial guess of the sky using the mode, otherwise the median.
@@ -341,13 +341,14 @@ def _custom_sky(skyargs):
     
     return out
 
-def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
-                  pixscale=0.262, log=None, plots=False, verbose=False,
-                  cleanup=True):
+def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
+                  radius_mask=None, nproc=1, pixscale=0.262, log=None,
+                  apodize=False, plots=False, verbose=False, cleanup=True,
+                  write_ccddata=True):
     """Build a custom set of coadds for a single galaxy, with a custom mask and sky
     model.
 
-    radius in arcsec
+    radius_mosaic and radius_mask in arcsec
 
     """
     from astrometry.util.fits import fits_table, merge_tables
@@ -378,7 +379,13 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
 
     mp = multiproc(nthreads=nproc)
 
-    width = np.ceil(2 * radius / pixscale).astype('int') # [pixels]
+    if radius_mask is None:
+        radius_mask = radius_mosaic
+        radius_search = 3.0 # [arcsec]
+    else:
+        radius_search = radius_mask
+        
+    width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
 
     unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)    
 
@@ -398,7 +405,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                           survey=survey, W=width, H=width, pixscale=pixscale,
                           mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                           splinesky=True, subsky=False, # note!
-                          depth_cut=False, apodize=False, do_calibs=False, rex=True, 
+                          depth_cut=False, apodize=apodize, do_calibs=False, rex=True, 
                           unwise_dir=unwise_dir, plots=plots, ps=ps)
 
     if log:
@@ -411,7 +418,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
-    skyargs = [(survey, brickname, onegal, radius, _ccd) for _ccd in survey.ccds]
+    skyargs = [(survey, brickname, onegal, radius_mask, _ccd) for _ccd in survey.ccds]
     result = mp.map(_custom_sky, skyargs)
     #result = list( zip( *mp.map(_custom_sky, args) ) )
     sky = dict()
@@ -420,60 +427,61 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
 
     H, W = P['targetwcs'].shape
 
-    _comask = np.zeros((len(tims), H, W), np.int16)
-    for ii, ccd in enumerate(survey.ccds):
-        im = survey.get_image_object(ccd)
-        key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-        mask = sky['{}-mask'.format(key)]#.astype('uint8')
-        try:
-            Yo, Xo, Yi, Xi, _ = resample_with_wcs(P['targetwcs'], im.get_wcs())
-            _comask[ii, Yo, Xo] = mask[Yi, Xi]
-        except:
-            continue
-
-    comask = np.sum(_comask, axis=0)
-    hdr = fitsio.FITSHDR()
-    P['targetwcs'].add_to_header(hdr)
-    hdr.delete('IMAGEW')
-    hdr.delete('IMAGEH')
-    
-    maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
-    print('Writing {}'.format(maskfile))
-    fitsio.write(maskfile, comask, header=hdr, clobber=True)
-
-    # Write out separate CCD-level files with the images/data, individual masks
-    # (converted to unsigned integer), and the pipeline/splinesky binary FITS
-    # tables.
-    ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask.fits.gz'.format(galaxy))
-    print('Writing {}'.format(ccdfile))
-    if os.path.isfile(ccdfile):
-        os.remove(ccdfile)
-    with fitsio.FITS(ccdfile, 'rw') as ff:
+    if write_ccddata:
+        _comask = np.zeros((len(tims), H, W), np.int16)
         for ii, ccd in enumerate(survey.ccds):
             im = survey.get_image_object(ccd)
             key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-            hdr = sky['{}-header'.format(key)]
-            ff.write(sky['{}-mask'.format(key)].astype('uint8'), extname=key, header=hdr)
+            mask = sky['{}-mask'.format(key)]#.astype('uint8')
+            try:
+                Yo, Xo, Yi, Xi, _ = resample_with_wcs(P['targetwcs'], im.get_wcs())
+                _comask[ii, Yo, Xo] = mask[Yi, Xi]
+            except:
+                continue
 
-    ccdfile = os.path.join(survey.output_dir, '{}-ccddata.fits.fz'.format(galaxy))
-    print('Writing {}'.format(ccdfile))
-    if os.path.isfile(ccdfile):
-        os.remove(ccdfile)
-    with fitsio.FITS(ccdfile, 'rw') as ff:
+        comask = np.sum(_comask, axis=0)
+        hdr = fitsio.FITSHDR()
+        P['targetwcs'].add_to_header(hdr)
+        hdr.delete('IMAGEW')
+        hdr.delete('IMAGEH')
+
+        maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
+        print('Writing {}'.format(maskfile))
+        fitsio.write(maskfile, comask, header=hdr, clobber=True)
+
+        # Write out separate CCD-level files with the images/data, individual masks
+        # (converted to unsigned integer), and the pipeline/splinesky binary FITS
+        # tables.
+        ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask.fits.gz'.format(galaxy))
+        print('Writing {}'.format(ccdfile))
+        if os.path.isfile(ccdfile):
+            os.remove(ccdfile)
+        with fitsio.FITS(ccdfile, 'rw') as ff:
+            for ii, ccd in enumerate(survey.ccds):
+                im = survey.get_image_object(ccd)
+                key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+                hdr = sky['{}-header'.format(key)]
+                ff.write(sky['{}-mask'.format(key)].astype('uint8'), extname=key, header=hdr)
+
+        ccdfile = os.path.join(survey.output_dir, '{}-ccddata.fits.fz'.format(galaxy))
+        print('Writing {}'.format(ccdfile))
+        if os.path.isfile(ccdfile):
+            os.remove(ccdfile)
+        with fitsio.FITS(ccdfile, 'rw') as ff:
+            for ii, ccd in enumerate(survey.ccds):
+                im = survey.get_image_object(ccd)
+                key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+                hdr = sky['{}-header'.format(key)]
+                ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
+
+        skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
+        print('Writing {}'.format(skyfile))
+        if os.path.isfile(skyfile):
+            os.remove(skyfile)
         for ii, ccd in enumerate(survey.ccds):
             im = survey.get_image_object(ccd)
             key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-            hdr = sky['{}-header'.format(key)]
-            ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
-
-    skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
-    print('Writing {}'.format(skyfile))
-    if os.path.isfile(skyfile):
-        os.remove(skyfile)
-    for ii, ccd in enumerate(survey.ccds):
-        im = survey.get_image_object(ccd)
-        key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-        sky['{}-splinesky'.format(key)].write_to(skyfile, append=ii>0, extname=key)
+            sky['{}-splinesky'.format(key)].write_to(skyfile, append=ii>0, extname=key)
         
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
@@ -498,11 +506,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
 
     # Find and remove all the objects within XX arcsec of the target
     # coordinates.
-    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'], 3/3600.0, nearest=False)
+    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'], radius_mask/3600.0, nearest=False)
     if len(d12) == 0:
         print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
         #raise ValueError
-        keep = np.ones(len(T)).astype(bool)
+        keep = np.ones(len(cat)).astype(bool)
     else:
         keep = ~np.isin(cat.objid, cat[m1].objid)        
 

@@ -98,12 +98,12 @@ def _missing_files(args, sample, size):
 
     return suffix, groups
 
-def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
+def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                           nproc, force, debug, logfile):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
     if debug:
-        err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
+        err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                  survey=survey, pixscale=pixscale,
                                                  nproc=nproc, force=force)
         if err == 0:
@@ -115,7 +115,7 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
             with redirect_stdout(log), redirect_stderr(log):
                 print('Started working on galaxy {} at {}'.format(
                         galaxy, time.asctime()), flush=True, file=log)
-                err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
+                err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                          survey=survey, pixscale=pixscale,
                                                          nproc=nproc, force=force, log=log)
                 if err == 0:
@@ -123,12 +123,12 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
                 print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
                       galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
 
-def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
+def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                         nproc, debug, logfile):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
     if debug:
-        err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
+        err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                survey=survey, pixscale=pixscale, nproc=nproc)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
@@ -139,7 +139,7 @@ def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
             with redirect_stdout(log), redirect_stderr(log):
                 print('Started working on galaxy {} at {}'.format(
                         galaxy, time.asctime()), flush=True, file=log)
-                err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
+                err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                        survey=survey, pixscale=pixscale,
                                                        nproc=nproc, log=log)
                 if err == 0:
@@ -317,14 +317,14 @@ def main():
 
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.html:
-            radius_arcsec = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
+            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
             
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)
             survey.output_dir = galaxydir
 
         if args.coadds:
-            _call_pipeline_coadds(onegal, galaxy, radius_arcsec, survey, args.pixscale,
+            _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
                                   args.nproc, args.force, args.debug, logfile)
                     
         if args.custom_coadds or args.html:
@@ -341,11 +341,12 @@ def main():
             survey.ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
 
         if args.custom_coadds:
-            _call_custom_coadds(onegal, galaxy, radius_arcsec, survey, args.pixscale,
-                                args.nproc, args.debug, logfile)
+            _call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
+                                args.pixscale, args.nproc, args.debug, logfile)
                     
         if args.ellipse:
-            _call_ellipse(onegal, galaxy, args.pixscale, args.verbose, args.debug, logfile, args.hsc)
+            _call_ellipse(onegal, galaxy, args.pixscale, args.verbose,
+                          args.debug, logfile, args.hsc)
                         
         if args.sersic:
             from legacyhalos.sersic import legacyhalos_sersic

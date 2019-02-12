@@ -91,12 +91,13 @@ def _missing_files(args, sample, size):
 
     return suffix, groups
 
-def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
+def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                           nproc, force, debug, logfile):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
     if debug:
-        err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
+        err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy,
+                                                 radius_mosaic=radius_mosaic,
                                                  survey=survey, pixscale=pixscale,
                                                  nproc=nproc, force=force, unwise=False,
                                                  no_large_galaxies=False, no_gaia=False,
@@ -110,7 +111,7 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
             with redirect_stdout(log), redirect_stderr(log):
                 print('Started working on galaxy {} at {}'.format(
                         galaxy, time.asctime()), flush=True, file=log)
-                err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
+                err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                          survey=survey, pixscale=pixscale,
                                                          nproc=nproc, force=force, log=log, unwise=False,
                                                          no_large_galaxies=False, no_gaia=False,
@@ -120,13 +121,15 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
                 print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
                       galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
 
-def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
-                        nproc, debug, logfile):
+def _call_custom_coadds(onegal, galaxy, radius_mosaic, radius_galaxy,
+                        survey, pixscale, nproc, debug, logfile):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
     if debug:
-        err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
-                                               survey=survey, pixscale=pixscale, nproc=nproc)
+        err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
+                                               radius_mask=radius_galaxy,
+                                               survey=survey, pixscale=pixscale, nproc=nproc,
+                                               write_ccddata=False, apodize=True)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
         print('Finished galaxy {} in {:.3f} minutes.'.format(
@@ -136,9 +139,13 @@ def _call_custom_coadds(onegal, galaxy, radius, survey, pixscale,
             with redirect_stdout(log), redirect_stderr(log):
                 print('Started working on galaxy {} at {}'.format(
                         galaxy, time.asctime()), flush=True, file=log)
-                err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius=radius,
+                err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy,
+                                                       radius_mosaic=radius_mosaic,
+                                                       radius_mask=radius_galaxy,
                                                        survey=survey, pixscale=pixscale,
-                                                       nproc=nproc, log=log)
+                                                       nproc=nproc, log=log,
+                                                       write_ccddata=False,
+                                                       apodize=True)
                 if err == 0:
                     print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
                 print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
@@ -232,7 +239,7 @@ def main():
 
     # Read and broadcast the sample.
     if rank == 0:
-        sample = legacyhalos.lsbs.read_parent()
+        sample = legacyhalos.lsbs.read_sample()
     else:
         sample = None
         
@@ -290,16 +297,17 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
             print('Logging to {} '.format(logfile), flush=True)
 
-        # Need the cluster "radius" to build the coadds.
+        # Need the mosaic and galaxy "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.html:
-            radius_arcsec = onegal['RADIUS'] # [arcsec]
+            radius_mosaic_arcsec = onegal['RADIUS_MOSAIC'] # [arcsec]
+            radius_galaxy_arcsec = onegal['RADIUS_GALAXY'] # [arcsec]
             
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)
             survey.output_dir = galaxydir
 
         if args.coadds:
-            _call_pipeline_coadds(onegal, galaxy, radius_arcsec, survey, args.pixscale,
+            _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
                                   args.nproc, args.force, args.debug, logfile)
                     
         if args.custom_coadds or args.html:
@@ -316,8 +324,8 @@ def main():
             survey.ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
 
         if args.custom_coadds:
-            _call_custom_coadds(onegal, galaxy, radius_arcsec, survey, args.pixscale,
-                                args.nproc, args.debug, logfile)
+            _call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, radius_galaxy_arcsec,
+                                survey, args.pixscale, args.nproc, args.debug, logfile)
                     
         if args.ellipse:
             _call_ellipse(onegal, galaxy, args.pixscale, args.verbose, args.debug, logfile)
