@@ -565,9 +565,11 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         else:
             plt.show()
         
-def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
+def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                               png=None, verbose=True):
     """Display the multi-band surface brightness profile.
+
+    4-panel including PA and ellipticity
 
     """
     import astropy.stats
@@ -751,9 +753,11 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
         else:
             plt.show()
         
-def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
+def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                                png=None, use_ylim=None, verbose=True):
     """Display the multi-band surface brightness profile.
+
+    2-panel
 
     """
     import astropy.stats
@@ -1376,8 +1380,8 @@ def _display_ccdmask_and_sky(ccdargs):
         thisax.set_aspect('equal')
 
     ## Shared colorbar.
-    plt.tight_layout(w_pad=0.22)
-    plt.subplots_adjust(bottom=0.05, top=0.88)
+    plt.tight_layout()
+    plt.subplots_adjust(left=0.05, bottom=0.05, top=0.88, wspace=0.6)
 
     qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
     print('Writing {}'.format(qafile))

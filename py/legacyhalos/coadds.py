@@ -32,7 +32,7 @@ def _copyfile(infile, outfile):
 def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
                     pixscale=0.262, splinesky=True, log=None, force=False,
                     no_large_galaxies=True, no_gaia=True, no_tycho=True,
-                    unwise_coadds=True, cleanup=True):
+                    unwise=True, apodize=False, cleanup=True):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
 
     radius in arcsec
@@ -57,8 +57,12 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
     cmd += '--write-stage tims --write-stage srcs --skip-calibs --no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
-    if unwise_coadds:
+    if unwise:
         cmd += '--unwise-coadds '
+    else:
+        cmd += '--no-wise '
+    if apodize:
+        cmd += '--apodize '
     if no_gaia:
         cmd += '--no-gaia '
     if no_tycho:
@@ -147,7 +151,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius=None, nproc=1,
         # JPG images
 
         # Look for WISE stuff in the unwise module--
-        if unwise_coadds:
+        if unwise:
             for band in ('W1', 'W2', 'W3', 'W4'):
                 for imtype in ('image', 'model', 'invvar'):
                     ok = _copyfile(

@@ -98,8 +98,9 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
     if debug:
         err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
                                                  survey=survey, pixscale=pixscale,
-                                                 nproc=nproc, force=force, unwise_coadds=False,
-                                                 no_large_galaxies=False, no_gaia=False, no_tycho=False)
+                                                 nproc=nproc, force=force, unwise=False,
+                                                 no_large_galaxies=False, no_gaia=False,
+                                                 no_tycho=False, apodize=True)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
         print('Finished galaxy {} in {:.3f} minutes.'.format(
@@ -111,8 +112,9 @@ def _call_pipeline_coadds(onegal, galaxy, radius, survey, pixscale,
                         galaxy, time.asctime()), flush=True, file=log)
                 err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius=radius,
                                                          survey=survey, pixscale=pixscale,
-                                                         nproc=nproc, force=force, log=log, unwise_coadds=False,
-                                                         no_large_galaxies=False, no_gaia=False, no_tycho=False)
+                                                         nproc=nproc, force=force, log=log, unwise=False,
+                                                         no_large_galaxies=False, no_gaia=False,
+                                                         no_tycho=False, apodize=True)
                 if err == 0:
                     print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
                 print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
