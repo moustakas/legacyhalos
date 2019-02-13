@@ -301,11 +301,9 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     convert to surface brightness by dividing by the pixel area.
 
     """
-    #from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
 
     from astropy.stats import sigma_clipped_stats
-    #from astropy.stats import sigma_clip
     from legacyhalos.mge import find_galaxy
     from legacyhalos.misc import ellipse_mask
 
