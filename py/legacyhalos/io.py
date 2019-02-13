@@ -359,7 +359,8 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
 
     # Find the central galaxy in the reference band.
     image = fitsio.read(filt2imfile[refband][0])
-    mgegalaxy = find_galaxy(image, nblob=1, binning=3, quiet=True)
+    model = fitsio.read(filt2imfile[refband][1])
+    mgegalaxy = find_galaxy(image-model, nblob=1, binning=3, quiet=True)
 
     maskfile = os.path.join(galaxydir, '{}-custom-mask.fits.gz'.format(galaxy))
     if os.path.isfile(maskfile):
@@ -375,7 +376,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         model = fitsio.read(filt2imfile[filt][1])
 
         # Identify the pixels belonging to the object of interest.
-        majoraxis = 0.75*mgegalaxy.majoraxis * filt2pixscale[refband] / thispixscale # [pixels]
+        majoraxis = mgegalaxy.majoraxis * filt2pixscale[refband] / thispixscale # [pixels]
         
         H, W = image.shape
         xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
@@ -390,16 +391,16 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         #else:
         #    mask = np.zeros_like(image).astype(bool)
 
-        #mask = np.logical_or(custom_mask & 2**1 != 0, custom_mask & 2**3 != 0)
-        mask = custom_mask & 2**3 != 0
+        #mask = np.bitwise_or(custom_mask & 2**0, custom_mask & 2**1) > 0
+        mask = custom_mask & 2**0 != 0
 
         # Compute sigma-clipped statistics on the residual image, ignoring the
         # central object.
         #resid = image - model
         #sigma_clip(ma.masked_array(image - model, objmask), sigma=3)
         
-        #_, _, sig = sigma_clipped_stats(image - model, mask=objmask, sigma=5.0)
-        #mask = np.logical_or(mask, model > sig)
+        _, _, sig = sigma_clipped_stats(image - model, mask=objmask, sigma=3.0)
+        mask = np.logical_or(mask, model > 3*sig)
 
         ## Can give a divide-by-zero error for, e.g., GALEX imaging
         ##with np.errstate(divide='ignore', invalid='ignore'):
