@@ -171,8 +171,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     # Set the maximum semi-major axis length to 100 kpc or XX times the
     # semi-major axis estimated below (whichever is smaller).
     if maxsma is None:
-        maxsma_100kpc = 120 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
-        maxsma_major = 4 * ellipsefit['majoraxis']
+        maxsma_100kpc = 150 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
+        maxsma_major = 5 * ellipsefit['majoraxis']
         maxsma = np.min( (maxsma_100kpc, maxsma_major) )
 
     ellipsefit['integrmode'] = integrmode

@@ -301,6 +301,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     convert to surface brightness by dividing by the pixel area.
 
     """
+    from skimage.transform import resize
     from scipy.ndimage.filters import gaussian_filter
     from scipy.ndimage.morphology import binary_dilation
 
@@ -356,15 +357,9 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     if not found_data:
         return data
 
-    # Read the coadded (custom) mask.
-    maskfile = os.path.join(galaxydir, '{}-custom-mask.fits.gz'.format(galaxy))
-    if os.path.isfile(maskfile):
-        print('Reading {}'.format(maskfile))
-        custom_mask = fitsio.read(maskfile)
-    else:
-        custom_mask = np.zeros_like(image).astype(bool)
-
-    grzmask = []
+    # Treat the optical/grz special because we are most sensitive to residuals
+    # and poor model fits because of the higher spatial sampling/resolution.
+    grz_residual_mask = []
     for filt in ('g', 'r', 'z'):
         image = fitsio.read(filt2imfile[filt][0])
         allmodel = fitsio.read(filt2imfile[filt][2]) # read the all-model image
@@ -372,24 +367,38 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
         
-        grzmask.append(np.abs(resid) > 3*sig)
-        #grzmask.append(np.logical_or(resid > 3*sig, resid < 5*sig))
+        grz_residual_mask.append(np.abs(resid) > 3*sig)
+        #grz_residual_mask.append(np.logical_or(resid > 3*sig, resid < 5*sig))
         
-        # Create a mask of the central galaxy in the reference band.
+        # "Find" the galaxy in the reference band.
         if filt == refband:
+            grz_shape = image.shape
             model = fitsio.read(filt2imfile[filt][1]) # model excluding the central
 
             mgegalaxy = find_galaxy(image-model, nblob=1, binning=3, quiet=True)
             
             H, W = image.shape
             xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
-            majoraxis = 1.5 * mgegalaxy.majoraxis
-            objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
-                                   majoraxis*(1-mgegalaxy.eps),
-                                   np.radians(mgegalaxy.theta-90), xobj, yobj)
-            
-    grzmask = np.logical_or(custom_mask & 2**0 != 0, np.logical_or.reduce(np.array(grzmask)))
-    grzmask[objmask] = False 
+            majoraxis = 1.3*mgegalaxy.majoraxis
+            grz_objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
+                                       majoraxis*(1-mgegalaxy.eps),
+                                       np.radians(mgegalaxy.theta-90), xobj, yobj)
+
+            # Read the coadded (custom) mask and flag/mask pixels with bright stars etc.
+            maskfile = os.path.join(galaxydir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
+            if os.path.isfile(maskfile):
+                print('Reading {}'.format(maskfile))
+                grz_custom_mask = fitsio.read(maskfile)
+                grz_custom_mask =  grz_custom_mask & 2**0 != 0 # True=masked
+            else:
+                grz_custom_mask = np.zeros_like(image).astype(bool)
+
+    # Find the union of all residuals but restore pixels centered on the central
+    # object.
+    grz_residual_mask = np.logical_or.reduce(np.array(grz_residual_mask))
+    grz_residual_mask[grz_objmask] = False
+    
+    #grz_residual_mask = np.logical_or(grz_custom_mask, np.logical_or.reduce(np.array(grz_residual_mask)))
 
     # Now loop on each filter.
     for filt in band:
@@ -397,61 +406,52 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
 
         image = fitsio.read(filt2imfile[filt][0])
         model = fitsio.read(filt2imfile[filt][1])
-        #allmodel = fitsio.read(filt2imfile[filt][2])
-
-        if filt in 'grz':
-            mask = grzmask.copy()
-        else:
-            mask = np.zeros_like(image).astype(bool)
+        allmodel = fitsio.read(filt2imfile[filt][2])
 
         # Identify the pixels belonging to the object of interest.
-        #majoraxis = mgegalaxy.majoraxis * filt2pixscale[refband] / thispixscale # [pixels]
+        majoraxis = 0.3*mgegalaxy.majoraxis * filt2pixscale[refband] / thispixscale # [pixels]
         
-        #H, W = image.shape
-        #xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
-        #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
-        #                       majoraxis*(1-mgegalaxy.eps),
-        #                       np.radians(mgegalaxy.theta-90), xobj, yobj)
+        H, W = image.shape
+        xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
+        objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
+                               majoraxis*(1-mgegalaxy.eps),
+                               np.radians(mgegalaxy.theta-90), xobj, yobj)
 
         # Initialize the mask with the inverse variance map, if available.
         if len(filt2imfile[filt]) == 4:
             invvar = fitsio.read(filt2imfile[filt][3])
-            mask = np.logical_or(mask, (invvar <= 0)) # True-->bad, False-->good
+            mask = invvar <= 0 # True-->bad, False-->good
+        else:
+            mask = np.zeros_like(image).astype(bool)
 
-        # Add the bright-star mask (i.e., reference sources) masked in any band
-        # (see legacyhalos.coadds.custom_sky).
-        #mask = custom_mask & 2**0 != 0 # reference sources
-        #mask = np.bitwise_or(custom_mask & 2**0, custom_mask & 2**1) > 0
+        # Flag significant pixels (i.e., fitted objects) in the model image,
+        # except those that are very close to the center of the object---we just
+        # have to live with those.
+        _, _, sig = sigma_clipped_stats(image - allmodel, sigma=3.0)
+        residual_mask = model > 3*sig
+        residual_mask[objmask] = False
+        
+        mask = np.logical_or(mask, residual_mask)
 
-        # Compute sigma-clipped statistics on the residual image, ignoring the
-        # central object.
-        #_, _, sig = sigma_clipped_stats(image - allmodel, mask=objmask, sigma=3.0)
-        #mask = np.logical_or(mask, np.abs(image - model) > 3*sig)
-
-        ## Can give a divide-by-zero error for, e.g., GALEX imaging
-        ##with np.errstate(divide='ignore', invalid='ignore'):
-        #with warnings.catch_warnings():
-        #    warnings.simplefilter('ignore')
-        #    with np.errstate(all='ignore'):
-        #        model_clipped, _, _ = sigmaclip(model, low=4.0, high=4.0)
-
-        #print(filt, 1-len(model_clipped)/image.size)
-        #if filt == 'W1':
-        #    pdb.set_trace()
-            
-        #if len(model_clipped) > 0:
-        #    mask = np.logical_or( mask, model > 5 * np.std(model_clipped) )
-        #    #model_clipped = model
-
-        # Grow the mask slightly.
-        mask = binary_dilation(mask, iterations=1) # True-->bad
+        # Add the custom mask (based on masked bright stars) to the mask,
+        # resizing if necessary for this image/pixel scale.  For grz also add
+        # the residual mask.
+        if image.shape != grz_shape:
+            custom_mask = resize(grz_custom_mask, image.shape, mode='reflect')
+            mask = np.logical_or(mask, custom_mask)
+        else:
+            mask = np.logical_or(mask, grz_custom_mask)
+            mask = np.logical_or(mask, grz_residual_mask)
 
         # Finally restore the pixels of the central galaxy.
         #mask[objmask] = 0
 
+        # Grow the mask slightly.
+        mask = binary_dilation(mask, iterations=2)
+
+        # Finally, pack it in!
         data[filt] = (image - model) / thispixscale**2 # [nanomaggies/arcsec**2]
         
-        #data['{}_mask'.format(filt)] = mask # True->bad
         data['{}_masked'.format(filt)] = ma.masked_array(data[filt], mask)
         ma.set_fill_value(data['{}_masked'.format(filt)], 0)
 
