@@ -1317,9 +1317,9 @@ def _display_ccdmask_and_sky(ccdargs):
 
     # Read the custom mask and (constant) sky value.
     key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-    image, hdr = fitsio.read(os.path.join(galaxydir, '{}-ccddata.fits.fz'.format(galaxy)), header=True, ext=key)
+    image, hdr = fitsio.read(os.path.join(galaxydir, '{}-ccddata-grz.fits.fz'.format(galaxy)), header=True, ext=key)
     
-    newmask = fitsio.read(os.path.join(galaxydir, '{}-custom-ccdmask.fits.gz'.format(galaxy)), ext=key)
+    newmask = fitsio.read(os.path.join(galaxydir, '{}-custom-ccdmask-grz.fits.gz'.format(galaxy)), ext=key)
     newsky = np.zeros_like(image).astype('f4') + hdr['SKYMODE']
 
     # Rebuild the pipeline (spline) sky model (see legacypipe.image.LegacySurveyImage.read_sky_model)

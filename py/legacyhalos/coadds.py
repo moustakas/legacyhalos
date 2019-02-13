@@ -194,16 +194,17 @@ def _custom_sky(skyargs):
     from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
     from scipy.ndimage.filters import uniform_filter
+    from astropy.table import Table
 
     from tractor.splinesky import SplineSky
     from astrometry.util.miscutils import estimate_mode
     from astrometry.util.fits import fits_table
-    from astropy.table import Table
+    from astrometry.util.resample import resample_with_wcs
 
     from legacypipe.reference import get_reference_sources
     from legacypipe.oneblob import get_inblob_map
 
-    survey, brickname, onegal, radius_mask_arcsec, ccd = skyargs
+    survey, brickname, brickwcs, onegal, radius_mask_arcsec, apodize, ccd = skyargs
 
     im = survey.get_image_object(ccd)
     hdr = im.read_image_header()
@@ -216,8 +217,8 @@ def _custom_sky(skyargs):
 
     radius_mask = np.round(radius_mask_arcsec / im.pixscale).astype('int') # [pixels]
     
-    tim = im.get_tractor_image(splinesky=True, subsky=False,
-                               hybridPsf=True, normalizePsf=True)
+    tim = im.get_tractor_image(splinesky=True, subsky=False, hybridPsf=True,
+                               normalizePsf=True, apodize=apodize)
 
     targetwcs, bands = tim.subwcs, tim.band
     H, W = targetwcs.shape
@@ -239,25 +240,6 @@ def _custom_sky(skyargs):
         print('Multiple splinesky models!')
         return 0
     splineskytable = T[I]
-
-    #splineskytable = T[I].as_array() # convert to ndarray
-    #splineskytable = tim.getSky()
-
-    #pipesky = np.zeros_like(img)
-    #tim.getSky().addTo(pipesky)
-
-    ## Old method
-    #if False:
-    #    mp = multiproc()
-    #    
-    #    S = stage_srcs(pixscale=im.pixscale, targetwcs=targetwcs, W=W, H=H,
-    #                   bands=bands, tims=[tim], mp=mp, nsigma=5, survey=survey,
-    #                   brick=brickname, brickname=brickname, gaia_stars=False,
-    #                   star_clusters=False, large_galaxies=False)
-    #    
-    #    mask = S['blobs'] != -1 # 1 = bad
-    #    mask = np.logical_or( mask, ivar <= 0 )
-    #    mask = binary_dilation(mask, iterations=2)
 
     # Masked pixels in the inverse variance map.
     ivarmask = ivar <= 0
@@ -323,6 +305,15 @@ def _custom_sky(skyargs):
     mask[objmask]  += 2**1
     mask[galmask]  += 2**2
 
+    # Resample the mask onto the final mosaic image.
+    HH, WW = brickwcs.shape
+    comask = np.zeros((HH, WW), np.int16)
+    try:
+        Yo, Xo, Yi, Xi, _ = resample_with_wcs(brickwcs, targetwcs)
+        comask[Yo, Xo] = mask[Yi, Xi]
+    except:
+        pass
+
     # Add the sky values and also the central pixel coordinates of the object of
     # interest (so we won't need the WCS object downstream, in QA).
     for card, value in zip(('SKYMODE', 'SKYMED', 'SKYSIG'), (skymode, skymed, skysig)):
@@ -336,6 +327,7 @@ def _custom_sky(skyargs):
     out['{}-image'.format(key)] = img
     out['{}-splinesky'.format(key)] = splineskytable
     out['{}-header'.format(key)] = hdr
+    out['{}-comask'.format(key)] = comask
     #out['{}-skymode'.format(key)] = skymode
     #out['{}-skymed'.format(key)] = skymed
     #out['{}-skysig'.format(key)] = skysig
@@ -353,7 +345,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     """
     from astrometry.util.fits import fits_table, merge_tables
-    from astrometry.util.resample import resample_with_wcs, OverlapError
     from astrometry.libkd.spherematch import match_radec
     from tractor.sky import ConstantSky
     
@@ -415,45 +406,37 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         P = call_stage_tims()
 
-    tims = P['tims']
+    tims, brickwcs = P['tims'], P['targetwcs']
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
-    skyargs = [(survey, brickname, onegal, radius_mask, _ccd) for _ccd in survey.ccds]
+    skyargs = [(survey, brickname, brickwcs, onegal, radius_mask, apodize, _ccd)
+               for _ccd in survey.ccds]
     result = mp.map(_custom_sky, skyargs)
     #result = list( zip( *mp.map(_custom_sky, args) ) )
     sky = dict()
     [sky.update(res) for res in result]
     del result
 
-    H, W = P['targetwcs'].shape
-
     if write_ccddata:
-        _comask = np.zeros((len(tims), H, W), np.int16)
-        for ii, ccd in enumerate(survey.ccds):
-            im = survey.get_image_object(ccd)
-            key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-            mask = sky['{}-mask'.format(key)]#.astype('uint8')
-            try:
-                Yo, Xo, Yi, Xi, _ = resample_with_wcs(P['targetwcs'], im.get_wcs())
-                _comask[ii, Yo, Xo] = mask[Yi, Xi]
-            except:
-                continue
+        # Write out the "coadd" mask.
+        cokeys = [key for key in sky.keys() if 'comask' in key]
+        _comask = np.array([sky[cokey] for cokey in cokeys])
 
         comask = np.bitwise_or.reduce(_comask, axis=0)
         hdr = fitsio.FITSHDR()
-        P['targetwcs'].add_to_header(hdr)
+        brickwcs.add_to_header(hdr)
         hdr.delete('IMAGEW')
         hdr.delete('IMAGEH')
 
-        maskfile = os.path.join(survey.output_dir, '{}-custom-mask.fits.gz'.format(galaxy))
+        maskfile = os.path.join(survey.output_dir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
         print('Writing {}'.format(maskfile))
         fitsio.write(maskfile, comask, header=hdr, clobber=True)
 
         # Write out separate CCD-level files with the images/data, individual masks
         # (converted to unsigned integer), and the pipeline/splinesky binary FITS
         # tables.
-        ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask.fits.gz'.format(galaxy))
+        ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask-grz.fits.gz'.format(galaxy))
         print('Writing {}'.format(ccdfile))
         if os.path.isfile(ccdfile):
             os.remove(ccdfile)
@@ -462,9 +445,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                 im = survey.get_image_object(ccd)
                 key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
                 hdr = sky['{}-header'.format(key)]
-                ff.write(sky['{}-mask'.format(key)].astype('uint8'), extname=key, header=hdr)
+                ff.write(sky['{}-mask'.format(key)], extname=key, header=hdr)
 
-        ccdfile = os.path.join(survey.output_dir, '{}-ccddata.fits.fz'.format(galaxy))
+        ccdfile = os.path.join(survey.output_dir, '{}-ccddata-grz.fits.fz'.format(galaxy))
         print('Writing {}'.format(ccdfile))
         if os.path.isfile(ccdfile):
             os.remove(ccdfile)
@@ -537,10 +520,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # [5] Build the custom coadds, with and without the surrounding galaxies.
     print('Producing coadds...', flush=True, file=log)
     def call_make_coadds(usemods):
-        return make_coadds(newtims, P['bands'], P['targetwcs'], mods=usemods, mp=mp,
+        return make_coadds(newtims, P['bands'], brickwcs, mods=usemods, mp=mp,
                            callback=write_coadd_images,
                            callback_args=(survey, brickname, P['version_header'], 
-                                          newtims, P['targetwcs']))
+                                          newtims, brickwcs))
 
     # Custom coadds (all galaxies).
     if log:

@@ -328,7 +328,7 @@ def main():
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.html:
             radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
-            
+
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)
             survey.output_dir = galaxydir
