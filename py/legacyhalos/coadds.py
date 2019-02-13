@@ -54,7 +54,9 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} '
     #cmd += '--stage image_coadds --early-coadds '
-    cmd += '--write-stage tims --write-stage srcs --skip-calibs --no-wise-ceres '
+    #cmd += '--write-stage tims '
+    cmd += '--write-stage srcs '
+    cmd += '--skip-calibs --no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
     if unwise:
@@ -312,15 +314,14 @@ def _custom_sky(skyargs):
 
     # Build the final bit-mask image.
     #   0    = 
-    #   2**0 = ivarmask - CP-masked pixels
-    #   2**1 = refmask  - reference stars and galaxies
+    #   2**0 = refmask  - reference stars and galaxies
+    #   2**1 = objmask  - threshold-detected objects
     #   2**2 = galmask  - central galaxy & system
-    #   2**3 = objmask  - threshold detected objects
     mask = np.zeros_like(img).astype(np.int16)
-    mask[ivarmask] += 2**0
-    mask[refmask]  += 2**1
+    #mask[ivarmask] += 2**0
+    mask[refmask]  += 2**0
+    mask[objmask]  += 2**1
     mask[galmask]  += 2**2
-    mask[objmask]  += 2**3
 
     # Add the sky values and also the central pixel coordinates of the object of
     # interest (so we won't need the WCS object downstream, in QA).
@@ -439,7 +440,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             except:
                 continue
 
-        comask = np.sum(_comask, axis=0)
+        comask = np.bitwise_or.reduce(_comask, axis=0)
         hdr = fitsio.FITSHDR()
         P['targetwcs'].add_to_header(hdr)
         hdr.delete('IMAGEW')
@@ -506,7 +507,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     # Find and remove all the objects within XX arcsec of the target
     # coordinates.
-    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'], radius_mask/3600.0, nearest=False)
+    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+                              radius_search/3600.0, nearest=False)
     if len(d12) == 0:
         print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
         #raise ValueError
