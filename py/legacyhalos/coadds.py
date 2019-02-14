@@ -340,11 +340,14 @@ def _custom_sky(skyargs):
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,
                   apodize=False, plots=False, verbose=False, cleanup=True,
-                  write_ccddata=True, sky_annulus=True):
+                  write_ccddata=True, sky_annulus=True, centrals=True):
     """Build a custom set of coadds for a single galaxy, with a custom mask and sky
     model.
 
     radius_mosaic and radius_mask in arcsec
+
+    centrals - if this is the centrals project (legacyhalos or HSC) then deal
+      with the central with dedicated code.
 
     """
     from astrometry.util.fits import fits_table, merge_tables
@@ -492,10 +495,28 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cat = fits_table(tractorfile)
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
+    # Custom code for dealing with centrals.
+    if centrals:
+        from tractor import ConstantFitsWcs
+        from legacyhalos.misc import ellipse_mask, srcs2image
+        
+        # [1] Build a model image with all the sources whose centroids are
+        # within the inner 10% of the mosaic.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+                                  0.25*radius_mosaic/3600.0, nearest=False)
+        srcs = read_fits_catalog(cat[m1], fluxPrefix='')
+        pdb.set_trace()
+
+        mod = srcs2image(srcs, ConstantFitsWcs(brickwcs).wcs, psf_sigma=1.0)
+    
     # Find and remove all the objects within XX arcsec of the target
     # coordinates.
     m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
                               radius_search/3600.0, nearest=False)
+
+    from legacyhalos.mge import find_galaxy
+    from legacyhalos.misc import ellipse_mask
+    
     if len(d12) == 0:
         print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
         #raise ValueError
@@ -506,7 +527,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     #print('Removing central galaxy with index = {}, objid = {}'.format(
     #    m1, cat[m1].objid), flush=True, file=log)
 
-    print('Creating tractor sources...', flush=True, file=log)
+    #print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')
     srcs_nocentral = np.array(srcs)[keep].tolist()
     

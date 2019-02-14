@@ -22,8 +22,12 @@ def srcs2image(srcs, wcs, psf_sigma=1.0):
     from tractor.basics import LinearPhotoCal
     from tractor import GaussianMixturePSF
 
-    model = np.zeros(wcs.wcs.shape)
-    invvar = np.ones(wcs.wcs.shape)
+    try:
+        shape = wcs.wcs.shape
+    except:
+        shape = wcs.shape
+    model = np.zeros(shape)
+    invvar = np.ones(shape)
     
     vv = psf_sigma**2
     psf = GaussianMixturePSF(1.0, 0., 0., vv, vv, 0.0)
