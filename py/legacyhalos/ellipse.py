@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 
 import legacyhalos.io
 import legacyhalos.misc
+import legacyhalos.hsc
 
 def ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor, warnvalue='ignore'):
     """Perform elliptical aperture photometry for the curve-of-growth analysis.
@@ -144,8 +145,11 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
     for filt in band: # [Gaussian sigma]
-        ellipsefit['psfsigma_{}'.format(filt)] = ( sample['PSFSIZE_{}'.format(filt.upper())] /
-                                                   np.sqrt(8 * np.log(2)) ) # [arcsec]
+        if 'PSFSIZE_{}'.format(filt.upper()) in sample.colnames:
+            psfsize = sample['PSFSIZE_{}'.format(filt.upper())]
+        else:
+            psfsize = 1.1 # [FWHM, arcsec]
+        ellipsefit['psfsigma_{}'.format(filt)] = psfsize / np.sqrt(8 * np.log(2)) # [arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
 
     # Create a pixel scale mapping to accommodate GALEX and unWISE imaging.
@@ -167,8 +171,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     # Set the maximum semi-major axis length to 100 kpc or XX times the
     # semi-major axis estimated below (whichever is smaller).
     if maxsma is None:
-        maxsma_100kpc = 120 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
-        maxsma_major = 4 * ellipsefit['majoraxis']
+        maxsma_100kpc = 150 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
+        maxsma_major = 5 * ellipsefit['majoraxis']
         maxsma = np.min( (maxsma_100kpc, maxsma_major) )
 
     ellipsefit['integrmode'] = integrmode
@@ -448,14 +452,18 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         refband='r', band=('g', 'r', 'z'), maxsma=None,
                         integrmode='median', nclip=2, sclip=3,
                         galex_pixscale=1.5, unwise_pixscale=2.75,
-                        noellipsefit=False, verbose=False, debug=False):
+                        noellipsefit=False, verbose=False, debug=False,
+                        hsc=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
     noellipsefit - do not fit for the ellipse parameters (use the mean values from MGE). 
 
     """
     if galaxydir is None or galaxy is None:
-        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
+        if hsc:
+            galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(onegal)
+        else:
+            galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
 
     # Read the data.
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, band=band,
