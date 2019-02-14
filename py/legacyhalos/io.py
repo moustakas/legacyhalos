@@ -357,7 +357,6 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
     if os.path.isfile(tractorfile):
         cat = fits_table(tractorfile)
-        srcs = read_fits_catalog(cat, fluxPrefix='')
         #cat = Table(fitsio.read(tractorfile, upper=True))
         print('Read {} sources from {}'.format(len(cat), tractorfile))
     else:
@@ -375,6 +374,8 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         image = fitsio.read(filt2imfile[filt][0])
         allmodel = fitsio.read(filt2imfile[filt][2]) # read the all-model image
 
+        H, W = image.shape
+        
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
         
@@ -395,8 +396,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
             H, W = image.shape
             xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
             majoraxis = 1.3*mgegalaxy.majoraxis
-            grz_objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
-                                       majoraxis*(1-mgegalaxy.eps),
+            grz_objmask = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
                                        np.radians(mgegalaxy.theta-90), xobj, yobj)
 
             # Read the coadded (custom) mask and flag/mask pixels with bright stars etc.
@@ -428,8 +428,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         
         H, W = image.shape
         xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
-        objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
-                               majoraxis*(1-mgegalaxy.eps),
+        objmask = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
                                np.radians(mgegalaxy.theta-90), xobj, yobj)
 
         # Initialize the mask with the inverse variance map, if available.
@@ -461,15 +460,16 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         # Finally restore the pixels of the central galaxy.
         #mask[objmask] = 0
 
+        majoraxis = mgegalaxy.majoraxis * filt2pixscale[refband] / thispixscale # [pixels]
+        these = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
+                             np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
+        srcs = read_fits_catalog(cat[these], fluxPrefix='')
+
         test = srcs2image(srcs, wcs, psf_sigma=1.0)
         import matplotlib.pyplot as plt
         plt.imshow(np.log10(test), origin='lower') ; plt.savefig('junk2.png')
         
         pdb.set_trace()
-
-        these = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
-                             majoraxis*(1-mgegalaxy.eps),
-                             np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
 
         # Grow the mask slightly.
         mask = binary_dilation(mask, iterations=2)
