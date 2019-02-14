@@ -353,6 +353,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     from astrometry.util.fits import fits_table, merge_tables
     from astrometry.libkd.spherematch import match_radec
     from tractor.sky import ConstantSky
+    from tractor import ConstantFitsWcs
     
     from legacypipe.runbrick import stage_tims
     from legacypipe.catalog import read_fits_catalog
@@ -360,6 +361,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.survey import get_rgb, imsave_jpeg
             
+    from legacyhalos.mge import find_galaxy
+        
     if survey is None:
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
@@ -497,35 +500,43 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     # Custom code for dealing with centrals.
     if centrals:
-        from tractor import ConstantFitsWcs
-        from legacyhalos.misc import ellipse_mask, srcs2image
-        
-        # [1] Build a model image with all the sources whose centroids are
-        # within the inner 10% of the mosaic.
+        # Build a model image with all the sources whose centroids are within
+        # the inner XX% of the mosaic and then "find" the central galaxy.
         m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
                                   0.25*radius_mosaic/3600.0, nearest=False)
         srcs = read_fits_catalog(cat[m1], fluxPrefix='')
-        pdb.set_trace()
+        mod = legacyhalos.misc.srcs2image(srcs, ConstantFitsWcs(brickwcs), psf_sigma=1.0)
 
-        mod = srcs2image(srcs, ConstantFitsWcs(brickwcs).wcs, psf_sigma=1.0)
-    
-    # Find and remove all the objects within XX arcsec of the target
-    # coordinates.
-    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                              radius_search/3600.0, nearest=False)
+        mgegalaxy = find_galaxy(mod, nblob=1, binning=3, quiet=True)
 
-    from legacyhalos.mge import find_galaxy
-    from legacyhalos.misc import ellipse_mask
-    
-    if len(d12) == 0:
-        print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
-        #raise ValueError
-        keep = np.ones(len(cat)).astype(bool)
+        # Now use the ellipse parameters to get a better list of the model
+        # sources in and around the central, especially the large ones.
+        these = legacyhalos.misc.ellipse_mask(width/2, width/2, mgegalaxy.majoraxis,
+                                              mgegalaxy.majoraxis*(1-mgegalaxy.eps),
+                                              np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
+        these *= (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) > 3
+
+        if np.sum(these) > 0:
+            keep = np.ones(len(cat)).astype(bool)
+            keep[these] = False
+        else:
+            m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+                                      radius_search/3600.0, nearest=False)
+            if len(d12) == 0:
+                keep = np.ones(len(cat)).astype(bool)
+            else:
+                keep = ~np.isin(cat.objid, cat[m1].objid)
     else:
-        keep = ~np.isin(cat.objid, cat[m1].objid)        
-
-    #print('Removing central galaxy with index = {}, objid = {}'.format(
-    #    m1, cat[m1].objid), flush=True, file=log)
+        # Find and remove all the objects within XX arcsec of the target
+        # coordinates.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+                                  radius_search/3600.0, nearest=False)
+        if len(d12) == 0:
+            print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
+            #raise ValueError
+            keep = np.ones(len(cat)).astype(bool)
+        else:
+            keep = ~np.isin(cat.objid, cat[m1].objid)        
 
     #print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')
