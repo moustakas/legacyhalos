@@ -204,7 +204,7 @@ def _custom_sky(skyargs):
     from legacypipe.reference import get_reference_sources
     from legacypipe.oneblob import get_inblob_map
 
-    survey, brickname, brickwcs, onegal, radius_mask_arcsec, apodize, ccd = skyargs
+    survey, brickname, brickwcs, onegal, radius_mask_arcsec, apodize, sky_annulus, ccd = skyargs
 
     im = survey.get_image_object(ccd)
     hdr = im.read_image_header()
@@ -257,10 +257,13 @@ def _custom_sky(skyargs):
     ymask, xmask = np.ogrid[-ycen:H-ycen, -xcen:W-xcen]
     galmask = (xmask**2 + ymask**2) <= radius_mask**2
 
-    # Define an annulus of sky pixels centered on the object of interest.
-    inmask = (xmask**2 + ymask**2) <= 2*radius_mask**2
-    outmask = (xmask**2 + ymask**2) <= 5*radius_mask**2
-    skymask = (outmask*1 - inmask*1 - galmask*1) == 1
+    # Optionally define an annulus of sky pixels centered on the object of interest.
+    if sky_annulus:
+        inmask = (xmask**2 + ymask**2) <= 2*radius_mask**2
+        outmask = (xmask**2 + ymask**2) <= 5*radius_mask**2
+        skymask = (outmask*1 - inmask*1 - galmask*1) == 1
+    else:
+        skymask = np.ones_like(img).astype(bool)
 
     # Get an initial guess of the sky using the mode, otherwise the median.
     skypix = (ivarmask*1 + refmask*1 + galmask*1) == 0
@@ -337,7 +340,7 @@ def _custom_sky(skyargs):
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,
                   apodize=False, plots=False, verbose=False, cleanup=True,
-                  write_ccddata=True):
+                  write_ccddata=True, sky_annulus=True):
     """Build a custom set of coadds for a single galaxy, with a custom mask and sky
     model.
 
@@ -406,11 +409,12 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         P = call_stage_tims()
 
-    tims, brickwcs = P['tims'], P['targetwcs']
+    tims, brickwcs, bands, version_header = P['tims'], P['targetwcs'], P['bands'], P['version_header']
+    del P
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
-    skyargs = [(survey, brickname, brickwcs, onegal, radius_mask, apodize, _ccd)
+    skyargs = [(survey, brickname, brickwcs, onegal, radius_mask, apodize, sky_annulus, _ccd)
                for _ccd in survey.ccds]
     result = mp.map(_custom_sky, skyargs)
     #result = list( zip( *mp.map(_custom_sky, args) ) )
@@ -433,6 +437,15 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         print('Writing {}'.format(maskfile))
         fitsio.write(maskfile, comask, header=hdr, clobber=True)
 
+        skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
+        print('Writing {}'.format(skyfile))
+        if os.path.isfile(skyfile):
+            os.remove(skyfile)
+        for ii, ccd in enumerate(survey.ccds):
+            im = survey.get_image_object(ccd)
+            key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+            sky['{}-splinesky'.format(key)].write_to(skyfile, append=ii>0, extname=key)
+        
         # Write out separate CCD-level files with the images/data, individual masks
         # (converted to unsigned integer), and the pipeline/splinesky binary FITS
         # tables.
@@ -458,15 +471,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                 hdr = sky['{}-header'.format(key)]
                 ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
 
-        skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
-        print('Writing {}'.format(skyfile))
-        if os.path.isfile(skyfile):
-            os.remove(skyfile)
-        for ii, ccd in enumerate(survey.ccds):
-            im = survey.get_image_object(ccd)
-            key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-            sky['{}-splinesky'.format(key)].write_to(skyfile, append=ii>0, extname=key)
-        
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
     for tim in tims:
@@ -476,7 +480,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         tim.setImage(image - newsky)
         tim.sky = ConstantSky(0)
         newtims.append(tim)
-    del sky
+    del sky, tims
 
     # [4] Read the Tractor catalog and render the model image of each CCD, with
     # and without the central large galaxy.
@@ -520,9 +524,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # [5] Build the custom coadds, with and without the surrounding galaxies.
     print('Producing coadds...', flush=True, file=log)
     def call_make_coadds(usemods):
-        return make_coadds(newtims, P['bands'], brickwcs, mods=usemods, mp=mp,
+        return make_coadds(newtims, bands, brickwcs, mods=usemods, mp=mp,
                            callback=write_coadd_images,
-                           callback_args=(survey, brickname, P['version_header'], 
+                           callback_args=(survey, brickname, version_header, 
                                           newtims, brickwcs))
 
     # Custom coadds (all galaxies).
@@ -533,7 +537,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         C = call_make_coadds(mods)
 
     for suffix in ('image', 'model'):
-        for band in P['bands']:
+        for band in bands:
             ok = _copyfile(
                 os.path.join(survey.output_dir, 'coadd', brickname[:3], 
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
@@ -553,7 +557,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # Move (rename) the coadds into the desired output directory - no central.
     for suffix in np.atleast_1d('model'):
     #for suffix in ('image', 'model'):
-        for band in P['bands']:
+        for band in bands:
             ok = _copyfile(
                 os.path.join(survey.output_dir, 'coadd', brickname[:3], 
                                    brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
@@ -581,7 +585,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                           ('custom-resid', C.coresids, rgbkwargs_resid)]
 
         for suffix, ims, rgbkw in coadd_list:
-            rgb = get_rgb(ims, P['bands'], **rgbkw)
+            rgb = get_rgb(ims, bands, **rgbkw)
             kwa = {}
             outfn = os.path.join(survey.output_dir, '{}-{}-grz.jpg'.format(galaxy, suffix))
             print('Writing {}'.format(outfn), flush=True, file=log)
