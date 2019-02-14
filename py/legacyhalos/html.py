@@ -11,6 +11,7 @@ import astropy.table
 
 import legacyhalos.io
 import legacyhalos.misc
+import legacyhalos.hsc
 
 from legacyhalos.misc import plot_style
 sns = plot_style()
@@ -201,7 +202,8 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
 
 def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
                band=('g', 'r', 'z'), pixscale=0.262, survey=None, nproc=1,
-               maketrends=False, ccdqa=False, clobber=False, verbose=True):
+               maketrends=False, ccdqa=False, clobber=False, verbose=True,
+               hsc=False):
     """Make QA plots.
 
     """
@@ -225,7 +227,10 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
     for ii, onegal in enumerate(sample):
 
         if galaxylist is None:
-            galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
+            if hsc:
+                galaxy, galaxydir, htmlgalaxydir = legacyhalos.hsc.get_galaxy_galaxydir(onegal, html=True)
+            else:
+                galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
         else:
             galaxy = galaxylist[ii]
             galaxydir = os.path.join(datadir, galaxy)
@@ -332,7 +337,10 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         return viewer
 
     def _skyserver_link(gal):
-        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
+        if 'SDSS_OBJID' in gal.colnames:
+            return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
+        else:
+            return ''
 
     trendshtml = 'trends.html'
     homehtml = 'index.html'
@@ -358,7 +366,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         html.write('<table>\n')
         html.write('<tr>\n')
         html.write('<th>Number</th>\n')
-        html.write('<th>redMaPPer ID</th>\n')
+        html.write('<th>Galaxy</th>\n')
         html.write('<th>RA</th>\n')
         html.write('<th>Dec</th>\n')
         html.write('<th>Redshift</th>\n')
@@ -452,7 +460,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<table>\n')
             html.write('<tr>\n')
             html.write('<th>Number</th>\n')
-            html.write('<th>redMaPPer ID</th>\n')
+            html.write('<th>Galaxy</th>\n')
             html.write('<th>RA</th>\n')
             html.write('<th>Dec</th>\n')
             html.write('<th>Redshift</th>\n')
