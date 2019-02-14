@@ -304,10 +304,19 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     from skimage.transform import resize
     from scipy.ndimage.filters import gaussian_filter
     from scipy.ndimage.morphology import binary_dilation
-
     from astropy.stats import sigma_clipped_stats
+
+    #import astropy.time
+    #from tractor.tractortime import TAITime
+
+    from astrometry.util.util import Tan
+    from astrometry.util.fits import fits_table
+    from legacypipe.catalog import read_fits_catalog
+    from legacypipe.survey import LegacySurveyWcs
+    from tractor import ConstantFitsWcs
+    
     from legacyhalos.mge import find_galaxy
-    from legacyhalos.misc import ellipse_mask
+    from legacyhalos.misc import ellipse_mask, srcs2image
 
     # Dictionary mapping between filter and filename coded up in coadds.py,
     # galex.py, and unwise.py (see the LSLGA product, too).
@@ -345,13 +354,15 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    #tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
-    #if os.path.isfile(tractorfile):
-    #    cat = Table(fitsio.read(tractorfile, upper=True))
-    #    print('Read {} sources from {}'.format(len(cat), tractorfile))
-    #else:
-    #    print('Missing Tractor catalog {}'.format(tractorfile))
-    #    found_data = False
+    tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    if os.path.isfile(tractorfile):
+        cat = fits_table(tractorfile)
+        srcs = read_fits_catalog(cat, fluxPrefix='')
+        #cat = Table(fitsio.read(tractorfile, upper=True))
+        print('Read {} sources from {}'.format(len(cat), tractorfile))
+    else:
+        print('Missing Tractor catalog {}'.format(tractorfile))
+        found_data = False
 
     data = dict()
     if not found_data:
@@ -372,6 +383,10 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         
         # "Find" the galaxy in the reference band.
         if filt == refband:
+            #mjd_tai = astropy.time.Time(self.mjdobs, format='mjd', scale='utc').tai.mjd
+            #tai = TAITime(None, mjd=mjd_tai)
+            wcs = ConstantFitsWcs(Tan(filt2imfile[filt][0], 1))
+            
             grz_shape = image.shape
             model = fitsio.read(filt2imfile[filt][1]) # model excluding the central
 
@@ -445,6 +460,16 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
 
         # Finally restore the pixels of the central galaxy.
         #mask[objmask] = 0
+
+        test = srcs2image(srcs, wcs, psf_sigma=1.0)
+        import matplotlib.pyplot as plt
+        plt.imshow(np.log10(test), origin='lower') ; plt.savefig('junk2.png')
+        
+        pdb.set_trace()
+
+        these = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
+                             majoraxis*(1-mgegalaxy.eps),
+                             np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
 
         # Grow the mask slightly.
         mask = binary_dilation(mask, iterations=2)
