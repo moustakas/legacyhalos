@@ -307,7 +307,7 @@ def main():
     print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
-        if (count % 10) == 0:
+        if (count+1) % 10 == 0:
             print('Rank {}: Building {} {} / {}'.format(
                 rank, suffix.upper(), count+1, len(groups[rank])), flush=True)
 
