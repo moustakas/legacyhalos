@@ -65,13 +65,13 @@ source $IMPY_DIR/bin/legacyhalos-env-nersc
 
 # pipeline coadds
 #time srun -N 1 -n 4 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --coadds --nproc 8 --mpi
-#time srun -N 1 -n 2 -c 16 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 49 --coadds --nproc 16 --mpi
 
 # custom coadds
-#time srun -N 6 -n 18 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --custom-coadds --nproc 8 --mpi --clobber
+# time srun -N 4 -n 12 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --custom-coadds --nproc 8 --mpi --clobber
 
 # ellipse
-#time srun -N 1 -n 21 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --ellipse --mpi
+#time srun -N 2 -n 48 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --ellipse --mpi --clobber
 
 # html
-time srun -N 1 -n 2 -c 12 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --last 99 --html --nproc 12 --mpi --clobber
+time srun -N 1 -n 2 -c 6 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --htmlplots --nproc 6 --mpi --clobber
+#time $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --htmlplots --nproc 6 --clobber

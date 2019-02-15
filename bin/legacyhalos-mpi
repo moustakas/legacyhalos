@@ -95,7 +95,7 @@ def _missing_files(args, sample, size, htmldir=None):
         suffix = 'sky'
         groups = missing_files(sample, filetype=suffix, size=size, hsc=args.hsc,
                                clobber=args.clobber, htmldir=htmldir)
-    elif args.html:
+    elif args.htmlplots:
         suffix = 'html'
         groups = missing_files(sample, filetype=suffix, size=size, hsc=args.hsc,
                                clobber=args.clobber, htmldir=htmldir)
@@ -178,21 +178,28 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
             if err == 0:
                 print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
 
-def _call_html(onegal, galaxy, survey, pixscale, nproc,
-               debug, clobber, verbose, logfile, hsc,
-               htmldir):
+def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
+                    verbose, logfile, hsc, htmldir):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
     if debug:
         if hsc:
-            err = legacyhalos.hsc.make_html(onegal, survey=survey, pixscale=pixscale,
-                                            nproc=nproc, clobber=clobber, makeplots=True,
-                                            verbose=verbose, ccdqa=True, htmldir=htmldir)
+            err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+                                              pixscale=pixscale, survey=survey, clobber=clobber,
+                                              verbose=verbose, nproc=nproc,
+                                              ccdqa=True, maketrends=False, hsc=True)
+            #err = legacyhalos.hsc.make_html(onegal, survey=survey, pixscale=pixscale,
+            #                                nproc=nproc, clobber=clobber, makeplots=True,
+            #                                verbose=verbose, ccdqa=True, htmldir=htmldir)
         else:
-            err = legacyhalos.html.make_html(onegal, survey=survey, pixscale=pixscale,
-                                             nproc=nproc, clobber=clobber, makeplots=True,
-                                             verbose=verbose, ccdqa=True, htmldir=htmldir)
+            #err = legacyhalos.html.make_html(onegal, survey=survey, pixscale=pixscale,
+            #                                 nproc=nproc, clobber=clobber, makeplots=True,
+            #                                 verbose=verbose, ccdqa=True, htmldir=htmldir)
+            err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+                                              pixscale=pixscale, survey=survey, clobber=clobber,
+                                              verbose=verbose, nproc=nproc,
+                                              ccdqa=True, maketrends=False)
             
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
@@ -204,13 +211,15 @@ def _call_html(onegal, galaxy, survey, pixscale, nproc,
                 print('Started working on galaxy {} at {}'.format(
                   galaxy, time.asctime()), flush=True, file=log)
                 if hsc:
-                    err = legacyhalos.hsc.make_html(onegal, survey=survey, pixscale=pixscale,
-                                                    nproc=nproc, clobber=clobber, makeplots=True,
-                                                    verbose=verbose, ccdqa=True, htmldir=htmldir)
+                    err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+                                                      pixscale=pixscale, survey=survey, clobber=clobber,
+                                                      verbose=verbose, nproc=nproc,
+                                                      ccdqa=True, maketrends=False, hsc=True)
                 else:
-                    err = legacyhalos.html.make_html(onegal, survey=survey, pixscale=pixscale,
-                                                     nproc=nproc, clobber=clobber, makeplots=True,
-                                                     verbose=verbose, ccdqa=True, htmldir=htmldir)
+                    err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+                                                      pixscale=pixscale, survey=survey, clobber=clobber,
+                                                      verbose=verbose, nproc=nproc,
+                                                      ccdqa=True, maketrends=False)
                 if err == 0:
                     print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
                 print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
@@ -235,7 +244,8 @@ def main():
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
     parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
     parser.add_argument('--sky', action='store_true', help='Estimate the sky variance.')
-    parser.add_argument('--html', action='store_true', help='Build HTML output.')
+    parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
+    parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
 
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
@@ -267,6 +277,18 @@ def main():
 
     if comm:
         sample = comm.bcast(sample, root=0)
+
+    if args.htmlindex:
+        if rank == 0:
+            if args.hsc:
+                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale,
+                                          nproc=args.nproc, clobber=args.clobber, makeplots=False,
+                                          verbose=args.verbose, htmldir=args.htmldir)
+            else:
+                legacyhalos.html.make_html(sample, survey=None, pixscale=args.pixscale,
+                                           nproc=args.nproc, clobber=args.clobber, makeplots=False,
+                                           verbose=args.verbose, htmldir=args.htmldir)
+        return
 
     # Determine how many more objects we need to analyze and divide them
     # across ranks.
@@ -326,7 +348,7 @@ def main():
             print('Logging to {} '.format(logfile), flush=True)
 
         # Need the cluster "radius" to build the coadds.
-        if args.coadds or args.custom_coadds or args.html:
+        if args.coadds or args.custom_coadds or args.htmlplots:
             radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
 
             survey = LegacySurveyData()
@@ -337,7 +359,7 @@ def main():
             _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
                                   args.nproc, args.force, args.debug, logfile)
                     
-        if args.custom_coadds or args.html:
+        if args.custom_coadds or args.htmlplots:
             ccdsfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy))
             if not os.path.isfile(ccdsfile):
                 if args.debug:
@@ -409,20 +431,20 @@ def main():
                 if err == 0:
                     print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
 
-        if args.html and not args.nomakeplots:
-            _call_html(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
-                       args.debug, args.clobber, args.verbose, logfile, args.hsc,
-                       args.htmldir)
+        if args.htmlplots:
+            _call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
+                            args.debug, args.clobber, args.verbose, logfile, args.hsc,
+                            args.htmldir)
 
-    if args.html and rank == 0:
-        if args.hsc:
-            legacyhalos.hsc.make_html(sample, survey=survey, pixscale=args.pixscale,
-                                      nproc=args.nproc, clobber=args.clobber, makeplots=False,
-                                      verbose=args.verbose, htmldir=args.htmldir)
-        else:
-            legacyhalos.html.make_html(sample, survey=survey, pixscale=args.pixscale,
-                                       nproc=args.nproc, clobber=args.clobber, makeplots=False,
-                                       verbose=args.verbose, htmldir=args.htmldir)
+    #if args.html and rank == 0:
+    #    if args.hsc:
+    #        legacyhalos.hsc.make_html(sample, survey=survey, pixscale=args.pixscale,
+    #                                  nproc=args.nproc, clobber=args.clobber, makeplots=False,
+    #                                  verbose=args.verbose, htmldir=args.htmldir)
+    #    else:
+    #        legacyhalos.html.make_html(sample, survey=survey, pixscale=args.pixscale,
+    #                                   nproc=args.nproc, clobber=args.clobber, makeplots=False,
+    #                                   verbose=args.verbose, htmldir=args.htmldir)
 
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(

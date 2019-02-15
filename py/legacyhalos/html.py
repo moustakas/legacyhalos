@@ -350,6 +350,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         os.makedirs(htmldir)
     homehtmlfile = os.path.join(htmldir, homehtml)
 
+    if verbose:
+        print('Writing {}'.format(homehtmlfile))
     with open(homehtmlfile, 'w') as html:
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')
@@ -401,6 +403,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Build the trends (trends.html) page--
     if maketrends:
         trendshtmlfile = os.path.join(htmldir, trendshtml)
+        if verbose:
+            print('Writing {}'.format(trendshtmlfile))
         with open(trendshtmlfile, 'w') as html:
             html.write('<html><body>\n')
             html.write('<style type="text/css">\n')
@@ -576,20 +580,23 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
                          band=band, pixscale=pixscale, survey=survey, clobber=clobber,
                          verbose=verbose, nproc=nproc, ccdqa=ccdqa, maketrends=maketrends)
 
-    cmd = '/usr/bin/chgrp -R cosmo {}'.format(htmldir)
-    print(cmd)
-    err1 = subprocess.call(cmd.split())
+    try:
+        cmd = '/usr/bin/chgrp -R cosmo {}'.format(htmldir)
+        print(cmd)
+        err1 = subprocess.call(cmd.split())
 
-    cmd = 'find {} -type d -exec chmod 775 {{}} +'.format(htmldir)
-    print(cmd)
-    err2 = subprocess.call(cmd.split())
+        cmd = 'find {} -type d -exec chmod 775 {{}} +'.format(htmldir)
+        print(cmd)
+        err2 = subprocess.call(cmd.split())
 
-    cmd = 'find {} -type f -exec chmod 664 {{}} +'.format(htmldir)
-    print(cmd)
-    err3 = subprocess.call(cmd.split())
+        cmd = 'find {} -type f -exec chmod 664 {{}} +'.format(htmldir)
+        print(cmd)
+        err3 = subprocess.call(cmd.split())
+    except:
+        pass
 
-    if err1 != 0 or err2 != 0 or err3 != 0:
-        print('Something went wrong updating permissions; please check the logfile.')
-        return 0
+    #if err1 != 0 or err2 != 0 or err3 != 0:
+    #    print('Something went wrong updating permissions; please check the logfile.')
+    #    return 0
     
     return 1
