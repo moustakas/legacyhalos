@@ -503,18 +503,21 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         # Build a model image with all the sources whose centroids are within
         # the inner XX% of the mosaic and then "find" the central galaxy.
         m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                                  0.25*radius_mosaic/3600.0, nearest=False)
+                                  0.5*radius_mosaic/3600.0, nearest=False)
         srcs = read_fits_catalog(cat[m1], fluxPrefix='')
         mod = legacyhalos.misc.srcs2image(srcs, ConstantFitsWcs(brickwcs), psf_sigma=1.0)
 
         mgegalaxy = find_galaxy(mod, nblob=1, binning=3, quiet=True)
 
         # Now use the ellipse parameters to get a better list of the model
-        # sources in and around the central, especially the large ones.
-        these = legacyhalos.misc.ellipse_mask(width/2, width/2, mgegalaxy.majoraxis,
-                                              mgegalaxy.majoraxis*(1-mgegalaxy.eps),
+        # sources in and around the central, and remove the largest ones.
+        majoraxis = mgegalaxy.majoraxis
+        these = legacyhalos.misc.ellipse_mask(width/2, width/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
                                               np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
-        these *= (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) > 3
+
+        galrad = np.max(np.array((cat.shapedev_r, cat.shapeexp_r)), axis=0)
+        #galrad = (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) # type-weighted radius
+        these *= galrad > 3
 
         if np.sum(these) > 0:
             keep = np.ones(len(cat)).astype(bool)
