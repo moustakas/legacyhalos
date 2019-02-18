@@ -239,6 +239,10 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
 
+        qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
+                          clobber=clobber, verbose=verbose)
+        pdb.set_trace()
+
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
                           clobber=clobber, verbose=verbose)
@@ -247,9 +251,6 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                            clobber=clobber, verbose=verbose)
         
-        qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
-                          clobber=clobber, verbose=verbose)
-
         # Build the CCD-level QA.  This QA script needs to be last, because we
         # check the completeness of the HTML portion of legacyhalos-mpi based on
         # the ccdpos file.

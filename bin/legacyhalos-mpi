@@ -43,6 +43,7 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         filesuffix = '-sersic-single.p'
     elif filetype == 'html':
         filesuffix = '-ccdpos.png'
+        #filesuffix = '-sersic-exponential-nowavepower.png'
     else:
         print('Unrecognized file type!')
         raise ValueError

@@ -331,7 +331,7 @@ def display_sersic(sersic, png=None, verbose=False):
         ax.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10)
 
-    fig.subplots_adjust(bottom=0.15, top=0.85, right=0.95, left=0.12)
+    fig.subplots_adjust(bottom=0.15, top=0.85, right=0.95, left=0.17)
 
     if png:
         if verbose:
