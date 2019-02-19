@@ -16,22 +16,28 @@ import astropy.table
 import legacyhalos.html
 
 def hsc_dir():
-    """Top-level Hsc directory (should be an environment variable...)."""
-    print('Should really have an environment variable for HSC_DIR!')
-    ldir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'hsc')
+    if 'HSC_DIR' not in os.environ:
+        print('Required ${HSC_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('HSC_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
     return ldir
 
 def hsc_data_dir():
-    print('Should really have an environment variable for HSC_DATA_DIR!')
-    ldir = os.path.join(os.getenv('LEGACYHALOS_DATA_DIR'), 'hsc')
+    if 'HSC_DATA_DIR' not in os.environ:
+        print('Required ${HSC_DATA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('HSC_DATA_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
     return ldir
 
 def hsc_html_dir():
-    ldir = os.getenv('HSC_HTML_DIR')
+    if 'HSC_HTML_DIR' not in os.environ:
+        print('Required ${HSC_HTML_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('HSC_HTML_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
     return ldir

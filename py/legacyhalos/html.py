@@ -239,9 +239,9 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
 
+        # Sersic fiting results
         qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                           clobber=clobber, verbose=verbose)
-        pdb.set_trace()
 
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,

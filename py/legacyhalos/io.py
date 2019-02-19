@@ -453,7 +453,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
             mask = np.logical_or(mask, grz_residual_mask)
 
         # Finally restore the pixels of the central galaxy.
-        #mask[objmask] = 0
+        #mask[objmask] = False
 
         #majoraxis = mgegalaxy.majoraxis * filt2pixscale[refband] / thispixscale # [pixels]
         #these = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),

@@ -18,22 +18,26 @@ import legacyhalos.misc
 import legacyhalos.io
 
 def lsbs_dir():
-    """Top-level LSBs directory (should be an environment variable...)."""
-    print('Should really have an environment variable for LSBS_DIR!')
-    ldir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'lsbs')
+    """Top-level LSBs directory."""
+    if 'LEGACYLSBS_DIR' not in os.environ:
+        print('Required ${LEGACYLSBS_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYLSBS_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
     return ldir
 
 def lsbs_data_dir():
-    print('Should really have an environment variable for LSBS_DATA_DIR!')
-    ldir = os.path.join(os.getenv('LEGACYHALOS_DATA_DIR'), 'lsbs')
+    if 'LEGACYLSBS_DATA_DIR' not in os.environ:
+        print('Required ${LEGACYLSBS_DATA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYLSBS_DATA_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
     return ldir
 
 def lsbs_html_dir():
-    print('Should really have an environment variable for LSBS_HTML_DIR!')
+    print('Should really have an environment variable for LEGACYLSBS_HTML_DIR!')
     ldir = os.path.join(os.getenv('LEGACYHALOS_HTML_DIR'), 'lsbs')
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)

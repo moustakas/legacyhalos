@@ -838,10 +838,13 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             #with np.errstate(invalid='ignore'):
             #    good = np.isfinite(mu) * (mu / muerr > 3)
             good = np.isfinite(mu)
+            if np.sum(good) == 0:
+                continue
+            
             sma = sma[good]
             mu = mu[good]
             muerr = muerr[good]
-                
+            
             col = next(colors)
             ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color=col,
                              alpha=0.75, edgecolor='k', lw=2)
