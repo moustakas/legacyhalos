@@ -191,10 +191,9 @@ def _custom_sky(skyargs):
     """Perform custom sky-subtraction on a single CCD (with multiprocessing).
 
     """
-    from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
     from scipy.ndimage.filters import uniform_filter
-    from astropy.table import Table
+    from astropy.stats import sigma_clipped_stats
 
     from tractor.splinesky import SplineSky
     from astrometry.util.miscutils import estimate_mode
@@ -290,8 +289,10 @@ def _custom_sky(skyargs):
     objmask = binary_dilation(objmask, iterations=3)
 
     skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
-    skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
-    skymed = np.median(img[skypix])
+
+    skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
+    #skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
+    #skymed = np.median(img[skypix])
     try:
         skymode = estimate_mode(img[skypix], raiseOnWarn=True)
     except:
@@ -319,7 +320,8 @@ def _custom_sky(skyargs):
 
     # Add the sky values and also the central pixel coordinates of the object of
     # interest (so we won't need the WCS object downstream, in QA).
-    for card, value in zip(('SKYMODE', 'SKYMED', 'SKYSIG'), (skymode, skymed, skysig)):
+    for card, value in zip(('SKYMODE', 'SKYMED', 'SKYMEAN', 'SKYSIG'),
+                           (skymode, skymed, skymean, skysig)):
         hdr.add_record(dict(name=card, value=value))
     hdr.add_record(dict(name='XCEN', value=x0-1)) # 0-indexed
     hdr.add_record(dict(name='YCEN', value=y0-1))
@@ -331,9 +333,6 @@ def _custom_sky(skyargs):
     out['{}-splinesky'.format(key)] = splineskytable
     out['{}-header'.format(key)] = hdr
     out['{}-comask'.format(key)] = comask
-    #out['{}-skymode'.format(key)] = skymode
-    #out['{}-skymed'.format(key)] = skymed
-    #out['{}-skysig'.format(key)] = skysig
     
     return out
 
@@ -482,7 +481,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     for tim in tims:
         image = tim.getImage()
         key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
-        newsky = sky['{}-header'.format(key)]['SKYMODE']
+        newsky = sky['{}-header'.format(key)]['SKYMED']
         tim.setImage(image - newsky)
         tim.sky = ConstantSky(0)
         newtims.append(tim)
