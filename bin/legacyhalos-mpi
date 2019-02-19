@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """MPI wrapper for the various computationally intensive legacyhalos analysis. 
 
+ls hsc-data/8/*/*/* | grep -v ccddata | tar -cvf hsc-legacysurveys.tar.gz -T -
+
 """
 import matplotlib
 matplotlib.use('Agg')
@@ -221,13 +223,7 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
                                               ccdqa=True, maketrends=False, hsc=True)
-            #err = legacyhalos.hsc.make_html(onegal, survey=survey, pixscale=pixscale,
-            #                                nproc=nproc, clobber=clobber, makeplots=True,
-            #                                verbose=verbose, ccdqa=True, htmldir=htmldir)
         else:
-            #err = legacyhalos.html.make_html(onegal, survey=survey, pixscale=pixscale,
-            #                                 nproc=nproc, clobber=clobber, makeplots=True,
-            #                                 verbose=verbose, ccdqa=True, htmldir=htmldir)
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
