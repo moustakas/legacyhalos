@@ -194,6 +194,7 @@ def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
 
     t0 = time.time()
     if debug:
+        print('Random seed = {}'.format(seed), flush=True)
         err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
                                                     debug=debug, verbose=verbose, seed=seed)
         if err == 0:
@@ -203,8 +204,40 @@ def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
     else:
         with open(logfile, 'w') as log:
             with redirect_stdout(log), redirect_stderr(log):
+                print('Random seed = {}'.format(seed), flush=True)
                 err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
                                                             debug=debug, verbose=verbose, seed=seed)
+                if err == 0:
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
+                      galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
+            if err == 0:
+                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+
+def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
+              verbose, debug, logfile):
+    """Wrapper script to do Sersic-fitting.
+
+    """
+    import legacyhalos.sky
+
+    t0 = time.time()
+    if debug:
+        print('Random seed = {}'.format(seed), flush=True)
+        err = legacyhalos.sky.legacyhalos_sky(onegal, survey=survey, galaxy=galaxy, galaxydir=galaxydir,
+                                              nproc=nproc, pixscale=pixscale, seed=seed,
+                                              debug=debug, verbose=verbose, force=force)
+        if err == 0:
+            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+        print('Finished galaxy {} in {:.3f} minutes.'.format(
+            galaxy, (time.time() - t0)/60), flush=True)
+    else:
+        with open(logfile, 'w') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                print('Random seed = {}'.format(seed), flush=True)
+                err = legacyhalos.sky.legacyhalos_sky(onegal, survey=survey, galaxy=galaxy, galaxydir=galaxydir,
+                                                      nproc=nproc, pixscale=pixscale, seed=seed,
+                                                      debug=debug, verbose=verbose, force=force)
                 if err == 0:
                     print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
                 print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
@@ -265,7 +298,7 @@ def main():
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
-    parser.add_argument('--seed', type=int, default=None, help='Random seed (used with --sky and --sersic).')
+    parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
 
     parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
     parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
@@ -376,7 +409,7 @@ def main():
             print('Logging to {} '.format(logfile), flush=True)
 
         # Need the cluster "radius" to build the coadds.
-        if args.coadds or args.custom_coadds or args.htmlplots:
+        if args.coadds or args.custom_coadds or args.sky or args.htmlplots:
             radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
 
             survey = LegacySurveyData()
@@ -413,45 +446,13 @@ def main():
                          args.debug, logfile, args.hsc)
             
         if args.sky:
-            from legacyhalos.sky import legacyhalos_sky
-            if args.debug:
-                err = legacyhalos_sky(sample[ii], survey=survey, galaxy=galaxy, objdir=objdir,
-                                         nproc=args.nproc, pixscale=args.pixscale, seed=args.seed,
-                                         debug=args.debug, verbose=args.verbose, force=args.force)
-                if err == 0:
-                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-                print('Finished galaxy {} in {:.3f} minutes.'.format(
-                    galaxy, (time.time() - t0)/60), flush=True)
-            else:
-                with open(logfile, 'w') as log:
-                    with redirect_stdout(log), redirect_stderr(log):
-                        print('Rank {} started working on galaxy {} at {}'.format(
-                            rank, galaxy, time.asctime()), flush=True)
-                        err = legacyhalos_sky(sample[ii], survey=survey, galaxy=galaxy, objdir=objdir,
-                                                 nproc=args.nproc, pixscale=args.pixscale, seed=args.seed,
-                                                 debug=args.debug, verbose=args.verbose, log=log,
-                                                 force=args.force)
-                        if err == 0:
-                            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-                        print('Rank {} finished galaxy {} at {} in {:.3f} minutes.'.format(
-                            rank, galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
-                if err == 0:
-                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+            _call_sky(onegal, galaxy, galaxydir, survey, args.seed, args.nproc,
+                      args.pixscale, args.verbose, args.debug, logfile)
 
         if args.htmlplots:
             _call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
                             args.debug, args.clobber, args.verbose, logfile, args.hsc,
                             args.htmldir)
-
-    #if args.html and rank == 0:
-    #    if args.hsc:
-    #        legacyhalos.hsc.make_html(sample, survey=survey, pixscale=args.pixscale,
-    #                                  nproc=args.nproc, clobber=args.clobber, makeplots=False,
-    #                                  verbose=args.verbose, htmldir=args.htmldir)
-    #    else:
-    #        legacyhalos.html.make_html(sample, survey=survey, pixscale=args.pixscale,
-    #                                   nproc=args.nproc, clobber=args.clobber, makeplots=False,
-    #                                   verbose=args.verbose, htmldir=args.htmldir)
 
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(

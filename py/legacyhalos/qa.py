@@ -426,7 +426,7 @@ def display_sersic(sersic, png=None, verbose=False):
                 r50ref2 = r'{:.2f}'.format(sersic['r50ref2'])
                 r50ref3 = r'{:.2f}'.format(sersic['r50ref3'])
             n = r'$n_1 = {nref1},\ n_2 = {nref2},\ n_3 = {nref3}$'.format(nref1=nref1, nref2=nref2, nref3=nref3)
-            r50 = r'$r_{{50,1}} = {r50ref1}\ r_{{50,2}} = {r50ref2}\ arcsec\ r_{{50,3}} = {r50ref3}\ arcsec$'.format(
+            r50 = r'$r_{{50,1}} = {r50ref1},\ r_{{50,2}} = {r50ref2},\ r_{{50,3}} = {r50ref3}\ arcsec$'.format(
                 r50ref1=r50ref1, r50ref2=r50ref2, r50ref3=r50ref3)
             txt = chi2+'\n'+alpha+'\n'+beta+'\n'+n+'\n'+r50
                 

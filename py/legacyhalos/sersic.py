@@ -613,7 +613,6 @@ class SersicWaveFit(object):
         """Perform the chi2 minimization.
         
         """
-        print('HERE!!! ', self.nball)
         import warnings
         if verbose:
             warnvalue = 'always'
@@ -767,7 +766,7 @@ class SersicWaveFit(object):
 class SersicSingleWaveFit(SersicWaveFit):
     """Fit surface brightness profiles with the SersicSingleWaveModel model.""" 
    
-    def __init__(self, ellipsefit, minerr=0.01, snrmin=1, nball=nball,
+    def __init__(self, ellipsefit, minerr=0.01, snrmin=1, nball=10,
                  fix_alpha=False, fix_beta=False, seed=None, modeltype='single'):
         
         self.modeltype = modeltype
@@ -787,7 +786,7 @@ class SersicSingleWaveFit(SersicWaveFit):
 class SersicExponentialWaveFit(SersicWaveFit):
     """Fit surface brightness profiles with the SersicExponentialWaveModel model."""
     
-    def __init__(self, ellipsefit, minerr=0.01, snrmin=1, nball=nball,
+    def __init__(self, ellipsefit, minerr=0.01, snrmin=1, nball=10,
                  fix_alpha=False, fix_beta=False, seed=None, modeltype='exponential'):
 
         self.modeltype = modeltype
@@ -817,7 +816,7 @@ class SersicExponentialWaveFit(SersicWaveFit):
 class SersicDoubleWaveFit(SersicWaveFit):
     """Fit surface brightness profiles with the SersicDoubleWaveModel model."""
     
-    def __init__(self, ellipsefit, minerr=0.01, snrmin=1, nball=nball,
+    def __init__(self, ellipsefit, minerr=0.01, snrmin=1, nball=10,
                  fix_alpha=False, fix_beta=False, seed=None, modeltype='double'):
 
         self.modeltype = modeltype
