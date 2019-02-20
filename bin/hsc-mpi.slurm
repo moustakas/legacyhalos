@@ -14,7 +14,7 @@
 
 #SBATCH -p debug
 #SBATCH -N 1
-#SBATCH -n 3
+#SBATCH -n 24
 #SBATCH -t 00:30:00
 
 export IMPY_DIR=$HOME/repos/git/impy

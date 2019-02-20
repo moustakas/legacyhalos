@@ -123,7 +123,7 @@ def display_sersic(sersic, png=None, verbose=False):
         rad, sb, sberr, wave = rad[srt], sb[srt], sberr[srt], wave[srt]
 
         if model is not None:
-            filt = '${}:\ $'.format(band)
+            filt = '${}$:'.format(band)
             if 'single' in sersic['modeltype']:
                 n = r'$n={:.2f}$'.format(model.get_sersicn(nref=model.nref, lam=lam, alpha=model.alpha))
                 r50 = r'$r_{{50}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref, lam=lam, beta=model.beta) * smascale)
@@ -148,15 +148,16 @@ def display_sersic(sersic, png=None, verbose=False):
                 n2 = r'$n_{{2}}={:.2f}$'.format(model.get_sersicn(nref=model.nref2, lam=lam, alpha=model.alpha2))
                 n3 = r'$n_{{3}}={:.2f}$'.format(model.get_sersicn(nref=model.nref3, lam=lam, alpha=model.alpha3))
                 r50_1 = r'$r_{{50,1}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref1, lam=lam, beta=model.beta1) * smascale)
-                r50_2 = r'$r_{{50,2}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
+                r50_2 = r'$r_{{50,2}}={:.2f}$'.format(model.get_r50(r50ref=model.r50ref2, lam=lam, beta=model.beta2) * smascale)
                 r50_3 = r'$r_{{50,3}}={:.2f}\ kpc$'.format(model.get_r50(r50ref=model.r50ref3, lam=lam, beta=model.beta3) * smascale)
-                label = '{} {}, {}, {}\n {}, {}, {}'.format(filt, n1, n2, n3, r50_1, r50_2, r50_3)
+                #label = '{}, {}, {}\n{}, {}, {}'.format(n1, n2, n3, r50_1, r50_2, r50_3)
+                label = '{} {}, {}, {}\n    {}, {}, {}'.format(filt, n1, n2, n3, r50_1, r50_2, r50_3)
                 labelfont = 12
             else:
                 raise ValueError('Unrecognized model type {}'.format(sersic['modeltype']))
         else:
             label = band
-            labelfont = 14
+            labelfont = 12
 
         col = next(colors)
         #ax.plot(rad, 22.5-2.5*np.log10(sb), label=band)
@@ -358,41 +359,57 @@ def display_sersic(sersic, png=None, verbose=False):
             if sersic['converged']:
                 alpha1 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha1'], sersic['alpha1_err'])
                 alpha2 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha2'], sersic['alpha2_err'])
+                alpha3 = r'{:.2f}\pm{:.2f}'.format(sersic['alpha3'], sersic['alpha3_err'])
                 beta1 = r'{:.2f}\pm{:.2f}'.format(sersic['beta1'], sersic['beta1_err'])
                 beta2 = r'{:.2f}\pm{:.2f}'.format(sersic['beta2'], sersic['beta2_err'])
+                beta3 = r'{:.2f}\pm{:.2f}'.format(sersic['beta3'], sersic['beta3_err'])
                 nref1 = r'{:.2f}\pm{:.2f}'.format(sersic['nref1'], sersic['nref1_err'])
                 nref2 = r'{:.2f}\pm{:.2f}'.format(sersic['nref2'], sersic['nref2_err'])
+                nref3 = r'{:.2f}\pm{:.2f}'.format(sersic['nref3'], sersic['nref3_err'])
                 r50ref1 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref1'], sersic['r50ref1_err'])
                 r50ref2 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref2'], sersic['r50ref2_err'])
+                r50ref3 = r'{:.2f}\pm{:.2f}'.format(sersic['r50ref3'], sersic['r50ref3_err'])
                 n1 = r'$n_1(\lambda) = ({nref1})(\lambda/{lambdaref})^{{{alpha1}}}$'.format(
                     nref1=nref1, lambdaref=lambdaref, alpha1=alpha1)
                 n2 = r'$n_2(\lambda) = ({nref2})(\lambda/{lambdaref})^{{{alpha2}}}$'.format(
                     nref2=nref2, lambdaref=lambdaref, alpha2=alpha2)
+                n3 = r'$n_3(\lambda) = ({nref3})(\lambda/{lambdaref})^{{{alpha3}}}$'.format(
+                    nref3=nref3, lambdaref=lambdaref, alpha3=alpha3)
                 r50_1 = r'$r_{{50,1}}(\lambda) = ({r50ref1})(\lambda/{lambdaref})^{{{beta1}}}\ arcsec$'.format(
                     r50ref1=r50ref1, lambdaref=lambdaref, beta1=beta1)
                 r50_2 = r'$r_{{50,2}}(\lambda) = ({r50ref2})(\lambda/{lambdaref})^{{{beta2}}}\ arcsec$'.format(
                     r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
+                r50_3 = r'$r_{{50,3}}(\lambda) = ({r50ref3})(\lambda/{lambdaref})^{{{beta3}}}\ arcsec$'.format(
+                    r50ref3=r50ref3, lambdaref=lambdaref, beta3=beta3)
             else:
                 alpha1 = r'{:.2f}'.format(sersic['alpha1'])
                 alpha2 = r'{:.2f}'.format(sersic['alpha2'])
+                alpha3 = r'{:.2f}'.format(sersic['alpha3'])
                 beta1 = r'{:.2f}'.format(sersic['beta1'])
                 beta2 = r'{:.2f}'.format(sersic['beta2'])
+                beta3 = r'{:.2f}'.format(sersic['beta3'])
                 nref1 = r'{:.2f}'.format(sersic['nref1'])
                 nref2 = r'{:.2f}'.format(sersic['nref2'])
+                nref3 = r'{:.2f}'.format(sersic['nref3'])
                 r50ref1 = r'{:.2f}'.format(sersic['r50ref1'])
                 r50ref2 = r'{:.2f}'.format(sersic['r50ref2'])
+                r50ref3 = r'{:.2f}'.format(sersic['r50ref3'])
                 n1 = r'$n_1(\lambda) = {nref1}\ (\lambda/{lambdaref})^{{{alpha1}}}$'.format(
                     nref1=nref1, lambdaref=lambdaref, alpha1=alpha1)
                 n2 = r'$n_2(\lambda) = {nref2}\ (\lambda/{lambdaref})^{{{alpha2}}}$'.format(
                     nref2=nref2, lambdaref=lambdaref, alpha2=alpha2)
+                n3 = r'$n_3(\lambda) = {nref3}\ (\lambda/{lambdaref})^{{{alpha3}}}$'.format(
+                    nref3=nref3, lambdaref=lambdaref, alpha3=alpha3)
                 r50_1 = r'$r_{{50,1}}(\lambda) = {r50ref1}\ (\lambda/{lambdaref})^{{{beta1}}}\ arcsec$'.format(
                     r50ref1=r50ref1, lambdaref=lambdaref, beta1=beta1)
                 r50_2 = r'$r_{{50,2}}(\lambda) = {r50ref2}\ (\lambda/{lambdaref})^{{{beta2}}}\ arcsec$'.format(
                     r50ref2=r50ref2, lambdaref=lambdaref, beta2=beta2)
-                
-            txt = chi2+'\n'+n1+'\n'+n2+'\n'+r50_1+'\n'+r50_2
+                r50_3 = r'$r_{{50,3}}(\lambda) = {r50ref3}\ (\lambda/{lambdaref})^{{{beta3}}}\ arcsec$'.format(
+                    r50ref3=r50ref3, lambdaref=lambdaref, beta3=beta3)
+            txt = chi2+'\n'+n1+', '+r50_1+'\n'+n2+', '+r50_2+'\n'+n3+', '+r50_3
+            #txt = chi2+'\n'+n1+'\n'+n2+'\n'+n3+'\n'+r50_1+'\n'+r50_2+'\n'+r50_3
         elif sersic['modeltype'] == 'triple-nowavepower':
-            alpha = r'$\alpha_1=\alpha_2={:.2f}$'.format(sersic['alpha1'])
+            alpha = r'$\alpha_1=\alpha_2=\alpha_3={:.2f}$'.format(sersic['alpha1'])
             beta = r'$\beta_1=\beta_2=\beta_3={:.2f}$'.format(sersic['beta1'])
             if sersic['converged']:
                 nref1 = r'{:.2f}\pm{:.2f}'.format(sersic['nref1'], sersic['nref1_err'])
@@ -414,14 +431,18 @@ def display_sersic(sersic, png=None, verbose=False):
             txt = chi2+'\n'+alpha+'\n'+beta+'\n'+n+'\n'+r50
                 
         ax.text(0.07, 0.04, txt, ha='left', va='bottom', linespacing=1.3,
-                transform=ax.transAxes, fontsize=12)
+                transform=ax.transAxes, fontsize=10)
 
     ax.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
-    ax.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
+    ax.set_ylabel(r'$\mu(r)$ (mag arcsec$^{-2}$)')
+    #ax.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
 
-    ylim = [ymnmax[0]-0.5, ymnmax[1]+0.5]
-    if ylim[1] < 32.5:
-        ylim[1] = 32.5
+    ylim = [ymnmax[0]-1.5, ymnmax[1]+0.5]
+    if sersic['modeltype'] == 'triple':
+        ylim[0] = ylim[0] - 1.0
+        ylim[1] = ylim[1] + 2.0
+    #if ylim[1] > 33:
+    #    ylim[1] = 33
 
     ax.set_ylim(ylim)
     ax.invert_yaxis()
