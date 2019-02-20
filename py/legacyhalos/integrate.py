@@ -1,0 +1,316 @@
+#!/usr/bin/env python
+
+"""
+legacyhalos-results --clobber
+
+Gather all the results into a single multi-extension FITS file.
+
+"""
+from __future__ import print_function, division
+
+import os, argparse, warnings, pdb
+import numpy as np
+import matplotlib.pyplot as plt
+from astropy.table import Table, Column, hstack, vstack, join
+
+import multiprocessing
+
+import legacyhalos.io
+from legacyhalos.qa import display_sersic
+
+band = ('g', 'r', 'z')
+chi2fail = 1e6
+
+def _init_phot(ngal=1, withid=False):
+
+    phot = Table()
+
+    if withid:
+        phot.add_column(Column(name='mem_match_id', data=np.zeros(ngal).astype(np.int32)))
+    
+    [phot.add_column(Column(name='flux_obs_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='flux_obs_ivar_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+
+    [phot.add_column(Column(name='flux_obs_model_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    
+    [phot.add_column(Column(name='flux_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='flux_ivar_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+
+    [phot.add_column(Column(name='flux_model_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    
+    [phot.add_column(Column(name='dm_in_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='dm_out_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='dm_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+
+    return phot
+
+def _init_sersic(ngal=1, mem_match_id=0, modeltype='single', nowavepower=True):
+
+    if modeltype == 'single':
+        params = ('alpha', 'beta', 'nref', 'r50ref', 'mu50_g', 'mu50_r', 'mu50_z')
+    elif modeltype == 'exponential':
+        params = ('alpha1', 'beta1', 'beta2', 'nref1', 'nref2', 'r50ref1', 'r50ref2',
+                  'mu50_g1', 'mu50_r1', 'mu50_z1', 'mu50_g2', 'mu50_r2', 'mu50_z2')
+    elif modeltype == 'double':
+        params = ('alpha1', 'alpha2', 'beta1', 'beta2', 'nref1', 'nref2', 'r50ref1', 'r50ref2',
+                  'mu50_g1', 'mu50_r1', 'mu50_z1', 'mu50_g2', 'mu50_r2', 'mu50_z2')
+
+    out = Table()
+    out.add_column(Column(name='mem_match_id', data=np.zeros(ngal).astype(np.int32)))
+    out.add_column(Column(name='success', data=np.zeros(ngal).astype(np.bool_)))
+    out.add_column(Column(name='converged', data=np.zeros(ngal).astype(np.bool_)))
+    for param in params:
+        out.add_column(Column(name=param, data=np.zeros(ngal).astype('f4')))
+        out.add_column(Column(name='{}_err'.format(param), data=np.zeros(ngal).astype('f4')))
+
+    phot = _init_phot(ngal)
+    out = hstack( (out, phot) )
+
+    out['mem_match_id'] = mem_match_id
+
+    return out
+
+def sersic_integrate(sersic, nradius=150, maxradius=200, debug=False):
+    """Integrate the data and the model to get the final photometry.
+
+    flux_obs_[grz] : observed integrated flux
+    flux_int_[grz] : integrated (extrapolated) flux
+    deltamag_in_[grz] : flux extrapolated inward
+    deltamag_out_[grz] : flux extrapolated outward
+    deltamag_[grz] : magnitude correction between flux_obs_[grz] and flux_int_[grz] or
+      deltamag_in_[grz] + deltamag_out_[grz]
+
+    """
+    from scipy import integrate
+    from astropy.table import Table, Column
+
+    phot = _init_phot(ngal=1)
+    bestfit = sersic['bestfit']
+    allradius, allwave, allsb, allsberr = sersic['radius'], sersic['wave'], sersic['sb'], sersic['sberr']
+
+    for filt, lam in zip( band, (sersic['lambda_g'], sersic['lambda_r'], sersic['lambda_z']) ):
+
+        indx = (allwave == lam)
+
+        radius = allradius[indx] # [arcsec]
+        sb = allsb[indx]
+        sberr = allsberr[indx]
+
+        # flux_obs_[grz] -- integrate the data (where measured)
+        obsflux = 2 * np.pi * integrate.simps(x=radius, y=radius*sb)
+        obsvar = 2 * np.pi * integrate.simps(x=radius, y=radius*sberr**2)
+
+        phot['flux_obs_{}'.format(filt)] = obsflux
+        if obsvar > 0:
+            phot['flux_obs_ivar_{}'.format(filt)] = 1 / obsvar
+
+        # flux_obs_model_[grz] -- like flux_obs_[grz] but this time using the
+        # best-fitting model
+        indx_model = sersic['wave_uniform'] == lam
+        wave_model = sersic['wave_uniform'][indx_model]
+        radius_model = sersic['radius_uniform'][indx_model]
+        
+        sb_model = bestfit(radius_model, wave_model) # no convolution?
+        obsmodelflux = 2 * np.pi * integrate.simps(x=radius_model, y=radius_model*sb_model)
+        
+        phot['flux_obs_model_{}'.format(filt)] = obsmodelflux
+
+        # now integrate inward and outward by evaluating the model
+        radius_in = np.linspace(0, radius_model.min(), nradius)
+        wave_in = np.zeros_like(radius_in) + lam
+        sb_in = bestfit(radius_in, wave_in) # no convolution?
+        dm_in = 2 * np.pi * integrate.simps(x=radius_in, y=radius_in*sb_in)
+
+        radius_out = np.linspace(radius_model.max(), maxradius, nradius)
+        wave_out = np.zeros_like(radius_out) + lam
+        sb_out = bestfit(radius_out, wave_out)
+        dm_out = 2 * np.pi * integrate.simps(x=radius_out, y=radius_out*sb_out)
+
+        dm = dm_in + dm_out
+        phot['flux_{}'.format(filt)] = phot['flux_obs_{}'.format(filt)] + dm
+        phot['flux_ivar_{}'.format(filt)] = phot['flux_obs_ivar_{}'.format(filt)] + dm
+
+        # need to get the total model flux
+
+        #print(filt, dm_in, obsflux, - 2.5 * np.log10( (obsflux+dm_in) / obsflux ))
+        #pdb.set_trace()
+        
+        phot['dm_in_{}'.format(filt)] = - 2.5 * np.log10(1 + dm_in / obsflux)
+        phot['dm_out_{}'.format(filt)] = - 2.5 * np.log10(1 + dm_out / obsflux)
+        phot['dm_{}'.format(filt)] = - 2.5 * np.log10(1 + dm / obsflux)
+
+    return phot
+
+def _get_results(resultargs):
+    """Wrapper script for the multiprocessing."""
+    return get_results(*resultargs)
+
+def get_results(sample, verbose=False, debug=False):
+
+    ngal = len(sample)
+
+    # Initialize the top-level output table
+    results = sample.copy()[['mem_match_id']]
+    #results.add_column(Column(name='ellipse', data=np.repeat(0, ngal).astype(np.bool_)))
+    for wavepower in ('-nowavepower', ''):
+        for modeltype in ('single', 'exponential', 'double'):
+            colname = 'chi2_sersic_{}{}'.format(modeltype, wavepower).replace('-', '_')
+            results.add_column(Column(name=colname, data=np.repeat(chi2fail, ngal).astype('f4')))
+    
+    sersic_single = _init_sersic(ngal, mem_match_id=sample['mem_match_id'].data, modeltype='single')
+    sersic_double = _init_sersic(ngal, mem_match_id=sample['mem_match_id'].data, modeltype='double')
+    sersic_exponential = _init_sersic(ngal, mem_match_id=sample['mem_match_id'].data, modeltype='exponential')
+
+    sersic_single_nowavepower = _init_sersic(ngal, modeltype='single')
+    sersic_double_nowavepower = _init_sersic(ngal, modeltype='double')
+    sersic_exponential_nowavepower = _init_sersic(ngal, modeltype='exponential')
+
+    allobjid, allobjdir = legacyhalos.io.get_objid(sample)
+
+    for ii, (objid, objdir) in enumerate( zip(np.atleast_1d(allobjid), np.atleast_1d(allobjdir)) ):
+        if verbose:
+            print(ii, objid)
+        else:
+            if (ii % 100) == 0:
+                print('Processing {} / {}'.format(ii, ngal))
+
+        #ellipsefit = legacyhalos.io.read_ellipsefit(objid, objdir, verbose=verbose)
+        #if bool(ellipsefit):
+        #    if ellipsefit['success']:
+        #        results['ellipse'][ii] = 1
+
+        # Sersic modeling
+        for wavepower in ('-nowavepower', ''):
+            for modeltype in ('single', 'exponential', 'double'):
+                modelname = '{}{}'.format(modeltype, wavepower)
+                colname = 'sersic_{}'.format(modelname).replace('-', '_')
+            
+                sersic = legacyhalos.io.read_sersic(objid, objdir, modeltype=modelname, verbose=True)
+                if bool(sersic):
+                    results['chi2_{}'.format(colname)][ii] = sersic['chi2']
+
+                    data = locals()[colname]
+                    data['success'][ii] = sersic['success']
+                    data['converged'][ii] = sersic['converged']
+
+                    # best-fitting parameters
+                    for param in sersic['params']:
+                        data[param][ii] = sersic[param]
+                        data['{}_err'.format(param)][ii] = sersic['{}_err'.format(param)]
+
+                    # integrate to get the total photometry
+                    if sersic['success']:
+                        phot = sersic_integrate(sersic, debug=debug)
+                        for col in phot.colnames:
+                            data[col][ii] = phot[col]
+                    locals()[colname] = data
+
+                    if debug:
+                        display_sersic(sersic)
+
+    return (results, sersic_single, sersic_double, sersic_exponential,
+            sersic_single_nowavepower, sersic_double_nowavepower,
+            sersic_exponential_nowavepower)
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ncpu', default=4, type=int, help='number of multiprocessing processes per MPI rank.')
+    parser.add_argument('--first', type=int, help='Index of first object to process.')
+    parser.add_argument('--last', type=int, help='Index of last object to process.')
+    parser.add_argument('--debug', action='store_true', help='Render a debuggin plot.')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite an existing file.')
+    parser.add_argument('--verbose', action='store_true', help='Be verbose.')
+    args = parser.parse_args()
+
+    # Read the sample
+    sample = legacyhalos.io.read_sample(first=args.first, last=args.last, verbose=args.verbose)
+    ngal = len(sample)
+
+    # Divide the sample
+    if args.ncpu > 1:
+        subsample = np.array_split(sample, args.ncpu)
+        resultargs = list()
+        for ii in range(args.ncpu):
+            resultargs.append( (Table(subsample[ii]), args.verbose, args.debug) )
+
+        pool = multiprocessing.Pool(args.ncpu)
+        out = pool.map(_get_results, resultargs)
+        out = list(zip(*out))
+
+        results = vstack(out[0])
+        sersic_single = vstack(out[1])
+        sersic_double = vstack(out[2])
+        sersic_exponential = vstack(out[3])        
+        sersic_single_nowavepower = vstack(out[4])
+        sersic_double_nowavepower = vstack(out[5])
+        sersic_exponential_nowavepower = vstack(out[6])
+    else:
+        (results, sersic_single, sersic_double, sersic_exponential,
+         sersic_single_nowavepower, sersic_double_nowavepower,
+         sersic_exponential_nowavepower) = get_results(sample, verbose=args.verbose, debug=args.debug)
+    
+    # Now assemble a final set of LegacyHalos (LH) photometry using the
+    # best-fitting model.
+    lhphot = _init_phot(ngal, withid=True)
+    lhphot['mem_match_id'] = sample['mem_match_id']
+    #extname = [model.upper() for model in ['sersic_single_nowavepower', 'sersic_exponential_nowavepower',
+    #           'sersic_double_nowavepower', 'sersic_single', 'sersic_exponential',
+    #           'sersic_double']]
+    
+    allmodels = (sersic_single, sersic_double, sersic_exponential,
+                 sersic_single_nowavepower, sersic_double_nowavepower,
+                 sersic_exponential_nowavepower)
+        
+    allchi2 = np.vstack( (results['chi2_sersic_single_nowavepower'].data, 
+                          results['chi2_sersic_exponential_nowavepower'].data,
+                          results['chi2_sersic_double_nowavepower'].data, 
+                          results['chi2_sersic_single'].data, 
+                          results['chi2_sersic_exponential'].data,
+                          results['chi2_sersic_double'].data ) )
+    best = np.argmin(allchi2, axis=0)
+    for ibest in sorted(set(best)):
+        rows = np.where( ibest == best )[0]
+        #phot = legacyhalos.io.read_results(extname=extname[ibest], rows=rows, verbose=True)
+        phot = allmodels[ibest][rows]
+        for col in lhphot.colnames:
+            if col != 'mem_match_id':
+                lhphot[col][rows] = phot[col]
+
+    # Write out summary statistics
+    if args.verbose:
+        print('Summary statistics:')
+        print('  Number of galaxies: {} '.format(ngal))
+        #print('  Ellipse-fitting: {}/{} ({:.1f}%) '.format(
+        #    np.sum(results['ellipse']), ngal, 100*np.sum(results['ellipse'])/ngal))
+        for wavepower in ('-nowavepower', ''):
+            for modeltype in ('single', 'exponential', 'double'):
+                modelname = '{}{}'.format(modeltype, wavepower)
+                colname = 'chi2_sersic_{}'.format(modelname).replace('-', '_')
+                ndone = np.sum(results[colname] < chi2fail)
+                fracdone = 100 * ndone / ngal
+                print('  {}: {}/{} ({:.1f}%) '.format(modelname, ndone, ngal, fracdone))
+    print(results)
+
+    print('HACK!!!!!!!!!!!!!!1')
+    lsphot = legacyhalos.io.read_parent(extname='LSPHOT', upenn=True, verbose=args.verbose)
+    rm = legacyhalos.io.read_parent(extname='REDMAPPER', upenn=True, verbose=args.verbose)
+
+    cols = [
+        'flux_w1', 'flux_ivar_w1', 'flux_w2', 'flux_ivar_w2',
+        'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 'mw_transmission_w1', 'mw_transmission_w2'
+        ]
+            
+    lhphot = hstack( (lhphot, lsphot[cols][args.first:args.last]) )
+    lhphot = hstack( (lhphot, rm[ ['ra', 'dec', 'z'] ][args.first:args.last]) )
+
+    # Write out
+    legacyhalos.io.write_results(lhphot, results=results, sersic_single=sersic_single,
+                                 sersic_double=sersic_double, sersic_exponential=sersic_exponential,
+                                 sersic_single_nowavepower=sersic_single_nowavepower,
+                                 sersic_double_nowavepower=sersic_double_nowavepower,
+                                 sersic_exponential_nowavepower=sersic_exponential_nowavepower,
+                                 verbose=args.verbose, clobber=args.clobber)
+
+if __name__ == '__main__':
+    main()
