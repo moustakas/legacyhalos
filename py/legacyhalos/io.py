@@ -140,7 +140,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=False):
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
     with open(ellipsefitfile, 'wb') as ell:
-        pickle.dump(ellipsefit, ell)
+        pickle.dump(ellipsefit, ell, protocol=2)
 
 def read_ellipsefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_ellipsefit."""
@@ -165,7 +165,7 @@ def write_sky_ellipsefit(galaxy, galaxydir, skyellipsefit, verbose=False):
     if verbose:
         print('Writing {}'.format(skyellipsefitfile))
     with open(skyellipsefitfile, 'wb') as ell:
-        pickle.dump(skyellipsefit, ell)
+        pickle.dump(skyellipsefit, ell, protocol=2)
 
 def read_sky_ellipsefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_skyellipsefit."""
@@ -191,7 +191,7 @@ def write_sersic(galaxy, galaxydir, sersic, modeltype='single', verbose=False):
     if verbose:
         print('Writing {}'.format(sersicfile))
     with open(sersicfile, 'wb') as ell:
-        pickle.dump(sersic, ell)
+        pickle.dump(sersic, ell, protocol=2)
 
 def read_sersic(galaxy, galaxydir, modeltype='single', verbose=True):
     """Read the output of write_sersic."""
@@ -243,7 +243,7 @@ def write_mgefit(galaxy, galaxydir, mgefit, band='r', verbose=False):
     if verbose:
         print('Writing {}'.format(mgefitfile))
     with open(mgefitfile, 'wb') as mge:
-        pickle.dump(mgefit, mge)
+        pickle.dump(mgefit, mge, protocol=2)
 
 def read_mgefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_mgefit."""
@@ -304,11 +304,17 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     from skimage.transform import resize
     from scipy.ndimage.filters import gaussian_filter
     from scipy.ndimage.morphology import binary_dilation
-
     from astropy.stats import sigma_clipped_stats
+
     from legacyhalos.mge import find_galaxy
     from legacyhalos.misc import ellipse_mask
 
+    #from astrometry.util.util import Tan
+    #from astrometry.util.fits import fits_table
+    #from legacyhalos.misc import srcs2image
+    #from legacypipe.catalog import read_fits_catalog
+    #from tractor import ConstantFitsWcs
+    
     # Dictionary mapping between filter and filename coded up in coadds.py,
     # galex.py, and unwise.py (see the LSLGA product, too).
     filt2imfile = {
@@ -347,7 +353,8 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
 
     #tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
     #if os.path.isfile(tractorfile):
-    #    cat = Table(fitsio.read(tractorfile, upper=True))
+    #    cat = fits_table(tractorfile)
+    #    #cat = Table(fitsio.read(tractorfile, upper=True))
     #    print('Read {} sources from {}'.format(len(cat), tractorfile))
     #else:
     #    print('Missing Tractor catalog {}'.format(tractorfile))
@@ -364,6 +371,8 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         image = fitsio.read(filt2imfile[filt][0])
         allmodel = fitsio.read(filt2imfile[filt][2]) # read the all-model image
 
+        H, W = image.shape
+        
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
         
@@ -372,6 +381,8 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         
         # "Find" the galaxy in the reference band.
         if filt == refband:
+            #wcs = ConstantFitsWcs(Tan(filt2imfile[filt][0], 1))
+            
             grz_shape = image.shape
             model = fitsio.read(filt2imfile[filt][1]) # model excluding the central
 
@@ -380,8 +391,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
             H, W = image.shape
             xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
             majoraxis = 1.3*mgegalaxy.majoraxis
-            grz_objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
-                                       majoraxis*(1-mgegalaxy.eps),
+            grz_objmask = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
                                        np.radians(mgegalaxy.theta-90), xobj, yobj)
 
             # Read the coadded (custom) mask and flag/mask pixels with bright stars etc.
@@ -413,8 +423,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         
         H, W = image.shape
         xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
-        objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, majoraxis,
-                               majoraxis*(1-mgegalaxy.eps),
+        objmask = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
                                np.radians(mgegalaxy.theta-90), xobj, yobj)
 
         # Initialize the mask with the inverse variance map, if available.
@@ -444,7 +453,18 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
             mask = np.logical_or(mask, grz_residual_mask)
 
         # Finally restore the pixels of the central galaxy.
-        #mask[objmask] = 0
+        #mask[objmask] = False
+
+        #majoraxis = mgegalaxy.majoraxis * filt2pixscale[refband] / thispixscale # [pixels]
+        #these = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
+        #                     np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
+        #srcs = read_fits_catalog(cat[these], fluxPrefix='')
+        #
+        #test = srcs2image(srcs, wcs, psf_sigma=1.0)
+        #import matplotlib.pyplot as plt
+        #plt.imshow(np.log10(test), origin='lower') ; plt.savefig('junk2.png')
+        #
+        #pdb.set_trace()
 
         # Grow the mask slightly.
         mask = binary_dilation(mask, iterations=2)

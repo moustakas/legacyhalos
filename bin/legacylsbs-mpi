@@ -129,7 +129,8 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, radius_galaxy,
         err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                radius_mask=radius_galaxy,
                                                survey=survey, pixscale=pixscale, nproc=nproc,
-                                               write_ccddata=False, apodize=True, sky_annulus=False)
+                                               write_ccddata=False, apodize=True, sky_annulus=False,
+                                               centrals=False)
         if err == 0:
             print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
         print('Finished galaxy {} in {:.3f} minutes.'.format(
@@ -146,7 +147,8 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, radius_galaxy,
                                                        nproc=nproc, log=log,
                                                        write_ccddata=False,
                                                        apodize=True,
-                                                       sky_annulus=False)
+                                                       sky_annulus=False,
+                                                       centrals=False)
                 if err == 0:
                     print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
                 print('Finished galaxy {} at {} in {:.3f} minutes.'.format(

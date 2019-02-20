@@ -191,10 +191,9 @@ def _custom_sky(skyargs):
     """Perform custom sky-subtraction on a single CCD (with multiprocessing).
 
     """
-    from scipy.stats import sigmaclip
     from scipy.ndimage.morphology import binary_dilation
     from scipy.ndimage.filters import uniform_filter
-    from astropy.table import Table
+    from astropy.stats import sigma_clipped_stats
 
     from tractor.splinesky import SplineSky
     from astrometry.util.miscutils import estimate_mode
@@ -290,8 +289,10 @@ def _custom_sky(skyargs):
     objmask = binary_dilation(objmask, iterations=3)
 
     skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
-    skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
-    skymed = np.median(img[skypix])
+
+    skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
+    #skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
+    #skymed = np.median(img[skypix])
     try:
         skymode = estimate_mode(img[skypix], raiseOnWarn=True)
     except:
@@ -319,7 +320,8 @@ def _custom_sky(skyargs):
 
     # Add the sky values and also the central pixel coordinates of the object of
     # interest (so we won't need the WCS object downstream, in QA).
-    for card, value in zip(('SKYMODE', 'SKYMED', 'SKYSIG'), (skymode, skymed, skysig)):
+    for card, value in zip(('SKYMODE', 'SKYMED', 'SKYMEAN', 'SKYSIG'),
+                           (skymode, skymed, skymean, skysig)):
         hdr.add_record(dict(name=card, value=value))
     hdr.add_record(dict(name='XCEN', value=x0-1)) # 0-indexed
     hdr.add_record(dict(name='YCEN', value=y0-1))
@@ -331,25 +333,26 @@ def _custom_sky(skyargs):
     out['{}-splinesky'.format(key)] = splineskytable
     out['{}-header'.format(key)] = hdr
     out['{}-comask'.format(key)] = comask
-    #out['{}-skymode'.format(key)] = skymode
-    #out['{}-skymed'.format(key)] = skymed
-    #out['{}-skysig'.format(key)] = skysig
     
     return out
 
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,
                   apodize=False, plots=False, verbose=False, cleanup=True,
-                  write_ccddata=True, sky_annulus=True):
+                  write_ccddata=True, sky_annulus=True, centrals=True):
     """Build a custom set of coadds for a single galaxy, with a custom mask and sky
     model.
 
     radius_mosaic and radius_mask in arcsec
 
+    centrals - if this is the centrals project (legacyhalos or HSC) then deal
+      with the central with dedicated code.
+
     """
     from astrometry.util.fits import fits_table, merge_tables
     from astrometry.libkd.spherematch import match_radec
     from tractor.sky import ConstantSky
+    from tractor import ConstantFitsWcs
     
     from legacypipe.runbrick import stage_tims
     from legacypipe.catalog import read_fits_catalog
@@ -357,6 +360,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.survey import get_rgb, imsave_jpeg
             
+    from legacyhalos.mge import find_galaxy
+        
     if survey is None:
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
@@ -476,7 +481,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     for tim in tims:
         image = tim.getImage()
         key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
-        newsky = sky['{}-header'.format(key)]['SKYMODE']
+        newsky = sky['{}-header'.format(key)]['SKYMED']
         tim.setImage(image - newsky)
         tim.sky = ConstantSky(0)
         newtims.append(tim)
@@ -492,21 +497,50 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cat = fits_table(tractorfile)
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
-    # Find and remove all the objects within XX arcsec of the target
-    # coordinates.
-    m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                              radius_search/3600.0, nearest=False)
-    if len(d12) == 0:
-        print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
-        #raise ValueError
-        keep = np.ones(len(cat)).astype(bool)
+    # Custom code for dealing with centrals.
+    if centrals:
+        # Build a model image with all the sources whose centroids are within
+        # the inner XX% of the mosaic and then "find" the central galaxy.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+                                  0.5*radius_mosaic/3600.0, nearest=False)
+        srcs = read_fits_catalog(cat[m1], fluxPrefix='')
+        mod = legacyhalos.misc.srcs2image(srcs, ConstantFitsWcs(brickwcs), psf_sigma=1.0)
+
+        mgegalaxy = find_galaxy(mod, nblob=1, binning=3, quiet=True)
+
+        # Now use the ellipse parameters to get a better list of the model
+        # sources in and around the central, and remove the largest ones.
+        majoraxis = mgegalaxy.majoraxis
+        these = legacyhalos.misc.ellipse_mask(width/2, width/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
+                                              np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
+
+        galrad = np.max(np.array((cat.shapedev_r, cat.shapeexp_r)), axis=0)
+        #galrad = (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) # type-weighted radius
+        these *= galrad > 3
+
+        if np.sum(these) > 0:
+            keep = np.ones(len(cat)).astype(bool)
+            keep[these] = False
+        else:
+            m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+                                      radius_search/3600.0, nearest=False)
+            if len(d12) == 0:
+                keep = np.ones(len(cat)).astype(bool)
+            else:
+                keep = ~np.isin(cat.objid, cat[m1].objid)
     else:
-        keep = ~np.isin(cat.objid, cat[m1].objid)        
+        # Find and remove all the objects within XX arcsec of the target
+        # coordinates.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+                                  radius_search/3600.0, nearest=False)
+        if len(d12) == 0:
+            print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
+            #raise ValueError
+            keep = np.ones(len(cat)).astype(bool)
+        else:
+            keep = ~np.isin(cat.objid, cat[m1].objid)        
 
-    #print('Removing central galaxy with index = {}, objid = {}'.format(
-    #    m1, cat[m1].objid), flush=True, file=log)
-
-    print('Creating tractor sources...', flush=True, file=log)
+    #print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')
     srcs_nocentral = np.array(srcs)[keep].tolist()
     

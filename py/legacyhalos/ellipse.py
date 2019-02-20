@@ -218,8 +218,11 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     t0 = time.time()
     with warnings.catch_warnings():
         warnings.simplefilter(warnvalue)
-        for sma0 in (1, 3, 6, 9, 12): # try a few different starting minor axes
-            print('  Trying sma0 = {:.1f} pixels.'.format(sma0))
+        print('Fitting the reference band: {}'.format(refband))
+        _sma0 = (1, 3, 6, 9, 12)
+        for ii, sma0 in enumerate(_sma0): # try a few different starting minor axes
+            if ii > 0:
+                print('Failed with sma0={:.1f} pixels, trying sma0={:.1f} pixels.'.format(_sma0[ii-1], sma0))
             try:
                 isophot = ellipse.fit_image(sma0, minsma=0.1, maxsma=maxsma,
                                             integrmode=integrmode, sclip=sclip, nclip=nclip,
@@ -247,8 +250,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
                     isophot = []
                 if len(isophot) > 0:
                     break
-    if verbose:
-        print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
+    print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
 
     if len(isophot) == 0:
         print('Ellipse-fitting failed, likely due to complex morphology or poor initial geometry.')
@@ -266,8 +268,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
         if filt == refband: # we did it already!
             continue
 
-        if verbose:
-            print('Ellipse-fitting {}-band image.'.format(filt))
+        print('Fitting band {}.'.format(filt))
 
         img = data['{}_masked'.format(filt)]
         if newmask is not None:
@@ -313,19 +314,18 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
                 # Build the IsophoteList instance with the result.
                 ellipsefit[filt] = IsophoteList(isobandfit)
 
-        if verbose:
-            print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
+        print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
 
         #if np.all( np.isnan(ellipsefit['g'].intens) ):
         #    print('ERROR: Ellipse-fitting resulted in all NaN; please check the imaging for band {}'.format(filt))
         #    ellipsefit['success'] = False
 
-    if verbose:
-        print('Time for all images = {:.3f} sec'.format( (time.time() - tall) / 1))
+    print('Time for all images = {:.3f} min'.format( (time.time() - tall) / 60))
 
     # Write out
     if not nowrite:
-        legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=verbose)
+        legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
+                                        verbose=verbose)
 
     return ellipsefit
 
@@ -352,7 +352,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
         for filt in band:
             #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
+            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx]) # [mag/arcsec2]
 
             #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
             sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err[indx] / \
