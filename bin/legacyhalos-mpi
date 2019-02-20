@@ -43,6 +43,8 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         filesuffix = '-ellipsefit.p'
     elif filetype == 'sersic':
         filesuffix = '-sersic-single.p'
+    elif filetype == 'integrate':
+        filesuffix = '???'
     elif filetype == 'html':
         filesuffix = '-ccdpos.png'
         #filesuffix = '-sersic-exponential-nowavepower.png'
@@ -78,86 +80,83 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
     return np.array_split(indices, size)
 
 def _missing_files(args, sample, size, htmldir=None):
-    """Simple task-specific wrapper on missing_files."""
+    """Simple task-specific wrapper on missing_files.
+
+    """
     if args.coadds:
         suffix = 'coadds'
-        groups = missing_files(sample, filetype=suffix, size=size, hsc=args.hsc,
-                               clobber=args.clobber, htmldir=htmldir)
     elif args.custom_coadds:
         suffix = 'custom_coadds'
-        groups = missing_files(sample, filetype=suffix, size=size, hsc=args.hsc,
-                               clobber=args.clobber, htmldir=htmldir)
     elif args.ellipse:
         suffix = 'ellipse'
-        groups = missing_files(sample, filetype=suffix, size=size, hsc=args.hsc,
-                               clobber=args.clobber, htmldir=htmldir)
     elif args.sersic:
         suffix = 'sersic'
-        groups = missing_files(sample, filetype=suffix, size=size, hsc=args.hsc,
-                               clobber=args.clobber, htmldir=htmldir)
+    elif args.integrate:
+        suffix = 'integrate'
     elif args.sky:
         suffix = 'sky'
-        groups = missing_files(sample, filetype=suffix, size=size, hsc=args.hsc,
-                               clobber=args.clobber, htmldir=htmldir)
     elif args.htmlplots:
         suffix = 'html'
+    else:
+        suffix = ''        
+
+    if suffix != '':
         groups = missing_files(sample, filetype=suffix, size=size, hsc=args.hsc,
                                clobber=args.clobber, htmldir=htmldir)
     else:
-        suffix = ''
-        groups = []
+        groups = []        
 
     return suffix, groups
+
+def _start(galaxy, log=None, seed=None):
+    if seed:
+        print('Random seed = {}'.format(seed), flush=True)        
+    print('Started working on galaxy {} at {}'.format(
+        galaxy, time.asctime()), flush=True, file=log)
+
+def _done(galaxy, err, t0, log=None):
+    if err == 0:
+        print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+    print('Finished galaxy {} in {:.3f} minutes.'.format(
+          galaxy, (time.time() - t0)/60), flush=True, file=log)
 
 def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                           nproc, force, debug, logfile):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
     if debug:
+        _start(galaxy)
         err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                  survey=survey, pixscale=pixscale,
                                                  nproc=nproc, force=force)
-        if err == 0:
-            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-        print('Finished galaxy {} in {:.3f} minutes.'.format(
-              galaxy, (time.time() - t0)/60), flush=True)
+        _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
             with redirect_stdout(log), redirect_stderr(log):
-                print('Started working on galaxy {} at {}'.format(
-                        galaxy, time.asctime()), flush=True, file=log)
+                _start(galaxy, log=log)
                 err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                          survey=survey, pixscale=pixscale,
                                                          nproc=nproc, force=force, log=log)
-                if err == 0:
-                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
-                print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
-                      galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
+                _done(galaxy, err, t0, log=log)
 
 def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                         nproc, debug, logfile):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
     if debug:
+        _start(galaxy)
         err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                survey=survey, pixscale=pixscale, nproc=nproc)
-        if err == 0:
-            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-        print('Finished galaxy {} in {:.3f} minutes.'.format(
-            galaxy, (time.time() - t0)/60), flush=True)
+        _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
             with redirect_stdout(log), redirect_stderr(log):
-                print('Started working on galaxy {} at {}'.format(
-                        galaxy, time.asctime()), flush=True, file=log)
+                _start(galaxy, log=log)
                 err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                        survey=survey, pixscale=pixscale,
                                                        nproc=nproc, log=log)
-                if err == 0:
-                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
-                print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
-                    galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
-
+                _done(galaxy, err, t0, log=log)
+                
 def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
     """Wrapper script to do ellipse-fitting.
 
@@ -166,25 +165,19 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
     
     t0 = time.time()
     if debug:
+        _start(galaxy)
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
                                                       verbose=verbose, debug=debug,
                                                       noellipsefit=True, hsc=hsc)
-        if err == 0:
-            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-        print('Finished galaxy {} in {:.3f} minutes.'.format(
-            galaxy, (time.time() - t0)/60), flush=True)
+        _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
             with redirect_stdout(log), redirect_stderr(log):
+                _start(galaxy, log=log)
                 err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
                                                               verbose=verbose, debug=debug,
                                                               noellipsefit=True, hsc=hsc)
-                if err == 0:
-                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-                print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
-                      galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
-            if err == 0:
-                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                _done(galaxy, err, t0, log=log)
 
 def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
     """Wrapper script to do Sersic-fitting.
@@ -194,25 +187,37 @@ def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
 
     t0 = time.time()
     if debug:
-        print('Random seed = {}'.format(seed), flush=True)
+        _start(galaxy, seed=seed)
         err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
                                                     debug=debug, verbose=verbose, seed=seed)
-        if err == 0:
-            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-        print('Finished galaxy {} in {:.3f} minutes.'.format(
-            galaxy, (time.time() - t0)/60), flush=True)
+        _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
             with redirect_stdout(log), redirect_stderr(log):
-                print('Random seed = {}'.format(seed), flush=True)
+                _start(galaxy, log=log, seed=seed)
                 err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
                                                             debug=debug, verbose=verbose, seed=seed)
-                if err == 0:
-                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-                print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
-                      galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
-            if err == 0:
-                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                _done(galaxy, err, t0, log=log)
+
+def _call_integrate(onegal, galaxy, galaxydir, verbose, debug, logfile, hsc):
+    """Wrapper script to integrate the profiles.
+
+    """
+    import legacyhalos.sersic
+
+    t0 = time.time()
+    if debug:
+        _start(galaxy, seed=seed)
+        err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                                    debug=debug, verbose=verbose, seed=seed)
+        _done(galaxy, err, t0)
+    else:
+        with open(logfile, 'w') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                _start(galaxy, log=log, seed=seed)
+                err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                                            debug=debug, verbose=verbose, seed=seed)
+                _done(galaxy, err, t0, log=log)
 
 def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
               verbose, debug, logfile):
@@ -223,34 +228,27 @@ def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
 
     t0 = time.time()
     if debug:
-        print('Random seed = {}'.format(seed), flush=True)
+        _start(galaxy, seed=seed)
         err = legacyhalos.sky.legacyhalos_sky(onegal, survey=survey, galaxy=galaxy, galaxydir=galaxydir,
                                               nproc=nproc, pixscale=pixscale, seed=seed,
                                               debug=debug, verbose=verbose, force=force)
-        if err == 0:
-            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-        print('Finished galaxy {} in {:.3f} minutes.'.format(
-            galaxy, (time.time() - t0)/60), flush=True)
+        _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
             with redirect_stdout(log), redirect_stderr(log):
-                print('Random seed = {}'.format(seed), flush=True)
+                _start(galaxy, log=log, seed=seed)
                 err = legacyhalos.sky.legacyhalos_sky(onegal, survey=survey, galaxy=galaxy, galaxydir=galaxydir,
                                                       nproc=nproc, pixscale=pixscale, seed=seed,
                                                       debug=debug, verbose=verbose, force=force)
-                if err == 0:
-                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-                print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
-                      galaxy, time.asctime(), (time.time() - t0)/60), flush=True)
-            if err == 0:
-                print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-
+                _done(galaxy, err, t0, log=log)
+                
 def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                     verbose, logfile, hsc, htmldir):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
     if debug:
+        _start(galaxy)
         if hsc:
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
@@ -261,16 +259,11 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
                                               ccdqa=True, maketrends=False)
-            
-        if err == 0:
-            print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
-        print('Finished galaxy {} in {:.3f} minutes.'.format(
-            galaxy, (time.time() - t0)/60), flush=True)
+        _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
             with redirect_stdout(log), redirect_stderr(log):
-                print('Started working on galaxy {} at {}'.format(
-                  galaxy, time.asctime()), flush=True, file=log)
+                _start(galaxy, log=log)
                 if hsc:
                     err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                                       pixscale=pixscale, survey=survey, clobber=clobber,
@@ -281,10 +274,7 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                                       pixscale=pixscale, survey=survey, clobber=clobber,
                                                       verbose=verbose, nproc=nproc,
                                                       ccdqa=True, maketrends=False)
-                if err == 0:
-                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
-                print('Finished galaxy {} at {} in {:.3f} minutes.'.format(
-                      galaxy, time.asctime(), (time.time() - t0)/60), flush=True, file=log)
+                _done(galaxy, err, t0, log=log)
 
 def main():
     from contextlib import redirect_stdout, redirect_stderr
@@ -304,6 +294,7 @@ def main():
     parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
     parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
+    parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
     parser.add_argument('--sky', action='store_true', help='Estimate the sky variance.')
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
@@ -407,7 +398,7 @@ def main():
         else:
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
             print('Logging to {} '.format(logfile), flush=True)
-
+        
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.sky or args.htmlplots:
             radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
@@ -444,6 +435,10 @@ def main():
         if args.sersic:
             _call_sersic(onegal, galaxy, galaxydir, args.seed, args.verbose,
                          args.debug, logfile, args.hsc)
+            
+        if args.integrate:
+            _call_integrate(onegal, galaxy, galaxydir, args.verbose, args.debug,
+                            logfile, args.hsc)
             
         if args.sky:
             _call_sky(onegal, galaxy, galaxydir, survey, args.seed, args.nproc,
