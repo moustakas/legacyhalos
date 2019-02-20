@@ -530,7 +530,7 @@ class SersicWaveFit(object):
 
             # Compute the circularized radius [arcsec] and add the minimum uncertainty in quadrature.
             #_radius = ellipsefit[band].sma * pixscale 
-            _radius = ellipsefit[band].sma * np.sqrt(1 - ellipsefit[band].eps) * pixscale 
+            _radius = ellipsefit[band].sma * np.sqrt(1 - ellipsefit[band].eps) * pixscale # [arcsec]
             _sb = ellipsefit[band].intens
             _sberr = np.sqrt( ellipsefit[band].int_err**2 + (0.4 * np.log(10) * _sb * minerr)**2 )
 

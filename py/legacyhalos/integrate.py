@@ -1,76 +1,95 @@
-#!/usr/bin/env python
+"""
+legacyhalos.integrate
+=====================
+
+Code to integrate the surface brightness profiles, including extrapolation.
 
 """
-legacyhalos-results --clobber
-
-Gather all the results into a single multi-extension FITS file.
-
-"""
-from __future__ import print_function, division
-
-import os, argparse, warnings, pdb
+import os, warnings, pdb
 import numpy as np
-import matplotlib.pyplot as plt
 from astropy.table import Table, Column, hstack, vstack, join
 
-import multiprocessing
-
 import legacyhalos.io
-from legacyhalos.qa import display_sersic
+import legacyhalos.misc
 
-band = ('g', 'r', 'z')
-chi2fail = 1e6
+def _init_phot(nrad_uniform=50, ngal=1, band=('g', 'r', 'z')):
+    """Initialize the output photometry table for a single object.
 
-def _init_phot(ngal=1, withid=False):
-
+    """
     phot = Table()
 
-    if withid:
-        phot.add_column(Column(name='mem_match_id', data=np.zeros(ngal).astype(np.int32)))
+    #if withid:
+    #    phot.add_column(Column(name='mem_match_id', data=np.zeros(ngal).astype(np.int32)))
     
-    [phot.add_column(Column(name='flux_obs_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
-    [phot.add_column(Column(name='flux_obs_ivar_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='rmax_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    
+    [phot.add_column(Column(name='flux10_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='flux30_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='flux100_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='fluxrmax_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    
+    [phot.add_column(Column(name='flux10_ivar_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='flux30_ivar_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='flux100_ivar_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    [phot.add_column(Column(name='fluxrmax_ivar_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
 
-    [phot.add_column(Column(name='flux_obs_model_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
-    
-    [phot.add_column(Column(name='flux_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
-    [phot.add_column(Column(name='flux_ivar_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
-
-    [phot.add_column(Column(name='flux_model_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
-    
-    [phot.add_column(Column(name='dm_in_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
-    [phot.add_column(Column(name='dm_out_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
-    [phot.add_column(Column(name='dm_{}'.format(bb), dtype='f4', length=ngal)) for bb in band]
+    nr = nrad_uniform
+    phot.add_column(Column(name='rad', dtype='f4', length=ngal, shape=(nr,)))
+    phot.add_column(Column(name='rad_area', dtype='f4', length=ngal, shape=(nr,)))
+    [phot.add_column(Column(name='fluxrad_{}'.format(bb), dtype='f4', length=ngal, shape=(nr,))) for bb in band]
+    [phot.add_column(Column(name='fluxrad_ivar_{}'.format(bb), dtype='f4', length=ngal, shape=(nr,))) for bb in band]
 
     return phot
 
-def _init_sersic(ngal=1, mem_match_id=0, modeltype='single', nowavepower=True):
+def _dointegrate(radius, sb, sberr, rmin=None, rmax=None, band='r'):
+    """Do the actual profile integration.
 
-    if modeltype == 'single':
-        params = ('alpha', 'beta', 'nref', 'r50ref', 'mu50_g', 'mu50_r', 'mu50_z')
-    elif modeltype == 'exponential':
-        params = ('alpha1', 'beta1', 'beta2', 'nref1', 'nref2', 'r50ref1', 'r50ref2',
-                  'mu50_g1', 'mu50_r1', 'mu50_z1', 'mu50_g2', 'mu50_r2', 'mu50_z2')
-    elif modeltype == 'double':
-        params = ('alpha1', 'alpha2', 'beta1', 'beta2', 'nref1', 'nref2', 'r50ref1', 'r50ref2',
-                  'mu50_g1', 'mu50_r1', 'mu50_z1', 'mu50_g2', 'mu50_r2', 'mu50_z2')
+    """
+    from scipy import integrate
+    from scipy.interpolate import interp1d
 
-    out = Table()
-    out.add_column(Column(name='mem_match_id', data=np.zeros(ngal).astype(np.int32)))
-    out.add_column(Column(name='success', data=np.zeros(ngal).astype(np.bool_)))
-    out.add_column(Column(name='converged', data=np.zeros(ngal).astype(np.bool_)))
-    for param in params:
-        out.add_column(Column(name=param, data=np.zeros(ngal).astype('f4')))
-        out.add_column(Column(name='{}_err'.format(param), data=np.zeros(ngal).astype('f4')))
+    # Evaluate the profile at r=rmin
+    if rmin is None:
+        rmin = 0.0
+        sberr_rmin = sberr[0]
+    else:
+        sberr_rmin = interp1d(radius, sberr, kind='linear', fill_value='extrapolate')(rmin)
+        
+    sb_rmin = interp1d(radius, sb, kind='quadratic', fill_value='extrapolate')(rmin)
 
-    phot = _init_phot(ngal)
-    out = hstack( (out, phot) )
+    if rmax is None:
+        rmax = radius.max() # [kpc]
 
-    out['mem_match_id'] = mem_match_id
+    if rmax > radius.max():
+        return -1, -1, -1 # do not extrapolate outward
+    else:
+        # Interpolate the last point to the desired rmax
+        sb_rmax = interp1d(radius, sb, kind='linear')(rmax)
+        sberr_rmax = np.sqrt(interp1d(radius, sberr**2, kind='linear')(rmax))
 
-    return out
+        keep = np.where((radius > rmin) * (radius < rmax))[0]
+        nkeep = len(keep)
 
-def sersic_integrate(sersic, nradius=150, maxradius=200, debug=False):
+        _radius = np.insert(radius[keep], [0, nkeep], [rmin, rmax])
+        _sb = np.insert(sb[keep], [0, nkeep], [sb_rmin, sb_rmax])
+        _sberr = np.insert(sberr[keep], [0, nkeep], [sberr_rmin, sberr_rmax])
+
+        # Integrate!
+        flux = 2 * np.pi * integrate.simps(x=_radius, y=_radius*_sb)      # [nanomaggies]
+        var = 2 * np.pi * integrate.simps(x=_radius, y=_radius*_sberr**2) # [nanomaggies_ivar]
+
+        if band == 'r':
+            area = 2 * np.pi * integrate.simps(x=_radius, y=_radius) # [kpc2]
+        else:
+            area = -1
+        
+        if flux < 0 or var < 0 or np.isnan(flux) or np.isnan(var):
+            print('Negative or infinite flux or variance in band {}'.format(band))
+            return -1, -1, -1
+        else:
+            return flux, 1/var, area
+
+def integrate(ellipsefit, nrad_uniform=50, minerr=0.01, debug=False):
     """Integrate the data and the model to get the final photometry.
 
     flux_obs_[grz] : observed integrated flux
@@ -81,69 +100,63 @@ def sersic_integrate(sersic, nradius=150, maxradius=200, debug=False):
       deltamag_in_[grz] + deltamag_out_[grz]
 
     """
-    from scipy import integrate
     from astropy.table import Table, Column
 
-    phot = _init_phot(ngal=1)
-    bestfit = sersic['bestfit']
-    allradius, allwave, allsb, allsberr = sersic['radius'], sersic['wave'], sersic['sb'], sersic['sberr']
+    allband, pixscale = ellipsefit['band'], ellipsefit['pixscale']
+    arcsec2kpc = legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) # [kpc/arcsec]
+    
+    def _get_sbprofile(ellipsefit, band, minerr=0.01):
+        radius = ellipsefit[band].sma * np.sqrt(1 - ellipsefit[band].eps) * pixscale * arcsec2kpc # [kpc]
+        sb = ellipsefit[band].intens / arcsec2kpc**2 # [nanomaggies/kpc**2]
+        sberr = np.sqrt( (ellipsefit[band].int_err*arcsec2kpc**2)**2 + (0.4 * np.log(10) * sb * minerr)**2 )
+        return radius, sb, sberr
 
-    for filt, lam in zip( band, (sersic['lambda_g'], sersic['lambda_r'], sersic['lambda_z']) ):
+    phot = _init_phot(nrad_uniform=nrad_uniform)
 
-        indx = (allwave == lam)
+    # First integrate to r=10, 30, 100, and max kpc.
+    min_r, max_r = [], []
+    for band in allband:
+        radius, sb, sberr = _get_sbprofile(ellipsefit, band, minerr=minerr)
 
-        radius = allradius[indx] # [arcsec]
-        sb = allsb[indx]
-        sberr = allsberr[indx]
+        min_r.append(radius.min())
+        max_r.append(radius.max())
 
-        # flux_obs_[grz] -- integrate the data (where measured)
-        obsflux = 2 * np.pi * integrate.simps(x=radius, y=radius*sb)
-        obsvar = 2 * np.pi * integrate.simps(x=radius, y=radius*sberr**2)
+        for rmax in (10, 30, 100, None):
+            obsflux, obsivar, _ = _dointegrate(radius, sb, sberr, rmax=rmax, band=band)
 
-        phot['flux_obs_{}'.format(filt)] = obsflux
-        if obsvar > 0:
-            phot['flux_obs_ivar_{}'.format(filt)] = 1 / obsvar
+            if rmax is not None:
+                fkey = 'flux{}_{}'.format(rmax, band)
+                ikey = 'flux{}_ivar_{}'.format(rmax, band)
+            else:
+                fkey = 'fluxrmax_{}'.format(band)
+                ikey = 'fluxrmax_ivar_{}'.format(band)
 
-        # flux_obs_model_[grz] -- like flux_obs_[grz] but this time using the
-        # best-fitting model
-        indx_model = sersic['wave_uniform'] == lam
-        wave_model = sersic['wave_uniform'][indx_model]
-        radius_model = sersic['radius_uniform'][indx_model]
+            phot[fkey] = obsflux
+            phot[ikey] = obsivar
+        phot['rmax_{}'.format(band)] = radius.max()
+
+    # Now integrate over fixed apertures to get the differential flux. 
+    min_r, max_r = np.min(min_r), np.max(max_r)
+    rad_uniform = 10**np.linspace(np.log10(min_r), np.log10(max_r), nrad_uniform+1)
+    rmin_uniform, rmax_uniform = rad_uniform[:-1], rad_uniform[1:]
+    phot['rad'] = (rmax_uniform - rmin_uniform) / 2 + rmin_uniform
+    
+    for band in allband:
+        radius, sb, sberr = _get_sbprofile(ellipsefit, band, minerr=minerr)
         
-        sb_model = bestfit(radius_model, wave_model) # no convolution?
-        obsmodelflux = 2 * np.pi * integrate.simps(x=radius_model, y=radius_model*sb_model)
-        
-        phot['flux_obs_model_{}'.format(filt)] = obsmodelflux
+        for ii, (rmin, rmax) in enumerate(zip(rmin_uniform, rmax_uniform)):
+            obsflux, obsivar, obsarea = _dointegrate(radius, sb, sberr, rmin=rmin, rmax=rmax, band=band)
+            #print(band, ii, rmin, rmax, 22.5-2.5*np.log10(obsflux), obsarea)
 
-        # now integrate inward and outward by evaluating the model
-        radius_in = np.linspace(0, radius_model.min(), nradius)
-        wave_in = np.zeros_like(radius_in) + lam
-        sb_in = bestfit(radius_in, wave_in) # no convolution?
-        dm_in = 2 * np.pi * integrate.simps(x=radius_in, y=radius_in*sb_in)
+            if band == 'r':
+                phot['rad_area'][0][ii] = obsarea
 
-        radius_out = np.linspace(radius_model.max(), maxradius, nradius)
-        wave_out = np.zeros_like(radius_out) + lam
-        sb_out = bestfit(radius_out, wave_out)
-        dm_out = 2 * np.pi * integrate.simps(x=radius_out, y=radius_out*sb_out)
-
-        dm = dm_in + dm_out
-        phot['flux_{}'.format(filt)] = phot['flux_obs_{}'.format(filt)] + dm
-        phot['flux_ivar_{}'.format(filt)] = phot['flux_obs_ivar_{}'.format(filt)] + dm
-
-        # need to get the total model flux
-
-        #print(filt, dm_in, obsflux, - 2.5 * np.log10( (obsflux+dm_in) / obsflux ))
-        #pdb.set_trace()
-        
-        phot['dm_in_{}'.format(filt)] = - 2.5 * np.log10(1 + dm_in / obsflux)
-        phot['dm_out_{}'.format(filt)] = - 2.5 * np.log10(1 + dm_out / obsflux)
-        phot['dm_{}'.format(filt)] = - 2.5 * np.log10(1 + dm / obsflux)
+            phot['fluxrad_{}'.format(band)][0][ii] = obsflux
+            phot['fluxrad_ivar_{}'.format(band)][0][ii] = obsivar
+            
+    pdb.set_trace()
 
     return phot
-
-def _get_results(resultargs):
-    """Wrapper script for the multiprocessing."""
-    return get_results(*resultargs)
 
 def get_results(sample, verbose=False, debug=False):
 
@@ -312,5 +325,27 @@ def main():
                                  sersic_exponential_nowavepower=sersic_exponential_nowavepower,
                                  verbose=args.verbose, clobber=args.clobber)
 
-if __name__ == '__main__':
-    main()
+def legacyhalos_integrate(onegal, galaxy=None, galaxydir=None, verbose=False,
+                          debug=False, hsc=False):
+    """Top-level wrapper script to integrate the surface-brightness profile of a
+    single galaxy.
+
+    """
+    if galaxydir is None or galaxy is None:
+        if hsc:
+            galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(onegal)
+        else:
+            galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
+
+    # Read the ellipse-fitting results and 
+    ellipsefit = legacyhalos.io.read_ellipsefit(galaxy, galaxydir)
+    if bool(ellipsefit):
+        if ellipsefit['success']:
+
+            res = integrate(ellipsefit, debug=debug)
+
+            return 1
+        else:
+            return 0
+    else:
+        return 0        

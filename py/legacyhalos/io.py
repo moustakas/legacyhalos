@@ -140,7 +140,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=False):
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
     with open(ellipsefitfile, 'wb') as ell:
-        pickle.dump(ellipsefit, ell)
+        pickle.dump(ellipsefit, ell, protocol=2)
 
 def read_ellipsefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_ellipsefit."""
@@ -165,7 +165,7 @@ def write_sky_ellipsefit(galaxy, galaxydir, skyellipsefit, verbose=False):
     if verbose:
         print('Writing {}'.format(skyellipsefitfile))
     with open(skyellipsefitfile, 'wb') as ell:
-        pickle.dump(skyellipsefit, ell)
+        pickle.dump(skyellipsefit, ell, protocol=2)
 
 def read_sky_ellipsefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_skyellipsefit."""
@@ -191,7 +191,7 @@ def write_sersic(galaxy, galaxydir, sersic, modeltype='single', verbose=False):
     if verbose:
         print('Writing {}'.format(sersicfile))
     with open(sersicfile, 'wb') as ell:
-        pickle.dump(sersic, ell)
+        pickle.dump(sersic, ell, protocol=2)
 
 def read_sersic(galaxy, galaxydir, modeltype='single', verbose=True):
     """Read the output of write_sersic."""
@@ -243,7 +243,7 @@ def write_mgefit(galaxy, galaxydir, mgefit, band='r', verbose=False):
     if verbose:
         print('Writing {}'.format(mgefitfile))
     with open(mgefitfile, 'wb') as mge:
-        pickle.dump(mgefit, mge)
+        pickle.dump(mgefit, mge, protocol=2)
 
 def read_mgefit(galaxy, galaxydir, verbose=True):
     """Read the output of write_mgefit."""

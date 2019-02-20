@@ -324,7 +324,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
     # Write out
     if not nowrite:
-        legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=verbose)
+        legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
+                                        verbose=verbose)
 
     return ellipsefit
 
@@ -351,7 +352,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
         for filt in band:
             #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
+            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx]) # [mag/arcsec2]
 
             #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
             sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err[indx] / \

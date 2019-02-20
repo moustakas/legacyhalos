@@ -203,20 +203,20 @@ def _call_integrate(onegal, galaxy, galaxydir, verbose, debug, logfile, hsc):
     """Wrapper script to integrate the profiles.
 
     """
-    import legacyhalos.sersic
+    import legacyhalos.integrate
 
     t0 = time.time()
     if debug:
-        _start(galaxy, seed=seed)
-        err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                                                    debug=debug, verbose=verbose, seed=seed)
+        _start(galaxy)
+        err = legacyhalos.integrate.legacyhalos_integrate(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                                          debug=debug, verbose=verbose, hsc=hsc)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
             with redirect_stdout(log), redirect_stderr(log):
-                _start(galaxy, log=log, seed=seed)
-                err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                                                            debug=debug, verbose=verbose, seed=seed)
+                _start(galaxy, log=log)
+                err = legacyhalos.integrate.legacyhalos_integrate(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                                                  debug=debug, verbose=verbose, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
 
 def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
