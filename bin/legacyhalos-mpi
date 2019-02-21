@@ -331,7 +331,9 @@ def main():
             if args.hsc:
                 pass
             else:
-                out = hstack((sample['MEM_MATCH_ID', 'RA', 'DEC', 'Z', 'LAMBDA_CHISQ', 'ID_CENT'], results))
+                cols = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z', 'LAMBDA_CHISQ', 'ID_CENT',
+                        'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
+                out = hstack((sample[cols], results))
                 print('Writing {}'.format(outfile))
                 out.write(outfile, overwrite=True)
         return
