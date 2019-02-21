@@ -12,17 +12,6 @@
 ;   thissfhgrid
 ;
 ; KEYWORD PARAMETERS:
-;   lsphot_dr6_dr7
-;   lhphot
-;   sdssphot_dr14
-;   write_paramfile
-;   build_grids
-;   model_photometry
-;   isedfit
-;   kcorrect
-;   qaplot_sed
-;   gather_results
-;   clobber
 ;
 ; OUTPUTS:
 ;
@@ -46,96 +35,7 @@
 ; General Public License for more details. 
 ;-
 
-function legacyhalos_maggies, maggies=maggies, ivarmaggies=ivarmaggies, $
-  ra=ra, dec=dec, legacyhalos_dir=legacyhalos_dir, sampleprefix=sampleprefix, $
-  rows=rows
-    
-    catfile = legacyhalos_dir+'paper2-profiles1d-flux.fits'
-    splog, 'Reading '+catfile
-    if n_elements(rows) ne 0 then begin
-       cat = mrdfits(catfile,1,rows=rows)
-    endif else begin
-       cat = mrdfits(catfile,1)
-    endelse
-
-    ra = cat.ra
-    dec = cat.dec
-    zobj = cat.z
-    
-    factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
-      [cat.mw_transmission_z] ])
-
-stop
-    
-    maggies = float(transpose([ [cat.flux_g], [cat.flux_r], [cat.flux_z] ]) * factor)
-    ivarmaggies = float(transpose([ [cat.flux_ivar_g], [cat.flux_ivar_r], [cat.flux_ivar_z] ]) / factor^2)
-    
-; add minimum uncertainties to grzW1W2
-    k_minerror, maggies, ivarmaggies, [0.01,0.01,0.02,0.02,0.02]
-;   k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.005,0.02]
-
-return, zobj
-end
-
-function get_pofm, prefix, outprefix, isedfit_rootdir, $
-  thissfhgrid=thissfhgrid, kcorr=kcorr
-; read the marginalized posterior on stellar mass, pack it into the iSEDfit
-; structure, read the k-corrections and return
-
-    isedfit_dir = isedfit_rootdir+'isedfit_'+prefix+'/'
-    montegrids_dir = isedfit_rootdir+'montegrids_'+prefix+'/'
-    isedfit_paramfile = isedfit_dir+prefix+'_paramfile.par'
-
-    fp = isedfit_filepaths(read_isedfit_paramfile(isedfit_paramfile,$
-      thissfhgrid=thissfhgrid),isedfit_dir=isedfit_dir,band_shift=0.1,$
-      montegrids_dir=montegrids_dir,outprefix=outprefix)
-    
-    npofm = 21 ; number of posterior samplings on stellar mass
-    ngal = sxpar(headfits(fp.isedfit_dir+fp.isedfit_outfile+'.gz',ext=1), 'NAXIS2')
-    
-    nperchunk = ngal            ; 50000
-    nchunk = ceil(ngal/float(nperchunk))
-    
-    for ii = 0, nchunk-1 do begin
-       print, format='("Working on chunk ",I0,"/",I0)', ii+1, nchunk
-       these = lindgen(nperchunk)+ii*nperchunk
-       these = these[where(these lt ngal)]
-;      these = these[0:99] ; test!
-
-       delvarx, post
-       outphot1 = read_isedfit(isedfit_paramfile,isedfit_dir=isedfit_dir,$
-         montegrids_dir=montegrids_dir,outprefix=outprefix,index=these,$
-         isedfit_post=post,thissfhgrid=thissfhgrid)
-       outphot1 = struct_trimtags(struct_trimtags(outphot1,except='*HB*'),except='*HA*')
-             
-       if ii eq 0 then begin
-          outphot = replicate(outphot1[0], ngal)
-          outphot = struct_addtags(outphot, replicate({pofm: fltarr(npofm),$
-            pofm_bins: fltarr(npofm)},ngal))
-       endif
-       outphot[these] = im_struct_assign(outphot1, outphot[these], /nozero)
-
-       for jj = 0, n_elements(these)-1 do begin
-          mn = min(post[jj].mstar)
-          mx = max(post[jj].mstar)
-          dm = (mx - mn) / (npofm - 1)
-
-          pofm = im_hist1d(post[jj].mstar,binsize=dm,$
-            binedge=0,obin=pofm_bins)
-          outphot[these[jj]].pofm = pofm / im_integral(pofm_bins, pofm) ; normalize
-          outphot[these[jj]].pofm_bins = pofm_bins
-       endfor
-    endfor             
-
-    kcorrfile = fp.isedfit_dir+fp.kcorr_outfile+'.gz'
-    print, 'Reading '+kcorrfile
-    kcorr = mrdfits(kcorrfile,1)
-          
-return, outphot
-end
-
-pro legacyhalos_profiles1d_isedfit, isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, $
-  thissfhgrid=thissfhgrid, clobber=clobber
+pro legacyhalos_profiles1d_isedfit, thissfhgrid=thissfhgrid, isedfit=isedfit, clobber=clobber
 
     legacyhalos_dir = getenv('LEGACYHALOS_DIR')+'/science/paper2/data/'
     isedfit_rootdir = getenv('LEGACYHALOS_ISEDFIT_DIR')+'/'
@@ -158,24 +58,28 @@ pro legacyhalos_profiles1d_isedfit, isedfit=isedfit, kcorrect=kcorrect, qaplot_s
     montegrids_dir = isedfit_rootdir+'montegrids_'+prefix+'/'
     isedfit_paramfile = isedfit_dir+prefix+'_paramfile.par'
 
+    outfile = legacyhalos_dir+'paper2-profiles1d-mstar.fits'
+    if im_file_test(outfile,clobber=clobber) eq 1 then return
+
+; read the catalog    
     catfile = legacyhalos_dir+'paper2-profiles1d-flux.fits'
     splog, 'Reading '+catfile
     cat = mrdfits(catfile,1)
     ngal = n_elements(cat)
-
+    nrad = n_elements(cat[0].rad)
+    
     zobj = cat.z
     factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], [cat.mw_transmission_z] ])
     wmaggies = transpose([ [fltarr(ngal)], [fltarr(ngal)] ]) ; placeholder for WISE photometry
 
-    radfactor = reform(transpose(cmreplicate(factor,nrad)),3,ngal*nrad)
-    radzobj = reform(transpose(cmreplicate(zobj,nrad)),ngal*nrad)
+    radfactor = reform(transpose(cmreplicate(factor,nrad)),3,ngal*nrad) ; [3,ngal*nrad] array
+    radzobj = reform(transpose(cmreplicate(zobj,nrad)),ngal*nrad)       ; [ngal*nrad] array
+    radwmaggies = reform(transpose(cmreplicate(wmaggies,nrad)),2,ngal*nrad) ; [2,ngal*nrad] array
     
     absmag_filterlist = [sdss_filterlist(), legacysurvey_filterlist()]
     band_shift = 0.1
 
 ; initialize the output data structure
-    nrad = n_elements(cat[0].rad)
-    
     result = replicate({$
 ;     chi2:                   0.0,$
       mstar10:                0.0,$ ; r<10kpc
@@ -184,7 +88,7 @@ pro legacyhalos_profiles1d_isedfit, isedfit=isedfit, kcorrect=kcorrect, qaplot_s
       mstar30_err:            0.0,$
       mstar100:               0.0,$ ; r<100kpc
       mstar100_err:           0.0,$
-      mstarrmax:              0.0,$ ; r<rmax kpc
+      mstarrmax:              0.0,$ ; r<rmax
       mstarrmax_err:          0.0,$
       mstarrad:      fltarr(nrad),$ ; stellar mass profile [Msun]
       mstarrad_err:  fltarr(nrad),$
@@ -192,44 +96,39 @@ pro legacyhalos_profiles1d_isedfit, isedfit=isedfit, kcorrect=kcorrect, qaplot_s
       murad_err:     fltarr(nrad)},ngal)
     result = struct_addtags(im_struct_trimtags(cat,except=['FLUX*', 'MW_*']),result)
 
-; do the fit for various apertures
+; do it!    
     if keyword_set(isedfit) then begin
-       t0 = systime(1)
+       tall = systime(1)
 
 ; radial profile
-       maggies = reform(transpose([[[cat.fluxrad_g]], [[cat.fluxrad_r]], [[cat.fluxrad_z]]]),3,ngal*nrad) * radfactor
-       ivarmaggies = reform(transpose([[[cat.fluxrad_ivar_g]], [[cat.fluxrad_ivar_r]], [[cat.fluxrad_ivar_z]]]),3,ngal*nrad) / radfactor^2
+       maggies = reform(transpose([[[cat.fluxrad_g]], [[cat.fluxrad_r]], $
+         [[cat.fluxrad_z]]],[2,0,1]),3,ngal*nrad) * radfactor
+       ivarmaggies = reform(transpose([[[cat.fluxrad_ivar_g]], [[cat.fluxrad_ivar_r]], $
+         [[cat.fluxrad_ivar_z]]],[2,0,1]),3,ngal*nrad) / radfactor^2
        
-       isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
+       t0 = systime(1)
+       isedfit, isedfit_paramfile, [maggies,radwmaggies], [ivarmaggies,radwmaggies], radzobj, $
          isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, index=index, /nowrite, $
          isedfit_results=ised, isedfit_post=ised_post
+       ised_post = 0 ; save memory
+       splog, 'Time for radial profile fitting (min) = '+strtrim((systime(1)-t0)/60.0,2)
 
-stop       
+       ised = reform(ised,nrad,ngal)
+       ised_post = reform(ised_post,nrad,ngal)
        
-       result.mstarrad[ii] = ised.mstar_50
-       result.mstarrad_err[ii] = ised.mstar_err
-       
-       good = where(result.rad_area[ii] gt 0)
-       result[good].murad[ii] = result[good].mstarrad[ii] - alog10(result[good].rad_area[ii])
-       result[good].murad_err[ii] = result[good].mstarrad_err[ii]
+       result.mstarrad = ised.mstar_50
+       result.mstarrad_err = ised.mstar_err
 
-          
-       for ii = 0, nrad-1 do begin
-          maggies = transpose([ [cat.fluxrad_g[ii]], [cat.fluxrad_r[ii]], [cat.fluxrad_z[ii]] ]) * factor
-          ivarmaggies = transpose([ [cat.fluxrad_ivar_g[ii]], [cat.fluxrad_ivar_r[ii]], [cat.fluxrad_ivar_z[ii]] ]) / factor^2
-          isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
-            isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, index=index, /nowrite, $
-            isedfit_results=ised, isedfit_post=ised_post
-          result.mstarrad[ii] = ised.mstar_50
-          result.mstarrad_err[ii] = ised.mstar_err
-
-          good = where(result.rad_area[ii] gt 0)
-          result[good].murad[ii] = result[good].mstarrad[ii] - alog10(result[good].rad_area[ii])
-          result[good].murad_err[ii] = result[good].mstarrad_err[ii]
-       endfor
-stop       
+; compute the stellar mass density (Msun/kpc2) profile       
+       good = where(result.rad_area gt 0)
+       murad = fltarr(nrad,ngal)
+       (murad)[good] = (result.mstarrad)[good] - alog10((result.rad_area)[good])
        
+       result.murad = murad
+       result.murad_err = result.mstarrad_err
+
 ; r<10kpc
+       t0 = systime(1)
        maggies = transpose([ [cat.flux10_g], [cat.flux10_r], [cat.flux10_z] ]) * factor
        ivarmaggies = transpose([ [cat.flux10_ivar_g], [cat.flux10_ivar_r], [cat.flux10_ivar_z] ]) / factor^2
        isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
@@ -237,8 +136,10 @@ stop
          isedfit_results=ised, isedfit_post=ised_post
        result.mstar10 = ised.mstar_50
        result.mstar10_err = ised.mstar_err
+       splog, 'Time for r<10kpc fitting (min) = '+strtrim((systime(1)-t0)/60.0,2)
 
 ; r<30kpc
+       t0 = systime(1)
        maggies = transpose([ [cat.flux30_g], [cat.flux30_r], [cat.flux30_z] ]) * factor
        ivarmaggies = transpose([ [cat.flux30_ivar_g], [cat.flux30_ivar_r], [cat.flux30_ivar_z] ]) / factor^2
        isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
@@ -246,8 +147,10 @@ stop
          isedfit_results=ised, isedfit_post=ised_post
        result.mstar30 = ised.mstar_50
        result.mstar30_err = ised.mstar_err
+       splog, 'Time for r<30kpc fitting (min) = '+strtrim((systime(1)-t0)/60.0,2)
 
 ; r<100kpc
+       t0 = systime(1)
        maggies = transpose([ [cat.flux100_g], [cat.flux100_r], [cat.flux100_z] ]) * factor
        ivarmaggies = transpose([ [cat.flux100_ivar_g], [cat.flux100_ivar_r], [cat.flux100_ivar_z] ]) / factor^2
        isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
@@ -255,8 +158,10 @@ stop
          isedfit_results=ised, isedfit_post=ised_post
        result.mstar100 = ised.mstar_50
        result.mstar100_err = ised.mstar_err
+       splog, 'Time for r<100kpc fitting (min) = '+strtrim((systime(1)-t0)/60.0,2)
        
-; r<rmax kpc
+; r<rmax
+       t0 = systime(1)
        maggies = transpose([ [cat.fluxrmax_g], [cat.fluxrmax_r], [cat.fluxrmax_z] ]) * factor
        ivarmaggies = transpose([ [cat.fluxrmax_ivar_g], [cat.fluxrmax_ivar_r], [cat.fluxrmax_ivar_z] ]) / factor^2
        isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
@@ -264,8 +169,10 @@ stop
          isedfit_results=ised, isedfit_post=ised_post
        result.mstarrmax = ised.mstar_50
        result.mstarrmax_err = ised.mstar_err
+       splog, 'Time for r<rmax fitting (min) = '+strtrim((systime(1)-t0)/60.0,2)
+       splog, 'Time for all fitting (min) = '+strtrim((systime(1)-tall)/60.0,2)
 
-       splog, 'Total time (min) = '+strtrim((systime(1)-t0)/60.0,2)
+       im_mwrfits, result, outfile, /clobber
     endif 
     
 return
