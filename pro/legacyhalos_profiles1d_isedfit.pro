@@ -48,120 +48,31 @@
 
 function legacyhalos_maggies, maggies=maggies, ivarmaggies=ivarmaggies, $
   ra=ra, dec=dec, legacyhalos_dir=legacyhalos_dir, sampleprefix=sampleprefix, $
-  lsphot_dr6_dr7=lsphot_dr6_dr7, sdssphot_dr14=sdssphot_dr14, lhphot=lhphot, $
   rows=rows
+    
+    catfile = legacyhalos_dir+'paper2-profiles1d-flux.fits'
+    splog, 'Reading '+catfile
+    if n_elements(rows) ne 0 then begin
+       cat = mrdfits(catfile,1,rows=rows)
+    endif else begin
+       cat = mrdfits(catfile,1)
+    endelse
 
-; DR6/DR7 LegacySurvey (grz) + unWISE W1 & W2
-    if keyword_set(lsphot_dr6_dr7) then begin
-       catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
-       splog, 'Reading '+catfile
-       if n_elements(rows) ne 0 then begin
-          cat = mrdfits(catfile,1,rows=rows)
-       endif else begin
-          cat = mrdfits(catfile,1)
-       endelse
-       ngal = n_elements(cat)
+    ra = cat.ra
+    dec = cat.dec
+    zobj = cat.z
+    
+    factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
+      [cat.mw_transmission_z] ])
 
-       ra = cat.ra
-       dec = cat.dec
-       zobj = cat.z
-       
-       factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
-         [cat.mw_transmission_z] ])
-       dmaggies = float(transpose([ [cat.flux_g], [cat.flux_r], [cat.flux_z] ]) * factor)
-       divarmaggies = float(transpose([ [cat.flux_ivar_g], [cat.flux_ivar_r], $
-         [cat.flux_ivar_z] ]) / factor^2)
-       
-       factor = 1D-9 / transpose([ [cat.mw_transmission_w1], [cat.mw_transmission_w2] ])
-       wmaggies = float(transpose([ [cat.flux_w1], [cat.flux_w2] ]) * factor)
-       wivarmaggies = float(transpose([ [cat.flux_ivar_w1], [cat.flux_ivar_w2] ]) / factor^2)
-
-       maggies = [dmaggies, wmaggies]
-       ivarmaggies = [divarmaggies, wivarmaggies]
-
-; add minimum calibration uncertainties (in quadrature) to grzW1W2; see
-; [desi-targets 2084]
-       k_minerror, maggies, ivarmaggies, [0.01,0.01,0.02,0.02,0.02]
-;      k_minerror, maggies, ivarmaggies, [0.003,0.003,0.006,0.005,0.02]
-    endif
-
-; custom LegacySurvey (grz) + unWISE W1 & W2    
-    if keyword_set(lhphot) then begin
-       catfile = legacyhalos_dir+'/sample/legacyhalos-results.fits'
-       splog, 'Reading '+catfile
-       if n_elements(rows) ne 0 then begin
-          cat = mrdfits(catfile,1,rows=rows)
-       endif else begin
-          cat = mrdfits(catfile,1)
-       endelse
-
-       ra = cat.ra
-       dec = cat.dec
-       zobj = cat.z
-
-       factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], $
-         [cat.mw_transmission_z] ])
-       dmaggies = float(transpose([ [cat.flux_g], [cat.flux_r], [cat.flux_z] ]) * factor)
-       divarmaggies = float(transpose([ [cat.flux_ivar_g], [cat.flux_ivar_r], $
-         [cat.flux_ivar_z] ]) / factor^2)
-       
-       factor = 1D-9 / transpose([ [cat.mw_transmission_w1], [cat.mw_transmission_w2] ])
-       wmaggies = float(transpose([ [cat.flux_w1], [cat.flux_w2] ]) * factor)
-       wivarmaggies = float(transpose([ [cat.flux_ivar_w1], [cat.flux_ivar_w2] ]) / factor^2)
-
-       maggies = [dmaggies, wmaggies]
-       ivarmaggies = [divarmaggies, wivarmaggies]
-
+stop
+    
+    maggies = float(transpose([ [cat.flux_g], [cat.flux_r], [cat.flux_z] ]) * factor)
+    ivarmaggies = float(transpose([ [cat.flux_ivar_g], [cat.flux_ivar_r], [cat.flux_ivar_z] ]) / factor^2)
+    
 ; add minimum uncertainties to grzW1W2
-       k_minerror, maggies, ivarmaggies, [0.01,0.01,0.02,0.02,0.02]
-;      k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.005,0.02]
-    endif
-
-; SDSS ugriz + forced WISE photometry from Lang & Schlegel    
-    if keyword_set(sdssphot_dr14) then begin
-       catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
-       splog, 'Reading '+catfile
-       if n_elements(rows) ne 0 then begin
-          cat = mrdfits(catfile,1,rows=rows)
-       endif else begin
-          cat = mrdfits(catfile,1)
-       endelse
-       ngal = n_elements(cat)
-
-       ra = cat.ra
-       dec = cat.dec
-       zobj = cat.z
-
-; protect against no photometry in the following SDSS_OBJID
-; [1237654949982044274, 1237659146707141110, 1237654383056651070].  as far as I
-; can tell these are real sources---with photometry in SkyServer, but for
-; whatever reason they didn't match in my CasJobs query.  not tracking down, so
-; we just won't get stellar masses for these...
-
-       smaggies = fltarr(5, ngal)
-       sivarmaggies = fltarr(5, ngal)
-       notzero = where(cat.modelmaggies_ivar[2,*] gt 0,nnotzero)
-       
-       ratio = cat[notzero].cmodelmaggies[2,*]/cat[notzero].modelmaggies[2,*]
-       factor = 1D-9 * rebin(ratio, 5, nnotzero) * 10D^(0.4*cat[notzero].extinction)
-       smaggies[*,notzero] = cat[notzero].modelmaggies * factor
-       sivarmaggies[*,notzero] = cat[notzero].modelmaggies_ivar / factor^2
-
-       vega2ab = rebin([2.699,3.339],2,ngal) ; Vega-->AB from http://legacysurvey.org/dr5/description/#photometry
-       glactc, cat.ra, cat.dec, 2000.0, gl, gb, 1, /deg
-       ebv = rebin(reform(dust_getval(gl,gb,/interp,/noloop),1,ngal),2,ngal)
-       coeff = rebin(reform([0.184,0.113],2,1),2,ngal) ; Galactic extinction coefficients from http://legacysurvey.org/dr5/catalogs
-
-       factor = 1D-9 * 10^(0.4*coeff*ebv)*10^(-0.4*vega2ab)
-       wmaggies = float(cat.wise_nanomaggies * factor)
-       wivarmaggies = float(cat.wise_nanomaggies_ivar / factor^2)
-       
-       maggies = [smaggies, wmaggies]
-       ivarmaggies = [sivarmaggies, wivarmaggies]
-
-; add minimum uncertainties to ugrizW1W2
-       k_minerror, maggies, ivarmaggies, [0.05,0.02,0.02,0.02,0.03,0.02,0.02]
-    endif
+    k_minerror, maggies, ivarmaggies, [0.01,0.01,0.02,0.02,0.02]
+;   k_minerror, maggies, ivarmaggies, [0.02,0.02,0.02,0.005,0.02]
 
 return, zobj
 end
@@ -223,11 +134,11 @@ function get_pofm, prefix, outprefix, isedfit_rootdir, $
 return, outphot
 end
 
-pro legacyhalos_profiles1d_isedfit, isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed,
-    thissfhgrid=thissfhgrid, clobber=clobber
+pro legacyhalos_profiles1d_isedfit, isedfit=isedfit, kcorrect=kcorrect, qaplot_sed=qaplot_sed, $
+  thissfhgrid=thissfhgrid, clobber=clobber
 
-    legacyhalos_dir = getenv('LEGACYHALOS_DIR')+'science/paper2/data/'
-    isedfit_rootdir = getenv('LEGACYHALOS_ISEDFIT_DIR')
+    legacyhalos_dir = getenv('LEGACYHALOS_DIR')+'/science/paper2/data/'
+    isedfit_rootdir = getenv('LEGACYHALOS_ISEDFIT_DIR')+'/'
 
     if n_elements(thissfhgrid) eq 0 then begin
        splog, 'THISSFHGRID is a required input!'
@@ -238,88 +149,124 @@ pro legacyhalos_profiles1d_isedfit, isedfit=isedfit, kcorrect=kcorrect, qaplot_s
     if keyword_set(maxold) then sfhgridstring = sfhgridstring+'-maxold'
     
 ; directories and prefixes for each dataset
-    if keyword_set(lsphot_dr6_dr7) then begin
-       prefix = 'lsphot'
-       outprefix = 'profiles1d'
-       outsuffix = sfhgridstring+'-lsphot-dr6-dr7'
-       extname = 'LSPHOT'
-    endif
+    prefix = 'lsphot'
+    outprefix = 'profiles1d'
+    outsuffix = sfhgridstring+'-lsphot-dr6-dr7'
+    extname = 'LSPHOT'
     
     isedfit_dir = isedfit_rootdir+'isedfit_'+prefix+'/'
     montegrids_dir = isedfit_rootdir+'montegrids_'+prefix+'/'
     isedfit_paramfile = isedfit_dir+prefix+'_paramfile.par'
 
-    spawn, ['mkdir -p '+isedfit_dir], /sh
-    spawn, ['mkdir -p '+montegrids_dir], /sh
+    catfile = legacyhalos_dir+'paper2-profiles1d-flux.fits'
+    splog, 'Reading '+catfile
+    cat = mrdfits(catfile,1)
+    ngal = n_elements(cat)
 
+    zobj = cat.z
+    factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], [cat.mw_transmission_z] ])
+    wmaggies = transpose([ [fltarr(ngal)], [fltarr(ngal)] ]) ; placeholder for WISE photometry
+
+    radfactor = reform(transpose(cmreplicate(factor,nrad)),3,ngal*nrad)
+    radzobj = reform(transpose(cmreplicate(zobj,nrad)),ngal*nrad)
+    
     absmag_filterlist = [sdss_filterlist(), legacysurvey_filterlist()]
     band_shift = 0.1
 
-; --------------------------------------------------
-; fit!
+; initialize the output data structure
+    nrad = n_elements(cat[0].rad)
+    
+    result = replicate({$
+;     chi2:                   0.0,$
+      mstar10:                0.0,$ ; r<10kpc
+      mstar10_err:            0.0,$
+      mstar30:                0.0,$ ; r<30kpc
+      mstar30_err:            0.0,$
+      mstar100:               0.0,$ ; r<100kpc
+      mstar100_err:           0.0,$
+      mstarrmax:              0.0,$ ; r<rmax kpc
+      mstarrmax_err:          0.0,$
+      mstarrad:      fltarr(nrad),$ ; stellar mass profile [Msun]
+      mstarrad_err:  fltarr(nrad),$
+      murad:         fltarr(nrad),$ ; stellar mass density profile [Msun/kpc2]
+      murad_err:     fltarr(nrad)},ngal)
+    result = struct_addtags(im_struct_trimtags(cat,except=['FLUX*', 'MW_*']),result)
+
+; do the fit for various apertures
     if keyword_set(isedfit) then begin
-       zobj = legacyhalos_maggies(maggies=maggies,ivarmaggies=ivarmaggies,$
-         ra=ra,dec=dec,legacyhalos_dir=legacyhalos_dir,sampleprefix=sampleprefix, $
-         lsphot_dr6_dr7=lsphot_dr6_dr7,sdssphot_dr14=sdssphot_dr14,lhphot=lhphot)
        t0 = systime(1)
-       isedfit, isedfit_paramfile, maggies, ivarmaggies, zobj, ra=ra, $
-         dec=dec, isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, $
-         clobber=clobber, index=index, outprefix=outprefix, maxold=maxold
-       splog, 'Total time for centrals (min) = '+strtrim((systime(1)-t0)/60.0,2)
+
+; radial profile
+       maggies = reform(transpose([[[cat.fluxrad_g]], [[cat.fluxrad_r]], [[cat.fluxrad_z]]]),3,ngal*nrad) * radfactor
+       ivarmaggies = reform(transpose([[[cat.fluxrad_ivar_g]], [[cat.fluxrad_ivar_r]], [[cat.fluxrad_ivar_z]]]),3,ngal*nrad) / radfactor^2
+       
+       isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
+         isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, index=index, /nowrite, $
+         isedfit_results=ised, isedfit_post=ised_post
+
+stop       
+       
+       result.mstarrad[ii] = ised.mstar_50
+       result.mstarrad_err[ii] = ised.mstar_err
+       
+       good = where(result.rad_area[ii] gt 0)
+       result[good].murad[ii] = result[good].mstarrad[ii] - alog10(result[good].rad_area[ii])
+       result[good].murad_err[ii] = result[good].mstarrad_err[ii]
+
+          
+       for ii = 0, nrad-1 do begin
+          maggies = transpose([ [cat.fluxrad_g[ii]], [cat.fluxrad_r[ii]], [cat.fluxrad_z[ii]] ]) * factor
+          ivarmaggies = transpose([ [cat.fluxrad_ivar_g[ii]], [cat.fluxrad_ivar_r[ii]], [cat.fluxrad_ivar_z[ii]] ]) / factor^2
+          isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
+            isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, index=index, /nowrite, $
+            isedfit_results=ised, isedfit_post=ised_post
+          result.mstarrad[ii] = ised.mstar_50
+          result.mstarrad_err[ii] = ised.mstar_err
+
+          good = where(result.rad_area[ii] gt 0)
+          result[good].murad[ii] = result[good].mstarrad[ii] - alog10(result[good].rad_area[ii])
+          result[good].murad_err[ii] = result[good].mstarrad_err[ii]
+       endfor
+stop       
+       
+; r<10kpc
+       maggies = transpose([ [cat.flux10_g], [cat.flux10_r], [cat.flux10_z] ]) * factor
+       ivarmaggies = transpose([ [cat.flux10_ivar_g], [cat.flux10_ivar_r], [cat.flux10_ivar_z] ]) / factor^2
+       isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
+         isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, index=index, /nowrite, $
+         isedfit_results=ised, isedfit_post=ised_post
+       result.mstar10 = ised.mstar_50
+       result.mstar10_err = ised.mstar_err
+
+; r<30kpc
+       maggies = transpose([ [cat.flux30_g], [cat.flux30_r], [cat.flux30_z] ]) * factor
+       ivarmaggies = transpose([ [cat.flux30_ivar_g], [cat.flux30_ivar_r], [cat.flux30_ivar_z] ]) / factor^2
+       isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
+         isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, index=index, /nowrite, $
+         isedfit_results=ised, isedfit_post=ised_post
+       result.mstar30 = ised.mstar_50
+       result.mstar30_err = ised.mstar_err
+
+; r<100kpc
+       maggies = transpose([ [cat.flux100_g], [cat.flux100_r], [cat.flux100_z] ]) * factor
+       ivarmaggies = transpose([ [cat.flux100_ivar_g], [cat.flux100_ivar_r], [cat.flux100_ivar_z] ]) / factor^2
+       isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
+         isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, index=index, /nowrite, $
+         isedfit_results=ised, isedfit_post=ised_post
+       result.mstar100 = ised.mstar_50
+       result.mstar100_err = ised.mstar_err
+       
+; r<rmax kpc
+       maggies = transpose([ [cat.fluxrmax_g], [cat.fluxrmax_r], [cat.fluxrmax_z] ]) * factor
+       ivarmaggies = transpose([ [cat.fluxrmax_ivar_g], [cat.fluxrmax_ivar_r], [cat.fluxrmax_ivar_z] ]) / factor^2
+       isedfit, isedfit_paramfile, [maggies,wmaggies], [ivarmaggies,wmaggies], zobj, $
+         isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, index=index, /nowrite, $
+         isedfit_results=ised, isedfit_post=ised_post
+       result.mstarrmax = ised.mstar_50
+       result.mstarrmax_err = ised.mstar_err
+
+       splog, 'Total time (min) = '+strtrim((systime(1)-t0)/60.0,2)
     endif 
-
-; --------------------------------------------------
-; compute K-corrections
-    if keyword_set(kcorrect) then begin
-       if keyword_set(candidate_centrals) then begin
-          if keyword_set(lhphot) then $
-            catfile = legacyhalos_dir+'/sample/legacyhalos-results.fits' else $
-              catfile = legacyhalos_dir+'/sample/legacyhalos-'+sampleprefix+'-dr6-dr7.fits'
-          ngal = sxpar(headfits(catfile,ext=1), 'NAXIS2')
-;         splog, 'Ridiculously hard-coding ngal here to speed things up!'
-;         ngal = 6682618L 
-          chunksize = ceil(ngal/float(ncandchunk))
-
-          for ii = firstchunk, lastchunk do begin
-             splog, 'Working on CHUNK '+strtrim(ii,2)+', '+strtrim(lastchunk,2)
-             splog, im_today()
-             t0 = systime(1)
-             chunkprefix = outprefix+'_sat_chunk'+string(ii,format='(I2.2)')
-             these = lindgen(chunksize)+ii*chunksize
-             these = these[where(these lt ngal)]
-;            these = these[0:99] ; test!
-
-             zobj = legacyhalos_maggies(maggies=maggies,ivarmaggies=ivarmaggies,$
-               ra=ra,dec=dec,legacyhalos_dir=legacyhalos_dir,sampleprefix=sampleprefix, $
-               lsphot_dr6_dr7=lsphot_dr6_dr7,sdssphot_dr14=sdssphot_dr14,lhphot=lhphot,$
-               rows=these)
-             isedfit_kcorrect, isedfit_paramfile, isedfit_dir=isedfit_dir, $
-               montegrids_dir=montegrids_dir, thissfhgrid=thissfhgrid, $
-               absmag_filterlist=absmag_filterlist, band_shift=band_shift, $
-               clobber=clobber, index=index, outprefix=chunkprefix
-             splog, 'Total time candidate_centrals (min) = '+strtrim((systime(1)-t0)/60.0,2)
-          endfor
-       endif else begin
-          zobj = legacyhalos_maggies(maggies=maggies,ivarmaggies=ivarmaggies,$
-            ra=ra,dec=dec,legacyhalos_dir=legacyhalos_dir,sampleprefix=sampleprefix, $
-            lsphot_dr6_dr7=lsphot_dr6_dr7,sdssphot_dr14=sdssphot_dr14,lhphot=lhphot)
-          t0 = systime(1)
-          isedfit_kcorrect, isedfit_paramfile, isedfit_dir=isedfit_dir, $
-            montegrids_dir=montegrids_dir, thissfhgrid=thissfhgrid, $
-            absmag_filterlist=absmag_filterlist, band_shift=band_shift, $
-            clobber=clobber, index=index, outprefix=outprefix
-          splog, 'Total time for centrals (min) = '+strtrim((systime(1)-t0)/60.0,2)
-       endelse
-    endif 
-
-; --------------------------------------------------
-; generate spectral energy distribution (SED) QAplots
-    if keyword_set(qaplot_sed) then begin
-       these = lindgen(50)
-       isedfit_qaplot_sed, isedfit_paramfile, isedfit_dir=isedfit_dir, $
-         montegrids_dir=montegrids_dir, outprefix=outprefix, thissfhgrid=thissfhgrid, $
-         clobber=clobber, index=these, /xlog
-    endif
     
 return
 end
