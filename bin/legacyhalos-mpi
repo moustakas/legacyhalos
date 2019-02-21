@@ -10,7 +10,7 @@ matplotlib.use('Agg')
 import os, sys, time, pdb
 import argparse
 import numpy as np
-from astropy.table import Table
+from astropy.table import Table, hstack
 from contextlib import redirect_stdout, redirect_stderr
 
 from astrometry.util.fits import fits_table
@@ -20,6 +20,7 @@ import legacyhalos.io
 import legacyhalos.hsc
 import legacyhalos.coadds
 import legacyhalos.html
+import legacyhalos.integrate
 
 def get_survey_dir(onegal):
     if onegal['RELEASE'] == 6000:
@@ -43,8 +44,6 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         filesuffix = '-ellipsefit.p'
     elif filetype == 'sersic':
         filesuffix = '-sersic-single.p'
-    elif filetype == 'integrate':
-        filesuffix = '???'
     elif filetype == 'html':
         filesuffix = '-ccdpos.png'
         #filesuffix = '-sersic-exponential-nowavepower.png'
@@ -91,8 +90,6 @@ def _missing_files(args, sample, size, htmldir=None):
         suffix = 'ellipse'
     elif args.sersic:
         suffix = 'sersic'
-    elif args.integrate:
-        suffix = 'integrate'
     elif args.sky:
         suffix = 'sky'
     elif args.htmlplots:
@@ -199,26 +196,6 @@ def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
                                                             debug=debug, verbose=verbose, seed=seed)
                 _done(galaxy, err, t0, log=log)
 
-def _call_integrate(onegal, galaxy, galaxydir, verbose, debug, logfile, hsc):
-    """Wrapper script to integrate the profiles.
-
-    """
-    import legacyhalos.integrate
-
-    t0 = time.time()
-    if debug:
-        _start(galaxy)
-        err = legacyhalos.integrate.legacyhalos_integrate(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                                                          debug=debug, verbose=verbose, hsc=hsc)
-        _done(galaxy, err, t0)
-    else:
-        with open(logfile, 'w') as log:
-            with redirect_stdout(log), redirect_stderr(log):
-                _start(galaxy, log=log)
-                err = legacyhalos.integrate.legacyhalos_integrate(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                                                                  debug=debug, verbose=verbose, hsc=hsc)
-                _done(galaxy, err, t0, log=log)
-
 def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
               verbose, debug, logfile):
     """Wrapper script to do Sersic-fitting.
@@ -277,8 +254,6 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                 _done(galaxy, err, t0, log=log)
 
 def main():
-    from contextlib import redirect_stdout, redirect_stderr
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--nproc', default=4, type=int, help='number of multiprocessing processes per MPI rank.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
@@ -330,6 +305,7 @@ def main():
     if comm:
         sample = comm.bcast(sample, root=0)
 
+    # Build the web-page; integrate the ellipse-fitting results.
     if args.htmlindex:
         if rank == 0:
             if args.hsc:
@@ -340,6 +316,24 @@ def main():
                 legacyhalos.html.make_html(sample, survey=None, pixscale=args.pixscale,
                                            nproc=args.nproc, clobber=args.clobber, makeplots=False,
                                            verbose=args.verbose, htmldir=args.htmldir)
+        return
+
+    if args.integrate:
+        if rank == 0:
+            # Temporary paper2 hack--
+            outfile = os.path.join(legacyhalos.io.paper2_dir(data=True), 'paper2-profiles1d-flux.fits')
+            if os.path.exists(outfile) and args.clobber is False:
+                print('Output file {} exists; use --clobber.'.format(outfile))
+                return
+            
+            results = legacyhalos.integrate.legacyhalos_integrate(
+                sample, nproc=args.nproc, verbose=args.verbose)
+            if args.hsc:
+                pass
+            else:
+                out = hstack((sample['MEM_MATCH_ID', 'RA', 'DEC', 'Z', 'LAMBDA_CHISQ', 'ID_CENT'], results))
+                print('Writing {}'.format(outfile))
+                out.write(outfile, overwrite=True)
         return
 
     # Determine how many more objects we need to analyze and divide them
@@ -435,10 +429,6 @@ def main():
         if args.sersic:
             _call_sersic(onegal, galaxy, galaxydir, args.seed, args.verbose,
                          args.debug, logfile, args.hsc)
-            
-        if args.integrate:
-            _call_integrate(onegal, galaxy, galaxydir, args.verbose, args.debug,
-                            logfile, args.hsc)
             
         if args.sky:
             _call_sky(onegal, galaxy, galaxydir, survey, args.seed, args.nproc,
