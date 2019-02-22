@@ -47,10 +47,10 @@ def ellipse_mask(xcen, ycen, semia, semib, phi, x, y):
     yp = -(x-xcen) * np.sin(phi) + (y-ycen) * np.cos(phi)
     return (xp / semia)**2 + (yp/semib)**2 <= 1
 
-def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262):
+def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262, zcolumn='Z'):
     '''Build a simple WCS object for a single galaxy.'''
-    if 'Z' in onegal.colnames:
-        galdiam = 2 * cutout_radius_150kpc(redshift=onegal['Z'], pixscale=pixscale)
+    if zcolumn in onegal.colnames:
+        galdiam = 2 * cutout_radius_150kpc(redshift=onegal[zcolumn], pixscale=pixscale)
     else:
         galdiam = radius # [pixels]
     

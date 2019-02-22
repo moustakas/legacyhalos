@@ -226,18 +226,20 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
+    ccdqa, maketrends = True, False
+
     if debug:
         _start(galaxy)
         if hsc:
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
-                                              ccdqa=True, maketrends=False, hsc=True)
+                                              ccdqa=ccdqa, maketrends=maketrends, hsc=True)
         else:
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
-                                              ccdqa=True, maketrends=False)
+                                              ccdqa=ccdqa, maketrends=maketrends)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
@@ -311,11 +313,11 @@ def main():
     if args.htmlindex:
         if rank == 0:
             if args.hsc:
-                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale,
+                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_LAMBDA',
                                           nproc=args.nproc, clobber=args.clobber, makeplots=False,
                                           verbose=args.verbose, htmldir=args.htmldir)
             else:
-                legacyhalos.html.make_html(sample, survey=None, pixscale=args.pixscale,
+                legacyhalos.html.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_LAMBDA',
                                            nproc=args.nproc, clobber=args.clobber, makeplots=False,
                                            verbose=args.verbose, htmldir=args.htmldir)
         return

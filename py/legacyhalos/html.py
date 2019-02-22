@@ -20,7 +20,7 @@ sns = plot_style()
 #sns.set(style='ticks', font_scale=1.4, palette='Set2')
 
 def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-           survey=None, mp=None, clobber=False, verbose=True):
+           zcolumn='Z', survey=None, mp=None, clobber=False, verbose=True):
     """Build CCD-level QA.
 
     """
@@ -33,7 +33,7 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         survey = LegacySurveyData()
 
     radius_pixel = legacyhalos.misc.cutout_radius_150kpc(
-        redshift=onegal['Z'], pixscale=pixscale) # [pixels]
+        redshift=onegal[zcolumn], pixscale=pixscale) # [pixels]
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
@@ -58,7 +58,7 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
     if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, ccds, png=ccdposfile)
+        display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot."""
@@ -205,8 +205,8 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
             display_sersic(serexp, png=serexpfile, verbose=verbose)
 
 def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
-               band=('g', 'r', 'z'), pixscale=0.262, survey=None, nproc=1,
-               maketrends=False, ccdqa=False, clobber=False, verbose=True,
+               band=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
+               nproc=1, maketrends=False, ccdqa=False, clobber=False, verbose=True,
                hsc=False):
     """Make QA plots.
 
@@ -261,7 +261,8 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         # the ccdpos file.
         if ccdqa:
             qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
-                   mp=mp, survey=survey, clobber=clobber, verbose=verbose)
+                   zcolumn=zcolumn, mp=mp, survey=survey, clobber=clobber,
+                   verbose=verbose)
 
         # Build the MGE plots.
         #qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', band=band,
@@ -301,8 +302,8 @@ def _javastring():
     return js
         
 def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, first=None, last=None, nproc=1,
-              survey=None, makeplots=True, clobber=False, verbose=True,
+              refband='r', pixscale=0.262, zcolumn='Z', first=None, last=None,
+              nproc=1, survey=None, makeplots=True, clobber=False, verbose=True,
               maketrends=False, ccdqa=True):
     """Make the HTML pages.
 
@@ -332,7 +333,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Get the viewer link
     def _viewer_link(gal):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_150kpc(redshift=gal['Z'], pixscale=0.262) # [pixels]
+        width = 2 * cutout_radius_150kpc(redshift=gal[zcolumn], pixscale=0.262) # [pixels]
         if width > 400:
             zoom = 14
         else:
@@ -393,7 +394,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
             html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
             html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
-            html.write('<td>{:.5f}</td>\n'.format(gal['Z']))
+            html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
             html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
             html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
@@ -485,7 +486,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<td>{}</td>\n'.format(galaxy1))
             html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
             html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
-            html.write('<td>{:.5f}</td>\n'.format(gal['Z']))
+            html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
             html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
             html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
@@ -504,14 +505,18 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<h2>Elliptical Isophote Analysis</h2>\n')
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" alt="Missing file {}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+            pngfile = '{}-ellipse-multiband.png'.format(galaxy1)
+            html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('</tr>\n')
             html.write('</table>\n')
 
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
             #html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" alt="Missing file {}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-            html.write('<td width="50%"><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" alt="Missing file {}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+            pngfile = '{}-ellipse-sbprofile.png'.format(galaxy1)
+            html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+            pngfile = '{}-ellipse-cog.png'.format(galaxy)
+            html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('<td></td>\n')
             html.write('</tr>\n')
             html.write('</table>\n')
@@ -584,8 +589,9 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Make the plots.
     if makeplots:
         err = make_plots(sample, datadir=datadir, htmldir=htmldir, refband=refband,
-                         band=band, pixscale=pixscale, survey=survey, clobber=clobber,
-                         verbose=verbose, nproc=nproc, ccdqa=ccdqa, maketrends=maketrends)
+                         band=band, pixscale=pixscale, zcolumn=zcolumn, survey=survey,
+                         clobber=clobber, verbose=verbose, nproc=nproc, ccdqa=ccdqa,
+                         maketrends=maketrends)
 
     try:
         cmd = '/usr/bin/chgrp -R cosmo {}'.format(htmldir)
