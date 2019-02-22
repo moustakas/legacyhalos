@@ -378,13 +378,9 @@ def main():
         return
 
     # Loop on the remaining objects.
-    print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
+    print('Starting {} {} at {}'.format(len(groups[rank]), suffix.upper(), time.asctime()), flush=True)
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
-        if (count+1) % 10 == 0:
-            print('Rank {}: Building {} {} / {}'.format(
-                rank, suffix.upper(), count+1, len(groups[rank])), flush=True)
-
         onegal = sample[ii]
         if args.hsc:
             galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(onegal, htmldir=args.htmldir)
@@ -393,11 +389,15 @@ def main():
         if not os.path.isdir(galaxydir):
             os.makedirs(galaxydir, exist_ok=True)
 
+        #if (count+1) % 10 == 0:
+        print('Rank {:03d} ({} / {}): {} (index {})'.format(
+            rank, count+1, len(groups[rank]), galaxydir, ii), flush=True)
+
         if args.debug:
             logfile = None
         else:
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
-            print('Logging to {} '.format(logfile), flush=True)
+            #print('Logging to {} '.format(logfile), flush=True)
         
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.sky or args.htmlplots:
