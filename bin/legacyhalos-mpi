@@ -378,7 +378,8 @@ def main():
         return
 
     # Loop on the remaining objects.
-    print('Starting {} {} at {}'.format(len(groups[rank]), suffix.upper(), time.asctime()), flush=True)
+    print('Starting {} {} on rank {} at {}'.format(len(groups[rank]), suffix.upper(),
+                                                   rank, time.asctime()), flush=True)
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]

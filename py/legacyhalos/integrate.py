@@ -9,6 +9,7 @@ import os, warnings, pdb
 import multiprocessing
 import numpy as np
 
+from scipy.interpolate import interp1d
 from astropy.table import Table, Column, vstack
     
 import legacyhalos.io
@@ -44,7 +45,6 @@ def _dointegrate(radius, sb, sberr, rmin=None, rmax=None, band='r'):
 
     """
     from scipy import integrate
-    from scipy.interpolate import interp1d
 
     # Evaluate the profile at r=rmin
     if rmin is None:
@@ -130,7 +130,8 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50):
 
         for rmax in (10, 30, 100, None):
             obsflux, obsivar, _ = _dointegrate(radius, sb, sberr, rmax=rmax, band=band)
-
+            #ff = interp1d(radius, np.cumsum(sb), kind='linear')(rmax)
+            
             if rmax is not None:
                 fkey = 'FLUX{}_{}'.format(rmax, band.upper())
                 ikey = 'FLUX{}_IVAR_{}'.format(rmax, band.upper())

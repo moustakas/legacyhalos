@@ -439,6 +439,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         maskfile = os.path.join(survey.output_dir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
         print('Writing {}'.format(maskfile))
         fitsio.write(maskfile, comask, header=hdr, clobber=True)
+        del comask
 
         skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
         print('Writing {}'.format(skyfile))
@@ -504,6 +505,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                                   0.5*radius_mosaic/3600.0, nearest=False)
         srcs = read_fits_catalog(cat[m1], fluxPrefix='')
         mod = legacyhalos.misc.srcs2image(srcs, ConstantFitsWcs(brickwcs), psf_sigma=1.0)
+        if np.sum(np.isnan(mod)) > 0:
+            print('HERE galaxy {}'.format(galaxy), flush=True, file=log)
 
         mgegalaxy = find_galaxy(mod, nblob=1, binning=3, quiet=True)
 
