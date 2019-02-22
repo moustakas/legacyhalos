@@ -7,13 +7,13 @@
 #SBATCH --mail-type=ALL
 
 # #SBATCH -p regular
-# #SBATCH -N 4
-# #SBATCH -n 16
-# #SBATCH -t 02:00:00
+# #SBATCH -N 8
+# #SBATCH -n 24
+# #SBATCH -t 04:00:00
 
 #SBATCH -p debug
-#SBATCH -N 1
-#SBATCH -n 2
+#SBATCH -N 8
+#SBATCH -n 24
 #SBATCH -t 00:30:00
 
 # for cori only
@@ -60,18 +60,15 @@
 export IMPY_DIR=$HOME/repos/git/impy
 source $IMPY_DIR/bin/legacyhalos-env-nersc
 
-# do the whole sample!
-# time srun -N 32 -n 48 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 4 --mpi
-
 # pipeline coadds
-#time srun -N 1 -n 4 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --coadds --nproc 8 --mpi
+# time srun -N 8 -n 24 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 8 --mpi
 
 # custom coadds
-# time srun -N 4 -n 12 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --custom-coadds --nproc 8 --mpi --clobber
+time srun -N 4 -n 12 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --custom-coadds --nproc 8 --mpi --clobber
 
 # ellipse
 #time srun -N 2 -n 48 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --ellipse --mpi --clobber
 
 # html
-time srun -N 1 -n 2 -c 6 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --htmlplots --nproc 6 --mpi --clobber
+# time srun -N 1 -n 2 -c 6 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --htmlplots --nproc 6 --mpi --clobber
 #time $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --htmlplots --nproc 6 --clobber

@@ -518,6 +518,13 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         #galrad = (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) # type-weighted radius
         these *= galrad > 3
 
+        # Also add the sources nearest to the central coordinates.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+                                  3.0/3600.0, nearest=False)
+        if len(m1) > 0:
+            #these = np.logical_or(these
+            pdb.set_trace()
+
         if np.sum(these) > 0:
             keep = np.ones(len(cat)).astype(bool)
             keep[these] = False
