@@ -7,8 +7,6 @@ Code to generate grzW1W2 custom coadds / mosaics.
 python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
 
 """
-from __future__ import absolute_import, division, print_function
-
 import os, sys, pdb
 import shutil
 import numpy as np
@@ -498,6 +496,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
     # Custom code for dealing with centrals.
+    keep = np.ones(len(cat)).astype(bool)
     if centrals:
         # Build a model image with all the sources whose centroids are within
         # the inner XX% of the mosaic and then "find" the central galaxy.
@@ -520,32 +519,27 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
         # Also add the sources nearest to the central coordinates.
         m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                                  3.0/3600.0, nearest=False)
+                                  radius_search/3600.0, nearest=False)
         if len(m1) > 0:
-            #these = np.logical_or(these
-            pdb.set_trace()
+            these[m1] = True
 
         if np.sum(these) > 0:
-            keep = np.ones(len(cat)).astype(bool)
             keep[these] = False
         else:
             m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
                                       radius_search/3600.0, nearest=False)
-            if len(d12) == 0:
-                keep = np.ones(len(cat)).astype(bool)
-            else:
+            if len(d12) > 0:
                 keep = ~np.isin(cat.objid, cat[m1].objid)
     else:
         # Find and remove all the objects within XX arcsec of the target
         # coordinates.
         m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
                                   radius_search/3600.0, nearest=False)
-        if len(d12) == 0:
+        if len(d12) > 0:
+            keep = ~np.isin(cat.objid, cat[m1].objid)
+        else:
             print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
             #raise ValueError
-            keep = np.ones(len(cat)).astype(bool)
-        else:
-            keep = ~np.isin(cat.objid, cat[m1].objid)        
 
     #print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')

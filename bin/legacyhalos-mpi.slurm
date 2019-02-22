@@ -64,7 +64,7 @@ source $IMPY_DIR/bin/legacyhalos-env-nersc
 # time srun -N 8 -n 24 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 8 --mpi
 
 # custom coadds
-time srun -N 4 -n 12 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --custom-coadds --nproc 8 --mpi --clobber
+time srun -N 4 -n 12 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 10 --custom-coadds --nproc 8 --mpi --clobber
 
 # ellipse
 #time srun -N 2 -n 48 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 99 --ellipse --mpi --clobber

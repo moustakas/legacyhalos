@@ -92,7 +92,7 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
     """
     from legacyhalos.io import read_multiband, read_ellipsefit, read_sky_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
-                                display_ellipse_sbprofile)
+                                display_ellipse_sbprofile, qa_curveofgrowth)
 
     ellipsefit = read_ellipsefit(galaxy, galaxydir)
     skyellipsefit = read_sky_ellipsefit(galaxy, galaxydir)
@@ -102,6 +102,10 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
         indx = None
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
         #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
+
+        cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
+        if not os.path.isfile(cogfile) or clobber:
+            qa_curveofgrowth(ellipsefit, png=cogfile, verbose=verbose)
 
         sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
         if not os.path.isfile(sbprofilefile) or clobber:
@@ -240,8 +244,9 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
             os.makedirs(htmlgalaxydir, exist_ok=True)
 
         # Sersic fiting results
-        qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
-                          clobber=clobber, verbose=verbose)
+        if False:
+            qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
+                              clobber=clobber, verbose=verbose)
 
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
@@ -510,40 +515,41 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<td></td>\n')
             html.write('</tr>\n')
             html.write('</table>\n')
-            
-            html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
-            html.write('<table width="90%">\n')
 
-            # single-sersic
-            html.write('<tr>\n')
-            html.write('<th>Single Sersic (No Wavelength Dependence)</th><th>Single Sersic</th>\n')
-            html.write('</tr>\n')
-            html.write('<tr>\n')
-            html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-            html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-            html.write('</tr>\n')
+            if False:
+                html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
+                html.write('<table width="90%">\n')
 
-            # Sersic+exponential
-            html.write('<tr>\n')
-            html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
-            html.write('</tr>\n')
-            html.write('<tr>\n')
-            html.write('<td><a href="{}-sersic-exponential-nowavepower.png"><img src="{}-sersic-exponential-nowavepower.png" alt="Missing file {}-sersic-exponential-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-            html.write('<td><a href="{}-sersic-exponential.png"><img src="{}-sersic-exponential.png" alt="Missing file {}-sersic-exponential.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-            html.write('</tr>\n')
+                # single-sersic
+                html.write('<tr>\n')
+                html.write('<th>Single Sersic (No Wavelength Dependence)</th><th>Single Sersic</th>\n')
+                html.write('</tr>\n')
+                html.write('<tr>\n')
+                html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                html.write('</tr>\n')
 
-            # double-sersic
-            html.write('<tr>\n')
-            html.write('<th>Double Sersic (No Wavelength Dependence)</th><th>Double Sersic</th>\n')
-            html.write('</tr>\n')
-            html.write('<tr>\n')
-            html.write('<td><a href="{}-sersic-double-nowavepower.png"><img src="{}-sersic-double-nowavepower.png" alt="Missing file {}-sersic-double-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-            html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-            html.write('</tr>\n')
+                # Sersic+exponential
+                html.write('<tr>\n')
+                html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
+                html.write('</tr>\n')
+                html.write('<tr>\n')
+                html.write('<td><a href="{}-sersic-exponential-nowavepower.png"><img src="{}-sersic-exponential-nowavepower.png" alt="Missing file {}-sersic-exponential-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                html.write('<td><a href="{}-sersic-exponential.png"><img src="{}-sersic-exponential.png" alt="Missing file {}-sersic-exponential.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                html.write('</tr>\n')
 
-            html.write('</table>\n')
+                # double-sersic
+                html.write('<tr>\n')
+                html.write('<th>Double Sersic (No Wavelength Dependence)</th><th>Double Sersic</th>\n')
+                html.write('</tr>\n')
+                html.write('<tr>\n')
+                html.write('<td><a href="{}-sersic-double-nowavepower.png"><img src="{}-sersic-double-nowavepower.png" alt="Missing file {}-sersic-double-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                html.write('</tr>\n')
 
-            html.write('<br />\n')
+                html.write('</table>\n')
+
+                html.write('<br />\n')
 
             if nccds:
                 html.write('<h2>CCD Diagnostics</h2>\n')

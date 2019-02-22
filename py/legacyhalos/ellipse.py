@@ -88,7 +88,7 @@ def ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor, warnvalu
 
 def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
                          integrmode='median', nclip=2, sclip=3,
-                         step=0.1, fflag=0.7, linear=False, 
+                         step=0.1, fflag=0.7, linear=False, zcolumn='Z',
                          nowrite=False, verbose=False, noellipsefit=False,
                          debug=False):
     """Ellipse-fit the multiband data.
@@ -97,6 +97,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
 
     maxsma in (optical) pixels
+    zcolumn - name of the redshift column (Z_LAMBDA in redmapper)
 
     """
     import copy
@@ -140,7 +141,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
         ellipsefit[key] = getattr(mgegalaxy, key)
 
     ellipsefit['success'] = False
-    ellipsefit['redshift'] = sample['Z']
+    ellipsefit['redshift'] = sample[zcolumn]
     ellipsefit['band'] = band
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
@@ -450,7 +451,7 @@ def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
     
 def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         refband='r', band=('g', 'r', 'z'), maxsma=None,
-                        integrmode='median', nclip=2, sclip=3,
+                        integrmode='median', nclip=2, sclip=3, zcolumn='Z',
                         galex_pixscale=1.5, unwise_pixscale=2.75,
                         noellipsefit=False, verbose=False, debug=False,
                         hsc=False):
@@ -478,8 +479,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         # Do ellipse-fitting.
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
                                           maxsma=maxsma, integrmode=integrmode,
-                                          nclip=nclip, sclip=sclip, verbose=verbose,
-                                          noellipsefit=noellipsefit)
+                                          nclip=nclip, sclip=sclip, zcolumn=zcolumn,
+                                          verbose=verbose, noellipsefit=noellipsefit)
         if ellipsefit['success']:
             return 1
         else:

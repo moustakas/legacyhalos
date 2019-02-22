@@ -164,6 +164,7 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
     if debug:
         _start(galaxy)
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
+                                                      zcolumn='Z_LAMBDA',
                                                       verbose=verbose, debug=debug,
                                                       noellipsefit=True, hsc=hsc)
         _done(galaxy, err, t0)
@@ -172,6 +173,7 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
+                                                              zcolumn='Z_LAMBDA',
                                                               verbose=verbose, debug=debug,
                                                               noellipsefit=True, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
@@ -255,7 +257,7 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--nproc', default=4, type=int, help='number of multiprocessing processes per MPI rank.')
+    parser.add_argument('--nproc', default=1, type=int, help='number of multiprocessing processes per MPI rank.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
 
