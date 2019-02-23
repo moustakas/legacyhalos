@@ -128,7 +128,19 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
     mgegalaxy = find_galaxy(data[refband], nblob=1, binning=3,
                             plot=debug, quiet=not verbose)
+    mgegalaxy.centershift = False
 
+    xcen, ycen = data[refband].shape
+    xcen /= 2
+    ycen /= 2
+    if np.abs(mgegalaxy.xpeak-xcen) > 5:
+        mgegalaxy.xpeak = xcen
+        mgegalaxy.centershift = True
+        
+    if np.abs(mgegalaxy.ypeak-ycen) > 5:
+        mgegalaxy.ypeak = ycen
+        mgegalaxy.centershift = True
+              
     #mgegalaxy.xmed -= 1
     #mgegalaxy.ymed -= 1
     #mgegalaxy.xpeak -= 1
@@ -136,7 +148,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
     # Populate the output dictionary
     ellipsefit = dict()
-    for key in ('eps', 'majoraxis', 'pa', 'theta',
+    for key in ('eps', 'majoraxis', 'pa', 'theta', 'centershift',
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
         ellipsefit[key] = getattr(mgegalaxy, key)
 
