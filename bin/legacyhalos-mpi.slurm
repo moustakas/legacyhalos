@@ -13,7 +13,7 @@
 
 #SBATCH -p debug
 #SBATCH -N 1
-#SBATCH -n 12
+#SBATCH -n 15
 #SBATCH -t 00:30:00
 
 # for cori only
@@ -67,7 +67,7 @@ source $IMPY_DIR/bin/legacyhalos-env-nersc
 #time srun -N 2 -n 6 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc 8 --mpi
 
 # ellipse
-time srun -N 1 -n 12 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --mpi --clobber
+#time srun -N 1 -n 15 --cpu_bind=cores $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --mpi 
 
 # html
 # time srun -N 1 -n 24 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --htmlplots --mpi

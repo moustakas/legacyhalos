@@ -15,7 +15,7 @@ from astropy.table import Table, Column, vstack
 import legacyhalos.io
 import legacyhalos.misc
 
-def _init_phot(nrad_uniform=50, ngal=1, band=('g', 'r', 'z')):
+def _init_phot(nrad_uniform=30, ngal=1, band=('g', 'r', 'z')):
     """Initialize the output photometry table.
 
     """
@@ -96,7 +96,7 @@ def _integrate_one(args):
     """Wrapper for the multiprocessing."""
     return integrate_one(*args)
 
-def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50, count=1):
+def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=30, count=1):
     """Integrate over various radial ranges.
 
     """
@@ -153,9 +153,11 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50, co
     if len(min_r) == 0:
         return phot
     
-    #pdb.set_trace()
     min_r, max_r = np.min(min_r), np.max(max_r)
-    rad_uniform = 10**np.linspace(np.log10(min_r), np.log10(max_r), nrad_uniform+1)
+    if False: 
+        rad_uniform = 10**np.linspace(np.log10(min_r), np.log10(max_r), nrad_uniform+1) # log-spacing
+    else: 
+        rad_uniform = np.linspace(min_r**0.25, max_r**0.25, nrad_uniform+1)**4 # r^1/4 spacing
     rmin_uniform, rmax_uniform = rad_uniform[:-1], rad_uniform[1:]
     phot['RAD'][:] = (rmax_uniform - rmin_uniform) / 2 + rmin_uniform
     
@@ -176,7 +178,7 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50, co
     return phot
 
 def legacyhalos_integrate(sample=None, first=None, last=None, nproc=1,
-                          minerr=0.01, nrad_uniform=50, verbose=False,
+                          minerr=0.01, nrad_uniform=30, verbose=False,
                           clobber=False):
     """Wrapper script to integrate the profiles for the full sample.
 
