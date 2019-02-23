@@ -46,22 +46,27 @@ def _dointegrate(radius, sb, sberr, rmin=None, rmax=None, band='r'):
     """
     from scipy import integrate
 
+    if len(radius) < 10:
+        return 0.0, 0.0, 0.0 # need at least 10 points
+
     # Evaluate the profile at r=rmin
     if rmin is None:
         rmin = 0.0
         sberr_rmin = sberr[0]
     else:
         sberr_rmin = interp1d(radius, sberr, kind='linear', fill_value='extrapolate')(rmin)
-        
+
     sb_rmin = interp1d(radius, sb, kind='quadratic', fill_value='extrapolate')(rmin)
 
     if rmax is None:
         rmax = radius.max() # [kpc]
 
-    if rmax > radius.max():
+    if rmax > radius.max() or rmax < radius.min():
         return 0.0, 0.0, 0.0 # do not extrapolate outward
     else:
         # Interpolate the last point to the desired rmax
+        #if band == 'z':
+        #    pdb.set_trace()
         sb_rmax = interp1d(radius, sb, kind='linear')(rmax)
         sberr_rmax = np.sqrt(interp1d(radius, sberr**2, kind='linear')(rmax))
 
@@ -91,7 +96,7 @@ def _integrate_one(args):
     """Wrapper for the multiprocessing."""
     return integrate_one(*args)
 
-def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50):
+def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50, count=1):
     """Integrate over various radial ranges.
 
     """
@@ -99,10 +104,9 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50):
         phot = _init_phot(ngal=1, nrad_uniform=nrad_uniform)
     phot = Table(phot)
 
-    print(galaxy)
+    print(count, galaxy)
     ellipsefit = legacyhalos.io.read_ellipsefit(galaxy, galaxydir)
-    
-    if ellipsefit['success'] == False:
+    if not bool(ellipsefit) or ellipsefit['success'] == False:
         return phot
 
     allband, pixscale = ellipsefit['band'], ellipsefit['pixscale']
@@ -124,6 +128,8 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50):
     min_r, max_r = [], []
     for band in allband:
         radius, sb, sberr = _get_sbprofile(ellipsefit, band, minerr=minerr)
+        if len(radius) == 0:
+            continue
 
         min_r.append(radius.min())
         max_r.append(radius.max())
@@ -143,7 +149,11 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50):
             phot[ikey] = obsivar
         phot['RMAX_{}'.format(band.upper())] = radius.max()
 
-    # Now integrate over fixed apertures to get the differential flux. 
+    # Now integrate over fixed apertures to get the differential flux.
+    if len(min_r) == 0:
+        return phot
+    
+    #pdb.set_trace()
     min_r, max_r = np.min(min_r), np.max(max_r)
     rad_uniform = 10**np.linspace(np.log10(min_r), np.log10(max_r), nrad_uniform+1)
     rmin_uniform, rmax_uniform = rad_uniform[:-1], rad_uniform[1:]
@@ -151,8 +161,9 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=50):
     
     for band in allband:
         radius, sb, sberr = _get_sbprofile(ellipsefit, band, minerr=minerr)
-        
         for ii, (rmin, rmax) in enumerate(zip(rmin_uniform, rmax_uniform)):
+            #if band == 'r' and ii == 49:
+            #    pdb.set_trace()
             obsflux, obsivar, obsarea = _dointegrate(radius, sb, sberr, rmin=rmin, rmax=rmax, band=band)
             #print(band, ii, rmin, rmax, 22.5-2.5*np.log10(obsflux), obsarea)
 
@@ -180,7 +191,7 @@ def legacyhalos_integrate(sample=None, first=None, last=None, nproc=1,
 
     args = list()
     for ii in range(ngal):
-        args.append((galaxy[ii], galaxydir[ii], phot[ii], minerr, nrad_uniform))
+        args.append((galaxy[ii], galaxydir[ii], phot[ii], minerr, nrad_uniform, ii))
 
     # Divide the sample by cores.
     if nproc > 1:

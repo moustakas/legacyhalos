@@ -249,12 +249,12 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                     err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                                       pixscale=pixscale, survey=survey, clobber=clobber,
                                                       verbose=verbose, nproc=nproc,
-                                                      ccdqa=True, maketrends=False, hsc=True)
+                                                      ccdqa=ccdqa, maketrends=False, hsc=True)
                 else:
                     err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                                       pixscale=pixscale, survey=survey, clobber=clobber,
                                                       verbose=verbose, nproc=nproc,
-                                                      ccdqa=True, maketrends=False)
+                                                      ccdqa=ccdqa, maketrends=False)
                 _done(galaxy, err, t0, log=log)
 
 def main():
@@ -422,8 +422,20 @@ def main():
                     with open(logfile, 'w') as log:
                         print('CCDs file {} not found.'.format(ccdsfile), flush=True, file=log)
                         print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
-                return
+                continue
             survey.ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+
+            # Check that coadds in all three grz bandpasses were generated in the
+            # previous step.
+            if ('g' not in survey.ccds.filter) or ('r' not in survey.ccds.filter) or ('z' not in survey.ccds.filter):
+                if args.debug:
+                    print('Missing grz coadds...skipping.', flush=True)
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                else:
+                    with open(logfile, 'w') as log:
+                        print('Missing grz coadds...skipping.', flush=True, file=log)
+                        print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+                continue
 
         if args.custom_coadds:
             _call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
