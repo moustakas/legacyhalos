@@ -13,7 +13,6 @@ from astropy.table import Table
 
 import legacyhalos.io
 import legacyhalos.misc
-from legacyhalos.redmapper import pzutils
 
 sampledir = legacyhalos.io.sample_dir()
 paper1dir = os.path.join( legacyhalos.io.paper1_dir(), 'data' )
@@ -40,6 +39,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--dr', type=str, default='dr6-dr7', help='Data release to analyze.')
+    parser.add_argument('--zmax', type=float, default='0.4', help='Maximum redshift.')
     parser.add_argument('--minpcen', type=float, default='0.9', help='Minimum P(cen) to make it into the sample.')
 
     args = parser.parse_args()
@@ -50,8 +50,35 @@ def main():
 
     allcen = fitsio.read(samplefile, ext=1)
 
-    rows = np.where(allcen['P_CEN'][:, 0] > args.minpcen)[0]
+    rows = np.where((allcen['P_CEN'][:, 0] > args.minpcen) *
+                    (allcen['BCG_SPEC_Z'] != -1) * # require specz
+                    (allcen['Z_LAMBDA'] >= 0.05) * (allcen['Z_LAMBDA'] <= args.zmax))[0]
     cen = allcen[rows]
+
+    # Temporary hack to write out a pilot sample of 1000 galaxies drawn
+    # uniformly from halo mass.
+    if True:
+        npilot = 1000
+
+        mhalo = np.log10(legacyhalos.misc.lambda2mhalo(cen['LAMBDA_CHISQ'], redshift=cen['Z_LAMBDA']))
+
+        nbin = 20
+        _xbin = np.linspace(mhalo.min(), mhalo.max(), nbin)
+        idx  = np.digitize(mhalo, _xbin)
+
+        prob = np.zeros_like(mhalo)
+        for kk in range(nbin):
+            ww = idx == kk
+            if np.sum(ww) > 1:
+                prob[ww] = 1 / np.sum(ww)
+        prob /= np.sum(prob)
+
+        rand = np.random.RandomState(seed=1)
+        these = rand.choice(len(cen), npilot, p=prob, replace=False)
+        srt = np.argsort(cen['MEM_MATCH_ID'][these])
+        rows = rows[these[srt]]
+        
+        cen = cen[these[srt]]
 
     print('Writing {} / {} centrals to {}'.format(len(cen), len(allcen), outfile))
     fitsio.write(outfile, cen, clobber=True)

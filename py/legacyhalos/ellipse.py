@@ -88,7 +88,7 @@ def ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor, warnvalu
 
 def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
                          integrmode='median', nclip=2, sclip=3,
-                         step=0.1, fflag=0.7, linear=False, 
+                         step=0.1, fflag=0.7, linear=False, zcolumn='Z',
                          nowrite=False, verbose=False, noellipsefit=False,
                          debug=False):
     """Ellipse-fit the multiband data.
@@ -97,6 +97,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
 
     maxsma in (optical) pixels
+    zcolumn - name of the redshift column (Z_LAMBDA in redmapper)
 
     """
     import copy
@@ -127,7 +128,19 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
     mgegalaxy = find_galaxy(data[refband], nblob=1, binning=3,
                             plot=debug, quiet=not verbose)
+    mgegalaxy.centershift = False
 
+    xcen, ycen = data[refband].shape
+    xcen /= 2
+    ycen /= 2
+    if np.abs(mgegalaxy.xpeak-xcen) > 5:
+        mgegalaxy.xpeak = xcen
+        mgegalaxy.centershift = True
+        
+    if np.abs(mgegalaxy.ypeak-ycen) > 5:
+        mgegalaxy.ypeak = ycen
+        mgegalaxy.centershift = True
+              
     #mgegalaxy.xmed -= 1
     #mgegalaxy.ymed -= 1
     #mgegalaxy.xpeak -= 1
@@ -135,12 +148,12 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
     # Populate the output dictionary
     ellipsefit = dict()
-    for key in ('eps', 'majoraxis', 'pa', 'theta',
+    for key in ('eps', 'majoraxis', 'pa', 'theta', 'centershift',
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
         ellipsefit[key] = getattr(mgegalaxy, key)
 
     ellipsefit['success'] = False
-    ellipsefit['redshift'] = sample['Z']
+    ellipsefit['redshift'] = sample[zcolumn]
     ellipsefit['band'] = band
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
@@ -380,77 +393,9 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
 
     return sbprofile
 
-def mgefit_multiband(galaxy, galaxydir, data, debug=False, nowrite=False,
-                     noellipsefit=True, verbose=False):
-    """MGE-fit the multiband data.
-
-    See http://www-astro.physics.ox.ac.uk/~mxc/software/#mge
-
-    """
-    from mge.find_galaxy import find_galaxy
-    from mge.sectors_photometry import sectors_photometry
-    from mge.mge_fit_sectors import mge_fit_sectors as fit_sectors
-    #from mge.mge_print_contours import mge_print_contours as print_contours
-
-    band, refband, pixscale = data['band'], data['refband'], data['pixscale']
-
-    # Get the geometry of the galaxy in the reference band.
-    if verbose:
-        print('Finding the galaxy in the reference {}-band image.'.format(refband))
-
-    mgegalaxy = find_galaxy(data[refband], nblob=1, binning=3,
-                            plot=debug, quiet=not verbose)
-    if debug:
-        #plt.show()
-        pass
-    
-    #galaxy.xmed -= 1
-    #galaxy.ymed -= 1
-    #galaxy.xpeak -= 1
-    #galaxy.ypeak -= 1
-    
-    mgefit = dict()
-    for key in ('eps', 'majoraxis', 'pa', 'theta',
-                'xmed', 'ymed', 'xpeak', 'ypeak'):
-        mgefit[key] = getattr(mgegalaxy, key)
-
-    if not noellipsefit:
-        t0 = time.time()
-        for filt in band:
-            if verbose:
-                print('Running MGE on the {}-band image.'.format(filt))
-
-            mgephot = sectors_photometry(data[filt], mgegalaxy.eps, mgegalaxy.theta, mgegalaxy.xmed,
-                                         mgegalaxy.ymed, n_sectors=11, minlevel=0, plot=debug,
-                                         mask=data['{}_mask'.format(filt)])
-            if debug:
-                #plt.show()
-                pass
-
-            mgefit[filt] = fit_sectors(mgephot.radius, mgephot.angle, mgephot.counts,
-                                       mgegalaxy.eps, ngauss=None, negative=False,
-                                       sigmaPSF=0, normPSF=1, scale=pixscale,
-                                       quiet=not debug, outer_slope=4, bulge_disk=False,
-                                       plot=debug)
-            if debug:
-                pass
-                #plt.show()
-
-            #_ = print_contours(data[refband], mgegalaxy.pa, mgegalaxy.xpeak, mgegalaxy.ypeak, pp.sol, 
-            #                   binning=2, normpsf=1, magrange=6, mask=None, 
-            #                   scale=pixscale, sigmapsf=0)
-
-        if verbose:
-            print('Time = {:.3f} sec'.format( (time.time() - t0) / 1))
-
-    if not nowrite:
-        legacyhalos.io.write_mgefit(galaxy, galaxydir, mgefit, band=refband, verbose=verbose)
-
-    return mgefit
-    
 def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         refband='r', band=('g', 'r', 'z'), maxsma=None,
-                        integrmode='median', nclip=2, sclip=3,
+                        integrmode='median', nclip=2, sclip=3, zcolumn='Z',
                         galex_pixscale=1.5, unwise_pixscale=2.75,
                         noellipsefit=False, verbose=False, debug=False,
                         hsc=False):
@@ -478,8 +423,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         # Do ellipse-fitting.
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
                                           maxsma=maxsma, integrmode=integrmode,
-                                          nclip=nclip, sclip=sclip, verbose=verbose,
-                                          noellipsefit=noellipsefit)
+                                          nclip=nclip, sclip=sclip, zcolumn=zcolumn,
+                                          verbose=verbose, noellipsefit=noellipsefit)
         if ellipsefit['success']:
             return 1
         else:

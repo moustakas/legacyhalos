@@ -77,8 +77,8 @@ def main():
         import matplotlib.pyplot as plt
 
         w1 = np.where( (np.sum(p_zbin, axis=0) > 1e-2) )[0]
-        _ = plt.hist(allcen['Z'], bins=100, range=(0, 0.6))
-        _ = plt.hist(allcen['Z'][w1], bins=100, range=(0, 0.6), alpha=0.5)
+        _ = plt.hist(allcen['Z_LAMBDA'], bins=100, range=(0, 0.6))
+        _ = plt.hist(allcen['Z_LAMBDA'][w1], bins=100, range=(0, 0.6), alpha=0.5)
         plt.show()
     
         w2 = np.where( (np.sum(p_lambin, axis=0) > 1e-2) )[0]
@@ -87,7 +87,7 @@ def main():
         plt.show()
 
     # Old-school, hard cut-off way.
-    #rows = np.where( (allcen['Z'] >= 0.05) * (allcen['Z'] <= 0.35) * (allcen['LAMBDA_CHISQ'] >= 10) )[0]
+    #rows = np.where( (allcen['Z_LAMBDA'] >= 0.05) * (allcen['Z_LAMBDA'] <= 0.35) * (allcen['LAMBDA_CHISQ'] >= 10) )[0]
     cen = allcen[rows]
 
     print('Writing {}'.format(outfile))

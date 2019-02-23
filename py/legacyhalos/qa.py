@@ -47,7 +47,7 @@ def qa_curveofgrowth(ellipsefit, png=None, verbose=True):
     band, refband, redshift = ellipsefit['band'], ellipsefit['refband'], ellipsefit['redshift']
 
     maxsma = ellipsefit['apphot_sma_{}'.format(refband)].max()
-    smascale = LSLGA.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+    smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
     yfaint, ybright = 0, 50
     for filt in band:
@@ -55,7 +55,9 @@ def qa_curveofgrowth(ellipsefit, png=None, verbose=True):
         good = np.where( np.isfinite(flux) * (flux > 0) )[0]
         sma = ellipsefit['apphot_sma_{}'.format(filt)][good]
         mag = 22.5-2.5*np.log10(flux[good])
-        ax.plot(sma, mag, label=filt)
+
+        magtot = np.mean(mag[-5:])
+        ax.plot(sma, mag, label='{}={:.3f}'.format(filt, magtot))
 
         #print(filt, np.mean(mag[-5:]))
         #print(filt, mag[-5:], np.mean(mag[-5:])
@@ -67,11 +69,11 @@ def qa_curveofgrowth(ellipsefit, png=None, verbose=True):
             ybright = mag.min()
 
     ax.set_xlabel(r'Semi-major Axis $a$ (arcsec)')
-    ax.set_ylabel('Cumulative Brightness (AB mag)')
+    ax.set_ylabel('Cumulative Flux (AB mag)')
 
-    ax.set_xlim(0, maxsma)
+    ax.set_xlim(0, maxsma*1.01)
     ax_twin = ax.twiny()
-    ax_twin.set_xlim( (0, maxsma * smascale) )
+    ax_twin.set_xlim( (0, maxsma*smascale) )
     ax_twin.set_xlabel('Semi-major Axis $a$ (kpc)')
 
     yfaint += 0.5
@@ -80,9 +82,9 @@ def qa_curveofgrowth(ellipsefit, png=None, verbose=True):
     ax.set_ylim(yfaint, ybright)
     ax_twin = ax.twinx()
     ax_twin.set_ylim(yfaint, ybright)
-    ax_twin.set_ylabel('Cumulative Brightness (AB mag)')#, rotation=-90)
+    ax_twin.set_ylabel('Cumulative Flux (AB mag)')#, rotation=-90)
 
-    ax.legend(loc='lower right', fontsize=14, ncol=3)
+    ax.legend(loc='lower right', fontsize=14)#, ncol=3)
 
     fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
 
@@ -1248,16 +1250,17 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
     _color_vs_sma()       # color vs semi-major axis
     _ellipticity_vs_sma() # ellipticity vs semi-major axis
 
-def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, png=None, verbose=False):
+def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, zcolumn='Z',
+                   png=None, verbose=False):
     """Visualize the position of all the CCDs contributing to the image stack of a
     single galaxy.
 
     """
     if radius is None:
         radius = legacyhalos.misc.cutout_radius_150kpc(
-            redshift=onegal['Z'], pixscale=pixscale) # [pixels]
+            redshift=onegal[zcolumn], pixscale=pixscale) # [pixels]
 
-    wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius, pixscale=pixscale)
+    wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius, pixscale=pixscale, zcolumn=zcolumn)
     width, height = wcs.get_width() * pixscale / 3600, wcs.get_height() * pixscale / 3600 # [degrees]
     bb, bbcc = wcs.radec_bounds(), wcs.radec_center() # [degrees]
     pad = 0.2 # [degrees]

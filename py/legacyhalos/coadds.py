@@ -7,8 +7,6 @@ Code to generate grzW1W2 custom coadds / mosaics.
 python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
 
 """
-from __future__ import absolute_import, division, print_function
-
 import os, sys, pdb
 import shutil
 import numpy as np
@@ -56,6 +54,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
     #cmd += '--stage image_coadds --early-coadds '
     #cmd += '--write-stage tims '
     cmd += '--write-stage srcs '
+    cmd += '--mjd-min 0 '
     cmd += '--skip-calibs --no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
@@ -381,7 +380,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     if radius_mask is None:
         radius_mask = radius_mosaic
-        radius_search = 3.0 # [arcsec]
+        radius_search = 5.0 # [arcsec]
     else:
         radius_search = radius_mask
         
@@ -441,6 +440,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         maskfile = os.path.join(survey.output_dir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
         print('Writing {}'.format(maskfile))
         fitsio.write(maskfile, comask, header=hdr, clobber=True)
+        del comask
 
         skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
         print('Writing {}'.format(skyfile))
@@ -498,6 +498,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
     # Custom code for dealing with centrals.
+    keep = np.ones(len(cat)).astype(bool)
     if centrals:
         # Build a model image with all the sources whose centroids are within
         # the inner XX% of the mosaic and then "find" the central galaxy.
@@ -505,6 +506,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                                   0.5*radius_mosaic/3600.0, nearest=False)
         srcs = read_fits_catalog(cat[m1], fluxPrefix='')
         mod = legacyhalos.misc.srcs2image(srcs, ConstantFitsWcs(brickwcs), psf_sigma=1.0)
+        if np.sum(np.isnan(mod)) > 0:
+            print('HERE galaxy {}'.format(galaxy), flush=True, file=log)
 
         mgegalaxy = find_galaxy(mod, nblob=1, binning=3, quiet=True)
 
@@ -518,27 +521,29 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         #galrad = (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) # type-weighted radius
         these *= galrad > 3
 
+        # Also add the sources nearest to the central coordinates.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+                                  radius_search/3600.0, nearest=False)
+        if len(m1) > 0:
+            these[m1] = True
+
         if np.sum(these) > 0:
-            keep = np.ones(len(cat)).astype(bool)
             keep[these] = False
         else:
             m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
                                       radius_search/3600.0, nearest=False)
-            if len(d12) == 0:
-                keep = np.ones(len(cat)).astype(bool)
-            else:
+            if len(d12) > 0:
                 keep = ~np.isin(cat.objid, cat[m1].objid)
     else:
         # Find and remove all the objects within XX arcsec of the target
         # coordinates.
         m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
                                   radius_search/3600.0, nearest=False)
-        if len(d12) == 0:
+        if len(d12) > 0:
+            keep = ~np.isin(cat.objid, cat[m1].objid)
+        else:
             print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
             #raise ValueError
-            keep = np.ones(len(cat)).astype(bool)
-        else:
-            keep = ~np.isin(cat.objid, cat[m1].objid)        
 
     #print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')
@@ -554,6 +559,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     modargs = [(tim, srcs_nocentral) for tim in newtims]
     mods_nocentral = mp.map(_get_mod, modargs)
+    
+    #import matplotlib.pyplot as plt ; plt.imshow(np.log10(mod), origin='lower') ; plt.savefig('junk.png')    
+    #pdb.set_trace()
 
     # [5] Build the custom coadds, with and without the surrounding galaxies.
     print('Producing coadds...', flush=True, file=log)

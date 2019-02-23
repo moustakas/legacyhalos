@@ -10,7 +10,7 @@ matplotlib.use('Agg')
 import os, sys, time, pdb
 import argparse
 import numpy as np
-from astropy.table import Table
+from astropy.table import Table, hstack
 from contextlib import redirect_stdout, redirect_stderr
 
 from astrometry.util.fits import fits_table
@@ -20,6 +20,7 @@ import legacyhalos.io
 import legacyhalos.hsc
 import legacyhalos.coadds
 import legacyhalos.html
+import legacyhalos.integrate
 
 def get_survey_dir(onegal):
     if onegal['RELEASE'] == 6000:
@@ -43,8 +44,6 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         filesuffix = '-ellipsefit.p'
     elif filetype == 'sersic':
         filesuffix = '-sersic-single.p'
-    elif filetype == 'integrate':
-        filesuffix = '???'
     elif filetype == 'html':
         filesuffix = '-ccdpos.png'
         #filesuffix = '-sersic-exponential-nowavepower.png'
@@ -91,8 +90,6 @@ def _missing_files(args, sample, size, htmldir=None):
         suffix = 'ellipse'
     elif args.sersic:
         suffix = 'sersic'
-    elif args.integrate:
-        suffix = 'integrate'
     elif args.sky:
         suffix = 'sky'
     elif args.htmlplots:
@@ -167,6 +164,7 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
     if debug:
         _start(galaxy)
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
+                                                      zcolumn='Z_LAMBDA',
                                                       verbose=verbose, debug=debug,
                                                       noellipsefit=True, hsc=hsc)
         _done(galaxy, err, t0)
@@ -175,6 +173,7 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
+                                                              zcolumn='Z_LAMBDA',
                                                               verbose=verbose, debug=debug,
                                                               noellipsefit=True, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
@@ -197,26 +196,6 @@ def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
                 _start(galaxy, log=log, seed=seed)
                 err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
                                                             debug=debug, verbose=verbose, seed=seed)
-                _done(galaxy, err, t0, log=log)
-
-def _call_integrate(onegal, galaxy, galaxydir, verbose, debug, logfile, hsc):
-    """Wrapper script to integrate the profiles.
-
-    """
-    import legacyhalos.integrate
-
-    t0 = time.time()
-    if debug:
-        _start(galaxy)
-        err = legacyhalos.integrate.legacyhalos_integrate(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                                                          debug=debug, verbose=verbose, hsc=hsc)
-        _done(galaxy, err, t0)
-    else:
-        with open(logfile, 'w') as log:
-            with redirect_stdout(log), redirect_stderr(log):
-                _start(galaxy, log=log)
-                err = legacyhalos.integrate.legacyhalos_integrate(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                                                                  debug=debug, verbose=verbose, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
 
 def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
@@ -247,18 +226,20 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
+    ccdqa, maketrends = True, False
+
     if debug:
         _start(galaxy)
         if hsc:
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
-                                              ccdqa=True, maketrends=False, hsc=True)
+                                              ccdqa=ccdqa, maketrends=maketrends, hsc=True)
         else:
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
-                                              ccdqa=True, maketrends=False)
+                                              ccdqa=ccdqa, maketrends=maketrends)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
@@ -268,19 +249,17 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                     err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                                       pixscale=pixscale, survey=survey, clobber=clobber,
                                                       verbose=verbose, nproc=nproc,
-                                                      ccdqa=True, maketrends=False, hsc=True)
+                                                      ccdqa=ccdqa, maketrends=False, hsc=True)
                 else:
                     err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                                       pixscale=pixscale, survey=survey, clobber=clobber,
                                                       verbose=verbose, nproc=nproc,
-                                                      ccdqa=True, maketrends=False)
+                                                      ccdqa=ccdqa, maketrends=False)
                 _done(galaxy, err, t0, log=log)
 
 def main():
-    from contextlib import redirect_stdout, redirect_stderr
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('--nproc', default=4, type=int, help='number of multiprocessing processes per MPI rank.')
+    parser.add_argument('--nproc', default=1, type=int, help='number of multiprocessing processes per MPI rank.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
 
@@ -324,22 +303,45 @@ def main():
             sample = legacyhalos.hsc.read_parent(first=args.first, last=args.last)
         else:
             sample = legacyhalos.io.read_paper2_sample(first=args.first, last=args.last)
+            #sample = sample[[61, 74, 84]]
+            #sample = sample[[8, 11, 136, 156, 157, 188, 214, 390, 603, 670, 871, 940]]
     else:
         sample = None
 
     if comm:
         sample = comm.bcast(sample, root=0)
 
+    # Build the web-page; integrate the ellipse-fitting results.
     if args.htmlindex:
         if rank == 0:
             if args.hsc:
-                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale,
+                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_LAMBDA',
                                           nproc=args.nproc, clobber=args.clobber, makeplots=False,
                                           verbose=args.verbose, htmldir=args.htmldir)
             else:
-                legacyhalos.html.make_html(sample, survey=None, pixscale=args.pixscale,
+                legacyhalos.html.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_LAMBDA',
                                            nproc=args.nproc, clobber=args.clobber, makeplots=False,
                                            verbose=args.verbose, htmldir=args.htmldir)
+        return
+
+    if args.integrate:
+        if rank == 0:
+            # Temporary paper2 hack--
+            outfile = os.path.join(legacyhalos.io.paper2_dir(data=True), 'paper2-profiles1d-flux.fits')
+            if os.path.exists(outfile) and args.clobber is False:
+                print('Output file {} exists; use --clobber.'.format(outfile))
+                return
+            
+            results = legacyhalos.integrate.legacyhalos_integrate(
+                sample, nproc=args.nproc, verbose=args.verbose)
+            if args.hsc:
+                pass
+            else:
+                cols = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z', 'LAMBDA_CHISQ', 'ID_CENT',
+                        'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
+                out = hstack((sample[cols], results))
+                print('Writing {}'.format(outfile))
+                out.write(outfile, overwrite=True)
         return
 
     # Determine how many more objects we need to analyze and divide them
@@ -378,13 +380,10 @@ def main():
         return
 
     # Loop on the remaining objects.
-    print('Starting {} {} at {}'.format(ntodo, suffix.upper(), time.asctime()), flush=True)
+    print('Starting {} {} on rank {} at {}'.format(len(groups[rank]), suffix.upper(),
+                                                   rank, time.asctime()), flush=True)
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
-        if (count+1) % 10 == 0:
-            print('Rank {}: Building {} {} / {}'.format(
-                rank, suffix.upper(), count+1, len(groups[rank])), flush=True)
-
         onegal = sample[ii]
         if args.hsc:
             galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(onegal, htmldir=args.htmldir)
@@ -393,11 +392,15 @@ def main():
         if not os.path.isdir(galaxydir):
             os.makedirs(galaxydir, exist_ok=True)
 
+        #if (count+1) % 10 == 0:
+        print('Rank {:03d} ({} / {}): {} (index {})'.format(
+            rank, count+1, len(groups[rank]), galaxydir, ii), flush=True)
+
         if args.debug:
             logfile = None
         else:
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
-            print('Logging to {} '.format(logfile), flush=True)
+            #print('Logging to {} '.format(logfile), flush=True)
         
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.sky or args.htmlplots:
@@ -408,6 +411,7 @@ def main():
             survey.output_dir = galaxydir
 
         if args.coadds:
+            print('After DR8 do not use mjd-min in coadds.py!')
             _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
                                   args.nproc, args.force, args.debug, logfile)
                     
@@ -421,8 +425,20 @@ def main():
                     with open(logfile, 'w') as log:
                         print('CCDs file {} not found.'.format(ccdsfile), flush=True, file=log)
                         print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
-                return
+                continue
             survey.ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+
+            # Check that coadds in all three grz bandpasses were generated in the
+            # previous step.
+            if ('g' not in survey.ccds.filter) or ('r' not in survey.ccds.filter) or ('z' not in survey.ccds.filter):
+                if args.debug:
+                    print('Missing grz coadds...skipping.', flush=True)
+                    print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True)
+                else:
+                    with open(logfile, 'w') as log:
+                        print('Missing grz coadds...skipping.', flush=True, file=log)
+                        print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+                continue
 
         if args.custom_coadds:
             _call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
@@ -435,10 +451,6 @@ def main():
         if args.sersic:
             _call_sersic(onegal, galaxy, galaxydir, args.seed, args.verbose,
                          args.debug, logfile, args.hsc)
-            
-        if args.integrate:
-            _call_integrate(onegal, galaxy, galaxydir, args.verbose, args.debug,
-                            logfile, args.hsc)
             
         if args.sky:
             _call_sky(onegal, galaxy, galaxydir, survey, args.seed, args.nproc,
