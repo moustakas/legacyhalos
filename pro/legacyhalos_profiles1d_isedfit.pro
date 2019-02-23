@@ -37,6 +37,8 @@
 
 pro legacyhalos_profiles1d_isedfit, thissfhgrid=thissfhgrid, isedfit=isedfit, clobber=clobber
 
+; echo "legacyhalos_profiles1d_isedfit, thissfhgrid=1, /isedfit, /clobber" | /usr/bin/nohup idl > prof-sfhgrid1.log 2>&1 &
+    
     legacyhalos_dir = getenv('LEGACYHALOS_DIR')+'/science/paper2/data/'
     isedfit_rootdir = getenv('LEGACYHALOS_ISEDFIT_DIR')+'/'
 
@@ -110,11 +112,12 @@ pro legacyhalos_profiles1d_isedfit, thissfhgrid=thissfhgrid, isedfit=isedfit, cl
        isedfit, isedfit_paramfile, [maggies,radwmaggies], [ivarmaggies,radwmaggies], radzobj, $
          isedfit_dir=isedfit_dir, thissfhgrid=thissfhgrid, index=index, /nowrite, $
          isedfit_results=ised, isedfit_post=ised_post
-       ised_post = 0 ; save memory
        splog, 'Time for radial profile fitting (min) = '+strtrim((systime(1)-t0)/60.0,2)
 
+       ised_post = 0            ; save memory
+;      ised_post = reform(ised_post,nrad,ngal)
+       
        ised = reform(ised,nrad,ngal)
-       ised_post = reform(ised_post,nrad,ngal)
        
        result.mstarrad = ised.mstar_50
        result.mstarrad_err = ised.mstar_err
@@ -172,7 +175,7 @@ pro legacyhalos_profiles1d_isedfit, thissfhgrid=thissfhgrid, isedfit=isedfit, cl
        splog, 'Time for r<rmax fitting (min) = '+strtrim((systime(1)-t0)/60.0,2)
        splog, 'Time for all fitting (min) = '+strtrim((systime(1)-tall)/60.0,2)
 
-       im_mwrfits, result, outfile, /clobber
+       im_mwrfits, result, outfile, /clobber, /nogzip
     endif 
     
 return
