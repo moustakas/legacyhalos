@@ -54,6 +54,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
     #cmd += '--stage image_coadds --early-coadds '
     #cmd += '--write-stage tims '
     cmd += '--write-stage srcs '
+    cmd += '--mjd-min 0 '
     cmd += '--skip-calibs --no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
@@ -379,7 +380,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     if radius_mask is None:
         radius_mask = radius_mosaic
-        radius_search = 3.0 # [arcsec]
+        radius_search = 5.0 # [arcsec]
     else:
         radius_search = radius_mask
         
@@ -558,6 +559,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     modargs = [(tim, srcs_nocentral) for tim in newtims]
     mods_nocentral = mp.map(_get_mod, modargs)
+    
+    #import matplotlib.pyplot as plt ; plt.imshow(np.log10(mod), origin='lower') ; plt.savefig('junk.png')    
+    #pdb.set_trace()
 
     # [5] Build the custom coadds, with and without the surrounding galaxies.
     print('Producing coadds...', flush=True, file=log)

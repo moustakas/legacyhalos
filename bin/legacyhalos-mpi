@@ -303,6 +303,7 @@ def main():
             sample = legacyhalos.hsc.read_parent(first=args.first, last=args.last)
         else:
             sample = legacyhalos.io.read_paper2_sample(first=args.first, last=args.last)
+            #sample = sample[[8, 11, 136, 156, 157, 188, 214, 390, 603, 670, 871, 940]]
     else:
         sample = None
 
@@ -409,6 +410,7 @@ def main():
             survey.output_dir = galaxydir
 
         if args.coadds:
+            print('After DR8 do not use mjd-min in coadds.py!')
             _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
                                   args.nproc, args.force, args.debug, logfile)
                     
