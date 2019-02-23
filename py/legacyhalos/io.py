@@ -309,12 +309,6 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     from legacyhalos.mge import find_galaxy
     from legacyhalos.misc import ellipse_mask
 
-    #from astrometry.util.util import Tan
-    #from astrometry.util.fits import fits_table
-    #from legacyhalos.misc import srcs2image
-    #from legacypipe.catalog import read_fits_catalog
-    #from tractor import ConstantFitsWcs
-    
     # Dictionary mapping between filter and filename coded up in coadds.py,
     # galex.py, and unwise.py (see the LSLGA product, too).
     filt2imfile = {
@@ -397,9 +391,12 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
             # Read the coadded (custom) mask and flag/mask pixels with bright stars etc.
             maskfile = os.path.join(galaxydir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
             if os.path.isfile(maskfile):
-                print('Reading {}'.format(maskfile))
+                #print('Reading {}'.format(maskfile))
                 grz_custom_mask = fitsio.read(maskfile)
                 grz_custom_mask =  grz_custom_mask & 2**0 != 0 # True=masked
+                # Restore masked pixels from either mis-identified stars (e.g.,
+                # 0000433-033703895) or stars that are too close to the center.
+                grz_custom_mask[grz_objmask] = False
             else:
                 grz_custom_mask = np.zeros_like(image).astype(bool)
 
