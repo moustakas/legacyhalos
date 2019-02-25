@@ -70,7 +70,7 @@ pro legacyhalos_profiles1d_isedfit, thissfhgrid=thissfhgrid, isedfit=isedfit, cl
     ngal = n_elements(cat)
     nrad = n_elements(cat[0].rad)
     
-    zobj = cat.z
+    zobj = cat.z_lambda
     factor = 1D-9 / transpose([ [cat.mw_transmission_g], [cat.mw_transmission_r], [cat.mw_transmission_z] ])
     wmaggies = transpose([ [fltarr(ngal)], [fltarr(ngal)] ]) ; placeholder for WISE photometry
 
