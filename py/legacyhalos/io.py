@@ -672,16 +672,23 @@ def read_paper2_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_l
     return sample
     
 def literature(kravtsov=True, gonzalez=False):
-    """Assemble some data from the literature here."""
+    """Assemble some data from the literature here.
+
+    """
+    from colossus.halo import mass_defs
 
     if kravtsov:
         krav = dict()
-        krav['m500'] = np.log10(np.array([15.6,10.3,7,5.34,2.35,1.86,1.34,0.46,0.47])*1e14)
+        krav['m500c'] = np.log10(np.array([15.6,10.3,7,5.34,2.35,1.86,1.34,0.46,0.47])*1e14)
         krav['mbcg'] = np.array([3.12,4.14,3.06,1.47,0.79,1.26,1.09,0.91,1.38])*1e12
         krav['mbcg'] = krav['mbcg']*0.7**2 # ????
         krav['mbcg_err'] = np.array([0.36,0.3,0.3,0.13,0.05,0.11,0.06,0.05,0.14])*1e12
         krav['mbcg_err'] = krav['mbcg_err'] / krav['mbcg'] / np.log(10)
         krav['mbcg'] = np.log10(krav['mbcg'])
+
+        M200c, _, _ = mass_defs.changeMassDefinition(10**krav['m500c'], 3.5, 0.0, '500c', '200c')
+        krav['m200c'] = np.log10(M200c)
+
         return krav
 
     if gonzalez:
@@ -689,11 +696,16 @@ def literature(kravtsov=True, gonzalez=False):
         gonz['mbcg'] = np.array([0.84,0.87,0.33,0.57,0.85,0.60,0.86,0.93,0.71,0.81,0.70,0.57])*1e12*2.65
         gonz['mbcg'] = gonz['mbcg']*0.7**2 # ????
         gonz['mbcg_err'] = np.array([0.03,0.09,0.01,0.01,0.14,0.03,0.03,0.05,0.07,0.12,0.02,0.01])*1e12*2.65
-        gonz['m500'] = np.array([2.26,5.15,0.95,3.46,3.59,0.99,0.95,3.23,2.26,2.41,2.37,1.45])*1e14
-        gonz['m500_err'] = np.array([0.19,0.42,0.1,0.32,0.28,0.11,0.1,0.19,0.23,0.18,0.24,0.21])*1e14
+        gonz['m500c'] = np.array([2.26,5.15,0.95,3.46,3.59,0.99,0.95,3.23,2.26,2.41,2.37,1.45])*1e14
+        gonz['m500c_err'] = np.array([0.19,0.42,0.1,0.32,0.28,0.11,0.1,0.19,0.23,0.18,0.24,0.21])*1e14
         gonz['mbcg_err'] = gonz['mbcg_err'] / gonz['mbcg'] / np.log(10)
+
+        M200c, _, _ = mass_defs.changeMassDefinition(gonz['m500c'], 3.5, 0.0, '500c', '200c')
+        
+        gonz['m200c'] = np.log10(M200c)
+        gonz['m500c'] = np.log10(gonz['m500c'])
         gonz['mbcg'] = np.log10(gonz['mbcg'])
-        gonz['m500'] = np.log10(gonz['m500'])
+
         return gonz
 
 # For the HSC analysis---

@@ -52,7 +52,10 @@ def main():
 
     rows = np.where((allcen['P_CEN'][:, 0] > args.minpcen) *
                     (allcen['BCG_SPEC_Z'] != -1) * # require specz
-                    (allcen['Z_LAMBDA'] >= 0.05) * (allcen['Z_LAMBDA'] <= args.zmax))[0]
+                    #(allcen['LAMBDA_CHISQ'] > 10) *
+                    #(allcen['Z_LAMBDA'] >= 0.1) *
+                    (allcen['Z_LAMBDA'] >= 0.05) *
+                    (allcen['Z_LAMBDA'] <= args.zmax))[0]
     cen = allcen[rows]
 
     # Temporary hack to write out a pilot sample of 1000 galaxies drawn

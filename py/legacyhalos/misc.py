@@ -97,13 +97,16 @@ def plot_style(paper=False, talk=False):
     palette = 'Set2'
     
     if paper:
+        context = 'paper'
         palette = 'deep'
         rc.update({'text.usetex': False})
     
     if talk:
-        pass
+        context = 'talk'
+        palette = 'deep'
+        rc.update({'text.usetex': True})
 
-    sns.set(style='ticks', font_scale=1.6, rc=rc)
+    sns.set(context=context, style='ticks', font_scale=1.6, rc=rc)
     sns.set_palette(palette, 12)
 
     colors = sns.color_palette()
@@ -290,14 +293,29 @@ def lambda2mhalo(richness, redshift=0.3, Saro=False):
     TODO: Return the variance!
 
     """
+    from colossus.halo import mass_defs
+    #from colossus.halo import concentration
+    
     if Saro:
         pass
     
     # Melchior et al. 2017 (default)
     logM0, Flam, Gz, lam0, z0 = 14.371, 1.12, 0.18, 30.0, 0.5
-    Mhalo = 10**logM0 * (richness / lam0)**Flam * ( (1 + redshift) / (1 + z0) )**Gz
+    M200m = 10**logM0 * (richness / lam0)**Flam * ( (1 + redshift) / (1 + z0) )**Gz
+
+    # Convert to M200c
+    #import pdb ; pdb.set_trace()
+    #c200m = concentration.concentration(M200m, '200m', redshift, model='bullock01')
+    #M200c, _, _ = mass_defs.changeMassDefinition(M200m, c200m, redshift, '200m', '200c')
+    #M200c, _, _ = mass_adv.changeMassDefinitionCModel(M200m, redshift, '200m', '200c')
+
+    # Assume a constant concentration.
+    M200c = np.zeros_like(M200m)
+    for ii, (mm, zz) in enumerate(zip(M200m, redshift)):
+        mc, _, _ = mass_defs.changeMassDefinition(mm, 3.5, zz, '200m', '200c')
+        M200c[ii] = mc
     
-    return Mhalo
+    return np.log10(M200c)
 
 def radec2pix(nside, ra, dec):
     '''Convert `ra`, `dec` to nested pixel number.
