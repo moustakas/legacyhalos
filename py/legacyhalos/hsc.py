@@ -57,13 +57,21 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     if htmldir is None:
         htmldir = hsc_html_dir()
 
+    if 'OBJECT_ID' in cat.colnames:
+        galid = cat['OBJECT_ID']
+    elif 'ID_S16A' in cat.colnames:
+        galid = cat['ID_S16A']
+    else:
+        print('Unrecognized ID in catalog!')
+        raise ValuerError
+
     if type(cat) is astropy.table.row.Row:
         ngal = 1
-        galaxy = ['{:017d}'.format(cat['ID_S16A'])]
+        galaxy = ['{:017d}'.format(galid)]
         pixnum = [radec2pix(nside, cat['RA'], cat['DEC'])]
     else:
         ngal = len(cat)
-        galaxy = np.array(['{:017d}'.format(gid) for gid in cat['ID_S16A']])
+        galaxy = np.array(['{:017d}'.format(gid) for gid in galid])
         pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
 
     galaxydir = np.array([os.path.join(datadir, '{}'.format(nside), '{}'.format(pix), gal)
@@ -88,7 +96,9 @@ def read_parent(first=None, last=None, verbose=False):
     
     """
     hdir = hsc_dir()
-    samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_dec_30_for_john.fits')
+    #samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_dec_30_for_john.fits')
+    # Hack for MUSE proposal
+    samplefile = os.path.join(hdir, 's18a_z0.07_0.12_rcmod_18.5_etg_muse_massive_0313.fits')
 
     if first and last:
         if first > last:
@@ -111,7 +121,10 @@ def read_parent(first=None, last=None, verbose=False):
         rows = np.arange(first, last + 1)
 
     sample = astropy.table.Table(info[ext].read(rows=rows, upper=True))
-    sample.rename_column('Z_BEST', 'Z')
+    if 'Z_BEST' in sample.colnames:
+        sample.rename_column('Z_BEST', 'Z')
+    if 'Z_SPEC' in sample.colnames:
+        sample.rename_column('Z_SPEC', 'Z')
     sample.add_column(astropy.table.Column(name='RELEASE', data=np.repeat(7000, len(sample)).astype(np.int32)))
     
     if verbose:

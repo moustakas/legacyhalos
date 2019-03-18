@@ -94,7 +94,7 @@ def plot_style(paper=False, talk=False):
     rc = {'font.family': 'serif'}#, 'text.usetex': True}
     #rc = {'font.family': 'serif', 'text.usetex': True,
     #       'text.latex.preamble': r'\boldmath'})
-    palette = 'Set2'
+    palette, context = 'Set2', 'talk'
     
     if paper:
         context = 'paper'
