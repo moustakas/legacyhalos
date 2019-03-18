@@ -147,7 +147,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     import fitsio
 
     import legacyhalos.io
-    from legacyhalos.misc import cutout_radius_150kpc
+    from legacyhalos.misc import cutout_radius_kpc
 
     if datadir is None:
         datadir = hsc_data_dir()
@@ -168,7 +168,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Get the viewer link
     def _viewer_link(gal):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_150kpc(redshift=gal['Z'], pixscale=0.262) # [pixels]
+        width = 2 * cutout_radius_kpc(redshift=gal['Z'], pixscale=0.262) # [pixels]
         if width > 400:
             zoom = 14
         else:

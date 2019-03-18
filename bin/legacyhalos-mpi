@@ -404,7 +404,7 @@ def main():
         
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.sky or args.htmlplots:
-            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
+            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(redshift=onegal['Z']) # [arcsec]
 
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)

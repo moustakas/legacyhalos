@@ -1257,7 +1257,7 @@ def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, zcolumn='Z',
 
     """
     if radius is None:
-        radius = legacyhalos.misc.cutout_radius_150kpc(
+        radius = legacyhalos.misc.cutout_radius_kpc(
             redshift=onegal[zcolumn], pixscale=pixscale) # [pixels]
 
     wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius, pixscale=pixscale, zcolumn=zcolumn)
