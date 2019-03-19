@@ -159,12 +159,17 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
 
     """
     import legacyhalos.ellipse
+
+    if hsc:
+        zcolumn = 'Z'
+    else:
+        zcolumn = 'Z_LAMBDA'
     
     t0 = time.time()
     if debug:
         _start(galaxy)
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
-                                                      zcolumn='Z_LAMBDA',
+                                                      zcolumn=zcolumn,
                                                       verbose=verbose, debug=debug,
                                                       noellipsefit=True, hsc=hsc)
         _done(galaxy, err, t0)
@@ -173,7 +178,7 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
-                                                              zcolumn='Z_LAMBDA',
+                                                              zcolumn=zcolumn,
                                                               verbose=verbose, debug=debug,
                                                               noellipsefit=True, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
@@ -315,7 +320,7 @@ def main():
     if args.htmlindex:
         if rank == 0:
             if args.hsc:
-                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_LAMBDA',
+                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z',
                                           nproc=args.nproc, clobber=args.clobber, makeplots=False,
                                           verbose=args.verbose, htmldir=args.htmldir)
             else:

@@ -137,8 +137,8 @@ def read_parent(first=None, last=None, verbose=False):
     return sample
 
 def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, first=None, last=None, nproc=1,
-              survey=None, makeplots=True, clobber=False, verbose=True,
+              refband='r', pixscale=0.262, zcolumn='Z', first=None, last=None,
+              nproc=1, survey=None, makeplots=True, clobber=False, verbose=True,
               maketrends=False, ccdqa=True):
     """Make the HTML pages.
 
@@ -168,7 +168,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Get the viewer link
     def _viewer_link(gal):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_kpc(redshift=gal['Z'], pixscale=0.262) # [pixels]
+        width = 2 * cutout_radius_kpc(redshift=gal[zcolumn], pixscale=0.262) # [pixels]
         if width > 400:
             zoom = 14
         else:
@@ -227,7 +227,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
             html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
             html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
-            html.write('<td>{:.5f}</td>\n'.format(gal['Z']))
+            html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
             #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
             #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
@@ -317,7 +317,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<td>{}</td>\n'.format(galaxy1))
             html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
             html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
-            html.write('<td>{:.5f}</td>\n'.format(gal['Z']))
+            html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
             #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
             #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
