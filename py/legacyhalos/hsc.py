@@ -121,10 +121,10 @@ def read_parent(first=None, last=None, verbose=False):
         rows = np.arange(first, last + 1)
 
     sample = astropy.table.Table(info[ext].read(rows=rows, upper=True))
-    if 'Z_BEST' in sample.colnames:
-        sample.rename_column('Z_BEST', 'Z')
-    if 'Z_SPEC' in sample.colnames:
-        sample.rename_column('Z_SPEC', 'Z')
+    #if 'Z_BEST' in sample.colnames:
+    #    sample.rename_column('Z_BEST', 'Z')
+    #if 'Z_SPEC' in sample.colnames:
+    #    sample.rename_column('Z_SPEC', 'Z')
     sample.add_column(astropy.table.Column(name='RELEASE', data=np.repeat(7000, len(sample)).astype(np.int32)))
     
     if verbose:

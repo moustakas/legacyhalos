@@ -331,22 +331,26 @@ def main():
 
     if args.integrate:
         if rank == 0:
-            # Temporary paper2 hack--
-            outfile = os.path.join(legacyhalos.io.paper2_dir(data=True), 'paper2-profiles1d-flux.fits')
+            if args.hsc:
+                outfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'profiles1d-flux.fits')
+            else:
+                # Temporary paper2 hack--
+                outfile = os.path.join(legacyhalos.io.paper2_dir(data=True), 'paper2-profiles1d-flux.fits')
+                
             if os.path.exists(outfile) and args.clobber is False:
                 print('Output file {} exists; use --clobber.'.format(outfile))
                 return
             
             results = legacyhalos.integrate.legacyhalos_integrate(
-                sample, nproc=args.nproc, verbose=args.verbose)
+                sample, nproc=args.nproc, verbose=args.verbose, hsc=args.hsc)
             if args.hsc:
-                pass
+                cols = ['OBJECT_ID', 'RA', 'DEC', 'Z_SPEC']
             else:
                 cols = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z_LAMBDA', 'LAMBDA_CHISQ', 'ID_CENT',
                         'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
-                out = hstack((sample[cols], results))
-                print('Writing {}'.format(outfile))
-                out.write(outfile, overwrite=True)
+            out = hstack((sample[cols], results))
+            print('Writing {}'.format(outfile))
+            out.write(outfile, overwrite=True)
         return
 
     # Determine how many more objects we need to analyze and divide them
