@@ -54,7 +54,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
     #cmd += '--stage image_coadds --early-coadds '
     #cmd += '--write-stage tims '
     cmd += '--write-stage srcs '
-    cmd += '--mjd-min 0 '
+    cmd += '--min-mjd 0 '
     cmd += '--skip-calibs --no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '

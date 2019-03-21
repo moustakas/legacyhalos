@@ -14,6 +14,7 @@ from astropy.table import Table, Column, vstack
     
 import legacyhalos.io
 import legacyhalos.misc
+import legacyhalos.hsc
 
 def _init_phot(nrad_uniform=30, ngal=1, band=('g', 'r', 'z')):
     """Initialize the output photometry table.
@@ -178,8 +179,8 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=30, co
     return phot
 
 def legacyhalos_integrate(sample=None, first=None, last=None, nproc=1,
-                          minerr=0.01, nrad_uniform=30, verbose=False,
-                          clobber=False):
+                          minerr=0.01, nrad_uniform=30, hsc=False,
+                          verbose=False, clobber=False):
     """Wrapper script to integrate the profiles for the full sample.
 
     """
@@ -188,7 +189,10 @@ def legacyhalos_integrate(sample=None, first=None, last=None, nproc=1,
     ngal = len(sample)
 
     phot = _init_phot(ngal=ngal, nrad_uniform=nrad_uniform)
-    galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
+    if hsc:
+        galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(sample)
+    else:
+        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
     galaxy, galaxydir = np.atleast_1d(galaxy), np.atleast_1d(galaxydir)
 
     args = list()

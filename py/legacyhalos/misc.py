@@ -50,7 +50,7 @@ def ellipse_mask(xcen, ycen, semia, semib, phi, x, y):
 def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262, zcolumn='Z'):
     '''Build a simple WCS object for a single galaxy.'''
     if zcolumn in onegal.colnames:
-        galdiam = 2 * cutout_radius_150kpc(redshift=onegal[zcolumn], pixscale=pixscale)
+        galdiam = 2 * cutout_radius_kpc(redshift=onegal[zcolumn], pixscale=pixscale)
     else:
         galdiam = radius # [pixels]
     
@@ -94,7 +94,7 @@ def plot_style(paper=False, talk=False):
     rc = {'font.family': 'serif'}#, 'text.usetex': True}
     #rc = {'font.family': 'serif', 'text.usetex': True,
     #       'text.latex.preamble': r'\boldmath'})
-    palette = 'Set2'
+    palette, context = 'Set2', 'talk'
     
     if paper:
         context = 'paper'
@@ -151,8 +151,8 @@ def destroy_logger(log):
         hndl.flush()
         hndl.close()
 
-def cutout_radius_150kpc(redshift, pixscale=None, radius_kpc=150):
-    """Get a cutout radius of 150 kpc [in pixels] at the redshift of the cluster.
+def cutout_radius_kpc(redshift, pixscale=None, radius_kpc=150):
+    """Get a cutout radius of RADIUS_KPC [in pixels] at the redshift of the cluster.
 
     """
     cosmo = cosmology()

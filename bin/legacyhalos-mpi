@@ -159,12 +159,17 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
 
     """
     import legacyhalos.ellipse
+
+    if hsc:
+        zcolumn = 'Z'
+    else:
+        zcolumn = 'Z_LAMBDA'
     
     t0 = time.time()
     if debug:
         _start(galaxy)
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
-                                                      zcolumn='Z_LAMBDA',
+                                                      zcolumn=zcolumn,
                                                       verbose=verbose, debug=debug,
                                                       noellipsefit=True, hsc=hsc)
         _done(galaxy, err, t0)
@@ -173,7 +178,7 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
-                                                              zcolumn='Z_LAMBDA',
+                                                              zcolumn=zcolumn,
                                                               verbose=verbose, debug=debug,
                                                               noellipsefit=True, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
@@ -315,7 +320,7 @@ def main():
     if args.htmlindex:
         if rank == 0:
             if args.hsc:
-                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_LAMBDA',
+                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z',
                                           nproc=args.nproc, clobber=args.clobber, makeplots=False,
                                           verbose=args.verbose, htmldir=args.htmldir)
             else:
@@ -326,22 +331,26 @@ def main():
 
     if args.integrate:
         if rank == 0:
-            # Temporary paper2 hack--
-            outfile = os.path.join(legacyhalos.io.paper2_dir(data=True), 'paper2-profiles1d-flux.fits')
+            if args.hsc:
+                outfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'profiles1d-flux.fits')
+            else:
+                # Temporary paper2 hack--
+                outfile = os.path.join(legacyhalos.io.paper2_dir(data=True), 'paper2-profiles1d-flux.fits')
+                
             if os.path.exists(outfile) and args.clobber is False:
                 print('Output file {} exists; use --clobber.'.format(outfile))
                 return
             
             results = legacyhalos.integrate.legacyhalos_integrate(
-                sample, nproc=args.nproc, verbose=args.verbose)
+                sample, nproc=args.nproc, verbose=args.verbose, hsc=args.hsc)
             if args.hsc:
-                pass
+                cols = ['OBJECT_ID', 'RA', 'DEC', 'Z_SPEC']
             else:
                 cols = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z_LAMBDA', 'LAMBDA_CHISQ', 'ID_CENT',
                         'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
-                out = hstack((sample[cols], results))
-                print('Writing {}'.format(outfile))
-                out.write(outfile, overwrite=True)
+            out = hstack((sample[cols], results))
+            print('Writing {}'.format(outfile))
+            out.write(outfile, overwrite=True)
         return
 
     # Determine how many more objects we need to analyze and divide them
@@ -404,7 +413,7 @@ def main():
         
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.sky or args.htmlplots:
-            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_150kpc(redshift=onegal['Z']) # [arcsec]
+            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(redshift=onegal['Z']) # [arcsec]
 
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)

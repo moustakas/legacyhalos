@@ -32,7 +32,7 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
 
-    radius_pixel = legacyhalos.misc.cutout_radius_150kpc(
+    radius_pixel = legacyhalos.misc.cutout_radius_kpc(
         redshift=onegal[zcolumn], pixscale=pixscale) # [pixels]
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
@@ -312,7 +312,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     import fitsio
 
     import legacyhalos.io
-    from legacyhalos.misc import cutout_radius_150kpc
+    from legacyhalos.misc import cutout_radius_kpc
 
     if datadir is None:
         datadir = legacyhalos.io.legacyhalos_data_dir()
@@ -333,7 +333,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Get the viewer link
     def _viewer_link(gal):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_150kpc(redshift=gal[zcolumn], pixscale=0.262) # [pixels]
+        width = 2 * cutout_radius_kpc(redshift=gal[zcolumn], pixscale=0.262) # [pixels]
         if width > 400:
             zoom = 14
         else:
@@ -495,7 +495,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</table>\n')
 
             html.write('<h2>Image mosaics</h2>\n')
-            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 300 kpc by 300 kpc.</p>\n')
+            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 500 kpc by 500 kpc.</p>\n')
             html.write('<table width="90%">\n')
             html.write('<tr><td><a href="{}-grz-montage.png"><img src="{}-grz-montage.png" alt="Missing file {}-grz-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(galaxy1, galaxy1, galaxy1))
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
