@@ -506,16 +506,20 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                 hdr = sky['{}-header'.format(key)]
                 ff.write(sky['{}-mask'.format(key)], extname=key, header=hdr)
 
-        ccdfile = os.path.join(survey.output_dir, '{}-ccddata-grz.fits.fz'.format(galaxy))
-        print('Writing {}'.format(ccdfile))
-        if os.path.isfile(ccdfile):
-            os.remove(ccdfile)
-        with fitsio.FITS(ccdfile, 'rw') as ff:
-            for ii, ccd in enumerate(survey.ccds):
-                im = survey.get_image_object(ccd)
-                key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-                hdr = sky['{}-header'.format(key)]
-                ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
+        # These are the actual images, which results in a giant file.  Keeping
+        # the code here for legacy purposes but I'm not sure we should ever
+        # write it out.
+        if False:
+            ccdfile = os.path.join(survey.output_dir, '{}-ccddata-grz.fits.fz'.format(galaxy))
+            print('Writing {}'.format(ccdfile))
+            if os.path.isfile(ccdfile):
+                os.remove(ccdfile)
+            with fitsio.FITS(ccdfile, 'rw') as ff:
+                for ii, ccd in enumerate(survey.ccds):
+                    im = survey.get_image_object(ccd)
+                    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+                    hdr = sky['{}-header'.format(key)]
+                    ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
 
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []
