@@ -125,7 +125,7 @@ def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
         _start(galaxy)
         err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                  survey=survey, pixscale=pixscale,
-                                                 nproc=nproc, force=force)
+                                                 nproc=nproc, force=force, cleanup=True)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'w') as log:
@@ -133,7 +133,7 @@ def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                 _start(galaxy, log=log)
                 err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                          survey=survey, pixscale=pixscale,
-                                                         nproc=nproc, force=force, log=log)
+                                                         nproc=nproc, force=force, log=log, cleanup=True)
                 _done(galaxy, err, t0, log=log)
 
 def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
