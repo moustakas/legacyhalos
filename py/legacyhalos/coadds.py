@@ -22,7 +22,8 @@ from legacyhalos.io import get_galaxy_galaxydir
 
 def _copyfile(infile, outfile):
     if os.path.isfile(infile):
-        shutil.copy2(infile, outfile)
+        os.rename(infile, outfile)
+        #shutil.copy2(infile, outfile)
         return 1
     else:
         print('Missing file {}; please check the logfile.'.format(infile))
@@ -57,7 +58,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
     cmd += '--write-stage srcs '
     cmd += '--min-mjd 0 '
     cmd += '--skip-calibs --no-wise-ceres '
-    cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
+    cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
     if unwise:
         cmd += '--unwise-coadds '
@@ -441,7 +442,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     # Read the outliers masks and apply them -- temporary hack until we address
     # legacypipe/#271
-    outliersfile = os.path.join(survey.output_dir, '{}-outliers.fits'.format(galaxy))
+    outliersfile = os.path.join(survey.output_dir, '{}-outliers.fits.fz'.format(galaxy))
     if not os.path.isfile(outliersfile):
         print('Missing outliers masks {}'.format(outliersfile))
         return 0
@@ -452,7 +453,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         try:
             #print('Masking from {}'.format(key))
             mask, hdr = outliers[key].read(), outliers[key].read_header()
-            tim.dq |= mask * CP_DQ_BITS['outlier']
+            tim.dq |= (mask > 0) * CP_DQ_BITS['outlier']
             tim.getInvError()[mask > 0] = 0.0
         except:
             pass
@@ -479,8 +480,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         hdr.delete('IMAGEH')
 
         maskfile = os.path.join(survey.output_dir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
-        print('Writing {}'.format(maskfile))
         fitsio.write(maskfile, comask, header=hdr, clobber=True)
+        print('Writing {}'.format(maskfile))
         del comask
 
         skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
