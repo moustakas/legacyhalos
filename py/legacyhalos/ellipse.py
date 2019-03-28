@@ -101,13 +101,12 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
     """
     import copy
+    from photutils import data_properties
     from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                     Isophote, IsophoteList)
     from photutils.isophote.sample import CentralEllipseSample
     from photutils.isophote.fitter import CentralEllipseFitter
 
-    from legacyhalos.mge import find_galaxy
-    
     if verbose:
         warnvalue = 'ignore' # 'always'
     else:
@@ -121,36 +120,42 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
         maxrit = None
 
     band, refband, pixscale = data['band'], data['refband'], data['pixscale']
+    xcen, ycen = data[refband].shape
+    xcen /= 2
+    ycen /= 2
 
     # Get the geometry of the galaxy in the reference band.
     if verbose:
         print('Finding the galaxy in the reference {}-band image.'.format(refband))
 
-    mgegalaxy = find_galaxy(data[refband], nblob=1, binning=3,
-                            plot=debug, quiet=not verbose)
-    mgegalaxy.centershift = False
-
-    xcen, ycen = data[refband].shape
-    xcen /= 2
-    ycen /= 2
-    if np.abs(mgegalaxy.xpeak-xcen) > 5:
-        mgegalaxy.xpeak = xcen
-        mgegalaxy.centershift = True
-        
-    if np.abs(mgegalaxy.ypeak-ycen) > 5:
-        mgegalaxy.ypeak = ycen
-        mgegalaxy.centershift = True
-              
-    #mgegalaxy.xmed -= 1
-    #mgegalaxy.ymed -= 1
-    #mgegalaxy.xpeak -= 1
-    #mgegalaxy.ypeak -= 1
-
-    # Populate the output dictionary
     ellipsefit = dict()
+    
+    galprops = data_properties(data[refband], mask=ma.getmask(data['{}_masked'.format(refband)]))
+    galprops.centershift = False
+
+    if np.abs(galprops.xpeak-xcen) > 5:
+        galprops.xpeak = xcen
+        galprops.centershift = True
+    if np.abs(galprops.ypeak-ycen) > 5:
+        galprops.ypeak = ycen
+        galprops.centershift = True
+
     for key in ('eps', 'majoraxis', 'pa', 'theta', 'centershift',
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
-        ellipsefit[key] = getattr(mgegalaxy, key)
+        ellipsefit[key] = getattr(galprops, key)
+
+    # Obsolete code that uses the mge module
+    if False:
+        from legacyhalos.mge import find_galaxy
+        galprops = find_galaxy(data[refband], nblob=1, binning=3, plot=debug, quiet=not verbose)
+        galprops.centershift = False
+
+        if np.abs(galprops.xpeak-xcen) > 5:
+            galprops.xpeak = xcen
+            galprops.centershift = True
+        if np.abs(galprops.ypeak-ycen) > 5:
+            galprops.ypeak = ycen
+            galprops.centershift = True
 
     ellipsefit['success'] = False
     ellipsefit['redshift'] = sample[zcolumn]
