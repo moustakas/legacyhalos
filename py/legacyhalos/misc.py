@@ -153,7 +153,7 @@ def destroy_logger(log):
         hndl.flush()
         hndl.close()
 
-def cutout_radius_kpc(redshift, pixscale=None, radius_kpc=250):
+def cutout_radius_kpc(redshift, pixscale=None, radius_kpc=RADIUS_CLUSTER_KPC):
     """Get a cutout radius of RADIUS_KPC [in pixels] at the redshift of the cluster.
 
     """

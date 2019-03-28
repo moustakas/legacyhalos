@@ -13,8 +13,8 @@ import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
 
-from legacyhalos.misc import plot_style
-sns = plot_style()
+from legacyhalos.misc import RADIUS_CLUSTER_KPC
+sns, _ = legacyhalos.misc.plot_style()
 
 #import seaborn as sns
 #sns.set(style='ticks', font_scale=1.4, palette='Set2')
@@ -33,7 +33,8 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         survey = LegacySurveyData()
 
     radius_pixel = legacyhalos.misc.cutout_radius_kpc(
-        redshift=onegal[zcolumn], pixscale=pixscale) # [pixels]
+        redshift=onegal[zcolumn], pixscale=pixscale,
+        radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
@@ -311,9 +312,6 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     import subprocess
     import fitsio
 
-    import legacyhalos.io
-    from legacyhalos.misc import cutout_radius_kpc
-
     if datadir is None:
         datadir = legacyhalos.io.legacyhalos_data_dir()
     if htmldir is None:
@@ -333,7 +331,9 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Get the viewer link
     def _viewer_link(gal):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_kpc(redshift=gal[zcolumn], pixscale=0.262) # [pixels]
+        width = 2 * legacyhalos.misc.cutout_radius_kpc(
+            redshift=gal[zcolumn], pixscale=0.262,
+            radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
         if width > 400:
             zoom = 14
         else:

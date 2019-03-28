@@ -19,6 +19,8 @@ import matplotlib.patches as patches
 import legacyhalos.io
 import legacyhalos.misc
 
+from legacyhalos.misc import RADIUS_CLUSTER_KPC
+
 sns, _ = legacyhalos.misc.plot_style()
 #snscolors = sns.color_palette()
 
@@ -1258,7 +1260,8 @@ def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, zcolumn='Z',
     """
     if radius is None:
         radius = legacyhalos.misc.cutout_radius_kpc(
-            redshift=onegal[zcolumn], pixscale=pixscale) # [pixels]
+            redshift=onegal[zcolumn], pixscale=pixscale,
+            radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
 
     wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius, pixscale=pixscale, zcolumn=zcolumn)
     width, height = wcs.get_width() * pixscale / 3600, wcs.get_height() * pixscale / 3600 # [degrees]

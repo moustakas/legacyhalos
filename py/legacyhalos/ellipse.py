@@ -17,6 +17,8 @@ import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
 
+from legacyhalos.misc import RADIUS_CLUSTER_KPC
+
 def ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor, warnvalue='ignore'):
     """Perform elliptical aperture photometry for the curve-of-growth analysis.
 
@@ -101,7 +103,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
     """
     import copy
-    from photutils import data_properties
+    from legacyhalos.mge import find_galaxy
     from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                     Isophote, IsophoteList)
     from photutils.isophote.sample import CentralEllipseSample
@@ -129,10 +131,13 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
         print('Finding the galaxy in the reference {}-band image.'.format(refband))
 
     ellipsefit = dict()
-    
-    galprops = data_properties(data[refband], mask=ma.getmask(data['{}_masked'.format(refband)]))
-    galprops.centershift = False
 
+    galprops = find_galaxy(data[refband], nblob=1, fraction=0.05,
+                           binning=3, plot=debug, quiet=not verbose)
+    if debug:
+        plt.show()
+        
+    galprops.centershift = False
     if np.abs(galprops.xpeak-xcen) > 5:
         galprops.xpeak = xcen
         galprops.centershift = True
@@ -143,19 +148,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     for key in ('eps', 'majoraxis', 'pa', 'theta', 'centershift',
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
         ellipsefit[key] = getattr(galprops, key)
-
-    # Obsolete code that uses the mge module
-    if False:
-        from legacyhalos.mge import find_galaxy
-        galprops = find_galaxy(data[refband], nblob=1, binning=3, plot=debug, quiet=not verbose)
-        galprops.centershift = False
-
-        if np.abs(galprops.xpeak-xcen) > 5:
-            galprops.xpeak = xcen
-            galprops.centershift = True
-        if np.abs(galprops.ypeak-ycen) > 5:
-            galprops.ypeak = ycen
-            galprops.centershift = True
 
     ellipsefit['success'] = False
     ellipsefit['redshift'] = sample[zcolumn]
@@ -188,8 +180,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
     # Set the maximum semi-major axis length to 100 kpc or XX times the
     # semi-major axis estimated below (whichever is smaller).
+    pdb.set_trace()
     if maxsma is None:
-        maxsma_100kpc = 150 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
+        
+        maxsma_cluster = 150 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
         maxsma_major = 5 * ellipsefit['majoraxis']
         maxsma = np.min( (maxsma_100kpc, maxsma_major) )
 
