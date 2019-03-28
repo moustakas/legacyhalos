@@ -128,7 +128,7 @@ def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                                                  nproc=nproc, force=force, cleanup=True)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
@@ -146,7 +146,7 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                                                survey=survey, pixscale=pixscale, nproc=nproc)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
@@ -174,7 +174,7 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
                                                       noellipsefit=True, hsc=hsc)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
@@ -196,7 +196,7 @@ def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
                                                     debug=debug, verbose=verbose, seed=seed)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log, seed=seed)
                 err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
@@ -218,7 +218,7 @@ def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                                               debug=debug, verbose=verbose, force=force)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log, seed=seed)
                 err = legacyhalos.sky.legacyhalos_sky(onegal, survey=survey, galaxy=galaxy, galaxydir=galaxydir,
@@ -247,7 +247,7 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                               ccdqa=ccdqa, maketrends=maketrends)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 if hsc:
