@@ -147,7 +147,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
     for key in ('eps', 'majoraxis', 'pa', 'theta', 'centershift',
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
-        ellipsefit[key] = getattr(galprops, key)
+        ellipsefit['mge_{}'.format(key)] = getattr(galprops, key)
 
     ellipsefit['success'] = False
     ellipsefit['redshift'] = sample[zcolumn]
@@ -178,15 +178,13 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
                                     'W1_pixscale': data['unwise_pixscale'], 'W2_pixscale': data['unwise_pixscale'],
                                     'W3_pixscale': data['unwise_pixscale'], 'W4_pixscale': data['unwise_pixscale']})
 
-    # Set the maximum semi-major axis length to 100 kpc or XX times the
-    # semi-major axis estimated below (whichever is smaller).
-    pdb.set_trace()
     if maxsma is None:
+        maxsma = RADIUS_CLUSTER_KPC / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
+        # Set the maximum semi-major axis length to XX kpc or XX times the
+        # semi-major axis estimated below (whichever is smaller).
+        #maxsma_major = 5 * ellipsefit['majoraxis']
+        #maxsma = np.min( (maxsma_cluster, maxsma_major) )
         
-        maxsma_cluster = 150 / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
-        maxsma_major = 5 * ellipsefit['majoraxis']
-        maxsma = np.min( (maxsma_100kpc, maxsma_major) )
-
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip
     ellipsefit['nclip'] = nclip
@@ -194,19 +192,53 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     ellipsefit['fflag'] = fflag
     ellipsefit['linear'] = linear
 
-    # Perform elliptical aperture photometry.
-    apphot = ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor)
-    ellipsefit.update(apphot)
+    # Get the mean geometry of the system by ellipse-fitting the inner part and
+    # taking the mean values of everything.
+    print('Finding the mean geometry using the reference {}-band image.'.format(refband))
 
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
     # x-axis, while .pa in MGE measured counter-clockwise from the y-axis.
-    geometry = EllipseGeometry(x0=ellipsefit['xpeak'], y0=ellipsefit['ypeak'],
-                               eps=ellipsefit['eps'],
-                               #sma=0.5*mgefit['majoraxis'], 
-                               sma=ellipsefit['majoraxis'], 
-                               #sma=10,
-                               pa=np.radians(ellipsefit['pa']-90))
+    t0 = time.time()
+    majoraxis = ellipsefit['mge_majoraxis']
+    geometry0 = EllipseGeometry(x0=ellipsefit['mge_xpeak'], y0=ellipsefit['mge_ypeak'],
+                                eps=ellipsefit['mge_eps'], sma=0.5*majoraxis, 
+                                pa=np.radians(ellipsefit['mge_pa']-90))
+
+    img = data['{}_masked'.format(refband)]
+    ellipse0 = Ellipse(img, geometry=geometry0)
+
+    smamin, smamax = 0.05*majoraxis, 1.2*majoraxis # inner, outer radius
+    iso0 = ellipse0.fit_image(smamin*1.1, minsma=smamin, maxsma=smamax,
+                              integrmode=integrmode, sclip=sclip, nclip=nclip,
+                              step=0.5, linear=False) # note smaller step size
+
+    good = iso0.stop_code < 4
+    ngood = np.sum(good)
+    if np.sum(good) == 0:
+        print('Too few good measurements to get ellipse geometry!')
+        return ellipsefit
+
+    for key in ('x0', 'y0', 'eps', 'pa'):
+        val = getattr(iso0, key)[good]
+        ellipsefit[key] = np.median(val)
+        ellipsefit['{}_err'.format(key)] = np.std(val)/np.sqrt(ngood)
+        if key == 'pa':
+            initval = np.degrees(geometry0.pa)+90
+            ellipsefit[key] = np.degrees(ellipsefit[key])+90
+            ellipsefit['{}_err'.format(key)] = np.degrees(ellipsefit['{}_err'.format(key)])
+        else:
+            initval = getattr(geometry0, key)
+        if verbose:
+            initpa = np.degrees(geometry0.pa)+90
+            print('{} = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
+                key, ellipsefit[key], ellipsefit['{}_err'.format(key)],
+                initval))
+            
+    print('Time = {:.3f} seconds'.format((time.time() - t0)))
+
+    pdb.set_trace()
+    
     ellipsefit['geometry'] = geometry
 
     def _unmask_center(img):
@@ -333,6 +365,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
         #    ellipsefit['success'] = False
 
     print('Time for all images = {:.3f} min'.format( (time.time() - tall) / 60))
+
+    # Perform elliptical aperture photometry.
+    apphot = ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor)
+    ellipsefit.update(apphot)
 
     # Write out
     if not nowrite:
