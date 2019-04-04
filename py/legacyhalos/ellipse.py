@@ -54,8 +54,8 @@ def ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor, warnvalu
         sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
         smb = sma * ellipsefit['eps']
 
-        x0 = ellipsefit['xpeak'] * pixscalefactor
-        y0 = ellipsefit['ypeak'] * pixscalefactor
+        x0 = ellipsefit['x0'] * pixscalefactor
+        y0 = ellipsefit['y0'] * pixscalefactor
 
         apphot, apphot_nomask = [], []
         with np.errstate(all='ignore'):
@@ -87,6 +87,15 @@ def ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor, warnvalu
     #pdb.set_trace()
 
     return results
+
+def _unmask_center(img):
+    # https://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
+    nn = img.shape[0]
+    x0, y0 = geometry.x0, geometry.y0
+    rad = geometry.sma # [pixels]
+    yy, xx = np.ogrid[-x0:nn-x0, -y0:nn-y0]
+    img.mask[xx**2 + yy**2 <= rad**2] = ma.nomask
+    return img
 
 def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
                          integrmode='median', nclip=2, sclip=3,
@@ -212,6 +221,9 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     iso0 = ellipse0.fit_image(smamin*1.1, minsma=smamin, maxsma=smamax,
                               integrmode=integrmode, sclip=sclip, nclip=nclip,
                               step=0.5, linear=False) # note smaller step size
+    if len(iso0) == 0:
+        print('Initial ellipse-fitting failed!')
+        return ellipsefit
 
     good = iso0.stop_code < 4
     ngood = np.sum(good)
@@ -224,39 +236,29 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
         ellipsefit[key] = np.median(val)
         ellipsefit['{}_err'.format(key)] = np.std(val)/np.sqrt(ngood)
         if key == 'pa':
-            initval = np.degrees(geometry0.pa)+90
-            ellipsefit[key] = np.degrees(ellipsefit[key])+90
+            initval = np.degrees(geometry0.pa) + 90
+            ellipsefit[key] = np.degrees(ellipsefit[key]) + 90
             ellipsefit['{}_err'.format(key)] = np.degrees(ellipsefit['{}_err'.format(key)])
         else:
             initval = getattr(geometry0, key)
         if verbose:
             initpa = np.degrees(geometry0.pa)+90
-            print('{} = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
+            print(' {} = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
                 key, ellipsefit[key], ellipsefit['{}_err'.format(key)],
                 initval))
-            
-    print('Time = {:.3f} seconds'.format((time.time() - t0)))
+    print('Time = {:.3f} min'.format((time.time() - t0)/60))
 
-    pdb.set_trace()
-    
+    # Re-initialize the EllipseGeometry object.
+    geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
+                               eps=ellipsefit['eps'], sma=majoraxis, 
+                               pa=np.radians(ellipsefit['pa']-90))
     ellipsefit['geometry'] = geometry
-
-    def _unmask_center(img):
-        # https://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
-        nn = img.shape[0]
-        x0, y0 = geometry.x0, geometry.y0
-        rad = geometry.sma # [pixels]
-        yy, xx = np.ogrid[-x0:nn-x0, -y0:nn-y0]
-        img.mask[xx**2 + yy**2 <= rad**2] = ma.nomask
-        return img
+    ellipse = Ellipse(img, geometry=geometry)
 
     # Fit the reference bands first then the other bands.
     newmask = None
     if verbose:
         print('Ellipse-fitting the reference {}-band image.'.format(refband))
-
-    img = data['{}_masked'.format(refband)]
-    ellipse = Ellipse(img, geometry=geometry)
 
     # First fit with the default parameters.
     t0 = time.time()
@@ -287,9 +289,9 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
             for sma0 in (1, 3, 6, 9, 12): # try a few different starting minor axes
                 print('  Second iteration: trying sma0 = {:.1f} pixels.'.format(sma0))
                 try:
-                    isophot = ellipse.fit_image(sma0, minsma=1, maxsma=maxsma,
+                    isophot = ellipse.fit_image(sma0, minsma=0, maxsma=maxsma,
                                                 integrmode=integrmode, sclip=sclip, nclip=nclip,
-                                                step=step, fflag=fflag, linear=linear)
+                                                step=step, fflag=fflag, linear=linear, maxrit=maxrit)
                 except:
                     isophot = []
                 if len(isophot) > 0:
@@ -297,7 +299,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
 
     if len(isophot) == 0:
-        print('Ellipse-fitting failed, likely due to complex morphology or poor initial geometry.')
+        print('Ellipse-fitting failed.')
         return ellipsefit
     else:
         ellipsefit['success'] = True
@@ -308,7 +310,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     tall = time.time()
     for filt in band:
         t0 = time.time()
-
         if filt == refband: # we did it already!
             continue
 
@@ -325,10 +326,11 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
         isobandfit = []
         with warnings.catch_warnings():
             warnings.simplefilter(warnvalue)
-            
+
             for iso in isophot:
             #for iso in isophot[1:]:
-                g = copy.copy(iso.sample.geometry) # fixed geometry
+                #g = iso.sample.geometry # fixed geometry
+                g = copy.deepcopy(iso.sample.geometry) # fixed geometry
                 g.sma *= pixscalefactor
                 g.x0 *= pixscalefactor
                 g.y0 *= pixscalefactor
