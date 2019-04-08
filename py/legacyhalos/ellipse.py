@@ -6,7 +6,7 @@ Code to do ellipse fitting on the residual coadds.
 """
 from __future__ import absolute_import, division, print_function
 
-import os, pdb
+import os, copy, pdb
 import time, warnings
 import multiprocessing
 
@@ -17,6 +17,11 @@ import matplotlib.pyplot as plt
 import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
+
+from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
+                                Isophote, IsophoteList)
+from photutils.isophote.sample import CentralEllipseSample
+from photutils.isophote.fitter import CentralEllipseFitter
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
@@ -102,25 +107,40 @@ def _integrate_isophot_one(args):
     """Wrapper function for the multiprocessing."""
     return integrate_isophot_one(*args)
 
-def integrate_isophot_one(iso, pixscalefactor, integrmode, sclip, nclip):
+def integrate_isophot_one(iso, img, pixscalefactor, integrmode, sclip, nclip):
     """Integrate the ellipse profile at a single semi-major axis.
 
     """
+    #with warnings.catch_warnings():
+    #    warnings.simplefilter(warnvalue)
+        
     #g = iso.sample.geometry # fixed geometry
     g = copy.deepcopy(iso.sample.geometry) # fixed geometry
-    g.sma *= pixscalefactor
-    g.x0 *= pixscalefactor
-    g.y0 *= pixscalefactor
-
+    
     # Use the same integration mode and clipping parameters.
     # The central pixel is a special case:
-    sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
-                           sclip=sclip, nclip=nclip)
-    sample.update()
-    #print(filt, g.sma, sample.mean)
+    if g.sma == 0.0:
+        gcen = copy.deepcopy(g)
+        gcen.sma = 0.0
+        gcen.eps = 0.0
+        gcen.pa = 0.0
+        censamp = CentralEllipseSample(img, 0.0, geometry=gcen,
+                                       integrmode=integrmode, sclip=sclip, nclip=nclip)
+        out = CentralEllipseFitter(censamp).fit()
+    else:
+        g.sma *= pixscalefactor
+        g.x0 *= pixscalefactor
+        g.y0 *= pixscalefactor
 
-    # Create an Isophote instance with the sample.
-    return Isophote(sample, 0, True, 0)
+        sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
+                               sclip=sclip, nclip=nclip)
+        sample.update()
+        #print(filt, g.sma, sample.mean)
+
+        # Create an Isophote instance with the sample.
+        out = Isophote(sample, 0, True, 0)
+        
+    return out
 
 def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
                          integrmode='median', nclip=2, sclip=3,
@@ -136,12 +156,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     zcolumn - name of the redshift column (Z_LAMBDA in redmapper)
 
     """
-    import copy
     from legacyhalos.mge import find_galaxy
-    from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
-                                    Isophote, IsophoteList)
-    from photutils.isophote.sample import CentralEllipseSample
-    from photutils.isophote.fitter import CentralEllipseFitter
 
     if verbose:
         warnvalue = 'ignore' # 'always'
@@ -219,12 +234,12 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         #maxsma_major = 5 * ellipsefit['majoraxis']
         #maxsma = np.min( (maxsma_cluster, maxsma_major) )
 
-    ## ##################################################
-    print('MAXSMA HACK!!!')
-    maxsma = 10
-    nclip = 0
-    integrmode = 'bilinear'
-    ## ##################################################
+    ### ##################################################
+    #print('MAXSMA HACK!!!')
+    #maxsma = 10
+    #nclip = 0
+    #integrmode = 'bilinear'
+    ### ##################################################
         
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip
@@ -353,64 +368,53 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         # Loop on the reference band isophotes.
         #isobandfit = []
         isoargs = list()
-        for iso in isophot[1:]:
-            isoargs.append((iso, pixscalefactor, integrmode, sclip, nclip))
+        for iso in isophot:
+            isoargs.append((iso, img, pixscalefactor, integrmode, sclip, nclip))
 
-        with warnings.catch_warnings():
-            warnings.simplefilter(warnvalue)
-            
-            if nproc > 1:
-                p = multiprocessing.Pool(nproc)
-                isobandfit = p.map(_integrate_isophot_one, isoargs)
-                p.close()
-            else:
-                isobandfit = list()
-                for args in isoargs:
-                    isobandfit.append(_integrate_isophot_one(isoargs))
+        p = multiprocessing.Pool(nproc)
+        isobandfit = p.map(_integrate_isophot_one, isoargs)
+        p.close()
 
-            pdb.set_trace()
+            ## Prepend the central pixel
+            #gcen = copy.deepcopy(g)
+            #gcen.sma = 0.0
+            #gcen.eps = 0.0
+            #gcen.pa = 0.0
+            #censamp = CentralEllipseSample(img, 0.0, geometry=gcen,
+            #                               integrmode=integrmode, sclip=sclip, nclip=nclip)
+            #cen = CentralEllipseFitter(censamp).fit()
+            #isobandfit.append(cen)
+            #
+            #for iso in isophot:
+            ##for iso in isophot[1:]:
+            #    #g = iso.sample.geometry # fixed geometry
+            #    g = copy.deepcopy(iso.sample.geometry) # fixed geometry
+            #    g.sma *= pixscalefactor
+            #    g.x0 *= pixscalefactor
+            #    g.y0 *= pixscalefactor
+            #
+            #    # Use the same integration mode and clipping parameters.
+            #    # The central pixel is a special case:
+            #    if g.sma == 0.0:
+            #        gcen = copy.deepcopy(g)
+            #        gcen.sma = 0.0
+            #        gcen.eps = 0.0
+            #        gcen.pa = 0.0
+            #        censamp = CentralEllipseSample(img, 0.0, geometry=gcen,
+            #                                       integrmode=integrmode, sclip=sclip, nclip=nclip)
+            #        cen = CentralEllipseFitter(censamp).fit()
+            #        isobandfit.append(cen)
+            #    else:
+            #        sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
+            #                               sclip=sclip, nclip=nclip)
+            #        sample.update()
+            #        #print(filt, g.sma, sample.mean)
+            #
+            #        # Create an Isophote instance with the sample.
+            #        isobandfit.append(Isophote(sample, 0, True, 0))
 
-            # Prepend the central pixel
-            gcen = copy.deepcopy(g)
-            gcen.sma = 0.0
-            gcen.eps = 0.0
-            gcen.pa = 0.0
-            censamp = CentralEllipseSample(img, 0.0, geometry=gcen,
-                                           integrmode=integrmode, sclip=sclip, nclip=nclip)
-            cen = CentralEllipseFitter(censamp).fit()
-            isobandfit.append(cen)
-
-            for iso in isophot:
-            #for iso in isophot[1:]:
-                #g = iso.sample.geometry # fixed geometry
-                g = copy.deepcopy(iso.sample.geometry) # fixed geometry
-                g.sma *= pixscalefactor
-                g.x0 *= pixscalefactor
-                g.y0 *= pixscalefactor
-
-                # Use the same integration mode and clipping parameters.
-                # The central pixel is a special case:
-                if g.sma == 0.0:
-                    gcen = copy.deepcopy(g)
-                    gcen.sma = 0.0
-                    gcen.eps = 0.0
-                    gcen.pa = 0.0
-                    censamp = CentralEllipseSample(img, 0.0, geometry=gcen,
-                                                   integrmode=integrmode, sclip=sclip, nclip=nclip)
-                    cen = CentralEllipseFitter(censamp).fit()
-                    isobandfit.append(cen)
-                else:
-                    sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
-                                           sclip=sclip, nclip=nclip)
-                    sample.update()
-                    #print(filt, g.sma, sample.mean)
-
-                    # Create an Isophote instance with the sample.
-                    isobandfit.append(Isophote(sample, 0, True, 0))
-
-                # Build the IsophoteList instance with the result.
-                ellipsefit[filt] = IsophoteList(isobandfit)
-
+        # Build the IsophoteList instance with the result.
+        ellipsefit[filt] = IsophoteList(isobandfit)
         print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
 
         #if np.all( np.isnan(ellipsefit['g'].intens) ):
