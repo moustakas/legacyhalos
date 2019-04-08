@@ -25,7 +25,7 @@ from photutils.isophote.fitter import CentralEllipseFitter
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
-def ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor, warnvalue='ignore'):
+def ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor):
     """Perform elliptical aperture photometry for the curve-of-growth analysis.
 
     maxsma in pixels
@@ -111,34 +111,33 @@ def integrate_isophot_one(iso, img, pixscalefactor, integrmode, sclip, nclip):
     """Integrate the ellipse profile at a single semi-major axis.
 
     """
-    #with warnings.catch_warnings():
-    #    warnings.simplefilter(warnvalue)
-        
     #g = iso.sample.geometry # fixed geometry
     g = copy.deepcopy(iso.sample.geometry) # fixed geometry
     
     # Use the same integration mode and clipping parameters.
     # The central pixel is a special case:
-    if g.sma == 0.0:
-        gcen = copy.deepcopy(g)
-        gcen.sma = 0.0
-        gcen.eps = 0.0
-        gcen.pa = 0.0
-        censamp = CentralEllipseSample(img, 0.0, geometry=gcen,
-                                       integrmode=integrmode, sclip=sclip, nclip=nclip)
-        out = CentralEllipseFitter(censamp).fit()
-    else:
-        g.sma *= pixscalefactor
-        g.x0 *= pixscalefactor
-        g.y0 *= pixscalefactor
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        if g.sma == 0.0:
+            gcen = copy.deepcopy(g)
+            gcen.sma = 0.0
+            gcen.eps = 0.0
+            gcen.pa = 0.0
+            censamp = CentralEllipseSample(img, 0.0, geometry=gcen,
+                                           integrmode=integrmode, sclip=sclip, nclip=nclip)
+            out = CentralEllipseFitter(censamp).fit()
+        else:
+            g.sma *= pixscalefactor
+            g.x0 *= pixscalefactor
+            g.y0 *= pixscalefactor
 
-        sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
-                               sclip=sclip, nclip=nclip)
-        sample.update()
-        #print(filt, g.sma, sample.mean)
+            sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
+                                   sclip=sclip, nclip=nclip)
+            sample.update()
+            #print(filt, g.sma, sample.mean)
 
-        # Create an Isophote instance with the sample.
-        out = Isophote(sample, 0, True, 0)
+            # Create an Isophote instance with the sample.
+            out = Isophote(sample, 0, True, 0)
         
     return out
 
@@ -157,11 +156,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
 
     """
     from legacyhalos.mge import find_galaxy
-
-    if verbose:
-        warnvalue = 'ignore' # 'always'
-    else:
-        warnvalue = 'ignore'
 
     # If noellipsefit=True, use the mean geometry of the galaxy to extract the
     # surface-brightness profile (turn off fitting).
@@ -315,7 +309,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     # First fit with the default parameters.
     t0 = time.time()
     with warnings.catch_warnings():
-        warnings.simplefilter(warnvalue)
+        warnings.simplefilter('ignore')
         print('Fitting the reference band: {}'.format(refband))
         _sma0 = (1, 3, 6, 9, 12)
         for ii, sma0 in enumerate(_sma0): # try a few different starting minor axes
