@@ -156,7 +156,7 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                                                        nproc=nproc, log=log)
                 _done(galaxy, err, t0, log=log)
                 
-def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
+def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -170,7 +170,7 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
     t0 = time.time()
     if debug:
         _start(galaxy)
-        err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
+        err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                       zcolumn=zcolumn,
                                                       verbose=verbose, debug=debug,
                                                       noellipsefit=True, hsc=hsc)
@@ -179,7 +179,7 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
+                err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                               zcolumn=zcolumn,
                                                               verbose=verbose, debug=debug,
                                                               noellipsefit=True, hsc=hsc)
@@ -457,7 +457,7 @@ def main():
                                 args.pixscale, args.nproc, args.debug, logfile)
                     
         if args.ellipse:
-            _call_ellipse(onegal, galaxy, args.pixscale, args.verbose,
+            _call_ellipse(onegal, galaxy, args.pixscale, args.nproc, args.verbose,
                           args.debug, logfile, args.hsc)
                         
         if args.sersic:

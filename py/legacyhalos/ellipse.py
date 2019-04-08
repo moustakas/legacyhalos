@@ -8,6 +8,7 @@ from __future__ import absolute_import, division, print_function
 
 import os, pdb
 import time, warnings
+import multiprocessing
 
 import numpy as np
 import numpy.ma as ma
@@ -97,7 +98,31 @@ def _unmask_center(img):
     img.mask[xx**2 + yy**2 <= rad**2] = ma.nomask
     return img
 
-def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
+def _integrate_isophot_one(args):
+    """Wrapper function for the multiprocessing."""
+    return integrate_isophot_one(*args)
+
+def integrate_isophot_one(iso, pixscalefactor, integrmode, sclip, nclip):
+    """Integrate the ellipse profile at a single semi-major axis.
+
+    """
+    #g = iso.sample.geometry # fixed geometry
+    g = copy.deepcopy(iso.sample.geometry) # fixed geometry
+    g.sma *= pixscalefactor
+    g.x0 *= pixscalefactor
+    g.y0 *= pixscalefactor
+
+    # Use the same integration mode and clipping parameters.
+    # The central pixel is a special case:
+    sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
+                           sclip=sclip, nclip=nclip)
+    sample.update()
+    #print(filt, g.sma, sample.mean)
+
+    # Create an Isophote instance with the sample.
+    return Isophote(sample, 0, True, 0)
+
+def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
                          integrmode='median', nclip=2, sclip=3,
                          step=0.1, fflag=0.7, linear=False, zcolumn='Z',
                          nowrite=False, verbose=False, noellipsefit=False,
@@ -195,10 +220,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
         #maxsma = np.min( (maxsma_cluster, maxsma_major) )
 
     ## ##################################################
-    #print('MAXSMA HACK!!!')
-    #maxsma = 5
-    #nclip = 0
-    #integrmode = 'bilinear'
+    print('MAXSMA HACK!!!')
+    maxsma = 10
+    nclip = 0
+    integrmode = 'bilinear'
     ## ##################################################
         
     ellipsefit['integrmode'] = integrmode
@@ -325,11 +350,35 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
 
         pixscalefactor = filt2pixscalefactor[filt]
 
-        # Loop on the reference band isophotes but skip the first isophote,
-        # which is a CentralEllipseSample object (see below).
-        isobandfit = []
+        # Loop on the reference band isophotes.
+        #isobandfit = []
+        isoargs = list()
+        for iso in isophot[1:]:
+            isoargs.append((iso, pixscalefactor, integrmode, sclip, nclip))
+
         with warnings.catch_warnings():
             warnings.simplefilter(warnvalue)
+            
+            if nproc > 1:
+                p = multiprocessing.Pool(nproc)
+                isobandfit = p.map(_integrate_isophot_one, isoargs)
+                p.close()
+            else:
+                isobandfit = list()
+                for args in isoargs:
+                    isobandfit.append(_integrate_isophot_one(isoargs))
+
+            pdb.set_trace()
+
+            # Prepend the central pixel
+            gcen = copy.deepcopy(g)
+            gcen.sma = 0.0
+            gcen.eps = 0.0
+            gcen.pa = 0.0
+            censamp = CentralEllipseSample(img, 0.0, geometry=gcen,
+                                           integrmode=integrmode, sclip=sclip, nclip=nclip)
+            cen = CentralEllipseFitter(censamp).fit()
+            isobandfit.append(cen)
 
             for iso in isophot:
             #for iso in isophot[1:]:
@@ -371,8 +420,11 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None,
     print('Time for all images = {:.3f} min'.format( (time.time() - tall) / 60))
 
     # Perform elliptical aperture photometry.
+    print('Performing elliptical aperture photometry.')
+    t0 = time.time()
     apphot = ellipse_apphot(band, data, ellipsefit, maxsma, filt2pixscalefactor)
     ellipsefit.update(apphot)
+    print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
 
     # Write out
     if not nowrite:
@@ -432,7 +484,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
 
     return sbprofile
 
-def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
+def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262, nproc=1,
                         refband='r', band=('g', 'r', 'z'), maxsma=None,
                         integrmode='median', nclip=2, sclip=3, zcolumn='Z',
                         galex_pixscale=1.5, unwise_pixscale=2.75,
@@ -461,7 +513,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
         # Do ellipse-fitting.
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
-                                          maxsma=maxsma, integrmode=integrmode,
+                                          maxsma=maxsma, nproc=nproc,
+                                          integrmode=integrmode,
                                           nclip=nclip, sclip=sclip, zcolumn=zcolumn,
                                           verbose=verbose, noellipsefit=noellipsefit)
         if ellipsefit['success']:
