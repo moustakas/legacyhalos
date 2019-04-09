@@ -423,7 +423,7 @@ def main():
             survey.output_dir = galaxydir
 
         if args.coadds:
-            print('After DR8 do not use mjd-min in coadds.py!')
+            print('After DR8 do not use mjd-min and update OUTLIERS in coadds.py!')
             _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
                                   args.nproc, args.force, args.debug, logfile)
                     

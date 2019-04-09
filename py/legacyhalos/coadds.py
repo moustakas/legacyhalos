@@ -442,21 +442,24 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     # Read the outliers masks and apply them -- temporary hack until we address
     # legacypipe/#271
+    print('Fix me after #271')
     outliersfile = os.path.join(survey.output_dir, '{}-outliers.fits.fz'.format(galaxy))
     if not os.path.isfile(outliersfile):
         print('Missing outliers masks {}'.format(outliersfile))
         return 0
-    outliers = fitsio.FITS(outliersfile)
-
-    for tim in tims:
-        key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
-        try:
-            #print('Masking from {}'.format(key))
-            mask, hdr = outliers[key].read(), outliers[key].read_header()
-            tim.dq |= (mask > 0) * CP_DQ_BITS['outlier']
-            tim.getInvError()[mask > 0] = 0.0
-        except:
-            pass
+    try:
+        outliers = fitsio.FITS(outliersfile)
+        for tim in tims:
+            key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
+            try:
+                #print('Masking from {}'.format(key))
+                mask, hdr = outliers[key].read(), outliers[key].read_header()
+                tim.dq |= (mask > 0) * CP_DQ_BITS['outlier']
+                tim.getInvError()[mask > 0] = 0.0
+            except:
+                pass
+    except:
+        pass
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
