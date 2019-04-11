@@ -229,11 +229,9 @@ def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 _done(galaxy, err, t0, log=log)
                 
 def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
-                    verbose, logfile, hsc, htmldir):
+                    verbose, ccdqa, logfile, hsc, htmldir):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
-
-    ccdqa, maketrends = False, False
 
     if debug:
         _start(galaxy)
@@ -241,12 +239,12 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
-                                              ccdqa=ccdqa, maketrends=maketrends, hsc=True)
+                                              ccdqa=ccdqa, maketrends=False, hsc=True)
         else:
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
-                                              ccdqa=ccdqa, maketrends=maketrends)
+                                              ccdqa=ccdqa, maketrends=False)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -287,6 +285,7 @@ def main():
 
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
+    parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
     parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
     parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
     parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
@@ -470,8 +469,8 @@ def main():
 
         if args.htmlplots:
             _call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
-                            args.debug, args.clobber, args.verbose, logfile, args.hsc,
-                            args.htmldir)
+                            args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
+                            args.hsc, args.htmldir)
 
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
