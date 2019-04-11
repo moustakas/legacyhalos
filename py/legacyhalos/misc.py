@@ -12,6 +12,8 @@ import numpy as np
 
 from astrometry.util.util import Tan
 
+RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
+
 def srcs2image(srcs, wcs, psf_sigma=1.0):
     """Build a model image from a Tractor catalog.
 
@@ -106,7 +108,7 @@ def plot_style(paper=False, talk=False):
         palette = 'deep'
         rc.update({'text.usetex': True})
 
-    sns.set(context=context, style='ticks', font_scale=1.6, rc=rc)
+    sns.set(context=context, style='ticks', font_scale=1.5, rc=rc)
     sns.set_palette(palette, 12)
 
     colors = sns.color_palette()
@@ -151,7 +153,7 @@ def destroy_logger(log):
         hndl.flush()
         hndl.close()
 
-def cutout_radius_kpc(redshift, pixscale=None, radius_kpc=150):
+def cutout_radius_kpc(redshift, pixscale=None, radius_kpc=RADIUS_CLUSTER_KPC):
     """Get a cutout radius of RADIUS_KPC [in pixels] at the redshift of the cluster.
 
     """

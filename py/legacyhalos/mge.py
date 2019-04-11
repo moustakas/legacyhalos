@@ -142,6 +142,7 @@ MODIFICATION HISTORY:
 from __future__ import print_function
 
 import numpy as np
+import numpy.ma as ma
 import matplotlib.pyplot as plt
 from matplotlib import patches
 from scipy import signal, ndimage
@@ -165,7 +166,12 @@ class find_galaxy(object):
         if level is None:
             level = np.percentile(a, (1 - fraction)*100)
 
-        mask = a > level
+        if type(img) is ma.MaskedArray:
+            mask = ma.getmask(img)
+        else:
+            mask = np.zeros_like(img).astype(bool)
+
+        mask = np.logical_or(mask, a > level)
         labels, nb = ndimage.label(mask)   # Get blob indices
         sizes = ndimage.sum(mask, labels, np.arange(nb + 1))
         j = np.argsort(sizes)[-nblob]      # find the nblob-th largest blob

@@ -13,6 +13,7 @@ import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 import fitsio
 
+from astrometry.util.fits import fits_table, merge_tables
 from astrometry.util.multiproc import multiproc
 
 import legacyhalos.misc
@@ -21,7 +22,8 @@ from legacyhalos.io import get_galaxy_galaxydir
 
 def _copyfile(infile, outfile):
     if os.path.isfile(infile):
-        shutil.copy2(infile, outfile)
+        os.rename(infile, outfile)
+        #shutil.copy2(infile, outfile)
         return 1
     else:
         print('Missing file {}; please check the logfile.'.format(infile))
@@ -56,7 +58,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
     cmd += '--write-stage srcs '
     cmd += '--min-mjd 0 '
     cmd += '--skip-calibs --no-wise-ceres '
-    cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p --checkpoint-period 300 '
+    cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
     if unwise:
         cmd += '--unwise-coadds '
@@ -94,6 +96,29 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
     else:
         # Move (rename) files into the desired output directory and clean up.
         brickname = 'custom-{}'.format(custom_brickname(onegal['RA'], onegal['DEC']))
+
+        # (Re)package the outliers images into a single MEF -- temporary hack
+        # until we address legacypipe/#271
+        ccdsfile = os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                               'legacysurvey-{}-ccds.fits'.format(brickname))
+        if not os.path.isfile(ccdsfile):
+            print('CCDs file {} not found!'.format(ccdsfile))
+            return 0
+        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+        
+        outliersfile = os.path.join(survey.output_dir, '{}-outliers.fits.fz'.format(galaxy))
+        if os.path.isfile(outliersfile):
+            os.remove(outliersfile)
+        with fitsio.FITS(outliersfile, 'rw') as ff:
+            for ccd in ccds:
+                im = survey.get_image_object(ccd)
+                suffix = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname)
+                maskfile = os.path.join(survey.output_dir, 'metrics', 'cus', brickname,
+                                        'outlier-mask-{}.fits.fz'.format(suffix))
+                if os.path.isfile(maskfile):
+                    mask, hdr = fitsio.read(maskfile, header=True)
+                    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+                    ff.write(mask, extname=key, header=hdr)
 
         # tractor catalog
         ok = _copyfile(
@@ -196,7 +221,6 @@ def _custom_sky(skyargs):
 
     from tractor.splinesky import SplineSky
     from astrometry.util.miscutils import estimate_mode
-    from astrometry.util.fits import fits_table
     from astrometry.util.resample import resample_with_wcs
 
     from legacypipe.reference import get_reference_sources
@@ -348,7 +372,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
       with the central with dedicated code.
 
     """
-    from astrometry.util.fits import fits_table, merge_tables
     from astrometry.libkd.spherematch import match_radec
     from tractor.sky import ConstantSky
     from tractor import ConstantFitsWcs
@@ -358,6 +381,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     from legacypipe.runbrick import _get_mod
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.survey import get_rgb, imsave_jpeg
+    from legacypipe.image import CP_DQ_BITS
             
     from legacyhalos.mge import find_galaxy
         
@@ -416,6 +440,27 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     tims, brickwcs, bands, version_header = P['tims'], P['targetwcs'], P['bands'], P['version_header']
     del P
 
+    # Read the outliers masks and apply them -- temporary hack until we address
+    # legacypipe/#271
+    print('Fix me after #271')
+    outliersfile = os.path.join(survey.output_dir, '{}-outliers.fits.fz'.format(galaxy))
+    if not os.path.isfile(outliersfile):
+        print('Missing outliers masks {}'.format(outliersfile))
+        return 0
+    try:
+        outliers = fitsio.FITS(outliersfile)
+        for tim in tims:
+            key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
+            try:
+                #print('Masking from {}'.format(key))
+                mask, hdr = outliers[key].read(), outliers[key].read_header()
+                tim.dq |= (mask > 0) * CP_DQ_BITS['outlier']
+                tim.getInvError()[mask > 0] = 0.0
+            except:
+                pass
+    except:
+        pass
+
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
     skyargs = [(survey, brickname, brickwcs, onegal, radius_mask, apodize, sky_annulus, _ccd)
@@ -438,8 +483,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         hdr.delete('IMAGEH')
 
         maskfile = os.path.join(survey.output_dir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
-        print('Writing {}'.format(maskfile))
         fitsio.write(maskfile, comask, header=hdr, clobber=True)
+        print('Writing {}'.format(maskfile))
         del comask
 
         skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
@@ -465,16 +510,20 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                 hdr = sky['{}-header'.format(key)]
                 ff.write(sky['{}-mask'.format(key)], extname=key, header=hdr)
 
-        ccdfile = os.path.join(survey.output_dir, '{}-ccddata-grz.fits.fz'.format(galaxy))
-        print('Writing {}'.format(ccdfile))
-        if os.path.isfile(ccdfile):
-            os.remove(ccdfile)
-        with fitsio.FITS(ccdfile, 'rw') as ff:
-            for ii, ccd in enumerate(survey.ccds):
-                im = survey.get_image_object(ccd)
-                key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-                hdr = sky['{}-header'.format(key)]
-                ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
+        # These are the actual images, which results in a giant file.  Keeping
+        # the code here for legacy purposes but I'm not sure we should ever
+        # write it out.
+        if False:
+            ccdfile = os.path.join(survey.output_dir, '{}-ccddata-grz.fits.fz'.format(galaxy))
+            print('Writing {}'.format(ccdfile))
+            if os.path.isfile(ccdfile):
+                os.remove(ccdfile)
+            with fitsio.FITS(ccdfile, 'rw') as ff:
+                for ii, ccd in enumerate(survey.ccds):
+                    im = survey.get_image_object(ccd)
+                    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+                    hdr = sky['{}-header'.format(key)]
+                    ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
 
     # [3] Modify each tim by subtracting our new estimate of the sky.
     newtims = []

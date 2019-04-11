@@ -13,8 +13,8 @@ import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
 
-from legacyhalos.misc import plot_style
-sns = plot_style()
+from legacyhalos.misc import RADIUS_CLUSTER_KPC
+sns, _ = legacyhalos.misc.plot_style()
 
 #import seaborn as sns
 #sns.set(style='ticks', font_scale=1.4, palette='Set2')
@@ -33,7 +33,8 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         survey = LegacySurveyData()
 
     radius_pixel = legacyhalos.misc.cutout_radius_kpc(
-        redshift=onegal[zcolumn], pixscale=pixscale) # [pixels]
+        redshift=onegal[zcolumn], pixscale=pixscale,
+        radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
@@ -103,6 +104,12 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
         #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
 
+        multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
+        if not os.path.isfile(multibandfile) or clobber:
+            data = read_multiband(galaxy, galaxydir, band=band)
+            display_multiband(data, ellipsefit=ellipsefit, indx=indx,
+                              png=multibandfile, verbose=verbose)
+
         cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
         if not os.path.isfile(cogfile) or clobber:
             qa_curveofgrowth(ellipsefit, png=cogfile, verbose=verbose)
@@ -111,12 +118,6 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
         if not os.path.isfile(sbprofilefile) or clobber:
             display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
                                       png=sbprofilefile, verbose=verbose, minerr=0.0)
-
-        multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
-        if not os.path.isfile(multibandfile) or clobber:
-            data = read_multiband(galaxy, galaxydir, band=band)
-            display_multiband(data, ellipsefit=ellipsefit, indx=indx,
-                              png=multibandfile, verbose=verbose)
 
         ellipsefitfile = os.path.join(htmlgalaxydir, '{}-ellipse-ellipsefit.png'.format(galaxy))
         if not os.path.isfile(ellipsefitfile) or clobber:
@@ -248,14 +249,14 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
             qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                               clobber=clobber, verbose=verbose)
 
-        # Build the montage coadds.
-        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
-                          clobber=clobber, verbose=verbose)
-
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                            clobber=clobber, verbose=verbose)
         
+        # Build the montage coadds.
+        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
+                          clobber=clobber, verbose=verbose)
+
         # Build the CCD-level QA.  This QA script needs to be last, because we
         # check the completeness of the HTML portion of legacyhalos-mpi based on
         # the ccdpos file.
@@ -304,15 +305,12 @@ def _javastring():
 def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', first=None, last=None,
               nproc=1, survey=None, makeplots=True, clobber=False, verbose=True,
-              maketrends=False, ccdqa=True):
+              maketrends=False, ccdqa=False):
     """Make the HTML pages.
 
     """
     import subprocess
     import fitsio
-
-    import legacyhalos.io
-    from legacyhalos.misc import cutout_radius_kpc
 
     if datadir is None:
         datadir = legacyhalos.io.legacyhalos_data_dir()
@@ -333,7 +331,9 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Get the viewer link
     def _viewer_link(gal):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_kpc(redshift=gal[zcolumn], pixscale=0.262) # [pixels]
+        width = 2 * legacyhalos.misc.cutout_radius_kpc(
+            redshift=gal[zcolumn], pixscale=0.262,
+            radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
         if width > 400:
             zoom = 14
         else:

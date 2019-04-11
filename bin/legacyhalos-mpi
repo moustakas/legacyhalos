@@ -22,6 +22,8 @@ import legacyhalos.coadds
 import legacyhalos.html
 import legacyhalos.integrate
 
+from legacyhalos.misc import RADIUS_CLUSTER_KPC
+
 def get_survey_dir(onegal):
     if onegal['RELEASE'] == 6000:
         return '/global/project/projectdirs/cosmo/work/legacysurvey/dr6'
@@ -125,15 +127,15 @@ def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
         _start(galaxy)
         err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                  survey=survey, pixscale=pixscale,
-                                                 nproc=nproc, force=force)
+                                                 nproc=nproc, force=force, cleanup=True)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                          survey=survey, pixscale=pixscale,
-                                                         nproc=nproc, force=force, log=log)
+                                                         nproc=nproc, force=force, log=log, cleanup=True)
                 _done(galaxy, err, t0, log=log)
 
 def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
@@ -146,7 +148,7 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                                                survey=survey, pixscale=pixscale, nproc=nproc)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
@@ -154,7 +156,7 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                                                        nproc=nproc, log=log)
                 _done(galaxy, err, t0, log=log)
                 
-def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
+def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -168,16 +170,16 @@ def _call_ellipse(onegal, galaxy, pixscale, verbose, debug, logfile, hsc):
     t0 = time.time()
     if debug:
         _start(galaxy)
-        err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
+        err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                       zcolumn=zcolumn,
                                                       verbose=verbose, debug=debug,
                                                       noellipsefit=True, hsc=hsc)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale,
+                err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                               zcolumn=zcolumn,
                                                               verbose=verbose, debug=debug,
                                                               noellipsefit=True, hsc=hsc)
@@ -196,7 +198,7 @@ def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
                                                     debug=debug, verbose=verbose, seed=seed)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log, seed=seed)
                 err = legacyhalos.sersic.legacyhalos_sersic(onegal, galaxy=galaxy, galaxydir=galaxydir,
@@ -218,7 +220,7 @@ def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                                               debug=debug, verbose=verbose, force=force)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log, seed=seed)
                 err = legacyhalos.sky.legacyhalos_sky(onegal, survey=survey, galaxy=galaxy, galaxydir=galaxydir,
@@ -227,11 +229,9 @@ def _call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 _done(galaxy, err, t0, log=log)
                 
 def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
-                    verbose, logfile, hsc, htmldir):
+                    verbose, ccdqa, logfile, hsc, htmldir):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
-
-    ccdqa, maketrends = True, False
 
     if debug:
         _start(galaxy)
@@ -239,15 +239,15 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
-                                              ccdqa=ccdqa, maketrends=maketrends, hsc=True)
+                                              ccdqa=ccdqa, maketrends=False, hsc=True)
         else:
             err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                               pixscale=pixscale, survey=survey, clobber=clobber,
                                               verbose=verbose, nproc=nproc,
-                                              ccdqa=ccdqa, maketrends=maketrends)
+                                              ccdqa=ccdqa, maketrends=False)
         _done(galaxy, err, t0)
     else:
-        with open(logfile, 'w') as log:
+        with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 if hsc:
@@ -285,6 +285,7 @@ def main():
 
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
+    parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
     parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
     parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
     parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
@@ -413,14 +414,15 @@ def main():
         
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.sky or args.htmlplots:
-            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(redshift=onegal['Z']) # [arcsec]
+            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+                redshift=onegal['Z'], radius_kpc=RADIUS_CLUSTER_KPC) # [arcsec]
 
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)
             survey.output_dir = galaxydir
 
         if args.coadds:
-            print('After DR8 do not use mjd-min in coadds.py!')
+            print('After DR8 do not use mjd-min and update OUTLIERS in coadds.py!')
             _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
                                   args.nproc, args.force, args.debug, logfile)
                     
@@ -454,7 +456,7 @@ def main():
                                 args.pixscale, args.nproc, args.debug, logfile)
                     
         if args.ellipse:
-            _call_ellipse(onegal, galaxy, args.pixscale, args.verbose,
+            _call_ellipse(onegal, galaxy, args.pixscale, args.nproc, args.verbose,
                           args.debug, logfile, args.hsc)
                         
         if args.sersic:
@@ -467,8 +469,8 @@ def main():
 
         if args.htmlplots:
             _call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
-                            args.debug, args.clobber, args.verbose, logfile, args.hsc,
-                            args.htmldir)
+                            args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
+                            args.hsc, args.htmldir)
 
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(

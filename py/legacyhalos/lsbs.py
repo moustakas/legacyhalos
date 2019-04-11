@@ -91,12 +91,21 @@ def read_sample(verbose=False):
     """
     # Really should be reading this from disk.
     sample = Table()
-    sample['GALAXY'] = np.array(['NGC1052-F2'])
-    sample['RA'] = np.array([40.4455]).astype('f8')
-    sample['DEC'] = np.array([-8.4031]).astype('f8')
-    sample['RADIUS_MOSAIC'] = np.array([20.0 * 60]).astype('f4') # mosaic half-width and half-height [arcsec]
-    sample['RADIUS_GALAXY'] = np.array([20.0]).astype('f4')      # galaxy radius [arcsec]
+    sample['GALAXY'] = np.array(['M87'])
+    sample['RA'] = np.array([187.705930]).astype('f8')
+    sample['DEC'] = np.array([12.391123]).astype('f8')
+    sample['RADIUS_MOSAIC'] = np.array([10.0 * 60]).astype('f4') # mosaic half-width and half-height [arcsec]
+    sample['RADIUS_GALAXY'] = np.array([4.0 * 60]).astype('f4')  # galaxy radius [arcsec]
     sample['RELEASE'] = np.array([7000]).astype(int)
+
+    if False:
+        sample = Table()
+        sample['GALAXY'] = np.array(['NGC1052-F2'])
+        sample['RA'] = np.array([40.4455]).astype('f8')
+        sample['DEC'] = np.array([-8.4031]).astype('f8')
+        sample['RADIUS_MOSAIC'] = np.array([20.0 * 60]).astype('f4') # mosaic half-width and half-height [arcsec]
+        sample['RADIUS_GALAXY'] = np.array([20.0]).astype('f4')      # galaxy radius [arcsec]
+        sample['RELEASE'] = np.array([7000]).astype(int)
 
     return sample
 
