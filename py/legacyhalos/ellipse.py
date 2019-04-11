@@ -342,7 +342,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
             if ii > 0:
                 print('Failed with sma0={:.1f} pixels, trying sma0={:.1f} pixels.'.format(_sma0[ii-1], sma0))
             try:
-                isophot = ellipse.fit_image(sma0, minsma=0.0, maxsma=maxsma,
+                isophot = ellipse.fit_image(sma0, minsma=0.1, maxsma=maxsma,
                                             integrmode=integrmode, sclip=sclip, nclip=nclip)
             except:
                 isophot = []
@@ -385,6 +385,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         pixscalefactor = filt2pixscalefactor[filt]
 
         # Loop on the reference band isophotes.
+        pdb.set_trace()
         isobandfit = pool.map(_integrate_isophot_one, [(iso, img, pixscalefactor, integrmode, sclip, nclip)
                                                        for iso in isophot])
 

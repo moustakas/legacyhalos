@@ -965,7 +965,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
 
-        ylim = [yminmax[0]-0.5, yminmax[1]+0.5]
+        ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
         if ylim[0] < 17:
             ylim[0] = 17
         if ylim[1] > 33:
@@ -1017,10 +1017,10 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             xx.fill_between([0, 3*ellipsefit['psfsigma_r']*ellipsefit['pixscale']], [ylim[0], ylim[0]],
                             [ylim[1], ylim[1]], color='grey', alpha=0.1)
             
-        ax2.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
+        ax2.text(0.03, 0.1, 'PSF\n(3$\sigma$)', ha='center', va='center',
             transform=ax2.transAxes, fontsize=10)
 
-        fig.subplots_adjust(hspace=0.0)
+        fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.12, top=0.85)
 
         if png:
             if verbose:
