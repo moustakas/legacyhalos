@@ -270,10 +270,18 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     ellipse0 = Ellipse(img, geometry=geometry0)
 
     smamin, smamax = 0.05*majoraxis, 1.2*majoraxis # inner, outer radius
-    sma0 = smamin*1.1
-    iso0 = ellipse0.fit_image(sma0, minsma=smamin, maxsma=smamax,
-                              integrmode=integrmode, sclip=sclip, nclip=nclip,
-                              step=0.5, linear=False) # note smaller step size
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        factor = (1.1, 1.2, 1.3, 1.4)
+        for ii, fac in enumerate(factor): # try a few different starting sma0
+            sma0 = smamin*fac
+            iso0 = ellipse0.fit_image(sma0, minsma=smamin, maxsma=smamax,
+                                      integrmode=integrmode, sclip=sclip, nclip=nclip,
+                                      step=0.5, linear=False) # note smaller step size
+            if len(iso0) > 0:
+                break
+
+    pdb.set_trace()
     if len(iso0) == 0:
         print('Initial ellipse-fitting failed!')
         return ellipsefit

@@ -12,12 +12,12 @@
 
 #SBATCH -o ellipse.log.%j
 #SBATCH -p debug
-#SBATCH -N 6
-#SBATCH -n 48
+#SBATCH -N 1
+#SBATCH -n 6
 #SBATCH -t 00:30:00
 
 # for cori only
-#SBATCH -C haswell
+# #SBATCH -C haswell
 
 # sbatch ~/scratch/repos/legacyhalos/bin/legacyhalos-coadds.slurm
 
@@ -68,7 +68,7 @@ source $IMPY_DIR/bin/legacyhalos-env-nersc
 #time srun -N 1 -n 4 -c 6 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc 6 --mpi
 
 # ellipse
-time srun -N 6 -n 48 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --nproc 4 --mpi 
+time srun -N 1 -n 6 -c 4 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --nproc 4 --mpi 
 
 # html
 #time srun -N 2 -n 48 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --htmlplots --mpi --clobber
