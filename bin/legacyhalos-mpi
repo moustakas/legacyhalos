@@ -233,7 +233,7 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
-    ccdqa, maketrends = True, False
+    ccdqa, maketrends = False, False
 
     if debug:
         _start(galaxy)
