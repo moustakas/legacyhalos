@@ -471,7 +471,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262, npr
                         integrmode='median', nclip=2, sclip=3, zcolumn='Z',
                         galex_pixscale=1.5, unwise_pixscale=2.75,
                         noellipsefit=False, verbose=False, debug=False,
-                        hsc=False):
+                        hsc=False, sdss=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
     noellipsefit - do not fit for the ellipse parameters (use the mean values from MGE). 
@@ -487,7 +487,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262, npr
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, band=band,
                                          refband=refband, pixscale=pixscale,
                                          galex_pixscale=galex_pixscale,
-                                         unwise_pixscale=unwise_pixscale)
+                                         unwise_pixscale=unwise_pixscale,
+                                         sdss=sdss)
     if bool(data):
         ## Find the galaxy and (optionally) perform MGE fitting.
         #mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose,

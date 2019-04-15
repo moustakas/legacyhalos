@@ -21,6 +21,7 @@ import legacyhalos.hsc
 import legacyhalos.coadds
 import legacyhalos.html
 import legacyhalos.integrate
+import legacyhalos.sdss
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
@@ -35,7 +36,7 @@ def get_survey_dir(onegal):
     return
 
 def missing_files(sample, filetype='coadds', size=1, htmldir=None,
-                  hsc=False, clobber=False):
+                  hsc=False, sdss=False, clobber=False):
     """Find missing data of a given filetype."""    
 
     if filetype == 'coadds':
@@ -49,6 +50,8 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
     elif filetype == 'html':
         filesuffix = '-ccdpos.png'
         #filesuffix = '-sersic-exponential-nowavepower.png'
+    elif filetype == 'sdss-coadds':
+        filesuffix = '-sdss-image-gri.jpg'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -85,7 +88,10 @@ def _missing_files(args, sample, size, htmldir=None):
 
     """
     if args.coadds:
-        suffix = 'coadds'
+        if args.sdss:
+            suffix = 'sdss-coadds'
+        else:
+            suffix = 'coadds'
     elif args.custom_coadds:
         suffix = 'custom_coadds'
     elif args.ellipse:
@@ -101,7 +107,7 @@ def _missing_files(args, sample, size, htmldir=None):
 
     if suffix != '':
         groups = missing_files(sample, filetype=suffix, size=size, hsc=args.hsc,
-                               clobber=args.clobber, htmldir=htmldir)
+                               sdss=args.sdss, clobber=args.clobber, htmldir=htmldir)
     else:
         groups = []        
 
@@ -156,7 +162,7 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                                                        nproc=nproc, log=log)
                 _done(galaxy, err, t0, log=log)
                 
-def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc):
+def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc, sdss):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -173,7 +179,7 @@ def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc)
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                       zcolumn=zcolumn,
                                                       verbose=verbose, debug=debug,
-                                                      noellipsefit=True, hsc=hsc)
+                                                      noellipsefit=True, hsc=hsc, sdss=sdss)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -182,7 +188,7 @@ def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc)
                 err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                               zcolumn=zcolumn,
                                                               verbose=verbose, debug=debug,
-                                                              noellipsefit=True, hsc=hsc)
+                                                              noellipsefit=True, hsc=hsc, sdss=sdss)
                 _done(galaxy, err, t0, log=log)
 
 def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
@@ -269,6 +275,7 @@ def main():
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
 
     parser.add_argument('--hsc', action='store_true', help='Analyze the HSC massive-galaxy sample.')
+    parser.add_argument('--sdss', action='store_true', help='Analyze the SDSS galaxies.')
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
@@ -422,9 +429,13 @@ def main():
             survey.output_dir = galaxydir
 
         if args.coadds:
-            print('After DR8 do not use mjd-min and update OUTLIERS in coadds.py!')
-            _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
-                                  args.nproc, args.force, args.debug, logfile)
+            if args.sdss:
+                err = legacyhalos.sdss.download(sample, clobber=args.clobber)
+                pdb.set_trace()
+            else:
+                print('After DR8 do not use mjd-min and update OUTLIERS in coadds.py!')
+                _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
+                                      args.nproc, args.force, args.debug, logfile)
                     
         if args.custom_coadds or args.htmlplots:
             ccdsfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy))
@@ -457,7 +468,7 @@ def main():
                     
         if args.ellipse:
             _call_ellipse(onegal, galaxy, args.pixscale, args.nproc, args.verbose,
-                          args.debug, logfile, args.hsc)
+                          args.debug, logfile, args.hsc, args.sdss)
                         
         if args.sersic:
             _call_sersic(onegal, galaxy, galaxydir, args.seed, args.verbose,
