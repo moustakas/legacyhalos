@@ -8,8 +8,8 @@ Code to handle the SDSS coadds.
 import os, time, copy, pdb
 import subprocess
 import numpy as np
-import fitsio
 
+import fitsio
 from astrometry.util.multiproc import multiproc
 from astrometry.util.fits import fits_table
 
@@ -20,67 +20,53 @@ from legacyhalos.coadds import isolate_central
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
-def download(sample, pixscale=0.396, bands='gri', clobber=False):
-    """Note that the cutout server has a maximum cutout size of 3000 pixels.
-    
-    montage -bordercolor white -borderwidth 1 -tile 2x2 -geometry +0+0 -resize 512 \
-      NGC0628-SDSS.jpg NGC3184-SDSS.jpg NGC5194-SDSS.jpg NGC5457-SDSS.jpg chaos-montage.png
+def _forced_phot(args):
+    """Wrapper function for the multiprocessing."""
+    return forced_phot(*args)
+
+def forced_phot(galaxy, survey, srcs, band):
+    """Perform forced photometry on a single SDSS bandpass (mosaic).
 
     """
-    for onegal in sample:
-        gal, galdir = legacyhalos.io.get_galaxy_galaxydir(onegal)
+    from astrometry.util.util import Tan
+    from tractor.image import Image
+    from tractor.sky import ConstantSky
+    from tractor.basics import LinearPhotoCal
+    from tractor import Tractor, ConstantFitsWcs, GaussianMixturePSF
+
+    bandfile = os.path.join(survey.output_dir, '{}-sdss-image-{}.fits.fz'.format(galaxy, band))
+    img, hdr = fitsio.read(bandfile, header=True)
+    brickwcs = ConstantFitsWcs(Tan(hdr['CRVAL1'], hdr['CRVAL2'], hdr['CRPIX1'], hdr['CRPIX2'],
+                                   hdr['CD1_1'], hdr['CD1_2'], hdr['CD2_1'], hdr['CD2_2'],
+                                   hdr['NAXIS1'], hdr['NAXIS2']))
+
+    # ToDo: estimate the PSF from the image itself!
+    psf_sigma = 1.0
+    psf = GaussianMixturePSF(1.0, 0., 0., psf_sigma**2, psf_sigma**2, 0.0)
+    tim = Image(img, wcs=brickwcs, psf=psf,
+                invvar=np.ones_like(img), 
+                sky=ConstantSky(0.0),
+                photocal=LinearPhotoCal(1.0, band=band),
+                name='SDSS {}'.format(band))
+
+    # Instantiate the Tractor engine and do forced photometry.
+    tractor = Tractor([tim], srcs)
+    tractor.freezeParamsRecursive('*')
+    tractor.thawPathsTo(band)
     
-        size_mosaic = 2 * legacyhalos.misc.cutout_radius_kpc(pixscale=pixscale, # [pixel]
-            redshift=onegal['Z'], radius_kpc=RADIUS_CLUSTER_KPC)
-        print(gal, size_mosaic)
+    R = tractor.optimize_forced_photometry(
+        minsb=0, mindlnp=1.0, sky=False, fitstats=True,
+        variance=True, shared_params=False, wantims=False)
 
-        # Individual FITS files--
-        outfile = os.path.join(galdir, '{}-sdss-image-gri.fits'.format(gal))
-        if os.path.exists(outfile) and clobber is False:
-            print('Already downloaded {}'.format(outfile))
-        else:
-            cmd = 'wget -O {outfile} '
-            cmd += 'http://legacysurvey.org/viewer-dev/fits-cutout?ra={ra}&dec={dec}&pixscale={pixscale}&size={size}&layer=sdss'
-            cmd = cmd.format(outfile=outfile, ra=onegal['RA'], dec=onegal['DEC'],
-                             pixscale=pixscale, size=size_mosaic)
-            print(cmd)
-            err = subprocess.call(cmd.split())
-            time.sleep(1)
-
-            # Unpack into individual bandpasses and compress.
-            imgs, hdrs = fitsio.read(outfile, header=True)
-            [hdrs.delete(key) for key in ('BANDS', 'BAND0', 'BAND1', 'BAND2')]
-            for ii, band in enumerate(bands):
-                hdr = copy.deepcopy(hdrs)
-                hdr.add_record(dict(name='BAND', value=band, comment='SDSS bandpass'))
-                bandfile = os.path.join(galdir, '{}-sdss-image-{}.fits.fz'.format(gal, band))
-                if os.path.isfile(bandfile):
-                    os.remove(bandfile)
-                print('Writing {}'.format(bandfile))
-                fitsio.write(bandfile, imgs[ii, :, :], header=hdr)
-
-            pdb.set_trace()
-
-            print('Removing {}'.format(outfile))
-            os.remove(outfile)
-
-        # Color mosaic--
-        outfile = os.path.join(galdir, '{}-sdss-image-gri.jpg'.format(gal))
-        if os.path.exists(outfile) and clobber is False:
-            print('Already downloaded {}'.format(outfile))
-        else:
-            if os.path.exists(outfile) and clobber:
-                os.remove(outfile) # otherwise wget will complain
-            cmd = 'wget -O {outfile} '
-            cmd += 'http://legacysurvey.org/viewer-dev/jpeg-cutout?ra={ra}&dec={dec}&pixscale={pixscale}&size={size}&layer=sdss'
-            cmd = cmd.format(outfile=outfile, ra=onegal['RA'], dec=onegal['DEC'],
-                             pixscale=pixscale, size=size_mosaic)
-            print(cmd)
-            err = subprocess.call(cmd.split())
-            time.sleep(1)
+    # Unpack the results and return.
+    phot = fits_table()
+    nm = np.array([src.getBrightness().getBand(band) for src in srcs])
+    phot.set(band, nm.astype(np.float32))
+    
+    return phot
 
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                  bands=('g', 'r', 'i'), nproc=1, pixscale=0.396, psf_sigma=1.0,
+                  bands=('g', 'r', 'i'), nproc=1, pixscale=0.396, 
                   log=None, verbose=False):
     """Build the model and residual SDSS coadds for a single galaxy using the LS
     Tractor catalog but re-optimizing the fluxes.
@@ -88,22 +74,13 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     radius_mosaic in arcsec
 
     """
-    from astrometry.util.util import Tan
-    from tractor.sky import ConstantSky
-    from tractor import ConstantFitsWcs
-    from tractor import Tractor
-    from tractor.image import Image
-    from tractor.sky import ConstantSky
-    from tractor.basics import LinearPhotoCal, NanoMaggies
-    from tractor import GaussianMixturePSF
-    
+    from tractor.basics import NanoMaggies
+
     from legacypipe.catalog import read_fits_catalog
     from legacypipe.runbrick import _get_mod
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.survey import get_rgb, imsave_jpeg
             
-    from legacyhalos.mge import find_galaxy
-        
     if survey is None:
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
@@ -137,32 +114,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         src.setBrightness(NanoMaggies(**initflx))
         sdss_srcs.append(src)
 
-    # Build tims for the individual coadds and perform forced photometry.
-    tims = []
-    for ii, band in enumerate(bands):
-        bandfile = os.path.join(survey.output_dir, '{}-sdss-image-{}.fits.fz'.format(galaxy, band))
-        img, hdr = fitsio.read(bandfile, header=True)
-        if ii == 0:
-            brickwcs = Tan(hdr['CRVAL1'], hdr['CRVAL2'], hdr['CRPIX1'], hdr['CRPIX2'],
-                           hdr['CD1_1'], hdr['CD1_2'], hdr['CD2_1'], hdr['CD2_2'],
-                           hdr['NAXIS1'], hdr['NAXIS2'])
-
-        # ToDo: estimate the PSF from the image itself!
-        psf = GaussianMixturePSF(1.0, 0., 0., psf_sigma**2, psf_sigma**2, 0.0)
-        tim = Image(img, wcs=brickwcs, psf=psf,
-                    #invvar=np.ones_like(img), 
-                    sky=ConstantSky(0.0),
-                    photocal=LinearPhotoCal(1.0, band=band))
-        tim.band = band
-        tims.append(tim)
-        
-        for src in sdss_srcs:
-            src.freezeAllBut('brightness')
-            src.getBrightness().freezeAllBut(tim.band)
-            print(src.getBrightness())
-
+    print('Performing forced photometry in {}'.format(bands))
+    phot = mp.map(_forced_phot, [(galaxy, survey, sdss_srcs, band) for band in bands])
+    
     pdb.set_trace()
-        
+
     # Custom code for dealing with centrals.
     keep = isolate_central(cat, onegal, radius_mosaic, brickwcs, width, centrals=True)
 
@@ -261,3 +217,63 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     call_make_png(C_nocentral, nocentral=True)
 
     return 1
+
+def download(sample, pixscale=0.396, bands='gri', clobber=False):
+    """Note that the cutout server has a maximum cutout size of 3000 pixels.
+    
+    montage -bordercolor white -borderwidth 1 -tile 2x2 -geometry +0+0 -resize 512 \
+      NGC0628-SDSS.jpg NGC3184-SDSS.jpg NGC5194-SDSS.jpg NGC5457-SDSS.jpg chaos-montage.png
+
+    """
+    for onegal in sample:
+        gal, galdir = legacyhalos.io.get_galaxy_galaxydir(onegal)
+    
+        size_mosaic = 2 * legacyhalos.misc.cutout_radius_kpc(pixscale=pixscale, # [pixel]
+            redshift=onegal['Z'], radius_kpc=RADIUS_CLUSTER_KPC)
+        print(gal, size_mosaic)
+
+        # Individual FITS files--
+        outfile = os.path.join(galdir, '{}-sdss-image-gri.fits'.format(gal))
+        if os.path.exists(outfile) and clobber is False:
+            print('Already downloaded {}'.format(outfile))
+        else:
+            cmd = 'wget -O {outfile} '
+            cmd += 'http://legacysurvey.org/viewer-dev/fits-cutout?ra={ra}&dec={dec}&pixscale={pixscale}&size={size}&layer=sdss'
+            cmd = cmd.format(outfile=outfile, ra=onegal['RA'], dec=onegal['DEC'],
+                             pixscale=pixscale, size=size_mosaic)
+            print(cmd)
+            err = subprocess.call(cmd.split())
+            time.sleep(1)
+
+            # Unpack into individual bandpasses and compress.
+            imgs, hdrs = fitsio.read(outfile, header=True)
+            [hdrs.delete(key) for key in ('BANDS', 'BAND0', 'BAND1', 'BAND2')]
+            for ii, band in enumerate(bands):
+                hdr = copy.deepcopy(hdrs)
+                hdr.add_record(dict(name='BAND', value=band, comment='SDSS bandpass'))
+                bandfile = os.path.join(galdir, '{}-sdss-image-{}.fits.fz'.format(gal, band))
+                if os.path.isfile(bandfile):
+                    os.remove(bandfile)
+                print('Writing {}'.format(bandfile))
+                fitsio.write(bandfile, imgs[ii, :, :], header=hdr)
+
+            pdb.set_trace()
+
+            print('Removing {}'.format(outfile))
+            os.remove(outfile)
+
+        # Color mosaic--
+        outfile = os.path.join(galdir, '{}-sdss-image-gri.jpg'.format(gal))
+        if os.path.exists(outfile) and clobber is False:
+            print('Already downloaded {}'.format(outfile))
+        else:
+            if os.path.exists(outfile) and clobber:
+                os.remove(outfile) # otherwise wget will complain
+            cmd = 'wget -O {outfile} '
+            cmd += 'http://legacysurvey.org/viewer-dev/jpeg-cutout?ra={ra}&dec={dec}&pixscale={pixscale}&size={size}&layer=sdss'
+            cmd = cmd.format(outfile=outfile, ra=onegal['RA'], dec=onegal['DEC'],
+                             pixscale=pixscale, size=size_mosaic)
+            print(cmd)
+            err = subprocess.call(cmd.split())
+            time.sleep(1)
+
