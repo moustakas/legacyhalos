@@ -10,8 +10,13 @@ import subprocess
 import numpy as np
 import fitsio
 
+from astrometry.util.multiproc import multiproc
+from astrometry.util.fits import fits_table
+
 import legacyhalos.io
 import legacyhalos.misc
+from legacyhalos.misc import custom_brickname
+from legacyhalos.coadds import isolate_central
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
@@ -34,7 +39,7 @@ def download(sample, pixscale=0.396, bands='gri', clobber=False):
         if os.path.exists(outfile) and clobber is False:
             print('Already downloaded {}'.format(outfile))
         else:
-            cmd = 'wget -c -O {outfile} '
+            cmd = 'wget -O {outfile} '
             cmd += 'http://legacysurvey.org/viewer-dev/fits-cutout?ra={ra}&dec={dec}&pixscale={pixscale}&size={size}&layer=sdss'
             cmd = cmd.format(outfile=outfile, ra=onegal['RA'], dec=onegal['DEC'],
                              pixscale=pixscale, size=size_mosaic)
@@ -66,7 +71,7 @@ def download(sample, pixscale=0.396, bands='gri', clobber=False):
         else:
             if os.path.exists(outfile) and clobber:
                 os.remove(outfile) # otherwise wget will complain
-            cmd = 'wget -c -O {outfile} '
+            cmd = 'wget -O {outfile} '
             cmd += 'http://legacysurvey.org/viewer-dev/jpeg-cutout?ra={ra}&dec={dec}&pixscale={pixscale}&size={size}&layer=sdss'
             cmd = cmd.format(outfile=outfile, ra=onegal['RA'], dec=onegal['DEC'],
                              pixscale=pixscale, size=size_mosaic)
@@ -74,3 +79,185 @@ def download(sample, pixscale=0.396, bands='gri', clobber=False):
             err = subprocess.call(cmd.split())
             time.sleep(1)
 
+def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
+                  bands=('g', 'r', 'i'), nproc=1, pixscale=0.396, psf_sigma=1.0,
+                  log=None, verbose=False):
+    """Build the model and residual SDSS coadds for a single galaxy using the LS
+    Tractor catalog but re-optimizing the fluxes.
+
+    radius_mosaic in arcsec
+
+    """
+    from astrometry.util.util import Tan
+    from tractor.sky import ConstantSky
+    from tractor import ConstantFitsWcs
+    from tractor import Tractor
+    from tractor.image import Image
+    from tractor.sky import ConstantSky
+    from tractor.basics import LinearPhotoCal, NanoMaggies
+    from tractor import GaussianMixturePSF
+    
+    from legacypipe.catalog import read_fits_catalog
+    from legacypipe.runbrick import _get_mod
+    from legacypipe.coadds import make_coadds, write_coadd_images
+    from legacypipe.survey import get_rgb, imsave_jpeg
+            
+    from legacyhalos.mge import find_galaxy
+        
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+
+    if galaxy is None:
+        galaxy = 'galaxy'
+        
+    mp = multiproc(nthreads=nproc)
+
+    brickname = custom_brickname(onegal['RA'], onegal['DEC'])
+    width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
+
+    # Read the Tractor catalog.
+    tractorfile = os.path.join(survey.output_dir, '{}-tractor.fits'.format(galaxy))
+    if not os.path.isfile(tractorfile):
+        print('Missing Tractor catalog {}'.format(tractorfile))
+        return 0
+    
+    cat = fits_table(tractorfile)
+    srcs = read_fits_catalog(cat, fluxPrefix='')
+    print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
+
+    # Build a src catalog with the gri bandpasses.
+    initflx = {}
+    for band in bands:
+        initflx.update({band: 1.0})
+    
+    sdss_srcs = []
+    for src in srcs:
+        src = src.copy()
+        src.setBrightness(NanoMaggies(**initflx))
+        sdss_srcs.append(src)
+
+    # Build tims for the individual coadds and perform forced photometry.
+    tims = []
+    for ii, band in enumerate(bands):
+        bandfile = os.path.join(survey.output_dir, '{}-sdss-image-{}.fits.fz'.format(galaxy, band))
+        img, hdr = fitsio.read(bandfile, header=True)
+        if ii == 0:
+            brickwcs = Tan(hdr['CRVAL1'], hdr['CRVAL2'], hdr['CRPIX1'], hdr['CRPIX2'],
+                           hdr['CD1_1'], hdr['CD1_2'], hdr['CD2_1'], hdr['CD2_2'],
+                           hdr['NAXIS1'], hdr['NAXIS2'])
+
+        # ToDo: estimate the PSF from the image itself!
+        psf = GaussianMixturePSF(1.0, 0., 0., psf_sigma**2, psf_sigma**2, 0.0)
+        tim = Image(img, wcs=brickwcs, psf=psf,
+                    #invvar=np.ones_like(img), 
+                    sky=ConstantSky(0.0),
+                    photocal=LinearPhotoCal(1.0, band=band))
+        tim.band = band
+        tims.append(tim)
+        
+        for src in sdss_srcs:
+            src.freezeAllBut('brightness')
+            src.getBrightness().freezeAllBut(tim.band)
+            print(src.getBrightness())
+
+    pdb.set_trace()
+        
+    # Custom code for dealing with centrals.
+    keep = isolate_central(cat, onegal, radius_mosaic, brickwcs, width, centrals=True)
+
+    # Build a tim for the coadd and read the srcs catalog.
+    for band in ('g', 'r', 'i'):
+        for src in srcs:
+            src.freezeAllBut('brightness')
+            src.getBrightness().freezeAllBut(tim.band)
+            
+    
+    srcs_nocentral = np.array(srcs)[keep].tolist()
+
+    print('Rendering model images with and without surrounding galaxies...', flush=True, file=log)
+    mod = legacyhalos.misc.srcs2image(srcs, ConstantFitsWcs(brickwcs), psf_sigma=1.0)
+    mod_nocentral = legacyhalos.misc.srcs2image(srcs_nocentral, ConstantFitsWcs(brickwcs), psf_sigma=1.0)
+
+
+    modargs = [(tim, srcs_nocentral) for tim in newtims]
+    mods_nocentral = mp.map(_get_mod, modargs)
+    
+    #import matplotlib.pyplot as plt ; plt.imshow(np.log10(mod), origin='lower') ; plt.savefig('junk.png')    
+    #pdb.set_trace()
+
+    # [5] Build the custom coadds, with and without the surrounding galaxies.
+    print('Producing coadds...', flush=True, file=log)
+    def call_make_coadds(usemods):
+        return make_coadds(newtims, bands, brickwcs, mods=usemods, mp=mp,
+                           callback=write_coadd_images,
+                           callback_args=(survey, brickname, version_header, 
+                                          newtims, brickwcs))
+
+    # Custom coadds (all galaxies).
+    if log:
+        with redirect_stdout(log), redirect_stderr(log):
+            C = call_make_coadds(mods)
+    else:
+        C = call_make_coadds(mods)
+
+    for suffix in ('image', 'model'):
+        for band in bands:
+            ok = _copyfile(
+                os.path.join(survey.output_dir, 'coadd', brickname[:3], 
+                                   brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
+                    brickname, suffix, band)),
+                os.path.join(survey.output_dir, '{}-custom-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
+                #os.path.join(survey.output_dir, '{}-custom-{}-{}.fits.fz'.format(galaxy, suffix, band)) )
+            if not ok:
+                return ok
+
+    # Custom coadds (without the central).
+    if log:
+        with redirect_stdout(log), redirect_stderr(log):
+            C_nocentral = call_make_coadds(mods_nocentral)
+    else:
+        C_nocentral = call_make_coadds(mods_nocentral)
+
+    # Move (rename) the coadds into the desired output directory - no central.
+    for suffix in np.atleast_1d('model'):
+    #for suffix in ('image', 'model'):
+        for band in bands:
+            ok = _copyfile(
+                os.path.join(survey.output_dir, 'coadd', brickname[:3], 
+                                   brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
+                    brickname, suffix, band)),
+                os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
+                #os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
+            if not ok:
+                return ok
+            
+    if cleanup:
+        shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
+
+    # [6] Finally, build png images.
+    def call_make_png(C, nocentral=False):
+        rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1)
+        #rgbkwargs_resid = dict(mnmx=(0.1, 2), arcsinh=1)
+        rgbkwargs_resid = dict(mnmx=(-1, 100), arcsinh=1)
+
+        if nocentral:
+            coadd_list = [('custom-model-nocentral', C.comods, rgbkwargs),
+                          ('custom-image-central', C.coresids, rgbkwargs_resid)]
+        else:
+            coadd_list = [('custom-image', C.coimgs,   rgbkwargs),
+                          ('custom-model', C.comods,   rgbkwargs),
+                          ('custom-resid', C.coresids, rgbkwargs_resid)]
+
+        for suffix, ims, rgbkw in coadd_list:
+            rgb = get_rgb(ims, bands, **rgbkw)
+            kwa = {}
+            outfn = os.path.join(survey.output_dir, '{}-{}-grz.jpg'.format(galaxy, suffix))
+            print('Writing {}'.format(outfn), flush=True, file=log)
+            imsave_jpeg(outfn, rgb, origin='lower', **kwa)
+            del rgb
+
+    call_make_png(C, nocentral=False)
+    call_make_png(C_nocentral, nocentral=True)
+
+    return 1

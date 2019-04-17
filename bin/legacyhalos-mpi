@@ -41,7 +41,7 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
 
     if filetype == 'coadds':
         filesuffix = '-pipeline-resid-grz.jpg'
-    elif filetype == 'custom_coadds':
+    elif filetype == 'custom-coadds':
         filesuffix = '-custom-resid-grz.jpg'
     elif filetype == 'ellipse':
         filesuffix = '-ellipsefit.p'
@@ -52,6 +52,8 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         #filesuffix = '-sersic-exponential-nowavepower.png'
     elif filetype == 'sdss-coadds':
         filesuffix = '-sdss-image-gri.jpg'
+    elif filetype == 'sdss-custom-coadds':
+        filesuffix = '-sdss-resid-gri.jpg'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -93,7 +95,10 @@ def _missing_files(args, sample, size, htmldir=None):
         else:
             suffix = 'coadds'
     elif args.custom_coadds:
-        suffix = 'custom_coadds'
+        if args.sdss:
+            suffix = 'sdss-custom-coadds'
+        else:
+            suffix = 'custom-coadds'
     elif args.ellipse:
         suffix = 'ellipse'
     elif args.sersic:
@@ -145,21 +150,30 @@ def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                 _done(galaxy, err, t0, log=log)
 
 def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
-                        nproc, debug, logfile):
+                        nproc, debug, logfile, sdss, sdss_pixscale):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
     if debug:
         _start(galaxy)
-        err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                               survey=survey, pixscale=pixscale, nproc=nproc)
+        if sdss:
+            err = legacyhalos.sdss.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
+                                                 survey=survey, pixscale=sdss_pixscale, nproc=nproc)
+        else:
+            err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
+                                                   survey=survey, pixscale=pixscale, nproc=nproc)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                       survey=survey, pixscale=pixscale,
-                                                       nproc=nproc, log=log)
+                if sdss:
+                    err = legacyhalos.sdss.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
+                                                         nsurvey=survey, pixscale=sdss_pixscale,
+                                                         nproc=nproc, log=log)
+                else:
+                    err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
+                                                           nsurvey=survey, pixscale=pixscale,
+                                                           nproc=nproc, log=log)
                 _done(galaxy, err, t0, log=log)
                 
 def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc, sdss):
@@ -271,7 +285,6 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--nproc', default=1, type=int, help='number of multiprocessing processes per MPI rank.')
-    parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
 
     parser.add_argument('--hsc', action='store_true', help='Analyze the HSC massive-galaxy sample.')
@@ -291,6 +304,9 @@ def main():
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
 
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
+    
+    parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
+    parser.add_argument('--sdss-pixscale', default=0.396, type=float, help='SDSS pixel scale (arcsec/pix).')
     
     parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
     parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
@@ -430,7 +446,7 @@ def main():
 
         if args.coadds:
             if args.sdss:
-                err = legacyhalos.sdss.download(sample, clobber=args.clobber)
+                err = legacyhalos.sdss.download(sample, pixscale=args.sdss_pixscale, clobber=args.clobber)
                 pdb.set_trace()
             else:
                 print('After DR8 do not use mjd-min and update OUTLIERS in coadds.py!')
@@ -464,7 +480,8 @@ def main():
 
         if args.custom_coadds:
             _call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                args.pixscale, args.nproc, args.debug, logfile)
+                                args.pixscale, args.nproc, args.debug, logfile,
+                                args.sdss, args.sdss_pixscale)
                     
         if args.ellipse:
             _call_ellipse(onegal, galaxy, args.pixscale, args.nproc, args.verbose,
