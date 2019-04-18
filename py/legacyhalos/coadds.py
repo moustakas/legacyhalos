@@ -13,6 +13,7 @@ import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 import fitsio
 
+import tractor
 from astrometry.util.fits import fits_table
 from astrometry.util.multiproc import multiproc
 from legacypipe.catalog import read_fits_catalog
@@ -30,23 +31,29 @@ def _copyfile(infile, outfile):
         print('Missing file {}; please check the logfile.'.format(infile))
         return 0
 
-def isolate_central(cat, onegal, radius_mosaic, brickwcs, width,
-                    radius_search=5.0, centrals=True):
+def isolate_central(cat, wcs, psf_sigma=1.0, radius_search=5.0, centrals=True):
     """Isolate the central galaxy.
 
+    radius_mosaic in arcsec
     """
     from astrometry.libkd.spherematch import match_radec
-    from tractor import ConstantFitsWcs
     from legacyhalos.mge import find_galaxy
+
+    if type(wcs) is not tractor.wcs.ConstantFitsWcs:
+        wcs = tractor.wcs.ConstantFitsWcs(wcs)
+
+    racen, deccen = wcs.wcs.crval
+    _, width = wcs.wcs.shape
+    radius_mosaic = width * wcs.wcs.pixel_scale() / 2 # [arcsec]
         
     keep = np.ones(len(cat)).astype(bool)
     if centrals:
         # Build a model image with all the sources whose centroids are within
         # the inner XX% of the mosaic and then "find" the central galaxy.
-        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
                                   0.5*radius_mosaic/3600.0, nearest=False)
         srcs = read_fits_catalog(cat[m1], fluxPrefix='')
-        mod = legacyhalos.misc.srcs2image(srcs, ConstantFitsWcs(brickwcs), psf_sigma=1.0)
+        mod = legacyhalos.misc.srcs2image(srcs, wcs, psf_sigma=1.0)
         if np.sum(np.isnan(mod)) > 0:
             print('HERE galaxy {}'.format(galaxy), flush=True, file=log)
 
@@ -63,7 +70,7 @@ def isolate_central(cat, onegal, radius_mosaic, brickwcs, width,
         these *= galrad > 3
 
         # Also add the sources nearest to the central coordinates.
-        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
                                   radius_search/3600.0, nearest=False)
         if len(m1) > 0:
             these[m1] = True
@@ -71,14 +78,14 @@ def isolate_central(cat, onegal, radius_mosaic, brickwcs, width,
         if np.sum(these) > 0:
             keep[these] = False
         else:
-            m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+            m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
                                       radius_search/3600.0, nearest=False)
             if len(d12) > 0:
                 keep = ~np.isin(cat.objid, cat[m1].objid)
     else:
         # Find and remove all the objects within XX arcsec of the target
         # coordinates.
-        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
                                   radius_search/3600.0, nearest=False)
         if len(d12) > 0:
             keep = ~np.isin(cat.objid, cat[m1].objid)

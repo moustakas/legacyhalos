@@ -13,6 +13,9 @@ import fitsio
 from astrometry.util.multiproc import multiproc
 from astrometry.util.fits import fits_table
 
+import tractor
+from tractor.basics import NanoMaggies, LinearPhotoCal
+
 import legacyhalos.io
 import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
@@ -20,52 +23,147 @@ from legacyhalos.coadds import isolate_central
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
+def get_psf_sigma(img, invvar, wcs, ref_ra, ref_dec, ref_flux, band, verbose=False):
+    """Estimate the PSF width from the stars in the field.  Adopted largely from
+    legacy_zeropoints and obsbot.measure_raw.
+
+    """
+    ierr = np.sqrt(invvar)
+
+    H, W = img.shape
+    R = 15 # Fitting radius [pixels]
+
+    sigma = []
+    for istar in range(len(ref_ra)):
+        ok, x, y = wcs.radec2pixelxy(ref_ra[istar], ref_dec[istar])
+        x -= 1
+        y -= 1
+        xlo = int(x - R)
+        ylo = int(y - R)
+        if xlo < 0 or ylo < 0:
+            continue
+        xhi = xlo + R*2 + 1
+        yhi = ylo + R*2 + 1
+        if xhi >= W or yhi >= H:
+            continue
+        
+        subimg = img[ylo:yhi+1, xlo:xhi+1]
+        subie = ierr[ylo:yhi+1, xlo:xhi+1]
+
+        psf = tractor.NCircularGaussianPSF([4.], [1.])
+        psf.radius = R / 2
+        tim = tractor.Image(data=subimg, inverr=subie, psf=psf,
+                            photocal=LinearPhotoCal(1.0, band=band))
+        src = tractor.PointSource(tractor.PixPos(R, R), NanoMaggies(**{band: ref_flux[istar]}))
+        tr = tractor.Tractor([tim], [src])
+
+        tim.freezeAllBut('psf')
+        psf.freezeAllBut('sigmas')
+
+        if verbose:
+            print('Optimizing params:')
+            tr.printThawedParams()
+
+        if verbose:
+            print('Parameter step sizes:', tr.getStepSizes())
+        optargs = dict(priors=False, shared_params=False)
+        for step in range(50):
+            dlnp, x, alpha = tr.optimize(**optargs)
+            if verbose:
+                print('dlnp', dlnp)
+                print('src', src)
+                print('psf', psf)
+            if dlnp == 0:
+                break
+        
+        # Now fit only the PSF size
+        tr.freezeParam('catalog')
+        if verbose:
+            print('Optimizing params:')
+            tr.printThawedParams()
+        
+        for step in range(50):
+            dlnp, x, alpha = tr.optimize(**optargs)
+            if verbose:
+                print('dlnp', dlnp)
+                print('src', src)
+                print('psf', psf)
+            if dlnp == 0:
+                break
+
+        sigma.append(psf.sigmas[0]) # [pixels]
+
+    return np.array(sigma)
+
 def _forced_phot(args):
     """Wrapper function for the multiprocessing."""
     return forced_phot(*args)
 
-def forced_phot(galaxy, survey, srcs, band):
+def forced_phot(galaxy, survey, srcs, cat, band):
     """Perform forced photometry on a single SDSS bandpass (mosaic).
 
     """
     from astrometry.util.util import Tan
-    from tractor.image import Image
-    from tractor.sky import ConstantSky
-    from tractor.basics import LinearPhotoCal
-    from tractor import Tractor, ConstantFitsWcs, GaussianMixturePSF
 
     bandfile = os.path.join(survey.output_dir, '{}-sdss-image-{}.fits.fz'.format(galaxy, band))
     img, hdr = fitsio.read(bandfile, header=True)
-    brickwcs = ConstantFitsWcs(Tan(hdr['CRVAL1'], hdr['CRVAL2'], hdr['CRPIX1'], hdr['CRPIX2'],
-                                   hdr['CD1_1'], hdr['CD1_2'], hdr['CD2_1'], hdr['CD2_2'],
-                                   hdr['NAXIS1'], hdr['NAXIS2']))
+    tanwcs = Tan(hdr['CRVAL1'], hdr['CRVAL2'], hdr['CRPIX1'], hdr['CRPIX2'],
+                 hdr['CD1_1'], hdr['CD1_2'], hdr['CD2_1'], hdr['CD2_2'],
+                 hdr['NAXIS1'], hdr['NAXIS2'])
+    wcs = tractor.ConstantFitsWcs(tanwcs)
+
+    invvar = np.ones_like(img)
 
     # Estimate the PSF by fitting a simple Gaussian PSF to all the point sources.
-        
+    istar = np.array([(cat1.type.strip() == 'PSF') * (cat1.flux_r > 10**(-0.4*22.5)) for cat1 in cat])
+    if len(istar) == 0:
+        print('No point sources in the field, assuming psf_sigma=1.3 **units**.')
+        psf_sigma = 1.3 # pixels or arcsec??
+        psf_sigma_err = -1.0
+        psf_sigma_nstar = 0
+    else:
+        print('Using {} stars to estimate the PSF width.'.format(len(istar)))
+        ref_ra = cat.ra[istar]
+        ref_dec = cat.dec[istar]
+        ref_flux = cat.flux_r[istar]
 
+        psf_sigma_all = get_psf_sigma(img, invvar, wcs.wcs, ref_ra, ref_dec, ref_flux, band)
+        psf_sigma_nstar = len(psf_sigma_all)
+        psf_sigma, psf_sigma_err = np.median(psf_sigma_all), np.std(psf_sigma_all) / np.sqrt(psf_sigma_nstar)
 
-    # ToDo: estimate the PSF from the image itself!
-    psf_sigma = 1.3
-    psf = GaussianMixturePSF(1.0, 0., 0., psf_sigma**2, psf_sigma**2, 0.0)
-    tim = Image(img, wcs=brickwcs, psf=psf,
-                invvar=np.ones_like(img), 
-                sky=ConstantSky(0.0),
-                photocal=LinearPhotoCal(1.0, band=band),
-                name='SDSS {}'.format(band))
+    # Now build the tim and perform forced photometry.
+    psf = tractor.GaussianMixturePSF(1.0, 0., 0., psf_sigma**2, psf_sigma**2, 0.0)
+    tim = tractor.Image(img, wcs=wcs, psf=psf,
+                        invvar=invvar,
+                        sky=tractor.sky.ConstantSky(0.0),
+                        photocal=LinearPhotoCal(1.0, band=band),
+                        name='SDSS {}'.format(band))
 
     # Instantiate the Tractor engine and do forced photometry.
-    tractor = Tractor([tim], srcs)
-    tractor.freezeParamsRecursive('*')
-    tractor.thawPathsTo(band)
+    tr = tractor.Tractor([tim], srcs)
+    tr.freezeParamsRecursive('*')
+    tr.thawPathsTo(band)
     
-    R = tractor.optimize_forced_photometry(
+    R = tr.optimize_forced_photometry(
         minsb=0, mindlnp=1.0, sky=False, fitstats=True,
         variance=True, shared_params=False, wantims=False)
 
-    # Unpack the results and return.
+    # Unpack the results.
     phot = fits_table()
     nm = np.array([src.getBrightness().getBand(band) for src in srcs])
     phot.set('flux_{}'.format(band), nm.astype(np.float32))
+    phot.set('psfsize_{}'.format(band), psf_sigma.astype('f4'))
+    phot.set('psfsize_err_{}'.format(band), psf_sigma_err.astype('f4'))
+    phot.set('psfsize_nstar_{}'.format(band), psf_sigma_nstar)
+
+    # Build a model and residual image.
+    keep = isolate_central(cat, wcs, psf_sigma=psf_sigma, centrals=True)
+    srcs_nocentral = np.array(srcs)[keep].tolist()
+
+    model = legacyhalos.misc.srcs2image(srcs, wcs, psf_sigma=psf_sigma)
+    mod_nocentral = legacyhalos.misc.srcs2image(srcs_nocentral, wcs, psf_sigma=psf_sigma)
+    
+    pdb.set_trace()
     
     return phot
 
@@ -78,8 +176,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     radius_mosaic in arcsec
 
     """
-    from tractor.basics import NanoMaggies
-
     from legacypipe.catalog import read_fits_catalog
     from legacypipe.runbrick import _get_mod
     from legacypipe.coadds import make_coadds, write_coadd_images
@@ -107,7 +203,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     srcs = read_fits_catalog(cat, fluxPrefix='')
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
-    # Build a src catalog with the gri bandpasses.
+    # Build a src catalog with the gri bandpasses and dummy fluxes (1
+    # nanomaggie).
     initflx = {}
     for band in bands:
         initflx.update({band: 1.0})
@@ -119,7 +216,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         sdss_srcs.append(src)
 
     print('Performing forced photometry in {}'.format(bands))
-    allphot = mp.map(_forced_phot, [(galaxy, survey, sdss_srcs, band) for band in bands])
+    allphot = mp.map(_forced_phot, [(galaxy, survey, sdss_srcs, cat, band) for band in bands])
 
     # Build the output table (having 'flux_g', 'flux_r', and 'flux_i').
     phot = None
@@ -128,6 +225,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             phot = onephot
         else:
             phot.add_columns_from(onephot)
+
+    
+    
+
 
     print(phot.flux_r/cat.flux_r)
     pdb.set_trace()
