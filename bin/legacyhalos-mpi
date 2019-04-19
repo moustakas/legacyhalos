@@ -176,7 +176,8 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                                                            nproc=nproc, log=log)
                 _done(galaxy, err, t0, log=log)
                 
-def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc, sdss):
+def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc,
+                  sdss, sdss_pixscale):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -193,7 +194,8 @@ def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc,
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                       zcolumn=zcolumn,
                                                       verbose=verbose, debug=debug,
-                                                      noellipsefit=True, hsc=hsc, sdss=sdss)
+                                                      noellipsefit=True, hsc=hsc,
+                                                      sdss=sdss, sdss_pixscale=sdss_pixscale)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -202,7 +204,8 @@ def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc,
                 err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                               zcolumn=zcolumn,
                                                               verbose=verbose, debug=debug,
-                                                              noellipsefit=True, hsc=hsc, sdss=sdss)
+                                                              noellipsefit=True, hsc=hsc,
+                                                              sdss=sdss, sdss_pixscale=sdss_pixscale)
                 _done(galaxy, err, t0, log=log)
 
 def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
@@ -485,7 +488,7 @@ def main():
                     
         if args.ellipse:
             _call_ellipse(onegal, galaxy, args.pixscale, args.nproc, args.verbose,
-                          args.debug, logfile, args.hsc, args.sdss)
+                          args.debug, logfile, args.hsc, args.sdss, args.sdss_pixscale)
                         
         if args.sersic:
             _call_sersic(onegal, galaxy, galaxydir, args.seed, args.verbose,

@@ -1116,7 +1116,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
 
     """
     from astropy.cosmology import WMAP9 as cosmo
-    from legacyhalos.io import get_objid, read_ellipsefit
+    from legacyhalos.io import read_ellipsefit
     from legacyhalos.ellipse import ellipse_sbprofile
     from legacyhalos.misc import statsinbins
 

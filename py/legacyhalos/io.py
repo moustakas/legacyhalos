@@ -131,21 +131,31 @@ def paper2_dir(figures=False, data=False):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
-def write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=False):
+def write_ellipsefit(galaxy, galaxydir, ellipsefit, sdss=False, verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
 
     """
-    ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
+    if sdss:
+        suffix = 'sdss-'
+    else:
+        suffix = ''
+        
+    ellipsefitfile = os.path.join(galaxydir, '{}-{}ellipsefit.p'.format(galaxy, suffix))
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
     with open(ellipsefitfile, 'wb') as ell:
         pickle.dump(ellipsefit, ell, protocol=2)
 
-def read_ellipsefit(galaxy, galaxydir, verbose=True):
+def read_ellipsefit(galaxy, galaxydir, sdss=False, verbose=True):
     """Read the output of write_ellipsefit."""
 
-    ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
+    if sdss:
+        suffix = 'sdss-'
+    else:
+        suffix = ''
+
+    ellipsefitfile = os.path.join(galaxydir, '{}-{}ellipsefit.p'.format(galaxy, suffix))
     try:
         with open(ellipsefitfile, 'rb') as ell:
             ellipsefit = pickle.load(ell)
@@ -293,7 +303,7 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     else:
         print('File {} exists.'.format(resultsfile))
 
-def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
+def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, maskfactor=2.0, sdss=False):
     """Read the multi-band images, construct the residual image, and then create a
@@ -312,10 +322,12 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     # Dictionary mapping between filter and filename coded up in coadds.py,
     # galex.py, and unwise.py (see the LSLGA product, too).
     if sdss:
+        masksuffix = 'sdss-mask-gri'
+        bands = ('g', 'r', 'i')
         filt2imfile = {
-            'g':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-            'r':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-            'z':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar']
+            'g': ['sdss-image', 'sdss-model-nocentral', 'sdss-model'],
+            'r': ['sdss-image', 'sdss-model-nocentral', 'sdss-model'],
+            'i': ['sdss-image', 'sdss-model-nocentral', 'sdss-model']
             }
         filt2pixscale =  {
             'g': sdss_pixscale,
@@ -323,15 +335,16 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
             'i': sdss_pixscale
             }
     else:
+        masksuffix = 'custom-mask-grz'
         filt2imfile = {
-            'g':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-            'r':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-            'z':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar']
+            'g': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+            'r': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+            'z': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar']
             }
         filt2pixscale =  {
-            'g':   pixscale,
-            'r':   pixscale,
-            'z':   pixscale
+            'g': pixscale,
+            'r': pixscale,
+            'z': pixscale
             }
             
     filt2imfile.update({
@@ -341,7 +354,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         'W2':  ['image', 'model-nocentral', 'custom-model'],
         'W3':  ['image', 'model-nocentral', 'custom-model'],
         'W4':  ['image', 'model-nocentral', 'custom-model']
-        }
+        })
         
     filt2pixscale.update({
         'FUV': galex_pixscale,
@@ -350,10 +363,10 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         'W2':  unwise_pixscale,
         'W3':  unwise_pixscale,
         'W4':  unwise_pixscale
-        }
+        })
 
     found_data = True
-    for filt in band:
+    for filt in bands:
         for ii, imtype in enumerate(filt2imfile[filt]):
             for suffix in ('.fz', ''):
                 imfile = os.path.join(galaxydir, '{}-{}-{}.fits{}'.format(galaxy, imtype, filt, suffix))
@@ -379,8 +392,8 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
 
     # Treat the optical/grz special because we are most sensitive to residuals
     # and poor model fits because of the higher spatial sampling/resolution.
-    grz_residual_mask = []
-    for filt in ('g', 'r', 'z'):
+    opt_residual_mask = []
+    for filt in bands:
         image = fitsio.read(filt2imfile[filt][0])
         allmodel = fitsio.read(filt2imfile[filt][2]) # read the all-model image
 
@@ -389,14 +402,14 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
         
-        grz_residual_mask.append(np.abs(resid) > 3*sig)
-        #grz_residual_mask.append(np.logical_or(resid > 3*sig, resid < 5*sig))
+        opt_residual_mask.append(np.abs(resid) > 3*sig)
+        #opt_residual_mask.append(np.logical_or(resid > 3*sig, resid < 5*sig))
         
         # "Find" the galaxy in the reference band.
         if filt == refband:
             #wcs = ConstantFitsWcs(Tan(filt2imfile[filt][0], 1))
             
-            grz_shape = image.shape
+            opt_shape = image.shape
             model = fitsio.read(filt2imfile[filt][1]) # model excluding the central
 
             mgegalaxy = find_galaxy(image-model, nblob=1, binning=3, quiet=True)
@@ -404,30 +417,30 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
             H, W = image.shape
             xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
             majoraxis = 1.3*mgegalaxy.majoraxis
-            grz_objmask = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
+            opt_objmask = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
                                        np.radians(mgegalaxy.theta-90), xobj, yobj)
 
             # Read the coadded (custom) mask and flag/mask pixels with bright stars etc.
-            maskfile = os.path.join(galaxydir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
+            maskfile = os.path.join(galaxydir, '{}-{}.fits.gz'.format(galaxy, masksuffix))
             if os.path.isfile(maskfile):
                 #print('Reading {}'.format(maskfile))
-                grz_custom_mask = fitsio.read(maskfile)
-                grz_custom_mask =  grz_custom_mask & 2**0 != 0 # True=masked
+                opt_custom_mask = fitsio.read(maskfile)
+                opt_custom_mask =  opt_custom_mask & 2**0 != 0 # True=masked
                 # Restore masked pixels from either mis-identified stars (e.g.,
                 # 0000433-033703895) or stars that are too close to the center.
-                grz_custom_mask[grz_objmask] = False
+                opt_custom_mask[opt_objmask] = False
             else:
-                grz_custom_mask = np.zeros_like(image).astype(bool)
+                opt_custom_mask = np.zeros_like(image).astype(bool)
 
     # Find the union of all residuals but restore pixels centered on the central
     # object.
-    grz_residual_mask = np.logical_or.reduce(np.array(grz_residual_mask))
-    grz_residual_mask[grz_objmask] = False
+    opt_residual_mask = np.logical_or.reduce(np.array(opt_residual_mask))
+    opt_residual_mask[opt_objmask] = False
     
-    #grz_residual_mask = np.logical_or(grz_custom_mask, np.logical_or.reduce(np.array(grz_residual_mask)))
+    #opt_residual_mask = np.logical_or(opt_custom_mask, np.logical_or.reduce(np.array(opt_residual_mask)))
 
     # Now loop on each filter.
-    for filt in band:
+    for filt in bands:
         thispixscale = filt2pixscale[filt]
 
         image = fitsio.read(filt2imfile[filt][0])
@@ -461,12 +474,12 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         # Add the custom mask (based on masked bright stars) to the mask,
         # resizing if necessary for this image/pixel scale.  For grz also add
         # the residual mask.
-        if image.shape != grz_shape:
-            custom_mask = resize(grz_custom_mask, image.shape, mode='reflect')
+        if image.shape != opt_shape:
+            custom_mask = resize(opt_custom_mask, image.shape, mode='reflect')
             mask = np.logical_or(mask, custom_mask)
         else:
-            mask = np.logical_or(mask, grz_custom_mask)
-            mask = np.logical_or(mask, grz_residual_mask)
+            mask = np.logical_or(mask, opt_custom_mask)
+            mask = np.logical_or(mask, opt_residual_mask)
 
         # Finally restore the pixels of the central galaxy.
         #mask[objmask] = False
@@ -491,13 +504,13 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         data['{}_masked'.format(filt)] = ma.masked_array(data[filt], mask)
         ma.set_fill_value(data['{}_masked'.format(filt)], 0)
 
-    data['band'] = band
+    data['bands'] = bands
     data['refband'] = refband
     data['pixscale'] = pixscale
 
-    if 'NUV' in band:
+    if 'NUV' in bands:
         data['galex_pixscale'] = galex_pixscale
-    if 'W1' in band:
+    if 'W1' in bands:
         data['unwise_pixscale'] = unwise_pixscale
 
     return data
