@@ -18,28 +18,24 @@ def srcs2image(srcs, wcs, psf_sigma=1.0):
     """Build a model image from a Tractor catalog.
 
     """
-    from tractor import Tractor
-    from tractor.image import Image
-    from tractor.sky import ConstantSky
-    from tractor.basics import LinearPhotoCal
-    from tractor import GaussianMixturePSF
-
-    try:
+    import tractor
+    
+    if type(wcs) is tractor.wcs.ConstantFitsWcs:
         shape = wcs.wcs.shape
-    except:
+    else:
         shape = wcs.shape
     model = np.zeros(shape)
     invvar = np.ones(shape)
     
     vv = psf_sigma**2
-    psf = GaussianMixturePSF(1.0, 0., 0., vv, vv, 0.0)
+    psf = tractor.GaussianMixturePSF(1.0, 0., 0., vv, vv, 0.0)
 
-    tim = Image(model, invvar=invvar, wcs=wcs, psf=psf,
-                photocal=LinearPhotoCal(1.0, band='r'),
-                sky=ConstantSky(0.0))
+    tim = tractor.Image(model, invvar=invvar, wcs=wcs, psf=psf,
+                        photocal=tractor.basics.LinearPhotoCal(1.0, band='r'),
+                        sky=tractor.sky.ConstantSky(0.0))
 
-    tractor = Tractor([tim], srcs)
-    mod = tractor.getModelImage(0)
+    tr = tractor.Tractor([tim], srcs)
+    mod = tr.getModelImage(0)
 
     return mod
 
