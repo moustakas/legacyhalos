@@ -295,7 +295,7 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
 
 def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
-                   maskfactor=2.0):
+                   sdss_pixscale=0.396, maskfactor=2.0, sdss=False):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
@@ -311,27 +311,46 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
 
     # Dictionary mapping between filter and filename coded up in coadds.py,
     # galex.py, and unwise.py (see the LSLGA product, too).
-    filt2imfile = {
-        'g':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-        'r':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-        'z':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+    if sdss:
+        filt2imfile = {
+            'g':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+            'r':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+            'z':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar']
+            }
+        filt2pixscale =  {
+            'g': sdss_pixscale,
+            'r': sdss_pixscale,
+            'i': sdss_pixscale
+            }
+    else:
+        filt2imfile = {
+            'g':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+            'r':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+            'z':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar']
+            }
+        filt2pixscale =  {
+            'g':   pixscale,
+            'r':   pixscale,
+            'z':   pixscale
+            }
+            
+    filt2imfile.update({
         'FUV': ['image', 'model-nocentral', 'custom-model'],
         'NUV': ['image', 'model-nocentral', 'custom-model'],
         'W1':  ['image', 'model-nocentral', 'custom-model'],
         'W2':  ['image', 'model-nocentral', 'custom-model'],
         'W3':  ['image', 'model-nocentral', 'custom-model'],
-        'W4':  ['image', 'model-nocentral', 'custom-model']}
+        'W4':  ['image', 'model-nocentral', 'custom-model']
+        }
         
-    filt2pixscale =  {
-        'g':   pixscale,
-        'r':   pixscale,
-        'z':   pixscale,
+    filt2pixscale.update({
         'FUV': galex_pixscale,
         'NUV': galex_pixscale,
         'W1':  unwise_pixscale,
         'W2':  unwise_pixscale,
         'W3':  unwise_pixscale,
-        'W4':  unwise_pixscale}
+        'W4':  unwise_pixscale
+        }
 
     found_data = True
     for filt in band:
