@@ -172,6 +172,14 @@ def sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=1, bands=('g', 'r',
     step, fflag, linear = refellipsefit['step'], refellipsefit['fflag'], refellipsefit['linear']
 
     ellipsefit = dict()
+    ellipsefit['success'] = False
+    ellipsefit['bands'] = bands
+    ellipsefit['refband'] = refband
+    ellipsefit['pixscale'] = sdss_pixscale
+    ellipsefit['redshift'] = refellipsefit['redshift']
+    print('Fix me!!')
+    for filt in bands:
+        ellipsefit['psfsigma_{}'.format(filt)] = 1.3
 
     newmask = None
 
@@ -179,7 +187,7 @@ def sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=1, bands=('g', 'r',
     tall = time.time()
     for filt in bands:
         t0 = time.time()
-        print('Fitting band {}.'.format(filt))
+        print('Fitting SDSS band {}.'.format(filt))
 
         img = data['{}_masked'.format(filt)]
         if newmask is not None:
@@ -193,13 +201,14 @@ def sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=1, bands=('g', 'r',
 
         # Build the IsophoteList instance with the result.
         ellipsefit[filt] = IsophoteList(isobandfit)
-        print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
+        print('  Time = {:.3f} sec'.format(time.time() - t0))
 
         #if np.all( np.isnan(ellipsefit['g'].intens) ):
         #    print('ERROR: Ellipse-fitting resulted in all NaN; please check the imaging for band {}'.format(filt))
         #    ellipsefit['success'] = False
 
-    print('Time for all images = {:.3f} min'.format( (time.time() - tall) / 60))
+    print('Time for all images = {:.3f} sec'.format(time.time()-tall))
+    ellipsefit['success'] = True
 
     ## Perform elliptical aperture photometry.
     #print('Performing elliptical aperture photometry.')
@@ -211,7 +220,7 @@ def sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=1, bands=('g', 'r',
     # Write out
     if not nowrite:
         legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
-                                        verbose=verbose, sdss=True)
+                                        verbose=True, sdss=True)
 
     pool.close()
 
@@ -383,7 +392,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
             print(' {} = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
                 key, ellipsefit[key], ellipsefit['{}_err'.format(key)],
                 initval))
-    print('Time = {:.3f} min'.format((time.time() - t0)/60))
+    print('  Time = {:.3f} sec'.format(time.time()-t0))
 
     # Re-initialize the EllipseGeometry object.
     geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
@@ -408,24 +417,27 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
             if ii > 0:
                 print('Failed with sma0={:.1f} pixels, trying sma0={:.1f} pixels.'.format(_sma0[ii-1], sma0))
             try:
-                isophot = ellipse.fit_image(sma0, minsma=0.1, maxsma=maxsma,
+                isophot = ellipse.fit_image(sma0, maxsma=maxsma, #minsma=0.1, 
                                             integrmode=integrmode, sclip=sclip, nclip=nclip)
             except:
                 isophot = []
                 
             if len(isophot) > 0:
-                # Add the central pixel; see
-                # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
-                #gcen = EllipseGeometry(geometry.x0, geometry.y0, 0.0, 0.0, 0.0)
-                #censamp = CentralEllipseSample(img, 0.0, geometry=gcen, integrmode=integrmode, sclip=sclip, nclip=nclip)
-                #print(CentralEllipseFitter(censamp).fit().intens)
-                censamp = CentralEllipseSample(img, 0.0, geometry=geometry_cen,
-                                               integrmode=integrmode, sclip=sclip, nclip=nclip)
-                cen = CentralEllipseFitter(censamp).fit()
-                isophot.append(cen)
-                isophot.sort()
-                break # all done!
-    print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
+                break
+                
+            #if len(isophot) > 0:
+            #    # Add the central pixel; see
+            #    # https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
+            #    #gcen = EllipseGeometry(geometry.x0, geometry.y0, 0.0, 0.0, 0.0)
+            #    #censamp = CentralEllipseSample(img, 0.0, geometry=gcen, integrmode=integrmode, sclip=sclip, nclip=nclip)
+            #    #print(CentralEllipseFitter(censamp).fit().intens)
+            #    censamp = CentralEllipseSample(img, 0.0, geometry=geometry_cen,
+            #                                   integrmode=integrmode, sclip=sclip, nclip=nclip)
+            #    cen = CentralEllipseFitter(censamp).fit()
+            #    isophot.append(cen)
+            #    isophot.sort()
+            #    break # all done!
+    print('  Time = {:.3f} sec'.format(time.time() - t0))
 
     if len(isophot) == 0:
         print('Ellipse-fitting failed.')
@@ -456,13 +468,13 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
 
         # Build the IsophoteList instance with the result.
         ellipsefit[filt] = IsophoteList(isobandfit)
-        print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
+        print('  Time = {:.3f} sec'.format(time.time() - t0))
 
         #if np.all( np.isnan(ellipsefit['g'].intens) ):
         #    print('ERROR: Ellipse-fitting resulted in all NaN; please check the imaging for band {}'.format(filt))
         #    ellipsefit['success'] = False
 
-    print('Time for all images = {:.3f} min'.format( (time.time() - tall) / 60))
+    print('Time for all images = {:.3f} sec'.format(time.time() - tall))
 
     # Perform elliptical aperture photometry.
     print('Performing elliptical aperture photometry.')
@@ -474,7 +486,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     # Write out
     if not nowrite:
         legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
-                                        verbose=verbose)
+                                        verbose=True)
 
     pool.close()
     
@@ -513,11 +525,17 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
             # Just for the plot use a minimum uncertainty
             #sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
 
-    sbprofile['gr'] = sbprofile['mu_g'] - sbprofile['mu_r']
-    sbprofile['rz'] = sbprofile['mu_r'] - sbprofile['mu_z']
-    sbprofile['gr_err'] = np.sqrt(sbprofile['mu_g_err']**2 + sbprofile['mu_r_err']**2)
-    sbprofile['rz_err'] = np.sqrt(sbprofile['mu_r_err']**2 + sbprofile['mu_z_err']**2)
-
+    if 'g' in bands and 'r' in bands:
+        sbprofile['gr'] = sbprofile['mu_g'] - sbprofile['mu_r']
+        sbprofile['gr_err'] = np.sqrt(sbprofile['mu_g_err']**2 + sbprofile['mu_r_err']**2)
+    if 'r' in bands and 'z' in bands:
+        sbprofile['rz'] = sbprofile['mu_r'] - sbprofile['mu_z']
+        sbprofile['rz_err'] = np.sqrt(sbprofile['mu_r_err']**2 + sbprofile['mu_z_err']**2)
+    # SDSS
+    if 'r' in bands and 'i' in bands:
+        sbprofile['ri'] = sbprofile['mu_r'] - sbprofile['mu_i']
+        sbprofile['ri_err'] = np.sqrt(sbprofile['mu_r_err']**2 + sbprofile['mu_i_err']**2)
+        
     # Just for the plot use a minimum uncertainty
     #sbprofile['gr_err'][sbprofile['gr_err'] < minerr] = minerr
     #sbprofile['rz_err'][sbprofile['rz_err'] < minerr] = minerr

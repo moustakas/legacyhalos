@@ -54,6 +54,8 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         filesuffix = '-sdss-image-gri.jpg'
     elif filetype == 'sdss-custom-coadds':
         filesuffix = '-sdss-resid-gri.jpg'
+    elif filetype == 'sdss-ellipse':
+        filesuffix = '-sdss-ellipsefit.p'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -100,7 +102,10 @@ def _missing_files(args, sample, size, htmldir=None):
         else:
             suffix = 'custom-coadds'
     elif args.ellipse:
-        suffix = 'ellipse'
+        if args.sdss:
+            suffix = 'sdss-ellipse'
+        else:
+            suffix = 'ellipse'
     elif args.sersic:
         suffix = 'sersic'
     elif args.sky:
