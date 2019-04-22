@@ -46,13 +46,13 @@ def qa_curveofgrowth(ellipsefit, png=None, verbose=True):
 
     """
     fig, ax = plt.subplots(figsize=(9, 7))
-    band, refband, redshift = ellipsefit['band'], ellipsefit['refband'], ellipsefit['redshift']
+    bands, refband, redshift = ellipsefit['bands'], ellipsefit['refband'], ellipsefit['redshift']
 
     maxsma = ellipsefit['apphot_sma_{}'.format(refband)].max()
     smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
     yfaint, ybright = 0, 50
-    for filt in band:
+    for filt in bands:
         flux = ellipsefit['apphot_mag_{}'.format(filt)]
         good = np.where( np.isfinite(flux) * (flux > 0) )[0]
         sma = ellipsefit['apphot_sma_{}'.format(filt)][good]
