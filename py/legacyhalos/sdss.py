@@ -23,6 +23,8 @@ from legacyhalos.coadds import isolate_central
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
+DATA_DIR = '/global/project/projectdirs/cosmo/webapp/viewer/data/sdss'
+
 def sdss_rgb(rimgs, bands, scales=None, m=0.02):
     import numpy as np
     rgbscales = {'u': 1.5, #1.0,
