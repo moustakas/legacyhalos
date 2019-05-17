@@ -1,20 +1,44 @@
-# Starting from the legacypipe-nersc docker container, add healpy and ipython.
+# Starting from the legacypipe-nersc docker container, customize our build.  Be sure to do
+#   docker login
+#   docker pull legacysurvey/legacypipe:latest
+# before building and pushing the container with
+#   docker build . -t flagnarg/legacyhalos --file Dockerfile-legacyhalos
+#   docker push flagnarg/legacyhalos:latest
+# Finally, run this container with:
+#   docker run -it flagnarg/legacyhalos:latest
 
 FROM legacysurvey/legacypipe:latest
 
-# pip installs, built from source
+# pip-install what we need
 RUN for x in \
     healpy \
-    ipython \
     seaborn \
     ; do pip3 install $x; done \
     && rm -Rf /root/.cache/pip
+
+RUN pip3 install --no-cache-dir ipython
     
-# Development version of photutils
+# Add the development version of photutils.
 RUN mkdir -p /src \
     && git clone https://github.com/astropy/photutils.git \
     && cd photutils \
     && python3 setup.py install
+
+# Create a fake home directory so that packages can create config files if
+# needed.
+
+RUN mkdir -p /home/legacyhalos
+RUN mkdir -p /home/legacyhalos/.astropy
+ENV HOME /home/legacyhalos
+
+RUN python -c "import astropy"
+RUN python -c "import matplotlib.font_manager as fm; f = fm.FontManager"
+
+# Set up some final environment variables
+
+ENV PYTHON python3
+ENV PYTHON_CONFIG python3-config
+ENV PYTHON_SCRIPT "/usr/bin/env python3"
 
 ENV PYTHONPATH /usr/local/lib/python
 
@@ -25,5 +49,5 @@ RUN echo "export PS1='[container] \\u@\\h:\\w$ '" >> /root/.bashrc
 ENTRYPOINT ["/bin/bash", "-c"]
 CMD ["/bin/bash"]
 
-ENV HOME /root
 RUN rm /root/.profile
+RUN cd
