@@ -335,9 +335,25 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</table>\n')
             #html.write('<br />\n')
 
-            pdb.set_trace()
-            
             html.write('<h2>Elliptical Isophote Analysis</h2>\n')
+
+            pdb.set_trace()
+
+            html.write('<table>\n')
+            html.write('<tr>\n')
+            html.write('<th>PA</th>\n')
+            html.write('<th>&nbsp</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<th>(deg)</th>\n')
+            html.write('<th>b/a</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td>{:.1f}</td>\n'.format(ellipse['pa']))
+            html.write('<td>{:.3f}</td>\n'.format(gal['eps']))
+            html.write('</tr>\n')
+            html.write('</table>\n')
+
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
             html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" alt="Missing file {}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))

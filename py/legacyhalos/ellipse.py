@@ -152,8 +152,7 @@ def integrate_isophot_one(iso, img, pixscalefactor, integrmode, sclip, nclip):
 
 def sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=1, bands=('g', 'r', 'i'),
                               refband='r', pixscale=0.262, sdss_pixscale=0.396,
-                              nowrite=False, verbose=False, noellipsefit=False,
-                              debug=False):
+                              nowrite=False, verbose=False):
     """Performed elliptical surface brightness profile fitting on the SDSS image
     stacks using the LS ellipse-fitting results as a reference.
 
@@ -397,12 +396,12 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     # Re-initialize the EllipseGeometry object, optionally using an external set
     # of ellipticity parameters.
     if input_ellipse:
-        ellipse['input_ellipse'] = True
+        ellipsefit['input_ellipse'] = True
         geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
                                    eps=input_ellipse['eps'], sma=majoraxis, 
                                    pa=np.radians(input_ellipse['pa']-90))
     else:
-        ellipse['input_ellipse'] = False
+        ellipsefit['input_ellipse'] = False
         geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
                                    eps=ellipsefit['eps'], sma=majoraxis, 
                                    pa=np.radians(ellipsefit['pa']-90))
@@ -578,19 +577,17 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
         # Do ellipse-fitting.
         if sdss:
+            ellipsefit = sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
+                                                   refband=refband, pixscale=pixscale,
+                                                   sdss_pixscale=sdss_pixscale,
+                                                   verbose=verbose)
+        else:
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
                                               maxsma=maxsma, nproc=nproc,
                                               integrmode=integrmode,
                                               nclip=nclip, sclip=sclip, zcolumn=zcolumn,
                                               verbose=verbose, noellipsefit=noellipsefit,
                                               input_ellipse=input_ellipse)
-        else:
-            ellipsefit = sdss_ellipsefit_multiband(galaxy, galaxydir, data, onegal,
-                                                   maxsma=maxsma, nproc=nproc,
-                                                   integrmode=integrmode,
-                                                   nclip=nclip, sclip=sclip, zcolumn=zcolumn,
-                                                   verbose=verbose, noellipsefit=noellipsefit,
-                                                   input_ellipse=input_ellipse)
             
         if ellipsefit['success']:
             return 1

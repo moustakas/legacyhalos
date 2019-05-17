@@ -473,9 +473,9 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         # Add the custom mask (based on masked bright stars) to the mask,
         # resizing if necessary for this image/pixel scale.  For grz also add
         # the residual mask.
-        if image.shape != grz_shape:
+        if image.shape != opt_shape:
             from skimage.transform import resize
-            custom_mask = resize(grz_custom_mask, image.shape, mode='reflect')
+            custom_mask = resize(opt_custom_mask, image.shape, mode='reflect')
             mask = np.logical_or(mask, custom_mask)
         else:
             mask = np.logical_or(mask, opt_custom_mask)

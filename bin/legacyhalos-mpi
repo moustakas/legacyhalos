@@ -453,8 +453,8 @@ def main():
                 err = legacyhalos.sdss.download(sample, pixscale=args.sdss_pixscale, clobber=args.clobber)
                 pdb.set_trace()
             else:
-            _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
-                                  args.nproc, args.force, args.debug, logfile)
+                _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
+                                      args.nproc, args.force, args.debug, logfile)
                     
         if args.custom_coadds or args.htmlplots:
             ccdsfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy))
