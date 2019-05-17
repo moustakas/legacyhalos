@@ -12,7 +12,8 @@ import numpy as np
 
 from astrometry.util.util import Tan
 
-RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
+RADIUS_CLUSTER_KPC = 250.0     # default cluster radius
+HSC_RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
 
 def srcs2image(srcs, wcs, psf_sigma=1.0):
     """Build a model image from a Tractor catalog.

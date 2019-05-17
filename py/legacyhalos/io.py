@@ -301,7 +301,6 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
     convert to surface brightness by dividing by the pixel area.
 
     """
-    from skimage.transform import resize
     from scipy.ndimage.filters import gaussian_filter
     from scipy.ndimage.morphology import binary_dilation
     from astropy.stats import sigma_clipped_stats
@@ -443,6 +442,7 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         # resizing if necessary for this image/pixel scale.  For grz also add
         # the residual mask.
         if image.shape != grz_shape:
+            from skimage.transform import resize
             custom_mask = resize(grz_custom_mask, image.shape, mode='reflect')
             mask = np.logical_or(mask, custom_mask)
         else:

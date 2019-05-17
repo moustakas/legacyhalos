@@ -22,17 +22,18 @@ import legacyhalos.coadds
 import legacyhalos.html
 import legacyhalos.integrate
 
-from legacyhalos.misc import RADIUS_CLUSTER_KPC
+from legacyhalos.misc import RADIUS_CLUSTER_KPC, HSC_RADIUS_CLUSTER_KPC
 
 def get_survey_dir(onegal):
-    if onegal['RELEASE'] == 6000:
-        return '/global/project/projectdirs/cosmo/work/legacysurvey/dr6'
-    elif onegal['RELEASE'] == 7000 or onegal['RELEASE'] == 7001:
-        return '/global/project/projectdirs/cosmo/work/legacysurvey/dr7'
-    else:
-        print('Unrecognized DR!')
-        raise ValueError
-    return
+    #if onegal['RELEASE'] == 6000:
+    #    return '/global/project/projectdirs/cosmo/work/legacysurvey/dr6'
+    #elif onegal['RELEASE'] == 7000 or onegal['RELEASE'] == 7001:
+    #    return '/global/project/projectdirs/cosmo/work/legacysurvey/dr7'
+    #else:
+    #    print('Unrecognized DR!')
+    #    raise ValueError
+    #return
+    return '/global/project/projectdirs/cosmo/work/legacysurvey/dr8'
 
 def missing_files(sample, filetype='coadds', size=1, htmldir=None,
                   hsc=False, clobber=False):
@@ -156,14 +157,15 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                                                        nproc=nproc, log=log)
                 _done(galaxy, err, t0, log=log)
                 
-def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc):
+def _call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
+                  debug=False, logfile=None, hsc=False, input_ellipse=False):
     """Wrapper script to do ellipse-fitting.
 
     """
     import legacyhalos.ellipse
 
     if hsc:
-        zcolumn = 'Z'
+        zcolumn = 'Z_BEST'
     else:
         zcolumn = 'Z_LAMBDA'
     
@@ -172,6 +174,7 @@ def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc)
         _start(galaxy)
         err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                       zcolumn=zcolumn,
+                                                      input_ellipse=input_ellipse,
                                                       verbose=verbose, debug=debug,
                                                       noellipsefit=True, hsc=hsc)
         _done(galaxy, err, t0)
@@ -181,6 +184,7 @@ def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc)
                 _start(galaxy, log=log)
                 err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
                                                               zcolumn=zcolumn,
+                                                              input_ellipse=input_ellipse,
                                                               verbose=verbose, debug=debug,
                                                               noellipsefit=True, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
@@ -321,7 +325,7 @@ def main():
     if args.htmlindex:
         if rank == 0:
             if args.hsc:
-                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z',
+                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_BEST',
                                           nproc=args.nproc, clobber=args.clobber, makeplots=False,
                                           verbose=args.verbose, htmldir=args.htmldir)
             else:
@@ -414,15 +418,20 @@ def main():
         
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.sky or args.htmlplots:
-            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
-                redshift=onegal['Z'], radius_kpc=RADIUS_CLUSTER_KPC) # [arcsec]
+            if args.hsc:
+                radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+                    redshift=onegal['Z_BEST'], radius_kpc=HSC_RADIUS_CLUSTER_KPC) # [arcsec]
+                input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
+            else:
+                radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+                    redshift=onegal['Z_LAMBDA'], radius_kpc=RADIUS_CLUSTER_KPC) # [arcsec]
+                input_ellipse = None
 
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)
             survey.output_dir = galaxydir
 
         if args.coadds:
-            print('After DR8 do not use mjd-min and update OUTLIERS in coadds.py!')
             _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
                                   args.nproc, args.force, args.debug, logfile)
                     
@@ -456,8 +465,9 @@ def main():
                                 args.pixscale, args.nproc, args.debug, logfile)
                     
         if args.ellipse:
-            _call_ellipse(onegal, galaxy, args.pixscale, args.nproc, args.verbose,
-                          args.debug, logfile, args.hsc)
+            _call_ellipse(onegal, galaxy, pixscale=args.pixscale, nproc=args.nproc,
+                          verbose=args.verbose, debug=args.debug, logfile=logfile,
+                          hsc=args.hsc, input_ellipse=input_ellipse)
                         
         if args.sersic:
             _call_sersic(onegal, galaxy, galaxydir, args.seed, args.verbose,
