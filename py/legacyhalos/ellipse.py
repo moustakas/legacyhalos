@@ -287,7 +287,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
 
     good = iso0.stop_code < 4
     ngood = np.sum(good)
-    if np.sum(good) == 0:
+    if ngood == 0:
         print('Too few good measurements to get ellipse geometry!')
         return ellipsefit
 
@@ -318,10 +318,19 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
                 initval))
     print('Time = {:.3f} min'.format((time.time() - t0)/60))
 
-    # Re-initialize the EllipseGeometry object.
-    geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
-                               eps=ellipsefit['eps'], sma=majoraxis, 
-                               pa=np.radians(ellipsefit['pa']-90))
+    # Re-initialize the EllipseGeometry object, optionally using an external set
+    # of ellipticity parameters.
+    if input_ellipse:
+        ellipse['input_ellipse'] = True
+        geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
+                                   eps=input_ellipse['eps'], sma=majoraxis, 
+                                   pa=np.radians(input_ellipse['pa']-90))
+    else:
+        ellipse['input_ellipse'] = False
+        geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
+                                   eps=ellipsefit['eps'], sma=majoraxis, 
+                                   pa=np.radians(ellipsefit['pa']-90))
+    
     geometry_cen = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'], eps=0.0, sma=0.0, pa=0.0)
     ellipsefit['geometry'] = geometry
     ellipse = Ellipse(img, geometry=geometry)

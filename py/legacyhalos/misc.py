@@ -109,7 +109,7 @@ def plot_style(paper=False, talk=False):
         palette = 'deep'
         rc.update({'text.usetex': True})
 
-    sns.set(context=context, style='ticks', font_scale=1.5, rc=rc)
+    sns.set(context=context, style='ticks', font_scale=1.3, rc=rc)
     sns.set_palette(palette, 12)
 
     colors = sns.color_palette()

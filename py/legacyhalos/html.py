@@ -213,9 +213,15 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
 
     """
     if datadir is None:
-        datadir = legacyhalos.io.legacyhalos_data_dir()
+        if hsc:
+            datadir = legacyhalos.io.hsc_data_dir()
+        else:
+            datadir = legacyhalos.hsc.legacyhalos_data_dir()
     if htmldir is None:
-        htmldir = legacyhalos.io.legacyhalos_html_dir()
+        if hsc:
+            htmldir = legacyhalos.hsc.hsc_html_dir()
+        else:
+            htmldir = legacyhalos.io.legacyhalos_html_dir()
 
     if survey is None:
         from legacypipe.survey import LegacySurveyData
@@ -556,7 +562,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
 
                 html.write('<br />\n')
 
-            if nccds:
+            if nccds and ccdqa:
                 html.write('<h2>CCD Diagnostics</h2>\n')
                 html.write('<table width="90%">\n')
                 html.write('<tr>\n')

@@ -963,7 +963,8 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             #    ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
             #    ax1.axhline(y=ysky, color=col, ls='--')
 
-        ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
+        ax1.set_ylabel(r'$\mu(a)$ (mag arcsec$^{-2}$)')
+        #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
 
         ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
         if ylim[0] < 17:
@@ -1006,8 +1007,8 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         ax2.set_xlabel(r'Semi-major Axis $a$ (arcsec)')
         #ax2.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
-        #ax2.legend(loc='upper left')
-        ax2.legend(bbox_to_anchor=(0.25, 0.98))
+        ax2.legend(loc='upper right')
+        #ax2.legend(bbox_to_anchor=(0.25, 0.98))
         
         ax2.set_ylabel('Color (mag)')
         ax2.set_ylim(-0.5, 3)

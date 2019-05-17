@@ -140,7 +140,7 @@ def read_parent(first=None, last=None, verbose=False):
 def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', first=None, last=None,
               nproc=1, survey=None, makeplots=True, clobber=False, verbose=True,
-              maketrends=False, ccdqa=True):
+              maketrends=False, ccdqa=False):
     """Make the HTML pages.
 
     """
@@ -162,6 +162,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         sample = astropy.table.Table(sample)
 
     galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
+    ellipse = legacyhalos.io.read_ellipsefit(galaxy, galaxydir, verbose=verbose)
 
     # Write the last-updated date to a webpage.
     js = legacyhalos.html._javastring()       
@@ -333,6 +334,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
             html.write('</table>\n')
             #html.write('<br />\n')
+
+            pdb.set_trace()
             
             html.write('<h2>Elliptical Isophote Analysis</h2>\n')
             html.write('<table width="90%">\n')
@@ -384,7 +387,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
 
                 html.write('<br />\n')
 
-            if nccds:
+            if nccds and ccdqa:
                 html.write('<h2>CCD Diagnostics</h2>\n')
                 html.write('<table width="90%">\n')
                 html.write('<tr>\n')

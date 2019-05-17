@@ -239,31 +239,19 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
 
     if debug:
         _start(galaxy)
-        if hsc:
-            err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
-                                              pixscale=pixscale, survey=survey, clobber=clobber,
-                                              verbose=verbose, nproc=nproc,
-                                              ccdqa=ccdqa, maketrends=False, hsc=True)
-        else:
-            err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
-                                              pixscale=pixscale, survey=survey, clobber=clobber,
-                                              verbose=verbose, nproc=nproc,
-                                              ccdqa=ccdqa, maketrends=False)
+        err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+                                          pixscale=pixscale, survey=survey, clobber=clobber,
+                                          verbose=verbose, nproc=nproc,
+                                          ccdqa=ccdqa, maketrends=False, hsc=hsc)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                if hsc:
-                    err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
-                                                      pixscale=pixscale, survey=survey, clobber=clobber,
-                                                      verbose=verbose, nproc=nproc,
-                                                      ccdqa=ccdqa, maketrends=False, hsc=True)
-                else:
-                    err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
-                                                      pixscale=pixscale, survey=survey, clobber=clobber,
-                                                      verbose=verbose, nproc=nproc,
-                                                      ccdqa=ccdqa, maketrends=False)
+                err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+                                                  pixscale=pixscale, survey=survey, clobber=clobber,
+                                                  verbose=verbose, nproc=nproc,
+                                                  ccdqa=ccdqa, maketrends=False, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
 
 def main():
@@ -327,11 +315,11 @@ def main():
             if args.hsc:
                 legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_BEST',
                                           nproc=args.nproc, clobber=args.clobber, makeplots=False,
-                                          verbose=args.verbose, htmldir=args.htmldir)
+                                          verbose=args.verbose, htmldir=args.htmldir, ccdqa=args.ccdqa)
             else:
                 legacyhalos.html.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_LAMBDA',
                                            nproc=args.nproc, clobber=args.clobber, makeplots=False,
-                                           verbose=args.verbose, htmldir=args.htmldir)
+                                           verbose=args.verbose, htmldir=args.htmldir, ccdqa=args.ccdqa)
         return
 
     if args.integrate:
@@ -421,11 +409,9 @@ def main():
             if args.hsc:
                 radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
                     redshift=onegal['Z_BEST'], radius_kpc=HSC_RADIUS_CLUSTER_KPC) # [arcsec]
-                input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
             else:
                 radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
                     redshift=onegal['Z_LAMBDA'], radius_kpc=RADIUS_CLUSTER_KPC) # [arcsec]
-                input_ellipse = None
 
             survey = LegacySurveyData()
             survey.survey_dir = get_survey_dir(onegal)
@@ -465,6 +451,10 @@ def main():
                                 args.pixscale, args.nproc, args.debug, logfile)
                     
         if args.ellipse:
+            if args.hsc:
+                input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
+            else:
+                input_ellipse = None
             _call_ellipse(onegal, galaxy, pixscale=args.pixscale, nproc=args.nproc,
                           verbose=args.verbose, debug=args.debug, logfile=logfile,
                           hsc=args.hsc, input_ellipse=input_ellipse)
