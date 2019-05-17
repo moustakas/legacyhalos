@@ -98,26 +98,31 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
     ellipsefit = read_ellipsefit(galaxy, galaxydir)
     skyellipsefit = read_sky_ellipsefit(galaxy, galaxydir)
 
+    sdssellipsefit = read_ellipsefit(galaxy, galaxydir, sdss=True)
+
     if len(ellipsefit) > 0:
         # Toss out bad fits.
         indx = None
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
         #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
 
+        cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
+        if not os.path.isfile(cogfile) or clobber:
+            qa_curveofgrowth(ellipsefit, png=cogfile, verbose=verbose)
+
+        pdb.set_trace()
+
+        sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
+        if not os.path.isfile(sbprofilefile) or clobber:
+            display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
+                                      png=sbprofilefile, verbose=verbose, minerr=0.0,
+                                      sdssellipsefit=sdssellipsefit)
+
         multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(galaxy, galaxydir, band=band)
             display_multiband(data, ellipsefit=ellipsefit, indx=indx,
                               png=multibandfile, verbose=verbose)
-
-        cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
-        if not os.path.isfile(cogfile) or clobber:
-            qa_curveofgrowth(ellipsefit, png=cogfile, verbose=verbose)
-
-        sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
-        if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
-                                      png=sbprofilefile, verbose=verbose, minerr=0.0)
 
         ellipsefitfile = os.path.join(htmlgalaxydir, '{}-ellipse-ellipsefit.png'.format(galaxy))
         if not os.path.isfile(ellipsefitfile) or clobber:
@@ -258,6 +263,7 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
                            clobber=clobber, verbose=verbose)
+        pdb.set_trace()
         
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
