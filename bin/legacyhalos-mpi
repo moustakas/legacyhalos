@@ -182,13 +182,9 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                                                            nproc=nproc, log=log)
                 _done(galaxy, err, t0, log=log)
                 
-<<<<<<< HEAD
 def _call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
-                  debug=False, logfile=None, hsc=False, input_ellipse=False):
-=======
-def _call_ellipse(onegal, galaxy, pixscale, nproc, verbose, debug, logfile, hsc,
-                  sdss, sdss_pixscale):
->>>>>>> sdss-stacks
+                  debug=False, logfile=None, hsc=False, input_ellipse=False,
+                  sdss=False, sdss_pixscale=0.396):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -453,18 +449,12 @@ def main():
             survey.output_dir = galaxydir
 
         if args.coadds:
-<<<<<<< HEAD
-            _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
-                                  args.nproc, args.force, args.debug, logfile)
-=======
             if args.sdss:
                 err = legacyhalos.sdss.download(sample, pixscale=args.sdss_pixscale, clobber=args.clobber)
                 pdb.set_trace()
             else:
-                print('After DR8 do not use mjd-min and update OUTLIERS in coadds.py!')
-                _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
-                                      args.nproc, args.force, args.debug, logfile)
->>>>>>> sdss-stacks
+            _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey, args.pixscale,
+                                  args.nproc, args.force, args.debug, logfile)
                     
         if args.custom_coadds or args.htmlplots:
             ccdsfile = os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy))
@@ -497,7 +487,6 @@ def main():
                                 args.sdss, args.sdss_pixscale)
                     
         if args.ellipse:
-<<<<<<< HEAD
             if args.hsc:
                 input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
             else:
@@ -505,10 +494,6 @@ def main():
             _call_ellipse(onegal, galaxy, pixscale=args.pixscale, nproc=args.nproc,
                           verbose=args.verbose, debug=args.debug, logfile=logfile,
                           hsc=args.hsc, input_ellipse=input_ellipse)
-=======
-            _call_ellipse(onegal, galaxy, args.pixscale, args.nproc, args.verbose,
-                          args.debug, logfile, args.hsc, args.sdss, args.sdss_pixscale)
->>>>>>> sdss-stacks
                         
         if args.sersic:
             _call_sersic(onegal, galaxy, galaxydir, args.seed, args.verbose,
