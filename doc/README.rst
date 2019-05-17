@@ -101,7 +101,7 @@ References
 
 .. _`SDSS/CasJobs`: http://skyserver.sdss.org/CasJobs
 
-.. _`redmapper-sdssWISEphot.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/redmapper-sdssWISEphot.ipynb
+.. _`redmapper-sdssWISEphot.ipynb`: https://https://nbviewer.jupyter.org/github/moustakas/legacyhalos/blob/master/doc/redmapper-sdssWISEphot.ipynb
 
 .. _`match-legacysurvey-redmapper.slurm`: https://github.com/moustakas/legacyhalos/blob/master/bin/match-legacysurvey-redmapper.slurm
 
@@ -109,7 +109,7 @@ References
 
 .. _`Legacy Surveys/DR7`: http://legacysurvey.org/dr7/files/#sweep-catalogs
 
-.. _`legacyhalos-sample-selection.ipynb`: https://github.com/moustakas/legacyhalos/blob/master/doc/legacyhalos-sample-selection.ipynb
+.. _`legacyhalos-sample-selection.ipynb`: https://nbviewer.jupyter.org/github/moustakas/legacyhalos/blob/master/doc/legacyhalos-sample-selection.ipynb
 
 .. _`build-paper1-sample`: https://github.com/moustakas/legacyhalos/blob/paper1-sample/science/paper1/build-paper1-sample
 
