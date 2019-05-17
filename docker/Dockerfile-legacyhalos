@@ -1,6 +1,29 @@
 # Starting from the legacypipe-nersc docker container, add healpy and ipython.
 
 FROM legacysurvey/legacypipe:latest
-RUN pip3 install healpy
-RUN pip3 install --no-cache-dir ipython
 
+# pip installs, built from source
+RUN for x in \
+    healpy \
+    ipython \
+    seaborn \
+    ; do pip3 install $x; done \
+    && rm -Rf /root/.cache/pip
+    
+# Development version of photutils
+RUN mkdir -p /src \
+    && git clone https://github.com/astropy/photutils.git \
+    && cd photutils \
+    && python3 setup.py install
+
+ENV PYTHONPATH /usr/local/lib/python
+
+# Set prompt and default shell
+SHELL ["/bin/bash", "-c"]
+RUN echo "export PS1='[container] \\u@\\h:\\w$ '" >> /root/.bashrc
+
+ENTRYPOINT ["/bin/bash", "-c"]
+CMD ["/bin/bash"]
+
+ENV HOME /root
+RUN rm /root/.profile
