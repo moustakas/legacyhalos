@@ -18,7 +18,6 @@ from astrometry.util.multiproc import multiproc
 
 import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
-from legacyhalos.io import get_galaxy_galaxydir
 
 def _copyfile(infile, outfile):
     if os.path.isfile(infile):
@@ -145,6 +144,12 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
         ok = _copyfile(
             os.path.join(survey.output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
             os.path.join(survey.output_dir, '{}-blobs.fits.gz'.format(galaxy)) )
+        if not ok:
+            return ok
+
+        ok = _copyfile(
+            os.path.join(survey.output_dir, 'metrics', 'cus', 'outlier-mask-{}.fits.fz'.format(brickname)),
+            os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy)) )
         if not ok:
             return ok
 
@@ -440,9 +445,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     tims, brickwcs, bands, version_header = P['tims'], P['targetwcs'], P['bands'], P['version_header']
     del P
 
-    # Read the outliers masks and apply them -- temporary hack until we address
-    # legacypipe/#271
-    print('Fix me after #271')
+    # Read the outliers masks and apply them
     outliersfile = os.path.join(survey.output_dir, '{}-outliers.fits.fz'.format(galaxy))
     if not os.path.isfile(outliersfile):
         print('Missing outliers masks {}'.format(outliersfile))
