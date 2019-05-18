@@ -337,8 +337,6 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
 
             html.write('<h2>Elliptical Isophote Analysis</h2>\n')
 
-            pdb.set_trace()
-
             html.write('<table>\n')
             html.write('<tr>\n')
             html.write('<th>PA</th>\n')
@@ -350,7 +348,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</tr>\n')
             html.write('<tr>\n')
             html.write('<td>{:.1f}</td>\n'.format(ellipse['pa']))
-            html.write('<td>{:.3f}</td>\n'.format(gal['eps']))
+            html.write('<td>{:.3f}</td>\n'.format(ellipse['eps']))
             html.write('</tr>\n')
             html.write('</table>\n')
 

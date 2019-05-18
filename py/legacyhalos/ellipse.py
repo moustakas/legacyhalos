@@ -116,7 +116,8 @@ def _integrate_isophot_one(args):
     """Wrapper function for the multiprocessing."""
     return integrate_isophot_one(*args)
 
-def integrate_isophot_one(iso, img, pixscalefactor, integrmode, sclip, nclip):
+def integrate_isophot_one(iso, img, pixscalefactor, integrmode,
+                          sclip, nclip):
     """Integrate the ellipse profile at a single semi-major axis.
 
     """
@@ -313,12 +314,12 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         #maxsma_major = 5 * ellipsefit['majoraxis']
         #maxsma = np.min( (maxsma_cluster, maxsma_major) )
 
-    #### ##################################################
+    ##### ##################################################
     #print('MAXSMA HACK!!!')
-    #maxsma = 10
+    #maxsma = 20
     #nclip = 0
     #integrmode = 'bilinear'
-    #### ##################################################
+    ##### ##################################################
         
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip
@@ -395,6 +396,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
 
     # Re-initialize the EllipseGeometry object, optionally using an external set
     # of ellipticity parameters.
+    pdb.set_trace()
     if input_ellipse:
         ellipsefit['input_ellipse'] = True
         geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
@@ -425,8 +427,9 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
             if ii > 0:
                 print('Failed with sma0={:.1f} pixels, trying sma0={:.1f} pixels.'.format(_sma0[ii-1], sma0))
             try:
-                isophot = ellipse.fit_image(sma0, maxsma=maxsma,
-                                            integrmode=integrmode, sclip=sclip, nclip=nclip)
+                isophot = ellipse.fit_image(sma0, maxsma=maxsma, maxrit=maxrit,
+                                            integrmode='bilinear', sclip=0, nclip=0)
+                                            #integrmode=integrmode, sclip=sclip, nclip=nclip)
             except:
                 isophot = []
                 
