@@ -376,14 +376,13 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    #tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
-    #if os.path.isfile(tractorfile):
-    #    cat = fits_table(tractorfile)
-    #    #cat = Table(fitsio.read(tractorfile, upper=True))
-    #    print('Read {} sources from {}'.format(len(cat), tractorfile))
-    #else:
-    #    print('Missing Tractor catalog {}'.format(tractorfile))
-    #    found_data = False
+    tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    if os.path.isfile(tractorfile):
+        tractor = Table(fitsio.read(tractorfile, upper=True))
+        print('Read {} sources from {}'.format(len(tractor), tractorfile))
+    else:
+        print('Missing Tractor catalog {}'.format(tractorfile))
+        found_data = False
 
     data = dict()
     if not found_data:
@@ -396,7 +395,20 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         image = fitsio.read(filt2imfile[filt][0])
         allmodel = fitsio.read(filt2imfile[filt][2]) # read the all-model image
 
+        # Get the average PSF size in each bandpass.
         H, W = image.shape
+
+        psfcol = 'PSFSIZE_{}'.format(filt.upper())
+        if not psfcol in tractor.colnames:
+            print('Warning: PSF column {} not found in Tractor catalog!'.format(psfcol))
+        else:
+            dH = 0.1 * H
+            these = ( (tractor['BX'] > np.int(H / 2 - dH)) * (tractor['BX'] < np.int(H / 2 + dH)) *
+                      (tractor['BY'] > np.int(H / 2 - dH)) * (tractor['BY'] < np.int(H / 2 + dH)) )
+            if np.sum(these) == 0:
+                print('No sources at the center of the field, sonable to get PSF size!')
+            data['NPSFSIZE_{}'.format(filt.upper())] = np.sum(these).astype(int)
+            data['PSFSIZE_{}'.format(filt.upper())] = np.median(tractor[psfcol])
         
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)

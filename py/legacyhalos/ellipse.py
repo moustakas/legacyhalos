@@ -286,10 +286,13 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     for filt in bands: # [Gaussian sigma]
         if 'PSFSIZE_{}'.format(filt.upper()) in sample.colnames:
             psfsize = sample['PSFSIZE_{}'.format(filt.upper())]
+            print(psfsize)
         else:
             psfsize = 1.1 # [FWHM, arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] = psfsize / np.sqrt(8 * np.log(2)) # [arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
+
+    pdb.set_trace()
 
     # Create a pixel scale mapping to accommodate GALEX and unWISE imaging.
     filt2pixscalefactor = {'g': 1.0, 'r': 1.0, 'z': 1.0, 'g_pixscale': pixscale,
@@ -397,6 +400,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     # Re-initialize the EllipseGeometry object, optionally using an external set
     # of ellipticity parameters.
     pdb.set_trace()
+    
     if input_ellipse:
         ellipsefit['input_ellipse'] = True
         geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
