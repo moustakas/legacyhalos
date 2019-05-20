@@ -90,6 +90,9 @@ def ellipse_apphot(bands, data, ellipsefit, maxsma, filt2pixscalefactor, pool=No
         results['apphot_sma_{}'.format(filt)] = sma * pixscale # [arcsec]
         results['apphot_mag_{}'.format(filt)] = apphot
 
+    print('Fit the curve of growth!!')
+    pdb.set_trace()
+
     #fig, ax = plt.subplots()
     #for filt in bands:
     #    ax.plot(results['apphot_sma_{}'.format(filt)],
@@ -345,17 +348,19 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     
     ellipse0 = Ellipse(img, geometry=geometry0)
 
-    smamin, smamax = 0.05*majoraxis, 5*majoraxis # inner, outer radius
+    smamin, smamax = 3*ellipsefit['psfsigma_{}'.format(refband)], 1.5*majoraxis # inner, outer radius
+    #smamin, smamax = 0.05*majoraxis, 5*majoraxis # inner, outer radius
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         factor = (1.1, 1.2, 1.3, 1.4)
         for ii, fac in enumerate(factor): # try a few different starting sma0
             sma0 = smamin*fac
             iso0 = ellipse0.fit_image(sma0,
-                                      minsma=0, maxsma=smamax,
-                                      #minsma=smamin, maxsma=smamax,
-                                      integrmode=integrmode, sclip=sclip, nclip=nclip,
-                                      step=0.5, linear=False) # note smaller step size
+                                      #minsma=0, maxsma=smamax,
+                                      minsma=smamin, maxsma=smamax,
+                                      step=0.1, linear=False,
+                                      #step=0.2, linear=False, # note bigger step size
+                                      integrmode=integrmode, sclip=sclip, nclip=nclip)
             if len(iso0) > 0:
                 break
 
@@ -363,8 +368,11 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         print('Initial ellipse-fitting failed!')
         return ellipsefit
 
-    # Mask out crummy fits and outliers.
-    good = (iso0.stop_code < 4) * ~sigma_clip(iso0.pa, sigma=3).mask
+    # Mask out outliers and the inner part of the galaxy where seeing dominates.
+    #good = ~sigma_clip(iso0.pa, sigma=3).mask
+    good = (iso0.sma > smamin) * (iso0.stop_code <= 4) * ~sigma_clip(iso0.pa, sigma=3).mask
+    #good = (iso0.sma > 3 * ellipsefit['psfsigma_{}'.format(refband)]) * ~sigma_clip(iso0.pa, sigma=3).mask
+    #good = (iso0.stop_code < 4) * ~sigma_clip(iso0.pa, sigma=3).mask
     ngood = np.sum(good)
     if ngood == 0:
         print('Too few good measurements to get ellipse geometry!')
@@ -394,11 +402,17 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
             ellipsefit['eps'], ellipsefit['eps_err'], geometry0.eps))
     print('  Time = {:.3f} sec'.format(time.time()-t0))
 
-    import fitsio
-    with fitsio.FITS('junk.fits', 'rw') as ff:
-        ff.write(img)
-
-    pdb.set_trace()
+    if False:
+        import fitsio
+        with fitsio.FITS('junk.fits', 'rw') as ff:
+            ff.write(img, overwrite=True)
+        fig, ax = plt.subplots()
+        ax.imshow(np.log10(img), origin='lower')
+        for sma in np.linspace(0, 50, 5):
+            iso = iso0.get_closest(sma)
+            x, y, = iso.sampled_coordinates()
+            ax.plot(x, y, color='green', lw=1, alpha=0.5)
+        fig.savefig('junk.png')
 
     # Re-initialize the EllipseGeometry object, optionally using an external set
     # of ellipticity parameters.

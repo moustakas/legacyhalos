@@ -21,6 +21,14 @@ from legacypipe.catalog import read_fits_catalog
 import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
 
+def _mosaic_width(radius_mosaic, pixscale):
+    # Ensure the mosaic is an odd number of pixels so the central can land on a
+    # whole pixel (important for ellipse-fitting).
+    #width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
+    width = 2 * radius_mosaic / pixscale # [pixels]
+    width = (np.ceil(width) // 2 * 2 + 1).astype('int') # [pixels]
+    return width
+
 def _copyfile(infile, outfile):
     if os.path.isfile(infile):
         os.rename(infile, outfile)
@@ -30,7 +38,7 @@ def _copyfile(infile, outfile):
         print('Missing file {}; please check the logfile.'.format(infile))
         return 0
 
-def isolate_central(cat, wcs, psf_sigma=1.0, radius_search=5.0, centrals=True):
+def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
     """Isolate the central galaxy.
 
     radius_mosaic in arcsec
@@ -52,7 +60,7 @@ def isolate_central(cat, wcs, psf_sigma=1.0, radius_search=5.0, centrals=True):
         m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
                                   0.5*radius_mosaic/3600.0, nearest=False)
         srcs = read_fits_catalog(cat[m1], fluxPrefix='')
-        mod = legacyhalos.misc.srcs2image(srcs, wcs, psf_sigma=1.0)
+        mod = legacyhalos.misc.srcs2image(srcs, wcs, psf_sigma=psf_sigma)
         if np.sum(np.isnan(mod)) > 0:
             print('HERE galaxy {}'.format(galaxy), flush=True, file=log)
 
@@ -146,8 +154,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             os.remove(checkpointfile)
     if not splinesky:
         cmd += '--no-splinesky '
-    
-    width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
+
+    width = _mosaic_width(radius_mosaic, pixscale)
 
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal['RA'], dec=onegal['DEC'], width=width,
@@ -453,7 +461,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         radius_search = radius_mask
         
-    width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
+    width = _mosaic_width(radius_mosaic, pixscale)
 
     unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)    
 
@@ -585,7 +593,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
     # Custom code for dealing with centrals.
-    keep = isolate_central(cat, onegal, centrals=centrals)
+    keep = isolate_central(cat, brickwcs, centrals=centrals)
 
     #print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')

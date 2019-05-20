@@ -305,7 +305,8 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
 
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
-                   sdss_pixscale=0.396, maskfactor=2.0, sdss=False):
+                   sdss_pixscale=0.396, maskfactor=2.0, fill_value=0.0,
+                   sdss=False):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
@@ -514,7 +515,9 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         data[filt] = (image - model) / thispixscale**2 # [nanomaggies/arcsec**2]
         
         data['{}_masked'.format(filt)] = ma.masked_array(data[filt], mask)
-        ma.set_fill_value(data['{}_masked'.format(filt)], 0)
+        ma.set_fill_value(data['{}_masked'.format(filt)], fill_value)
+        #data['{}_masked'.format(filt)].filled(fill_value)
+        #pdb.set_trace()
 
     data['bands'] = bands
     data['refband'] = refband
