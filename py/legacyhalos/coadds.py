@@ -420,7 +420,7 @@ def _custom_sky(skyargs):
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,
                   apodize=False, plots=False, verbose=False, cleanup=True,
-                  write_ccddata=False, sky_annulus=True, centrals=True):
+                  write_ccddata=True, sky_annulus=True, centrals=True):
     """Build a custom set of coadds for a single galaxy, with a custom mask and sky
     model.
 
