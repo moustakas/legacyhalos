@@ -23,8 +23,6 @@ from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
 from photutils.isophote.sample import CentralEllipseSample
 from photutils.isophote.fitter import CentralEllipseFitter
 
-from legacyhalos.misc import RADIUS_CLUSTER_KPC
-
 def _apphot_one(args):
     """Wrapper function for the multiprocessing."""
     return apphot_one(*args)
@@ -240,6 +238,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     zcolumn - name of the redshift column (Z_LAMBDA in redmapper)
 
     """
+    from astropy.stats import sigma_clip
     from legacyhalos.mge import find_galaxy
 
     pool = multiprocessing.Pool(nproc)
@@ -261,8 +260,11 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         print('Finding the galaxy in the reference {}-band image.'.format(refband))
 
     ellipsefit = dict()
-    galprops = find_galaxy(data[refband], nblob=1, fraction=0.05,
+    img = data['{}_masked'.format(refband)]
+
+    galprops = find_galaxy(img, nblob=1, fraction=0.05,
                            binning=3, plot=debug, quiet=not verbose)
+    galprops.pa = galprops.pa % 180 # put into range [0-180]
     if debug:
         plt.savefig('debug.png')
         
@@ -284,15 +286,15 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = pixscale
     for filt in bands: # [Gaussian sigma]
-        if 'PSFSIZE_{}'.format(filt.upper()) in sample.colnames:
-            psfsize = sample['PSFSIZE_{}'.format(filt.upper())]
-            print(psfsize)
+        #if 'PSFSIZE_{}'.format(filt.upper()) in sample.colnames:
+        #    psfsize = sample['PSFSIZE_{}'.format(filt.upper())]
+        if 'PSFSIZE_{}'.format(filt.upper()) in data.keys():
+            psfsize = data['PSFSIZE_{}'.format(filt.upper())]
+            #print(filt, psfsize)
         else:
             psfsize = 1.1 # [FWHM, arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] = psfsize / np.sqrt(8 * np.log(2)) # [arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
-
-    pdb.set_trace()
 
     # Create a pixel scale mapping to accommodate GALEX and unWISE imaging.
     filt2pixscalefactor = {'g': 1.0, 'r': 1.0, 'z': 1.0, 'g_pixscale': pixscale,
@@ -311,11 +313,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
                                     'W3_pixscale': data['unwise_pixscale'], 'W4_pixscale': data['unwise_pixscale']})
 
     if maxsma is None:
-        maxsma = RADIUS_CLUSTER_KPC / legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) / pixscale # [pixels]
-        # Set the maximum semi-major axis length to XX kpc or XX times the
-        # semi-major axis estimated below (whichever is smaller).
-        #maxsma_major = 5 * ellipsefit['majoraxis']
-        #maxsma = np.min( (maxsma_cluster, maxsma_major) )
+        maxsma = data[refband].shape[0] # integrate to the edge [pixels]
 
     ##### ##################################################
     #print('MAXSMA HACK!!!')
@@ -345,16 +343,17 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
                                 eps=ellipsefit['mge_eps'], sma=0.5*majoraxis, 
                                 pa=np.radians(ellipsefit['mge_pa']-90))
     
-    img = data['{}_masked'.format(refband)]
     ellipse0 = Ellipse(img, geometry=geometry0)
 
-    smamin, smamax = 0.05*majoraxis, 1.2*majoraxis # inner, outer radius
+    smamin, smamax = 0.05*majoraxis, 5*majoraxis # inner, outer radius
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         factor = (1.1, 1.2, 1.3, 1.4)
         for ii, fac in enumerate(factor): # try a few different starting sma0
             sma0 = smamin*fac
-            iso0 = ellipse0.fit_image(sma0, minsma=smamin, maxsma=smamax,
+            iso0 = ellipse0.fit_image(sma0,
+                                      minsma=0, maxsma=smamax,
+                                      #minsma=smamin, maxsma=smamax,
                                       integrmode=integrmode, sclip=sclip, nclip=nclip,
                                       step=0.5, linear=False) # note smaller step size
             if len(iso0) > 0:
@@ -364,7 +363,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         print('Initial ellipse-fitting failed!')
         return ellipsefit
 
-    good = iso0.stop_code < 4
+    # Mask out crummy fits and outliers.
+    good = (iso0.stop_code < 4) * ~sigma_clip(iso0.pa, sigma=3).mask
     ngood = np.sum(good)
     if ngood == 0:
         print('Too few good measurements to get ellipse geometry!')
@@ -373,34 +373,35 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     # Fix the center to be the peak (pixel) values.
     ellipsefit['x0'] = ellipsefit['mge_xpeak']
     ellipsefit['y0'] = ellipsefit['mge_ypeak']
+    ellipsefit['x0_median'] = np.median(iso0.x0[good])
+    ellipsefit['y0_median'] = np.median(iso0.y0[good])
+    ellipsefit['x0_err'] = np.std(iso0.x0[good]) / np.sqrt(ngood)
+    ellipsefit['y0_err'] = np.std(iso0.y0[good]) / np.sqrt(ngood)
 
-    ellipsefit['x0_err'] = np.std(iso0.x0) / np.sqrt(ngood)
-    ellipsefit['y0_err'] = np.std(iso0.y0) / np.sqrt(ngood)
-    ellipsefit['x0_median'] = np.median(iso0.x0)
-    ellipsefit['y0_median'] = np.median(iso0.y0)
+    ellipsefit['pa'] = (np.degrees(np.median(iso0.pa[good]))+90) % 180
+    ellipsefit['pa_err'] = np.degrees(np.std(iso0.pa[good])) / np.sqrt(ngood)
+    ellipsefit['eps'] = np.median(iso0.eps[good])
+    ellipsefit['eps_err'] = np.std(iso0.eps[good]) / np.sqrt(ngood)
 
-    #for key in ('x0', 'y0', 'eps', 'pa'):
-    for key in ('eps', 'pa'):
-        val = getattr(iso0, key)[good]
-        ellipsefit[key] = np.median(val)
-        ellipsefit['{}_err'.format(key)] = np.std(val)/np.sqrt(ngood)
-        if key == 'pa':
-            initval = np.degrees(geometry0.pa) + 90
-            ellipsefit[key] = np.degrees(ellipsefit[key]) + 90
-            ellipsefit['{}_err'.format(key)] = np.degrees(ellipsefit['{}_err'.format(key)])
-        else:
-            initval = getattr(geometry0, key)
-        if verbose:
-            initpa = np.degrees(geometry0.pa)+90
-            print(' {} = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
-                key, ellipsefit[key], ellipsefit['{}_err'.format(key)],
-                initval))
+    if verbose:
+        print(' x0 = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
+            ellipsefit['x0_median'], ellipsefit['x0_err'], ellipsefit['x0']))
+        print(' y0 = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
+            ellipsefit['y0_median'], ellipsefit['y0_err'], ellipsefit['y0']))
+        print(' PA = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
+            ellipsefit['pa'], ellipsefit['pa_err'], np.degrees(geometry0.pa)+90))
+        print(' eps = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
+            ellipsefit['eps'], ellipsefit['eps_err'], geometry0.eps))
     print('  Time = {:.3f} sec'.format(time.time()-t0))
+
+    import fitsio
+    with fitsio.FITS('junk.fits', 'rw') as ff:
+        ff.write(img)
+
+    pdb.set_trace()
 
     # Re-initialize the EllipseGeometry object, optionally using an external set
     # of ellipticity parameters.
-    pdb.set_trace()
-    
     if input_ellipse:
         ellipsefit['input_ellipse'] = True
         geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
@@ -432,14 +433,12 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
                 print('Failed with sma0={:.1f} pixels, trying sma0={:.1f} pixels.'.format(_sma0[ii-1], sma0))
             try:
                 isophot = ellipse.fit_image(sma0, maxsma=maxsma, maxrit=maxrit,
-                                            integrmode='bilinear', sclip=0, nclip=0)
-                                            #integrmode=integrmode, sclip=sclip, nclip=nclip)
+                                            integrmode=integrmode, sclip=sclip, nclip=nclip)
             except:
                 isophot = []
                 
             if len(isophot) > 0:
                 break
-            
     print('  Time = {:.3f} sec'.format(time.time() - t0))
 
     if len(isophot) == 0:
@@ -577,12 +576,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          unwise_pixscale=unwise_pixscale,
                                          sdss_pixscale=sdss_pixscale,
                                          sdss=sdss)
+    # Do ellipse-fitting.
     if bool(data):
-        ## Find the galaxy and (optionally) perform MGE fitting.
-        #mgefit = mgefit_multiband(galaxy, galaxydir, data, verbose=verbose,
-        #                          noellipsefit=True, debug=debug)
-
-        # Do ellipse-fitting.
         if sdss:
             ellipsefit = sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
                                                    refband=refband, pixscale=pixscale,
@@ -595,11 +590,9 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                               nclip=nclip, sclip=sclip, zcolumn=zcolumn,
                                               verbose=verbose, noellipsefit=noellipsefit,
                                               input_ellipse=input_ellipse)
-            
         if ellipsefit['success']:
             return 1
         else:
             return 0
-        
     else:
         return 0
