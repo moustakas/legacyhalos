@@ -1,48 +1,76 @@
 # Starting from the legacypipe-nersc docker container, customize our build.  Be sure to do
 #   docker login
-#   docker pull legacysurvey/legacypipe:latest
+#   docker pull legacysurvey/legacypipe:nersc
 # before building and pushing the container with
 #   docker build . -t flagnarg/legacyhalos --file Dockerfile-legacyhalos
 #   docker push flagnarg/legacyhalos:latest
 # Finally, run this container with:
 #   docker run -it flagnarg/legacyhalos:latest
 
-FROM legacysurvey/legacypipe:latest
+########## Stage 1 ##########
 
-# pip-install what we need
+# Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
+FROM legacysurvey/legacypipe:nersc as builder
+
+RUN mkdir /build/
+RUN cd /build && wget https://www.mpich.org/static/downloads/3.3/mpich-3.3.tar.gz \
+  && tar xvzf mpich-3.3.tar.gz && cd /build/mpich-3.3 \
+  && ./configure && make -j4 && make install && make clean && rm /build/mpich-3.3.tar.gz
+
+RUN cd /build && wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-3.0.1.tar.gz \
+  && tar xvzf mpi4py-3.0.1.tar.gz
+RUN cd /build/mpi4py-3.0.1 && python setup.py build && python setup.py install && rm -rf /build/
+
+RUN /sbin/ldconfig
+
+########## Stage 2 ##########
+
+FROM legacysurvey/legacypipe:nersc
+
+COPY --from=builder /usr/local /usr/local
+COPY --from=builder /usr/bin /usr/bin
+
+LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
+
+# WORKDIR /src
+
+# # Install mpi4py
+# RUN mkdir /build/
+# RUN cd /build && wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-3.0.1.tar.gz \
+#   && tar xvzf mpi4py-3.0.1.tar.gz
+# RUN cd /build/mpi4py-3.0.1 && python setup.py build && python setup.py install && rm -rf /build/
+
+# RUN /sbin/ldconfig
+
+# Clone legacyhalos
+# RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
+# ENV PYTHONPATH /src/legacyhalos/py:$PYTHONPATH
+
+# pip-install some additional dependencies
 RUN for x in \
     healpy \
     seaborn \
     ; do pip3 install $x; done \
     && rm -Rf /root/.cache/pip
 
-RUN pip3 install --no-cache-dir ipython
-    
 # Add the development version of photutils.
-RUN mkdir -p /src \
-    && git clone https://github.com/astropy/photutils.git \
+RUN pip3 uninstall -y photutils
+RUN git clone https://github.com/astropy/photutils.git \
     && cd photutils \
     && python3 setup.py install
 
-# Create a fake home directory so that packages can create config files if
-# needed.
-RUN mkdir -p /home/legacyhalos \
-    /home/legacyhalos/.astropy
-    
+# Create a fake home directory where we can put config files.
 ENV HOME /home/legacyhalos
+RUN mkdir -p $HOME \
+    $HOME/.astropy
+    
 RUN python -c "import astropy" \
     python -c "import matplotlib.font_manager as fm; f = fm.FontManager" \
-    ipython
+    ipython -c "print('I am me')"
 
 # Set prompt and default shell
 SHELL ["/bin/bash", "-c"]
-RUN echo "export PS1='[docker-legacyhalos] \\u@\\h:\\w$ '" >> /root/.bashrc
+RUN echo "export PS1='[docker-legacyhalos] \u@\[$(tput bold)\]\h\[$(tput sgr0)\]:\w\[$(tput sgr0)\]% '" >> $HOME/.bashrc
 
 ENTRYPOINT ["/bin/bash", "-c"]
 CMD ["/bin/bash"]
-
-# Set up some final environment variables
-ENV PYTHONPATH /usr/local/lib/python
-
-RUN rm /root/.profile
-RUN cd
