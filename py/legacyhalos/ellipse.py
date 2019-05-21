@@ -178,7 +178,7 @@ def sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=1, bands=('g', 'r',
     ellipsefit['refband'] = refband
     ellipsefit['pixscale'] = sdss_pixscale
     ellipsefit['redshift'] = refellipsefit['redshift']
-    print('Fix me!!')
+    print('Fix me -- what is psfsigma!!')
     for filt in bands:
         ellipsefit['psfsigma_{}'.format(filt)] = 1.3
 
