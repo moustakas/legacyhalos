@@ -8,9 +8,9 @@
 #   docker run -it flagnarg/legacyhalos:latest
 
 ########## Stage 1 ##########
-
 # Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
-FROM legacysurvey/legacypipe:nersc as builder
+
+FROM legacysurvey/legacypipe:nersc as builder1
 
 RUN mkdir /build/
 RUN cd /build && wget https://www.mpich.org/static/downloads/3.3/mpich-3.3.tar.gz \
@@ -24,27 +24,12 @@ RUN cd /build/mpi4py-3.0.1 && python setup.py build && python setup.py install &
 RUN /sbin/ldconfig
 
 ########## Stage 2 ##########
+# Install additional Python utilities.
 
-FROM legacysurvey/legacypipe:nersc
+FROM legacysurvey/legacypipe:nersc as builder2
 
-COPY --from=builder /usr/local /usr/local
-COPY --from=builder /usr/bin /usr/bin
-
-LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
-
-# WORKDIR /src
-
-# # Install mpi4py
-# RUN mkdir /build/
-# RUN cd /build && wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-3.0.1.tar.gz \
-#   && tar xvzf mpi4py-3.0.1.tar.gz
-# RUN cd /build/mpi4py-3.0.1 && python setup.py build && python setup.py install && rm -rf /build/
-
-# RUN /sbin/ldconfig
-
-# Clone legacyhalos
-# RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
-# ENV PYTHONPATH /src/legacyhalos/py:$PYTHONPATH
+COPY --from=builder1 /usr/local /usr/local
+COPY --from=builder1 /usr/bin /usr/bin
 
 # pip-install some additional dependencies
 RUN for x in \
@@ -58,6 +43,22 @@ RUN pip3 uninstall -y photutils
 RUN git clone https://github.com/astropy/photutils.git \
     && cd photutils \
     && python3 setup.py install
+
+########## Stage 3 ##########
+# Wrap up
+
+FROM legacysurvey/legacypipe:nersc
+
+COPY --from=builder2 /usr/local /usr/local
+COPY --from=builder2 /usr/bin /usr/bin
+
+LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
+
+# WORKDIR /src
+
+# Clone legacyhalos
+# RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
+# ENV PYTHONPATH /src/legacyhalos/py:$PYTHONPATH
 
 # Create a fake home directory where we can put config files.
 ENV HOME /home/legacyhalos
