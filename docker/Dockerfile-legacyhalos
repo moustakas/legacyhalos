@@ -13,14 +13,23 @@ LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
 
 # Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
 RUN mkdir /build/
-RUN cd /build && wget https://www.mpich.org/static/downloads/3.3/mpich-3.3.tar.gz \
-  && tar xvzf mpich-3.3.tar.gz && cd /build/mpich-3.3 \
-  && ./configure && make -j4 && make install && make clean && rm /build/mpich-3.3.tar.gz
+RUN cd /build \
+    && wget https://www.mpich.org/static/downloads/3.3/mpich-3.3.tar.gz \
+    && tar xvzf mpich-3.3.tar.gz \
+    && cd /build/mpich-3.3 \
+    && ./configure \
+    && make -j4 \
+    && make install \
+    && make clean \
+    && rm /build/mpich-3.3.tar.gz
 
-RUN cd /build && wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-3.0.1.tar.gz \
-  && tar xvzf mpi4py-3.0.1.tar.gz
-RUN cd /build/mpi4py-3.0.1 && python setup.py build && python setup.py install && rm -rf /build/
-
+RUN cd /build \
+    && wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-3.0.1.tar.gz \
+    && tar xvzf mpi4py-3.0.1.tar.gz
+RUN cd /build/mpi4py-3.0.1 \
+    && python setup.py build \
+    && python setup.py install \
+    && rm -rf /build/
 RUN /sbin/ldconfig
 
 # pip-install some additional dependencies
@@ -31,28 +40,11 @@ RUN for x in \
     && rm -Rf /root/.cache/pip
 
 # Add the development version of photutils.
-RUN pip3 uninstall -y photutils
-
-RUN git clone https://github.com/astropy/photutils.git \
+RUN pip3 uninstall -y photutils \
+    && git clone https://github.com/astropy/photutils.git \
     && cd photutils \
     && python3 setup.py install
 
 # Clone legacyhalos
 # RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
 # ENV PYTHONPATH /src/legacyhalos/py:$PYTHONPATH
-
-# Create a fake home directory where we can put config files.
-ENV HOME /home/legacyhalos
-RUN mkdir -p $HOME \
-    $HOME/.astropy
-    
-RUN python -c "import astropy" \
-    python -c "import matplotlib.font_manager as fm; f = fm.FontManager" \
-    ipython -c "print('I am me')"
-
-# Set prompt and default shell
-SHELL ["/bin/bash", "-c"]
-RUN echo "export PS1='[docker-legacyhalos] \\u@\\h:\\w$ '" >> $HOME/.bashrc
-
-ENTRYPOINT ["/bin/bash", "-c"]
-CMD ["/bin/bash"]
