@@ -7,11 +7,11 @@
 # Finally, run this container with:
 #   docker run -it flagnarg/legacyhalos:latest
 
-########## Stage 1 ##########
+FROM legacysurvey/legacypipe:nersc
+
+LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
+
 # Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
-
-FROM legacysurvey/legacypipe:nersc as mpibuild
-
 RUN mkdir /build/
 RUN cd /build && wget https://www.mpich.org/static/downloads/3.3/mpich-3.3.tar.gz \
   && tar xvzf mpich-3.3.tar.gz && cd /build/mpich-3.3 \
@@ -23,14 +23,6 @@ RUN cd /build/mpi4py-3.0.1 && python setup.py build && python setup.py install &
 
 RUN /sbin/ldconfig
 
-########## Stage 2 ##########
-# Install additional Python utilities.
-
-FROM legacysurvey/legacypipe:nersc as pybuild
-
-COPY --from=mpibuild /usr/local /usr/local
-COPY --from=mpibuild /usr/bin /usr/bin
-
 # pip-install some additional dependencies
 RUN for x in \
     healpy \
@@ -39,21 +31,11 @@ RUN for x in \
     && rm -Rf /root/.cache/pip
 
 # Add the development version of photutils.
+RUN pip3 uninstall -y photutils
+
 RUN git clone https://github.com/astropy/photutils.git \
     && cd photutils \
     && python3 setup.py install
-
-########## Stage 3 ##########
-# Wrap up
-
-FROM legacysurvey/legacypipe:nersc as finalbuild
-
-COPY --from=pybuild /usr/local /usr/local
-COPY --from=mpibuild /usr/bin /usr/bin
-
-LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
-
-RUN pip3 uninstall -y photutils
 
 # Clone legacyhalos
 # RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
