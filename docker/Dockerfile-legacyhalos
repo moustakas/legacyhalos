@@ -39,7 +39,6 @@ RUN for x in \
     && rm -Rf /root/.cache/pip
 
 # Add the development version of photutils.
-RUN pip3 uninstall -y photutils
 RUN git clone https://github.com/astropy/photutils.git \
     && cd photutils \
     && python3 setup.py install
@@ -54,7 +53,7 @@ COPY --from=mpibuild /usr/bin /usr/bin
 
 LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
 
-# WORKDIR /src
+RUN pip3 uninstall -y photutils
 
 # Clone legacyhalos
 # RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
@@ -71,7 +70,7 @@ RUN python -c "import astropy" \
 
 # Set prompt and default shell
 SHELL ["/bin/bash", "-c"]
-RUN echo "export PS1='[docker-legacyhalos] \u@\[$(tput bold)\]\h\[$(tput sgr0)\]:\w\[$(tput sgr0)\]% '" >> $HOME/.bashrc
+RUN echo "export PS1='[docker-legacyhalos] \\u@\\h:\\w$ '" >> $HOME/.bashrc
 
 ENTRYPOINT ["/bin/bash", "-c"]
 CMD ["/bin/bash"]
