@@ -10,7 +10,7 @@
 ########## Stage 1 ##########
 # Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
 
-FROM legacysurvey/legacypipe:nersc as builder1
+FROM legacysurvey/legacypipe:nersc as mpibuild
 
 RUN mkdir /build/
 RUN cd /build && wget https://www.mpich.org/static/downloads/3.3/mpich-3.3.tar.gz \
@@ -26,10 +26,10 @@ RUN /sbin/ldconfig
 ########## Stage 2 ##########
 # Install additional Python utilities.
 
-FROM legacysurvey/legacypipe:nersc as builder2
+FROM legacysurvey/legacypipe:nersc as pybuild
 
-COPY --from=builder1 /usr/local /usr/local
-COPY --from=builder1 /usr/bin /usr/bin
+COPY --from=mpibuild /usr/local /usr/local
+COPY --from=mpibuild /usr/bin /usr/bin
 
 # pip-install some additional dependencies
 RUN for x in \
@@ -47,10 +47,10 @@ RUN git clone https://github.com/astropy/photutils.git \
 ########## Stage 3 ##########
 # Wrap up
 
-FROM legacysurvey/legacypipe:nersc
+FROM legacysurvey/legacypipe:nersc as finalbuild
 
-COPY --from=builder2 /usr/local /usr/local
-COPY --from=builder2 /usr/bin /usr/bin
+COPY --from=pybuild /usr/local /usr/local
+COPY --from=mpibuild /usr/bin /usr/bin
 
 LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
 
