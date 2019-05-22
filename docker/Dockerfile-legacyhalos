@@ -20,30 +20,25 @@ RUN cd /build \
     && ./configure \
     && make -j4 \
     && make install \
-    && make clean \
-    && rm /build/mpich-3.3.tar.gz
+    && make clean
 
-RUN cd /build \
-    && wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-3.0.1.tar.gz \
-    && tar xvzf mpi4py-3.0.1.tar.gz
-RUN cd /build/mpi4py-3.0.1 \
-    && python setup.py build \
-    && python setup.py install \
-    && rm -rf /build/
 RUN /sbin/ldconfig
 
 # pip-install some additional dependencies
 RUN for x in \
+    mpi4py \
     healpy \
     seaborn \
-    ; do pip3 install $x; done \
+    ; do pip3 --no-cache-dir install $x; done \
     && rm -Rf /root/.cache/pip
 
 # Add the development version of photutils.
 RUN pip3 uninstall -y photutils \
+    && cd /build \
     && git clone https://github.com/astropy/photutils.git \
     && cd photutils \
     && python3 setup.py install
+RUN rm -rf /build
 
 # Clone legacyhalos
 # RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
