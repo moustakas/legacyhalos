@@ -13,8 +13,10 @@ import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 import fitsio
 
-from astrometry.util.fits import fits_table, merge_tables
+import tractor
+from astrometry.util.fits import fits_table
 from astrometry.util.multiproc import multiproc
+from legacypipe.catalog import read_fits_catalog
 
 import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
@@ -27,6 +29,70 @@ def _copyfile(infile, outfile):
     else:
         print('Missing file {}; please check the logfile.'.format(infile))
         return 0
+
+def isolate_central(cat, wcs, psf_sigma=1.0, radius_search=5.0, centrals=True):
+    """Isolate the central galaxy.
+
+    radius_mosaic in arcsec
+    """
+    from astrometry.libkd.spherematch import match_radec
+    from legacyhalos.mge import find_galaxy
+
+    if type(wcs) is not tractor.wcs.ConstantFitsWcs:
+        wcs = tractor.wcs.ConstantFitsWcs(wcs)
+
+    racen, deccen = wcs.wcs.crval
+    _, width = wcs.wcs.shape
+    radius_mosaic = width * wcs.wcs.pixel_scale() / 2 # [arcsec]
+        
+    keep = np.ones(len(cat)).astype(bool)
+    if centrals:
+        # Build a model image with all the sources whose centroids are within
+        # the inner XX% of the mosaic and then "find" the central galaxy.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
+                                  0.5*radius_mosaic/3600.0, nearest=False)
+        srcs = read_fits_catalog(cat[m1], fluxPrefix='')
+        mod = legacyhalos.misc.srcs2image(srcs, wcs, psf_sigma=1.0)
+        if np.sum(np.isnan(mod)) > 0:
+            print('HERE galaxy {}'.format(galaxy), flush=True, file=log)
+
+        mgegalaxy = find_galaxy(mod, nblob=1, binning=3, quiet=True)
+
+        # Now use the ellipse parameters to get a better list of the model
+        # sources in and around the central, and remove the largest ones.
+        majoraxis = mgegalaxy.majoraxis
+        these = legacyhalos.misc.ellipse_mask(width/2, width/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
+                                              np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
+
+        galrad = np.max(np.array((cat.shapedev_r, cat.shapeexp_r)), axis=0)
+        #galrad = (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) # type-weighted radius
+        these *= galrad > 3
+
+        # Also add the sources nearest to the central coordinates.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
+                                  radius_search/3600.0, nearest=False)
+        if len(m1) > 0:
+            these[m1] = True
+
+        if np.sum(these) > 0:
+            keep[these] = False
+        else:
+            m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
+                                      radius_search/3600.0, nearest=False)
+            if len(d12) > 0:
+                keep = ~np.isin(cat.objid, cat[m1].objid)
+    else:
+        # Find and remove all the objects within XX arcsec of the target
+        # coordinates.
+        m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
+                                  radius_search/3600.0, nearest=False)
+        if len(d12) > 0:
+            keep = ~np.isin(cat.objid, cat[m1].objid)
+        else:
+            print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
+            #raise ValueError
+
+    return keep
 
 def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=1,
                     pixscale=0.262, splinesky=True, log=None, force=False,
@@ -377,19 +443,14 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
       with the central with dedicated code.
 
     """
-    from astrometry.libkd.spherematch import match_radec
     from tractor.sky import ConstantSky
-    from tractor import ConstantFitsWcs
     
     from legacypipe.runbrick import stage_tims
-    from legacypipe.catalog import read_fits_catalog
     from legacypipe.runbrick import _get_mod
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.survey import get_rgb, imsave_jpeg
     from legacypipe.image import CP_DQ_BITS
             
-    from legacyhalos.mge import find_galaxy
-        
     if survey is None:
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
@@ -550,52 +611,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
     # Custom code for dealing with centrals.
-    keep = np.ones(len(cat)).astype(bool)
-    if centrals:
-        # Build a model image with all the sources whose centroids are within
-        # the inner XX% of the mosaic and then "find" the central galaxy.
-        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                                  0.5*radius_mosaic/3600.0, nearest=False)
-        srcs = read_fits_catalog(cat[m1], fluxPrefix='')
-        mod = legacyhalos.misc.srcs2image(srcs, ConstantFitsWcs(brickwcs), psf_sigma=1.0)
-        if np.sum(np.isnan(mod)) > 0:
-            print('HERE galaxy {}'.format(galaxy), flush=True, file=log)
-
-        mgegalaxy = find_galaxy(mod, nblob=1, binning=3, quiet=True)
-
-        # Now use the ellipse parameters to get a better list of the model
-        # sources in and around the central, and remove the largest ones.
-        majoraxis = mgegalaxy.majoraxis
-        these = legacyhalos.misc.ellipse_mask(width/2, width/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
-                                              np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
-
-        galrad = np.max(np.array((cat.shapedev_r, cat.shapeexp_r)), axis=0)
-        #galrad = (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) # type-weighted radius
-        these *= galrad > 3
-
-        # Also add the sources nearest to the central coordinates.
-        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                                  radius_search/3600.0, nearest=False)
-        if len(m1) > 0:
-            these[m1] = True
-
-        if np.sum(these) > 0:
-            keep[these] = False
-        else:
-            m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                                      radius_search/3600.0, nearest=False)
-            if len(d12) > 0:
-                keep = ~np.isin(cat.objid, cat[m1].objid)
-    else:
-        # Find and remove all the objects within XX arcsec of the target
-        # coordinates.
-        m1, m2, d12 = match_radec(cat.ra, cat.dec, onegal['RA'], onegal['DEC'],
-                                  radius_search/3600.0, nearest=False)
-        if len(d12) > 0:
-            keep = ~np.isin(cat.objid, cat[m1].objid)
-        else:
-            print('No matching galaxies found -- probably not what you wanted.', flush=True, file=log)
-            #raise ValueError
+    keep = isolate_central(cat, onegal, centrals=centrals)
 
     #print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')
