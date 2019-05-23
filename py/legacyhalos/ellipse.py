@@ -315,9 +315,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
                                     'W1_pixscale': data['unwise_pixscale'], 'W2_pixscale': data['unwise_pixscale'],
                                     'W3_pixscale': data['unwise_pixscale'], 'W4_pixscale': data['unwise_pixscale']})
 
-    if maxsma is None:
-        maxsma = data[refband].shape[0] # integrate to the edge [pixels]
-
     ##### ##################################################
     #print('MAXSMA HACK!!!')
     #maxsma = 20
@@ -331,7 +328,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     ellipsefit['step'] = step
     ellipsefit['fflag'] = fflag
     ellipsefit['linear'] = linear
-    ellipsefit['maxsma'] = maxsma
 
     # Get the mean geometry of the system by ellipse-fitting the inner part and
     # taking the mean values of everything.
@@ -430,6 +426,11 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     geometry_cen = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'], eps=0.0, sma=0.0, pa=0.0)
     ellipsefit['geometry'] = geometry
     ellipse = Ellipse(img, geometry=geometry)
+
+    # Integrate to the edge [pixels].
+    if maxsma is None:
+        maxsma = data[refband].shape[0] / 2 * (1 - geometry.eps)
+    ellipsefit['maxsma'] = maxsma
 
     # Fit the reference bands first then the other bands.
     newmask = None
