@@ -46,13 +46,13 @@ def qa_curveofgrowth(ellipsefit, png=None, verbose=True):
 
     """
     fig, ax = plt.subplots(figsize=(9, 7))
-    band, refband, redshift = ellipsefit['band'], ellipsefit['refband'], ellipsefit['redshift']
+    bands, refband, redshift = ellipsefit['bands'], ellipsefit['refband'], ellipsefit['redshift']
 
     maxsma = ellipsefit['apphot_sma_{}'.format(refband)].max()
     smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
     yfaint, ybright = 0, 50
-    for filt in band:
+    for filt in bands:
         flux = ellipsefit['apphot_mag_{}'.format(filt)]
         good = np.where( np.isfinite(flux) * (flux > 0) )[0]
         sma = ellipsefit['apphot_sma_{}'.format(filt)][good]
@@ -110,9 +110,9 @@ def display_sersic(sersic, png=None, verbose=False):
     ymnmax = [40, 0]
 
     fig, ax = plt.subplots(figsize=(7, 5))
-    for band, lam in zip( sersic['band'], (sersic['lambda_g'],
-                                           sersic['lambda_r'],
-                                           sersic['lambda_z']) ):
+    for band, lam in zip( sersic['bands'], (sersic['lambda_g'],
+                                            sersic['lambda_r'],
+                                            sersic['lambda_z']) ):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             #good = (lam == sersic['wave']) * np.isfinite(sersic['sb'])
@@ -493,7 +493,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
     from astropy.visualization import AsinhStretch as Stretch
     from astropy.visualization import ImageNormalize
 
-    band = data['band']
+    band = data['bands']
     nband = len(band)
 
     #cmap = 'RdBu_r'
@@ -602,7 +602,7 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
 
     if ellipsefit['success']:
         
-        band, refband = ellipsefit['band'], ellipsefit['refband']
+        band, refband = ellipsefit['bands'], ellipsefit['refband']
         pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
         smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
@@ -718,7 +718,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
     if ellipsefit['success']:
         sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr)
         
-        band, refband = ellipsefit['band'], ellipsefit['refband']
+        band, refband = ellipsefit['bands'], ellipsefit['refband']
         redshift, pixscale = ellipsefit['redshift'], ellipsefit['pixscale']
         smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
@@ -894,7 +894,8 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             plt.show()
         
 def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
-                               png=None, use_ylim=None, verbose=True):
+                              sdssellipsefit={},
+                              png=None, use_ylim=None, verbose=True):
     """Display the multi-band surface brightness profile.
 
     2-panel
@@ -908,7 +909,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         colors = _sbprofile_colors()
 
-        band, refband = ellipsefit['band'], ellipsefit['refband']
+        bands, refband = ellipsefit['bands'], ellipsefit['refband']
         redshift = ellipsefit['redshift']
         smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
@@ -917,7 +918,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
                                        gridspec_kw = {'height_ratios':[2, 1]})
-        for filt in band:
+        for filt in bands:
             sma = sbprofile['sma']
             mu = sbprofile['mu_{}'.format(filt)]
             muerr = sbprofile['mu_{}_err'.format(filt)]
@@ -938,6 +939,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             col = next(colors)
             ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color=col,
                              alpha=0.75, edgecolor='k', lw=2)
+
             if bool(skyellipsefit):
                 skysma = skyellipsefit['sma'] * ellipsefit['pixscale']
 
@@ -963,7 +965,18 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             #    ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
             #    ax1.axhline(y=ysky, color=col, ls='--')
 
-        ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
+        if bool(sdssellipsefit):
+            sdsssbprofile = ellipse_sbprofile(sdssellipsefit, minerr=minerr)
+            for filt in sdssellipsefit['bands']:
+                sma = sdsssbprofile['sma']
+                mu = sdsssbprofile['mu_{}'.format(filt)]
+                muerr = sdsssbprofile['mu_{}_err'.format(filt)]
+                #ax1.plot(sma, mu, color='k', alpha=0.5)
+                ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color='k',
+                                 alpha=0.2, edgecolor='k', lw=3)
+                
+        ax1.set_ylabel(r'$\mu(a)$ (mag arcsec$^{-2}$)')
+        #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
 
         ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
         if ylim[0] < 17:
@@ -1006,8 +1019,8 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         ax2.set_xlabel(r'Semi-major Axis $a$ (arcsec)')
         #ax2.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
-        #ax2.legend(loc='upper left')
-        ax2.legend(bbox_to_anchor=(0.25, 0.98))
+        ax2.legend(loc='upper right')
+        #ax2.legend(bbox_to_anchor=(0.25, 0.98))
         
         ax2.set_ylabel('Color (mag)')
         ax2.set_ylim(-0.5, 3)
@@ -1116,7 +1129,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
 
     """
     from astropy.cosmology import WMAP9 as cosmo
-    from legacyhalos.io import get_objid, read_ellipsefit
+    from legacyhalos.io import read_ellipsefit
     from legacyhalos.ellipse import ellipse_sbprofile
     from legacyhalos.misc import statsinbins
 

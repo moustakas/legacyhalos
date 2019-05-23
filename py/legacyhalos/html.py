@@ -86,7 +86,7 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=T
                 print('Writing {}'.format(montagefile))
             subprocess.call(cmd.split())
 
-def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
+def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                        clobber=False, verbose=True):
     """Generate QAplots from the ellipse-fitting.
 
@@ -98,17 +98,13 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
     ellipsefit = read_ellipsefit(galaxy, galaxydir)
     skyellipsefit = read_sky_ellipsefit(galaxy, galaxydir)
 
+    sdssellipsefit = read_ellipsefit(galaxy, galaxydir, sdss=True)
+
     if len(ellipsefit) > 0:
         # Toss out bad fits.
         indx = None
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
         #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
-
-        multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
-        if not os.path.isfile(multibandfile) or clobber:
-            data = read_multiband(galaxy, galaxydir, band=band)
-            display_multiband(data, ellipsefit=ellipsefit, indx=indx,
-                              png=multibandfile, verbose=verbose)
 
         cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
         if not os.path.isfile(cogfile) or clobber:
@@ -117,13 +113,20 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
         sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
         if not os.path.isfile(sbprofilefile) or clobber:
             display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
-                                      png=sbprofilefile, verbose=verbose, minerr=0.0)
+                                      png=sbprofilefile, verbose=verbose, minerr=0.0,
+                                      sdssellipsefit=sdssellipsefit)
+
+        multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
+        if not os.path.isfile(multibandfile) or clobber:
+            data = read_multiband(galaxy, galaxydir, bands=bands)
+            display_multiband(data, ellipsefit=ellipsefit, indx=indx,
+                              png=multibandfile, verbose=verbose)
 
         ellipsefitfile = os.path.join(htmlgalaxydir, '{}-ellipse-ellipsefit.png'.format(galaxy))
         if not os.path.isfile(ellipsefitfile) or clobber:
             display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
         
-def qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', band=('g', 'r', 'z'),
+def qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', bands=('g', 'r', 'z'),
                    pixscale=0.262, clobber=False, verbose=True):
     """Generate QAplots from the MGE fitting.
 
@@ -141,7 +144,7 @@ def qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', band=('g', 'r'
         multibandfile = os.path.join(htmlgalaxydir, '{}-mge-multiband.png'.format(galaxy))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(galaxy, galaxydir, band=band)
-            display_multiband(data, mgefit=mgefit, band=band, refband=refband,
+            display_multiband(data, mgefit=mgefit, bands=bands, refband=refband,
                               png=multibandfile, contours=True, verbose=verbose)
         
         #isophotfile = os.path.join(htmlgalaxydir, '{}-mge-mgefit.png'.format(galaxy))
@@ -206,16 +209,22 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
             display_sersic(serexp, png=serexpfile, verbose=verbose)
 
 def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
-               band=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
+               bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
                nproc=1, maketrends=False, ccdqa=False, clobber=False, verbose=True,
                hsc=False):
     """Make QA plots.
 
     """
     if datadir is None:
-        datadir = legacyhalos.io.legacyhalos_data_dir()
+        if hsc:
+            datadir = legacyhalos.io.hsc_data_dir()
+        else:
+            datadir = legacyhalos.hsc.legacyhalos_data_dir()
     if htmldir is None:
-        htmldir = legacyhalos.io.legacyhalos_html_dir()
+        if hsc:
+            htmldir = legacyhalos.hsc.hsc_html_dir()
+        else:
+            htmldir = legacyhalos.io.legacyhalos_html_dir()
 
     if survey is None:
         from legacypipe.survey import LegacySurveyData
@@ -246,11 +255,11 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
 
         # Sersic fiting results
         if False:
-            qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=band,
+            qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
                               clobber=clobber, verbose=verbose)
 
         # Build the ellipse plots.
-        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, band=band,
+        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
                            clobber=clobber, verbose=verbose)
         
         # Build the montage coadds.
@@ -556,7 +565,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
 
                 html.write('<br />\n')
 
-            if nccds:
+            if nccds and ccdqa:
                 html.write('<h2>CCD Diagnostics</h2>\n')
                 html.write('<table width="90%">\n')
                 html.write('<tr>\n')
