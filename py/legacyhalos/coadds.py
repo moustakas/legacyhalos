@@ -22,8 +22,12 @@ import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
 
 def _mosaic_width(radius_mosaic, pixscale):
-    # Ensure the mosaic is an odd number of pixels so the central can land on a
-    # whole pixel (important for ellipse-fitting).
+    """Ensure the mosaic is an odd number of pixels so the central can land on a
+    whole pixel (important for ellipse-fitting).
+
+    radius_mosaic in arcsec
+
+    """
     #width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
     width = 2 * radius_mosaic / pixscale # [pixels]
     width = (np.ceil(width) // 2 * 2 + 1).astype('int') # [pixels]
@@ -103,8 +107,8 @@ def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
     return keep
 
 def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                    nproc=1, pixscale=0.262, splinesky=True, log=None,
-                    force=False, no_large_galaxies=True, no_gaia=True,
+                    nproc=1, pixscale=0.262, run='decam', splinesky=True,
+                    log=None, force=False, no_large_galaxies=True, no_gaia=True,
                     no_tycho=True, unwise=True, apodize=False, cleanup=True):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
 
@@ -125,7 +129,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
-    cmd += '--survey-dir {survey_dir} '
+    cmd += '--survey-dir {survey_dir} --run {run} '
     #cmd += '--stage image_coadds --early-coadds '
     #cmd += '--write-stage tims '
     cmd += '--write-stage srcs '
@@ -160,7 +164,9 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal['RA'], dec=onegal['DEC'], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     galaxydir=galaxydir, survey_dir=survey.survey_dir)
+                     galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run)
+    
+    return 1
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
