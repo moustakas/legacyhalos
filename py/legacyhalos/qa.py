@@ -110,9 +110,9 @@ def display_sersic(sersic, png=None, verbose=False):
     ymnmax = [40, 0]
 
     fig, ax = plt.subplots(figsize=(7, 5))
-    for band, lam in zip( sersic['band'], (sersic['lambda_g'],
-                                           sersic['lambda_r'],
-                                           sersic['lambda_z']) ):
+    for band, lam in zip( sersic['bands'], (sersic['lambda_g'],
+                                            sersic['lambda_r'],
+                                            sersic['lambda_z']) ):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             #good = (lam == sersic['wave']) * np.isfinite(sersic['sb'])
@@ -493,7 +493,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
     from astropy.visualization import AsinhStretch as Stretch
     from astropy.visualization import ImageNormalize
 
-    band = data['band']
+    band = data['bands']
     nband = len(band)
 
     #cmap = 'RdBu_r'
@@ -602,7 +602,7 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
 
     if ellipsefit['success']:
         
-        band, refband = ellipsefit['band'], ellipsefit['refband']
+        band, refband = ellipsefit['bands'], ellipsefit['refband']
         pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
         smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
@@ -718,7 +718,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
     if ellipsefit['success']:
         sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr)
         
-        band, refband = ellipsefit['band'], ellipsefit['refband']
+        band, refband = ellipsefit['bands'], ellipsefit['refband']
         redshift, pixscale = ellipsefit['redshift'], ellipsefit['pixscale']
         smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
@@ -975,7 +975,8 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                 ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color='k',
                                  alpha=0.2, edgecolor='k', lw=3)
                 
-        ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
+        ax1.set_ylabel(r'$\mu(a)$ (mag arcsec$^{-2}$)')
+        #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
 
         ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
         if ylim[0] < 17:
@@ -1018,8 +1019,8 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         ax2.set_xlabel(r'Semi-major Axis $a$ (arcsec)')
         #ax2.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
-        #ax2.legend(loc='upper left')
-        ax2.legend(bbox_to_anchor=(0.25, 0.98))
+        ax2.legend(loc='upper right')
+        #ax2.legend(bbox_to_anchor=(0.25, 0.98))
         
         ax2.set_ylabel('Color (mag)')
         ax2.set_ylim(-0.5, 3)

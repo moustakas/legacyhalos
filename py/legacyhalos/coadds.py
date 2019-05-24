@@ -21,6 +21,18 @@ from legacypipe.catalog import read_fits_catalog
 import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
 
+def _mosaic_width(radius_mosaic, pixscale):
+    """Ensure the mosaic is an odd number of pixels so the central can land on a
+    whole pixel (important for ellipse-fitting).
+
+    radius_mosaic in arcsec
+
+    """
+    #width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
+    width = 2 * radius_mosaic / pixscale # [pixels]
+    width = (np.ceil(width) // 2 * 2 + 1).astype('int') # [pixels]
+    return width
+
 def _copyfile(infile, outfile):
     if os.path.isfile(infile):
         os.rename(infile, outfile)
@@ -30,7 +42,7 @@ def _copyfile(infile, outfile):
         print('Missing file {}; please check the logfile.'.format(infile))
         return 0
 
-def isolate_central(cat, wcs, psf_sigma=1.0, radius_search=5.0, centrals=True):
+def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
     """Isolate the central galaxy.
 
     radius_mosaic in arcsec
@@ -52,7 +64,7 @@ def isolate_central(cat, wcs, psf_sigma=1.0, radius_search=5.0, centrals=True):
         m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
                                   0.5*radius_mosaic/3600.0, nearest=False)
         srcs = read_fits_catalog(cat[m1], fluxPrefix='')
-        mod = legacyhalos.misc.srcs2image(srcs, wcs, psf_sigma=1.0)
+        mod = legacyhalos.misc.srcs2image(srcs, wcs, psf_sigma=psf_sigma)
         if np.sum(np.isnan(mod)) > 0:
             print('HERE galaxy {}'.format(galaxy), flush=True, file=log)
 
@@ -94,10 +106,10 @@ def isolate_central(cat, wcs, psf_sigma=1.0, radius_search=5.0, centrals=True):
 
     return keep
 
-def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=1,
-                    pixscale=0.262, splinesky=True, log=None, force=False,
-                    no_large_galaxies=True, no_gaia=True, no_tycho=True,
-                    unwise=True, apodize=False, cleanup=True):
+def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
+                    nproc=1, pixscale=0.262, run='decam', splinesky=True,
+                    log=None, force=False, no_large_galaxies=True, no_gaia=True,
+                    no_tycho=True, unwise=True, apodize=False, cleanup=True):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
 
     radius_mosaic in arcsec
@@ -117,12 +129,13 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
-    cmd += '--survey-dir {survey_dir} '
+    cmd += '--survey-dir {survey_dir} --run {run} '
     #cmd += '--stage image_coadds --early-coadds '
     #cmd += '--write-stage tims '
     cmd += '--write-stage srcs '
-    cmd += '--min-mjd 0 '
-    cmd += '--skip-calibs --no-wise-ceres '
+    #cmd += '--min-mjd 0 ' # obsolete
+    cmd += '--skip-calibs '
+    #cmd += '--no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
     if unwise:
@@ -145,13 +158,15 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
             os.remove(checkpointfile)
     if not splinesky:
         cmd += '--no-splinesky '
-    
-    width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
+
+    width = _mosaic_width(radius_mosaic, pixscale)
 
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal['RA'], dec=onegal['DEC'], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     galaxydir=galaxydir, survey_dir=survey.survey_dir)
+                     galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run)
+    
+    return 1
     
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
@@ -162,29 +177,6 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
         # Move (rename) files into the desired output directory and clean up.
         brickname = 'custom-{}'.format(custom_brickname(onegal['RA'], onegal['DEC']))
 
-        # (Re)package the outliers images into a single MEF -- temporary hack
-        # until we address legacypipe/#271
-        ccdsfile = os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                               'legacysurvey-{}-ccds.fits'.format(brickname))
-        if not os.path.isfile(ccdsfile):
-            print('CCDs file {} not found!'.format(ccdsfile))
-            return 0
-        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
-        
-        outliersfile = os.path.join(survey.output_dir, '{}-outliers.fits.fz'.format(galaxy))
-        if os.path.isfile(outliersfile):
-            os.remove(outliersfile)
-        with fitsio.FITS(outliersfile, 'rw') as ff:
-            for ccd in ccds:
-                im = survey.get_image_object(ccd)
-                suffix = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname)
-                maskfile = os.path.join(survey.output_dir, 'metrics', 'cus', brickname,
-                                        'outlier-mask-{}.fits.fz'.format(suffix))
-                if os.path.isfile(maskfile):
-                    mask, hdr = fitsio.read(maskfile, header=True)
-                    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-                    ff.write(mask, extname=key, header=hdr)
-
         # tractor catalog
         ok = _copyfile(
             os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
@@ -192,7 +184,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
         if not ok:
             return ok
 
-        # CCDs, maskbits, blob images, and depth images
+        # CCDs, maskbits, blob images, outlier masks, and depth images
         ok = _copyfile(
             os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                          'legacysurvey-{}-ccds.fits'.format(brickname)),
@@ -258,11 +250,12 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None, nproc=
                     if not ok:
                         return ok
 
-            for imtype in ('wise', 'wisemodel'):
+            for imtype, suffix in zip(('wise', 'wisemodel'),
+                                      ('pipeline-image', 'pipeline-model')):
                 ok = _copyfile(
                     os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                                  'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-                    os.path.join(survey.output_dir, '{}-{}.jpg'.format(galaxy, imtype)) )
+                    os.path.join(survey.output_dir, '{}-{}-W1W2.jpg'.format(galaxy, suffix)) )
                 if not ok:
                     return ok
 
@@ -449,7 +442,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     from legacypipe.runbrick import _get_mod
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.survey import get_rgb, imsave_jpeg
-    from legacypipe.image import CP_DQ_BITS
+    from legacypipe.image import DQ_BITS
             
     if survey is None:
         from legacypipe.survey import LegacySurveyData
@@ -474,7 +467,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         radius_search = radius_mask
         
-    width = np.ceil(2 * radius_mosaic / pixscale).astype('int') # [pixels]
+    width = _mosaic_width(radius_mosaic, pixscale)
 
     unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)    
 
@@ -507,23 +500,18 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     del P
 
     # Read the outliers masks and apply them
-    outliersfile = os.path.join(survey.output_dir, '{}-outliers.fits.fz'.format(galaxy))
+    outliersfile = os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy))
     if not os.path.isfile(outliersfile):
         print('Missing outliers masks {}'.format(outliersfile))
         return 0
-    try:
-        outliers = fitsio.FITS(outliersfile)
-        for tim in tims:
-            key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
-            try:
-                #print('Masking from {}'.format(key))
-                mask, hdr = outliers[key].read(), outliers[key].read_header()
-                tim.dq |= (mask > 0) * CP_DQ_BITS['outlier']
-                tim.getInvError()[mask > 0] = 0.0
-            except:
-                pass
-    except:
-        pass
+
+    outliers = fitsio.FITS(outliersfile)
+    for tim in tims:
+        ext = '{}-{}-{}'.format(tim.imobj.camera, tim.imobj.expnum, tim.imobj.ccdname)
+        mask = outliers[ext].read()
+        maskhdr = outliers[ext].read_header()
+        tim.dq |= (mask > 0) * DQ_BITS['outlier']
+        tim.inverr[mask > 0] = 0.0
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
@@ -611,7 +599,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
 
     # Custom code for dealing with centrals.
-    keep = isolate_central(cat, onegal, centrals=centrals)
+    keep = isolate_central(cat, brickwcs, centrals=centrals)
 
     #print('Creating tractor sources...', flush=True, file=log)
     srcs = read_fits_catalog(cat, fluxPrefix='')
