@@ -441,7 +441,7 @@ def main():
         if args.hsc:
             sample = legacyhalos.hsc.read_parent(first=args.first, last=args.last)
         else:
-            sample = legacyhalos.io.read_paper2_sample(first=args.first, last=args.last)
+            sample = legacyhalos.io.read_profiles_sample(first=args.first, last=args.last)
             sample = sample[(sample['DEC'] > 25) * (sample['DEC'] < 40)]
             #sample = sample[[61, 74, 84]]
             #sample = sample[[8, 11, 136, 156, 157, 188, 214, 390, 603, 670, 871, 940]]

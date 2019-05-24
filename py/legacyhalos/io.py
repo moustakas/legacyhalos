@@ -652,7 +652,7 @@ def _read_paper_sample(paper='profiles', first=None, last=None, dr='dr8',
     elif isedfit_lhphot:
         samplefile = os.path.join(paperdir, '{}-{}-sfhgrid{:02d}-lhphot.fits'.format(paper, prefix, sfhgrid))
     else:
-        samplefile = os.path.join(paperdir, '{}-{}-{}.fits'.format(paper, prefix, dr))
+        samplefile = os.path.join(paperdir, 'sample-{}-{}-{}.fits'.format(paper, prefix, dr))
         
     if not os.path.isfile(samplefile):
         print('File {} not found.'.format(samplefile))
