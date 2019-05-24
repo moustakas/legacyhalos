@@ -25,6 +25,8 @@ import legacyhalos.sdss
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC, HSC_RADIUS_CLUSTER_KPC
 
+SURVEY_DIR = '/global/project/projectdirs/cosmo/work/legacysurvey/dr8'
+
 def read_all_ccds(dr='dr8'):
     """Read the CCDs files, treating DECaLS and BASS+MzLS separately.
 
@@ -127,17 +129,6 @@ def check_and_read_ccds(galaxy, survey, debug=False, logfile=None):
                 print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
         return False
     return True
-
-def get_survey_dir(onegal):
-    #if onegal['RELEASE'] == 6000:
-    #    return '/global/project/projectdirs/cosmo/work/legacysurvey/dr6'
-    #elif onegal['RELEASE'] == 7000 or onegal['RELEASE'] == 7001:
-    #    return '/global/project/projectdirs/cosmo/work/legacysurvey/dr7'
-    #else:
-    #    print('Unrecognized DR!')
-    #    raise ValueError
-    #return
-    return '/global/project/projectdirs/cosmo/work/legacysurvey/dr8'
 
 def missing_files(sample, filetype='coadds', size=1, htmldir=None,
                   hsc=False, sdss=False, clobber=False):
@@ -569,8 +560,7 @@ def main():
                 radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
                     redshift=onegal['Z_LAMBDA'], radius_kpc=RADIUS_CLUSTER_KPC) # [arcsec]
 
-            survey = LegacySurveyData()
-            survey.survey_dir = get_survey_dir(onegal)
+            survey = LegacySurveyData(survey_dir=SURVEY_DIR)
             survey.output_dir = galaxydir
 
         if args.coadds:

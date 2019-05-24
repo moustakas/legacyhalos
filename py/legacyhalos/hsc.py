@@ -329,7 +329,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</table>\n')
 
             html.write('<h2>Image mosaics</h2>\n')
-            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 300 kpc by 300 kpc.</p>\n')
+            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 500 kpc by 500 kpc.</p>\n')
             html.write('<table width="90%">\n')
             html.write('<tr><td><a href="{}-grz-montage.png"><img src="{}-grz-montage.png" alt="Missing file {}-grz-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(galaxy1, galaxy1, galaxy1))
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')

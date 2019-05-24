@@ -61,10 +61,33 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     if not os.path.isfile(ccdposfile) or clobber:
         display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
 
-def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
-    """Montage the coadds into a nice QAplot."""
+def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, barlabel=None,
+                      clobber=False, verbose=True):
+    """Montage the coadds into a nice QAplot.
 
+    barlen - pixels
+
+    """
+    from pkg_resources import resource_filename
+    from PIL import Image, ImageDraw, ImageFont
     montagefile = os.path.join(htmlgalaxydir, '{}-grz-montage.png'.format(galaxy))
+
+    fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
+
+    def addbar(jpgfile, barlen, barlabel):
+        pngfile = jpgfile.replace('.jpg', '.png')
+        im = Image.open(jpgfile)
+        sz = im.size
+        fntsize = np.round(sz[0]/28).astype('int')
+        width = np.round(sz[0]/175).astype('int')
+        font = ImageFont.truetype(fonttype, size=fntsize)
+        draw = ImageDraw.Draw(im)
+        # Add a scale bar and label--
+        x0, x1, y0, y1 = sz[1]-fntsize*2-barlen, sz[1]-fntsize*2, sz[0]-fntsize*2, sz[0]-fntsize*4
+        draw.line((x0, y0, x1, y0), fill='white', width=width)
+        draw.text(((x1-x0)/2+x0, y1), barlabel, font=font)
+        im.save(pngfile)
+        return pngfile
 
     if not os.path.isfile(montagefile) or clobber:
         # Make sure all the files exist.
@@ -77,7 +100,13 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=T
                 print('File {} not found!'.format(_jpgfile))
                 check = False
                 
-        if check:        
+        if check:
+            # Add a bar and label
+            if barlen:
+                addbar(jpgfile, barlen, barlabel)
+                pdb.set_trace()
+                pngfile = [addbar(jpgfile, barlen, barlabel) for ff in jpgfile]
+            
             cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
             cmd = cmd+' '.join(ff for ff in jpgfile)
             cmd = cmd+' {}'.format(montagefile)
@@ -263,6 +292,9 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
                            clobber=clobber, verbose=verbose)
         
         # Build the montage coadds.
+        barlen = np.round(60.0 / PIXSCALE).astype('int')
+
+        
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
                           clobber=clobber, verbose=verbose)
 
