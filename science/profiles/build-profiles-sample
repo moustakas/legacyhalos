@@ -5,11 +5,47 @@
 build-profiles-sample --clobber
 
 """
-import os, argparse
+import os, argparse, pdb
 import numpy as np
 
 import legacyhalos.io
-import legacyhalos.misc
+
+def subselect(cen, npilot=1000, seed=1):
+    """Potentially useful code to write out a pilot sample of 1000 galaxies drawn
+    uniformly from halo mass.
+
+    """
+    import legacyhalos.misc
+    mhalo = np.log10(legacyhalos.misc.lambda2mhalo(cen['LAMBDA_CHISQ'], redshift=cen['Z_LAMBDA']))
+
+    nbin = 20
+    _xbin = np.linspace(mhalo.min(), mhalo.max(), nbin)
+    idx  = np.digitize(mhalo, _xbin)
+
+    prob = np.zeros_like(mhalo)
+    for kk in range(nbin):
+        ww = idx == kk
+        if np.sum(ww) > 1:
+            prob[ww] = 1 / np.sum(ww)
+    prob /= np.sum(prob)
+
+    rand = np.random.RandomState(seed=seed)
+    these = rand.choice(len(cen), npilot, p=prob, replace=False)
+    srt = np.argsort(cen['MEM_MATCH_ID'][these])
+    rows = rows[these[srt]]
+
+    cen = cen[these[srt]]
+
+    return cen
+
+def get_outfile(prefix, dr, clobber=False):
+    profilesdir = legacyhalos.io.profiles_dir()
+    outfile = os.path.join(profilesdir, 'data', 'sample-profiles-{}-{}.fits'.format(prefix, dr))
+    if os.path.isfile(outfile) and not clobber:
+        print('Output file {} exists; use clobber.'.format(outfile))
+        return None
+    else:
+        return outfile
 
 def main():
 
@@ -19,48 +55,33 @@ def main():
 
     args = parser.parse_args()
 
-    outfile = os.path.join(legacyhalos.io.profiles_dir(), 'data', 'sample-profiles-{}.fits'.format(args.dr))
-    if os.path.isfile(outfile) and not args.clobber:
-        print('Output file {} exists; use clobber.'.format(outfile))
+    cenfile = get_outfile('centrals', args.dr, clobber=args.clobber)
+    candcenfile = get_outfile('candidate-centrals', args.dr, clobber=args.clobber)
+    if cenfile is None or candcenfile is None:
         return
 
+    # centrals
     allcen = legacyhalos.io.read_redmapper()
-
     rows = np.where((allcen['P_CEN'][:, 0] > 0.9) *
                     (allcen['BCG_SPEC_Z'] != -1) * # require specz
                     (allcen['LAMBDA_CHISQ'] > 10) *
-                    #(allcen['Z_LAMBDA'] >= 0.1) *
                     (allcen['Z_LAMBDA'] >= 0.1) *
                     (allcen['Z_LAMBDA'] <= 0.3))[0]
     cen = allcen[rows]
 
-    # Temporary hack to write out a pilot sample of 1000 galaxies drawn
-    # uniformly from halo mass.
-    if False:
-        npilot = 1000
-
-        mhalo = np.log10(legacyhalos.misc.lambda2mhalo(cen['LAMBDA_CHISQ'], redshift=cen['Z_LAMBDA']))
-
-        nbin = 20
-        _xbin = np.linspace(mhalo.min(), mhalo.max(), nbin)
-        idx  = np.digitize(mhalo, _xbin)
-
-        prob = np.zeros_like(mhalo)
-        for kk in range(nbin):
-            ww = idx == kk
-            if np.sum(ww) > 1:
-                prob[ww] = 1 / np.sum(ww)
-        prob /= np.sum(prob)
-
-        rand = np.random.RandomState(seed=1)
-        these = rand.choice(len(cen), npilot, p=prob, replace=False)
-        srt = np.argsort(cen['MEM_MATCH_ID'][these])
-        rows = rows[these[srt]]
-        
-        cen = cen[these[srt]]
-
-    print('Writing {} / {} centrals to {}'.format(len(cen), len(allcen), outfile))
-    cen.write(outfile, overwrite=True)
+    print('Writing {} / {} centrals to {}'.format(len(cen), len(allcen), cenfile))
+    cen.write(cenfile, overwrite=True)
     
+    # candidate centrals
+    allcandcen = legacyhalos.io.read_redmapper(satellites=True)
+    keep = []
+    for memid in cen['MEM_MATCH_ID']:
+        keep.append(np.where(allcandcen['MEM_MATCH_ID'] == memid)[0])
+    keep = np.hstack(keep)
+    candcen = allcandcen[keep]
+
+    print('Writing {} / {} satellites\ to {}'.format(len(candcen), len(allcandcen), candcenfile))
+    candcen.write(candcenfile, overwrite=True)
+
 if __name__ == '__main__':
     main()
