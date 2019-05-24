@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-"""Generate the sample for Paper 2.
+"""Generate the sample for the legacyhalos/profiles paper. 
 
-build-paper2-sample --clobber
+build-profiles-sample --clobber
 
 """
 import os, argparse

@@ -103,8 +103,8 @@ def sample_dir():
         os.makedirs(sdir, exist_ok=True)
     return sdir
 
-def paper1_dir(figures=False, data=False):
-    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper1')
+def smf_dir(figures=False, data=False):
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'smf')
     if not os.path.isdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
@@ -117,8 +117,8 @@ def paper1_dir(figures=False, data=False):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
-def paper2_dir(figures=False, data=False):
-    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper2')
+def profiles_dir(figures=False, data=False):
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'profiles')
     if not os.path.isdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
@@ -625,17 +625,17 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
             
     return sample
 
-def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
+def _read_paper_sample(paper='profiles', first=None, last=None, dr='dr8',
                        sfhgrid=1, isedfit_lsphot=False, isedfit_sdssphot=False,
                        isedfit_lhphot=False, candidates=False, kcorr=False,
                        verbose=False):
     """Wrapper to read a sample for a given paper.
 
     """
-    if paper == 'paper1':
-        paperdir = paper1_dir(data=True)
-    elif paper == 'paper2':
-        paperdir = paper2_dir(data=True)
+    if paper == 'profiles':
+        paperdir = profiles_dir(data=True)
+    elif paper == 'smf':
+        paperdir = smf_dir(data=True)
     else:
         print('Unrecognized paper {}!'.format(paper))
         raise ValueError()
@@ -692,26 +692,26 @@ def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
 
     return sample
 
-def read_paper1_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
-                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
-                       kcorr=False, verbose=False):
-    """Read the Paper 1 sample.
+def read_smf_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
+                    isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                    kcorr=False, verbose=False):
+    """Read the SMF paper sample.
 
     """
-    sample = _read_paper_sample(paper='paper1', first=first, last=last, dr=dr,
+    sample = _read_paper_sample(paper='smf', first=first, last=last, dr=dr,
                                 sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
                                 isedfit_sdssphot=isedfit_sdssphot,
                                 isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
                                 candidates=candidates, verbose=verbose)
     return sample
     
-def read_paper2_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
-                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
-                       kcorr=False, verbose=False):
-    """Read the Paper 1 sample.
+def read_profiles_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
+                         isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                         kcorr=False, verbose=False):
+    """Read the profiles paper sample.
 
     """
-    sample = _read_paper_sample(paper='paper2', first=first, last=last, dr=dr,
+    sample = _read_paper_sample(paper='profiles', first=first, last=last, dr=dr,
                                 sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
                                 isedfit_sdssphot=isedfit_sdssphot,
                                 isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
