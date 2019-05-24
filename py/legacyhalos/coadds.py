@@ -42,6 +42,84 @@ def _copyfile(infile, outfile):
         print('Missing file {}; please check the logfile.'.format(infile))
         return 0
 
+def _forced_phot(args):
+    """Wrapper function for the multiprocessing."""
+    return forced_phot(*args)
+
+def forced_phot(galaxy, survey, srcs, cat, band, log):
+    """Perform forced photometry on a single SDSS bandpass (mosaic).
+
+    """
+    from astrometry.util.util import Tan
+
+    bandfile = os.path.join(survey.output_dir, '{}-sdss-image-{}.fits.fz'.format(galaxy, band))
+    img, hdr = fitsio.read(bandfile, header=True)
+    tanwcs = Tan(hdr['CRVAL1'], hdr['CRVAL2'], hdr['CRPIX1'], hdr['CRPIX2'],
+                 hdr['CD1_1'], hdr['CD1_2'], hdr['CD2_1'], hdr['CD2_2'],
+                 hdr['NAXIS1'], hdr['NAXIS2'])
+    wcs = tractor.ConstantFitsWcs(tanwcs)
+
+    invvar = np.ones_like(img)
+
+    # Estimate the PSF by fitting a simple Gaussian PSF to all the point sources.
+    istar = np.array([(cat1.type.strip() == 'PSF') * (cat1.flux_r > 10**(-0.4*22.5)) for cat1 in cat])
+    if len(istar) == 0:
+        print('No point sources in the field, assuming psf_sigma=1.3 **units**.', flush=True, file=log)
+        psf_sigma = 1.3 # pixels or arcsec??
+        psf_sigma_err = -1.0
+        psf_sigma_nstar = 0
+    else:
+        print('Using {} stars to estimate the {}-band PSF width.'.format(len(istar), band), flush=True, file=log)
+        ref_ra = cat.ra[istar]
+        ref_dec = cat.dec[istar]
+        ref_flux = cat.flux_r[istar]
+
+        psf_sigma_all = get_psf_sigma(img, invvar, wcs.wcs, ref_ra, ref_dec, ref_flux, band)
+        psf_sigma_nstar = len(psf_sigma_all)
+        psf_sigma, psf_sigma_err = np.median(psf_sigma_all), np.std(psf_sigma_all) / np.sqrt(psf_sigma_nstar)
+
+    # Now build the tim and perform forced photometry.
+    psf = tractor.GaussianMixturePSF(1.0, 0., 0., psf_sigma**2, psf_sigma**2, 0.0)
+    tim = tractor.Image(img, wcs=wcs, psf=psf,
+                        invvar=invvar,
+                        sky=tractor.sky.ConstantSky(0.0),
+                        photocal=LinearPhotoCal(1.0, band=band),
+                        name='SDSS {}'.format(band))
+
+    # Instantiate the Tractor engine and do forced photometry.
+    tr = tractor.Tractor([tim], srcs)
+    tr.freezeParamsRecursive('*')
+    tr.thawPathsTo(band)
+    
+    R = tr.optimize_forced_photometry(
+        minsb=0, mindlnp=1.0, sky=False, fitstats=True,
+        variance=True, shared_params=False, wantims=False)
+
+    # Unpack the results.
+    phot = fits_table()
+    nm = np.array([src.getBrightness().getBand(band) for src in srcs])
+    phot.set('flux_{}'.format(band), nm.astype(np.float32))
+    phot.set('psfsize_{}'.format(band), psf_sigma.astype('f4'))
+    phot.set('psfsize_err_{}'.format(band), psf_sigma_err.astype('f4'))
+    phot.set('psfsize_nstar_{}'.format(band), psf_sigma_nstar)
+
+    print('Build the model and residual image in band {}.'.format(band), flush=True, file=log)
+    keep = isolate_central(cat, wcs, psf_sigma=psf_sigma, centrals=True)
+    mod = tr.getModelImage(0)
+
+    srcs_nocentral = np.array(srcs)[keep].tolist()
+    tr_nocentral = tractor.Tractor([tim], srcs_nocentral)
+    mod_nocentral = tr_nocentral.getModelImage(0)
+
+    #import matplotlib.pyplot as plt
+    #fig, ax = plt.subplots(1, 3)
+    #ax[0].imshow(np.log10(img), origin='lower')
+    #ax[1].imshow(np.log10(mod), origin='lower')
+    #ax[2].imshow(np.log10(img-mod), origin='lower')
+    #plt.savefig('junk.png')
+    
+    return phot, img, mod, mod_nocentral
+
 def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
     """Isolate the central galaxy.
 
@@ -165,9 +243,6 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                      ra=onegal['RA'], dec=onegal['DEC'], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
                      galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run)
-    
-    return 1
-    
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
     if err != 0:
@@ -180,7 +255,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         # tractor catalog
         ok = _copyfile(
             os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-tractor.fits'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-pipeline-tractor.fits'.format(galaxy)) )
         if not ok:
             return ok
 
@@ -436,7 +511,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
       with the central with dedicated code.
 
     """
-    from tractor.sky import ConstantSky
+    import tractor
     
     from legacypipe.runbrick import stage_tims
     from legacypipe.runbrick import _get_mod
@@ -499,7 +574,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     tims, brickwcs, bands, version_header = P['tims'], P['targetwcs'], P['bands'], P['version_header']
     del P
 
-    # Read the outliers masks and apply them
+    # Read and apply the outlier masks.
     outliersfile = os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy))
     if not os.path.isfile(outliersfile):
         print('Missing outliers masks {}'.format(outliersfile))
@@ -584,19 +659,43 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
         newsky = sky['{}-header'.format(key)]['SKYMED']
         tim.setImage(image - newsky)
-        tim.sky = ConstantSky(0)
+        tim.sky = tractor.sky.ConstantSky(0)
         newtims.append(tim)
     del sky, tims
 
-    # [4] Read the Tractor catalog and render the model image of each CCD, with
-    # and without the central large galaxy.
-    tractorfile = os.path.join(survey.output_dir, '{}-tractor.fits'.format(galaxy))
+    # [4] Read the pipeline Tractor catalog and update the photometry with the
+    # custom sky-subtracted CCDs.
+    tractorfile = os.path.join(survey.output_dir, '{}-pipeline-tractor.fits'.format(galaxy))
     if not os.path.isfile(tractorfile):
         print('Missing Tractor catalog {}'.format(tractorfile))
         return 0
-    
     cat = fits_table(tractorfile)
     print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
+
+    # [5] Render the model image of each CCD, with and without the central large
+    # galaxy.
+    pipeline_srcs = read_fits_catalog(cat, fluxPrefix='')
+    custom_srcs = [src.copy() for src in pipeline_srcs]
+
+    # Instantiate the Tractor engine and do forced photometry in each bandpass.
+    def _forced_phot(args):
+        """Wrapper function for the multiprocessing."""
+        return forced_phot(*args)
+
+    def forced_phot(newtims, custom_srcs, band):
+        bandtims = [tim for tim in newtims if tim.band == band]
+        tr = tractor.Tractor(bandtims, custom_srcs)
+        tr.freezeParamsRecursive('*')
+        tr.thawPathsTo(band)
+        R = tr.optimize_forced_photometry(
+            minsb=0, mindlnp=1.0, sky=False, fitstats=True,
+            variance=True, shared_params=False, wantims=False)
+
+    mp.map(_forced_phot, [(newtims, custom_srcs, band) for band in bands])
+    print(22.5-2.5*np.log10(custom_srcs[0].brightness.getFlux('g')), 
+          22.5-2.5*np.log10(pipeline_srcs[0].brightness.getFlux('g')))
+
+    pdb.set_trace()
 
     # Custom code for dealing with centrals.
     keep = isolate_central(cat, brickwcs, centrals=centrals)
@@ -619,7 +718,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     #import matplotlib.pyplot as plt ; plt.imshow(np.log10(mod), origin='lower') ; plt.savefig('junk.png')    
     #pdb.set_trace()
 
-    # [5] Build the custom coadds, with and without the surrounding galaxies.
+    # [6] Build the custom coadds, with and without the surrounding galaxies.
     print('Producing coadds...', flush=True, file=log)
     def call_make_coadds(usemods):
         return make_coadds(newtims, bands, brickwcs, mods=usemods, mp=mp,
@@ -665,7 +764,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             if not ok:
                 return ok
             
-    # [6] Finally, build png images.
+    # [7] Finally, build png images.
     def call_make_png(C, nocentral=False):
         rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1)
         #rgbkwargs_resid = dict(mnmx=(0.1, 2), arcsinh=1)
