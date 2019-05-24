@@ -22,6 +22,15 @@ RUN cd /build \
     && make install \
     && make clean
 
+RUN cd /build \
+    && wget https://www.imagemagick.org/download/ImageMagick-7.0.8-46.tar.gz \
+    && tar xvzf ImageMagick-7.0.8-46.tar.gz \
+    && cd /build/ImageMagick-7.0.8-46 \
+    && ./configure \
+    && make \
+    && make install \
+    && make clean
+
 RUN /sbin/ldconfig
 
 # pip-install some additional dependencies
@@ -41,5 +50,5 @@ RUN pip3 uninstall -y photutils \
 RUN rm -rf /build
 
 # Clone legacyhalos
-# RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
-# ENV PYTHONPATH /src/legacyhalos/py:$PYTHONPATH
+RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
+ENV PYTHONPATH $PYTHONPATH:/src/legacyhalos/py
