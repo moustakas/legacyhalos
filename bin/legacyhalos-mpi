@@ -292,11 +292,11 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                 _start(galaxy, log=log)
                 if sdss:
                     err = legacyhalos.sdss.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                         nsurvey=survey, pixscale=sdss_pixscale,
+                                                         survey=survey, pixscale=sdss_pixscale,
                                                          nproc=nproc, log=log)
                 else:
                     err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                           nsurvey=survey, pixscale=pixscale,
+                                                           survey=survey, pixscale=pixscale,
                                                            nproc=nproc, log=log)
                 _done(galaxy, err, t0, log=log)
                 

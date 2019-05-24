@@ -26,6 +26,10 @@ def _forced_phot(args):
     return forced_phot(*args)
 
 def forced_phot(newtims, custom_srcs, band):
+    """Perform forced photometry, returning the bandpass, the (newly optimized)
+    flux, and the (new) inverse variance flux (all in nanomaggies).
+
+    """
     bandtims = [tim for tim in newtims if tim.band == band]
     tr = tractor.Tractor(bandtims, custom_srcs)
     tr.freezeParamsRecursive('*')
@@ -33,6 +37,7 @@ def forced_phot(newtims, custom_srcs, band):
     R = tr.optimize_forced_photometry(
         minsb=0, mindlnp=1.0, sky=False, fitstats=True,
         variance=True, shared_params=False, wantims=False)
+    return (band, np.array(tr.getParams()), R.IV)
 
 def _mosaic_width(radius_mosaic, pixscale):
     """Ensure the mosaic is an odd number of pixels so the central can land on a
@@ -598,25 +603,20 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         newtims.append(tim)
     del sky, tims
 
-    # [4] Read the pipeline Tractor catalog and update the photometry with the
-    # custom sky-subtracted CCDs.
+    # [4] Read the pipeline Tractor catalog and update the individual-object
+    # photometry measured from the custom sky-subtracted CCDs.
     tractorfile = os.path.join(survey.output_dir, '{}-pipeline-tractor.fits'.format(galaxy))
     if not os.path.isfile(tractorfile):
         print('Missing Tractor catalog {}'.format(tractorfile))
         return 0
-    cat = fits_table(tractorfile)
-    print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
+    pipeline_cat = fits_table(tractorfile)
+    print('Read {} sources from {}'.format(len(pipeline_cat), tractorfile), flush=True, file=log)
 
-    # [5] Render the model image of each CCD, with and without the central large
-    # galaxy.
-    pipeline_srcs = read_fits_catalog(cat, fluxPrefix='')
+    pipeline_srcs = read_fits_catalog(pipeline_cat, fluxPrefix='')
     custom_srcs = [src.copy() for src in pipeline_srcs]
 
-    mp.map(_forced_phot, [(newtims, custom_srcs, band) for band in bands])
-    #print(22.5-2.5*np.log10(custom_srcs[0].brightness.getFlux('g')), 
-    #      22.5-2.5*np.log10(pipeline_srcs[0].brightness.getFlux('g')))
-
-    pdb.set_trace()
+    print('Doing forced photometry on custom sky-subtracted CCDs.', flush=True, file=log)
+    forcedflx = mp.map(_forced_phot, [(newtims, custom_srcs, band) for band in bands])
 
     ## Instantiate the Tractor engine and do forced photometry in each bandpass.
     #for band in bands:
@@ -628,17 +628,28 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     #        minsb=0, mindlnp=1.0, sky=False, fitstats=True,
     #        variance=True, shared_params=False, wantims=False)
 
+    # Populate the new custom catalog and write out.
+    custom_cat = pipeline_cat.copy()
+    for band, flux, ivar in forcedflx:
+        custom_cat.set('flux_{}'.format(band), flux.astype('f4'))
+        custom_cat.set('flux_ivar_{}'.format(band), ivar.astype('f4'))
+        
+    tractorfile = os.path.join(survey.output_dir, '{}-custom-tractor.fits'.format(galaxy))
+    if os.path.isfile(tractorfile):
+        os.remove(tractorfile)
+    custom_cat.writeto(tractorfile)
+    print('Wrote {} sources to {}'.format(len(custom_cat), tractorfile), flush=True, file=log)
+        
+    # [5] Next, render the model image of each CCD, with and without the central
+    # large galaxy.
+
     # Custom code for dealing with centrals.
-    keep = isolate_central(cat, brickwcs, centrals=centrals)
+    keep = isolate_central(custom_cat, brickwcs, centrals=centrals)
 
     #print('Creating tractor sources...', flush=True, file=log)
-    srcs = read_fits_catalog(cat, fluxPrefix='')
+    srcs = read_fits_catalog(custom_cat, fluxPrefix='')
     srcs_nocentral = np.array(srcs)[keep].tolist()
     
-    if False:
-        print('Sources:')
-        [print(' ', src) for src in srcs]
-
     print('Rendering model images with and without surrounding galaxies...', flush=True, file=log)
     modargs = [(tim, srcs) for tim in newtims]
     mods = mp.map(_get_mod, modargs)
