@@ -21,6 +21,19 @@ from legacypipe.catalog import read_fits_catalog
 import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
 
+def _forced_phot(args):
+    """Wrapper function for the multiprocessing."""
+    return forced_phot(*args)
+
+def forced_phot(newtims, custom_srcs, band):
+    bandtims = [tim for tim in newtims if tim.band == band]
+    tr = tractor.Tractor(bandtims, custom_srcs)
+    tr.freezeParamsRecursive('*')
+    tr.thawPathsTo(band)
+    R = tr.optimize_forced_photometry(
+        minsb=0, mindlnp=1.0, sky=False, fitstats=True,
+        variance=True, shared_params=False, wantims=False)
+
 def _mosaic_width(radius_mosaic, pixscale):
     """Ensure the mosaic is an odd number of pixels so the central can land on a
     whole pixel (important for ellipse-fitting).
@@ -41,84 +54,6 @@ def _copyfile(infile, outfile):
     else:
         print('Missing file {}; please check the logfile.'.format(infile))
         return 0
-
-def _forced_phot(args):
-    """Wrapper function for the multiprocessing."""
-    return forced_phot(*args)
-
-def forced_phot(galaxy, survey, srcs, cat, band, log):
-    """Perform forced photometry on a single SDSS bandpass (mosaic).
-
-    """
-    from astrometry.util.util import Tan
-
-    bandfile = os.path.join(survey.output_dir, '{}-sdss-image-{}.fits.fz'.format(galaxy, band))
-    img, hdr = fitsio.read(bandfile, header=True)
-    tanwcs = Tan(hdr['CRVAL1'], hdr['CRVAL2'], hdr['CRPIX1'], hdr['CRPIX2'],
-                 hdr['CD1_1'], hdr['CD1_2'], hdr['CD2_1'], hdr['CD2_2'],
-                 hdr['NAXIS1'], hdr['NAXIS2'])
-    wcs = tractor.ConstantFitsWcs(tanwcs)
-
-    invvar = np.ones_like(img)
-
-    # Estimate the PSF by fitting a simple Gaussian PSF to all the point sources.
-    istar = np.array([(cat1.type.strip() == 'PSF') * (cat1.flux_r > 10**(-0.4*22.5)) for cat1 in cat])
-    if len(istar) == 0:
-        print('No point sources in the field, assuming psf_sigma=1.3 **units**.', flush=True, file=log)
-        psf_sigma = 1.3 # pixels or arcsec??
-        psf_sigma_err = -1.0
-        psf_sigma_nstar = 0
-    else:
-        print('Using {} stars to estimate the {}-band PSF width.'.format(len(istar), band), flush=True, file=log)
-        ref_ra = cat.ra[istar]
-        ref_dec = cat.dec[istar]
-        ref_flux = cat.flux_r[istar]
-
-        psf_sigma_all = get_psf_sigma(img, invvar, wcs.wcs, ref_ra, ref_dec, ref_flux, band)
-        psf_sigma_nstar = len(psf_sigma_all)
-        psf_sigma, psf_sigma_err = np.median(psf_sigma_all), np.std(psf_sigma_all) / np.sqrt(psf_sigma_nstar)
-
-    # Now build the tim and perform forced photometry.
-    psf = tractor.GaussianMixturePSF(1.0, 0., 0., psf_sigma**2, psf_sigma**2, 0.0)
-    tim = tractor.Image(img, wcs=wcs, psf=psf,
-                        invvar=invvar,
-                        sky=tractor.sky.ConstantSky(0.0),
-                        photocal=LinearPhotoCal(1.0, band=band),
-                        name='SDSS {}'.format(band))
-
-    # Instantiate the Tractor engine and do forced photometry.
-    tr = tractor.Tractor([tim], srcs)
-    tr.freezeParamsRecursive('*')
-    tr.thawPathsTo(band)
-    
-    R = tr.optimize_forced_photometry(
-        minsb=0, mindlnp=1.0, sky=False, fitstats=True,
-        variance=True, shared_params=False, wantims=False)
-
-    # Unpack the results.
-    phot = fits_table()
-    nm = np.array([src.getBrightness().getBand(band) for src in srcs])
-    phot.set('flux_{}'.format(band), nm.astype(np.float32))
-    phot.set('psfsize_{}'.format(band), psf_sigma.astype('f4'))
-    phot.set('psfsize_err_{}'.format(band), psf_sigma_err.astype('f4'))
-    phot.set('psfsize_nstar_{}'.format(band), psf_sigma_nstar)
-
-    print('Build the model and residual image in band {}.'.format(band), flush=True, file=log)
-    keep = isolate_central(cat, wcs, psf_sigma=psf_sigma, centrals=True)
-    mod = tr.getModelImage(0)
-
-    srcs_nocentral = np.array(srcs)[keep].tolist()
-    tr_nocentral = tractor.Tractor([tim], srcs_nocentral)
-    mod_nocentral = tr_nocentral.getModelImage(0)
-
-    #import matplotlib.pyplot as plt
-    #fig, ax = plt.subplots(1, 3)
-    #ax[0].imshow(np.log10(img), origin='lower')
-    #ax[1].imshow(np.log10(mod), origin='lower')
-    #ax[2].imshow(np.log10(img-mod), origin='lower')
-    #plt.savefig('junk.png')
-    
-    return phot, img, mod, mod_nocentral
 
 def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
     """Isolate the central galaxy.
@@ -677,25 +612,21 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     pipeline_srcs = read_fits_catalog(cat, fluxPrefix='')
     custom_srcs = [src.copy() for src in pipeline_srcs]
 
-    # Instantiate the Tractor engine and do forced photometry in each bandpass.
-    def _forced_phot(args):
-        """Wrapper function for the multiprocessing."""
-        return forced_phot(*args)
-
-    def forced_phot(newtims, custom_srcs, band):
-        bandtims = [tim for tim in newtims if tim.band == band]
-        tr = tractor.Tractor(bandtims, custom_srcs)
-        tr.freezeParamsRecursive('*')
-        tr.thawPathsTo(band)
-        R = tr.optimize_forced_photometry(
-            minsb=0, mindlnp=1.0, sky=False, fitstats=True,
-            variance=True, shared_params=False, wantims=False)
-
     mp.map(_forced_phot, [(newtims, custom_srcs, band) for band in bands])
-    print(22.5-2.5*np.log10(custom_srcs[0].brightness.getFlux('g')), 
-          22.5-2.5*np.log10(pipeline_srcs[0].brightness.getFlux('g')))
+    #print(22.5-2.5*np.log10(custom_srcs[0].brightness.getFlux('g')), 
+    #      22.5-2.5*np.log10(pipeline_srcs[0].brightness.getFlux('g')))
 
     pdb.set_trace()
+
+    ## Instantiate the Tractor engine and do forced photometry in each bandpass.
+    #for band in bands:
+    #    bandtims = [tim for tim in newtims if tim.band == band]
+    #    tr = tractor.Tractor(bandtims, custom_srcs)
+    #    tr.freezeParamsRecursive('*')
+    #    tr.thawPathsTo(band)
+    #    R = tr.optimize_forced_photometry(
+    #        minsb=0, mindlnp=1.0, sky=False, fitstats=True,
+    #        variance=True, shared_params=False, wantims=False)
 
     # Custom code for dealing with centrals.
     keep = isolate_central(cat, brickwcs, centrals=centrals)
