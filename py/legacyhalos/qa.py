@@ -517,6 +517,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
     for filt, ax1 in zip(band, ax):
 
         img = data['{}_masked'.format(filt)]
+        img.filled(0)
         #img = data[filt]
 
         norm = ImageNormalize(img, interval=interval, stretch=stretch)

@@ -453,8 +453,10 @@ def main():
             sample = sample[(sample['DEC'] > 25) * (sample['DEC'] < 40)]
             #sample = sample[[61, 74, 84]]
             #sample = sample[[8, 11, 136, 156, 157, 188, 214, 390, 603, 670, 871, 940]]
-        if not args.count:
+        if args.coadds and not args.count:
             kdccds_north, kdccds_south = read_all_ccds()
+        else:
+            kdccds_north, kdccds_south = None, None
     else:
         sample, kdccds_north, kdccds_south = None, None, None
 

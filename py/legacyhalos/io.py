@@ -377,7 +377,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    tractorfile = os.path.join(galaxydir, '{}-custom-tractor.fits'.format(galaxy))
     if os.path.isfile(tractorfile):
         tractor = Table(fitsio.read(tractorfile, upper=True))
         print('Read {} sources from {}'.format(len(tractor), tractorfile))

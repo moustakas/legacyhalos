@@ -91,7 +91,6 @@ def ellipse_apphot(bands, data, ellipsefit, maxsma, filt2pixscalefactor, pool=No
         results['apphot_mag_{}'.format(filt)] = apphot
 
     print('Fit the curve of growth!!')
-    pdb.set_trace()
 
     #fig, ax = plt.subplots()
     #for filt in bands:

@@ -162,7 +162,6 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         sample = astropy.table.Table(sample)
 
     galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
-    ellipse = legacyhalos.io.read_ellipsefit(galaxy, galaxydir, verbose=verbose)
 
     # Write the last-updated date to a webpage.
     js = legacyhalos.html._javastring()       
@@ -270,6 +269,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Make a separate HTML page for each object.
     for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate( zip(
         sample, np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir) ) ):
+
+        ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose)
         
         if not os.path.exists(htmlgalaxydir1):
             os.makedirs(htmlgalaxydir1)
