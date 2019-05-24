@@ -292,10 +292,9 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
                            clobber=clobber, verbose=verbose)
         
         # Build the montage coadds.
-        barlen = np.round(60.0 / PIXSCALE).astype('int')
-
-        
-        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
+        barlen_kpc = 50
+        barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int')
+        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen, barlabel='50 kpc',
                           clobber=clobber, verbose=verbose)
 
         # Build the CCD-level QA.  This QA script needs to be last, because we
