@@ -659,9 +659,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             if not ok:
                 return ok
             
-    if cleanup:
-        shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
-
     # [6] Finally, build png images.
     def call_make_png(C, nocentral=False):
         rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1)
@@ -686,5 +683,12 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     call_make_png(C, nocentral=False)
     call_make_png(C_nocentral, nocentral=True)
+
+    if cleanup:
+        shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
+        for stage in ('srcs', 'checkpoint'):
+            picklefile = os.path.join(survey.output_dir, '{}-runbrick-{}.p'.format(galaxy, stage))
+            if os.path.isfile(picklefile):
+                os.remove(picklefile)
 
     return 1
