@@ -717,7 +717,48 @@ def read_profiles_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsp
                                 isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
                                 candidates=candidates, verbose=verbose)
     return sample
+
+def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', index=None, satellites=False):
+    """Read the parent redMaPPer cluster catalog and updated photometry.
     
+    """
+    if satellites:
+        suffix1, suffix2 = '_members', '-members'
+    else:
+        suffix1, suffix2 = '', '-centrals'
+    rmfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                          'dr8_run_redmapper_{}_lgt5_catalog{}.fit'.format(rmversion, suffix1) )
+    rmphotfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                          'redmapper-{}-lgt5{}-sdssWISEphot-{}.fits'.format(rmversion, suffix2, sdssdr) )
+    
+    rm = Table(fitsio.read(rmfile, ext=1, upper=True, rows=index))
+    rmphot = Table(fitsio.read(rmphotfile, ext=1, upper=True, rows=index))
+
+    print('Read {} galaxies from {}'.format(len(rm), rmfile))
+    print('Read {} galaxies from {}'.format(len(rmphot), rmphotfile))
+    
+    rm.rename_column('RA', 'RA_REDMAPPER')
+    rm.rename_column('DEC', 'DEC_REDMAPPER')
+    rmphot.rename_column('RA', 'RA_SDSS')
+    rmphot.rename_column('DEC', 'DEC_SDSS')
+    rmphot.rename_column('OBJID', 'SDSS_OBJID')
+
+    assert(np.sum(rmphot['MEM_MATCH_ID'] - rm['MEM_MATCH_ID']) == 0)
+    if satellites:
+        assert(np.sum(rmphot['ID'] - rm['ID']) == 0)
+        rm.remove_columns( ('ID', 'MEM_MATCH_ID') )
+    else:
+        rm.remove_column('MEM_MATCH_ID')
+    rmout = hstack( (rmphot, rm) )
+    del rmphot, rm
+
+    # Add a central_id column
+    #rmout.rename_column('MEM_MATCH_ID', 'CENTRAL_ID')
+    #cid = ['{:07d}'.format(cid) for cid in rmout['MEM_MATCH_ID']]
+    #rmout.add_column(Column(name='CENTRAL_ID', data=cid, dtype='U7'), index=0)
+    
+    return rmout
+
 def literature(kravtsov=True, gonzalez=False):
     """Assemble some data from the literature here.
 

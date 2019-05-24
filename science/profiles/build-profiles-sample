@@ -38,7 +38,7 @@ def write_mstarcat(prefix, dr, rows):
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dr', type=str, default='dr6-dr7', help='Data release to analyze.')
+    parser.add_argument('--dr', type=str, default='dr8', help='Data release to analyze.')
     parser.add_argument('--zmax', type=float, default='0.4', help='Maximum redshift.')
     parser.add_argument('--minpcen', type=float, default='0.9', help='Minimum P(cen) to make it into the sample.')
 
