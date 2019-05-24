@@ -63,10 +63,11 @@ def main():
     # centrals
     allcen = legacyhalos.io.read_redmapper()
     rows = np.where((allcen['P_CEN'][:, 0] > 0.9) *
-                    (allcen['BCG_SPEC_Z'] != -1) * # require specz
+                    #(allcen['BCG_SPEC_Z'] != -1) * # require specz
                     (allcen['LAMBDA_CHISQ'] > 10) *
                     (allcen['Z_LAMBDA'] >= 0.1) *
                     (allcen['Z_LAMBDA'] <= 0.3))[0]
+    print(len(rows))
     cen = allcen[rows]
 
     print('Writing {} / {} centrals to {}'.format(len(cen), len(allcen), cenfile))
