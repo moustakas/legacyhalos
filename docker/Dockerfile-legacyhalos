@@ -6,6 +6,9 @@
 #   docker push flagnarg/legacyhalos:latest
 # Finally, run this container with:
 #   docker run -it flagnarg/legacyhalos:latest
+# Can also tag with:
+#   docker tag flagnarg/legacyhalos:latest flagnarg/legacyhalos:v0.0.1
+#   docker push flagnarg/legacyhalos:v0.0.1
 
 FROM legacysurvey/legacypipe:nersc
 
