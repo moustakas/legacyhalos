@@ -1,48 +1,45 @@
 # Starting from the legacypipe-nersc docker container, customize our build.  Be sure to do
 #   docker login
-#   docker pull legacysurvey/legacypipe:latest
+#   docker pull legacysurvey/legacypipe:nersc
 # before building and pushing the container with
 #   docker build . -t flagnarg/legacyhalos --file Dockerfile-legacyhalos
 #   docker push flagnarg/legacyhalos:latest
 # Finally, run this container with:
 #   docker run -it flagnarg/legacyhalos:latest
 
-FROM legacysurvey/legacypipe:latest
+FROM legacysurvey/legacypipe:nersc
 
-# pip-install what we need
+LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
+
+# Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
+RUN mkdir /build/
+RUN cd /build \
+    && wget https://www.mpich.org/static/downloads/3.3/mpich-3.3.tar.gz \
+    && tar xvzf mpich-3.3.tar.gz \
+    && cd /build/mpich-3.3 \
+    && ./configure \
+    && make -j4 \
+    && make install \
+    && make clean
+
+RUN /sbin/ldconfig
+
+# pip-install some additional dependencies
 RUN for x in \
+    mpi4py \
     healpy \
     seaborn \
-    ; do pip3 install $x; done \
+    ; do pip3 --no-cache-dir install $x; done \
     && rm -Rf /root/.cache/pip
 
-RUN pip3 install --no-cache-dir ipython
-    
 # Add the development version of photutils.
-RUN mkdir -p /src \
+RUN pip3 uninstall -y photutils \
+    && cd /build \
     && git clone https://github.com/astropy/photutils.git \
     && cd photutils \
     && python3 setup.py install
+RUN rm -rf /build
 
-# Create a fake home directory so that packages can create config files if
-# needed.
-RUN mkdir -p /home/legacyhalos \
-    /home/legacyhalos/.astropy
-    
-ENV HOME /home/legacyhalos
-RUN python -c "import astropy" \
-    python -c "import matplotlib.font_manager as fm; f = fm.FontManager" \
-    ipython
-
-# Set prompt and default shell
-SHELL ["/bin/bash", "-c"]
-RUN echo "export PS1='[docker-legacyhalos] \\u@\\h:\\w$ '" >> /root/.bashrc
-
-ENTRYPOINT ["/bin/bash", "-c"]
-CMD ["/bin/bash"]
-
-# Set up some final environment variables
-ENV PYTHONPATH /usr/local/lib/python
-
-RUN rm /root/.profile
-RUN cd
+# Clone legacyhalos
+# RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
+# ENV PYTHONPATH /src/legacyhalos/py:$PYTHONPATH

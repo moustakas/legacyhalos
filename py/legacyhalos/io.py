@@ -12,7 +12,7 @@ import numpy.ma as ma
 from glob import glob
 
 import fitsio
-from astropy.table import Table
+from astropy.table import Table, hstack
 from astropy.io import fits
 
 def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
@@ -103,8 +103,8 @@ def sample_dir():
         os.makedirs(sdir, exist_ok=True)
     return sdir
 
-def paper1_dir(figures=False, data=False):
-    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper1')
+def smf_dir(figures=False, data=False):
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'smf')
     if not os.path.isdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
@@ -117,8 +117,8 @@ def paper1_dir(figures=False, data=False):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
-def paper2_dir(figures=False, data=False):
-    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper2')
+def profiles_dir(figures=False, data=False):
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'profiles')
     if not os.path.isdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
@@ -625,17 +625,17 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
             
     return sample
 
-def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
+def _read_paper_sample(paper='profiles', first=None, last=None, dr='dr8',
                        sfhgrid=1, isedfit_lsphot=False, isedfit_sdssphot=False,
                        isedfit_lhphot=False, candidates=False, kcorr=False,
                        verbose=False):
     """Wrapper to read a sample for a given paper.
 
     """
-    if paper == 'paper1':
-        paperdir = paper1_dir(data=True)
-    elif paper == 'paper2':
-        paperdir = paper2_dir(data=True)
+    if paper == 'profiles':
+        paperdir = profiles_dir(data=True)
+    elif paper == 'smf':
+        paperdir = smf_dir(data=True)
     else:
         print('Unrecognized paper {}!'.format(paper))
         raise ValueError()
@@ -652,7 +652,7 @@ def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
     elif isedfit_lhphot:
         samplefile = os.path.join(paperdir, '{}-{}-sfhgrid{:02d}-lhphot.fits'.format(paper, prefix, sfhgrid))
     else:
-        samplefile = os.path.join(paperdir, '{}-{}-{}.fits'.format(paper, prefix, dr))
+        samplefile = os.path.join(paperdir, 'sample-{}-{}-{}.fits'.format(paper, prefix, dr))
         
     if not os.path.isfile(samplefile):
         print('File {} not found.'.format(samplefile))
@@ -692,32 +692,73 @@ def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
 
     return sample
 
-def read_paper1_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
-                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
-                       kcorr=False, verbose=False):
-    """Read the Paper 1 sample.
+def read_smf_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
+                    isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                    kcorr=False, verbose=False):
+    """Read the SMF paper sample.
 
     """
-    sample = _read_paper_sample(paper='paper1', first=first, last=last, dr=dr,
+    sample = _read_paper_sample(paper='smf', first=first, last=last, dr=dr,
                                 sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
                                 isedfit_sdssphot=isedfit_sdssphot,
                                 isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
                                 candidates=candidates, verbose=verbose)
     return sample
     
-def read_paper2_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
-                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
-                       kcorr=False, verbose=False):
-    """Read the Paper 1 sample.
+def read_profiles_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
+                         isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                         kcorr=False, verbose=False):
+    """Read the profiles paper sample.
 
     """
-    sample = _read_paper_sample(paper='paper2', first=first, last=last, dr=dr,
+    sample = _read_paper_sample(paper='profiles', first=first, last=last, dr=dr,
                                 sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
                                 isedfit_sdssphot=isedfit_sdssphot,
                                 isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
                                 candidates=candidates, verbose=verbose)
     return sample
+
+def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', index=None, satellites=False):
+    """Read the parent redMaPPer cluster catalog and updated photometry.
     
+    """
+    if satellites:
+        suffix1, suffix2 = '_members', '-members'
+    else:
+        suffix1, suffix2 = '', '-centrals'
+    rmfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                          'dr8_run_redmapper_{}_lgt5_catalog{}.fit'.format(rmversion, suffix1) )
+    rmphotfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                          'redmapper-{}-lgt5{}-sdssWISEphot-{}.fits'.format(rmversion, suffix2, sdssdr) )
+    
+    rm = Table(fitsio.read(rmfile, ext=1, upper=True, rows=index))
+    rmphot = Table(fitsio.read(rmphotfile, ext=1, upper=True, rows=index))
+
+    print('Read {} galaxies from {}'.format(len(rm), rmfile))
+    print('Read {} galaxies from {}'.format(len(rmphot), rmphotfile))
+    
+    rm.rename_column('RA', 'RA_REDMAPPER')
+    rm.rename_column('DEC', 'DEC_REDMAPPER')
+    rmphot.rename_column('RA', 'RA_SDSS')
+    rmphot.rename_column('DEC', 'DEC_SDSS')
+    rmphot.rename_column('OBJID', 'SDSS_OBJID')
+
+    assert(np.sum(rmphot['MEM_MATCH_ID'] - rm['MEM_MATCH_ID']) == 0)
+    if satellites:
+        assert(np.sum(rmphot['ID'] - rm['ID']) == 0)
+        rm.remove_columns( ('ID', 'MEM_MATCH_ID') )
+    else:
+        rm.remove_column('MEM_MATCH_ID')
+    rmout = hstack( (rmphot, rm) )
+    del rmphot, rm
+
+    # Add a central_id column
+    #rmout.rename_column('MEM_MATCH_ID', 'CENTRAL_ID')
+    #cid = ['{:07d}'.format(cid) for cid in rmout['MEM_MATCH_ID']]
+    #rmout.add_column(Column(name='CENTRAL_ID', data=cid, dtype='U7'), index=0)
+    
+    return rmout
+
 def literature(kravtsov=True, gonzalez=False):
     """Assemble some data from the literature here.
 
