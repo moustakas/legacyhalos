@@ -49,6 +49,6 @@ RUN pip3 uninstall -y photutils \
     && python3 setup.py install
 RUN rm -rf /build
 
-# Clone legacyhalos
-RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
-ENV PYTHONPATH $PYTHONPATH:/src/legacyhalos/py
+# # Clone legacyhalos
+# RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
+# ENV PYTHONPATH $PYTHONPATH:/src/legacyhalos/py
