@@ -8,59 +8,35 @@ build-profiles-sample --clobber
 import os, argparse
 import numpy as np
 
-import fitsio
-from astropy.table import Table
-
 import legacyhalos.io
 import legacyhalos.misc
-
-sampledir = legacyhalos.io.sample_dir()
-paper1dir = os.path.join( legacyhalos.io.paper1_dir(), 'data' )
-paper2dir = os.path.join( legacyhalos.io.paper2_dir(), 'data' )
-
-def write_mstarcat(prefix, dr, rows):
-    """Read and write out the mstar catalogs for a given prefix.
-
-    """
-    for sfhgrid in np.atleast_1d(1):
-    #for sfhgrid in np.atleast_1d( (1, 2) ):
-        for phot in ('lsphot-{}'.format(dr), 'sdssphot-dr14'):
-            samplefile = os.path.join(paper1dir, 'paper1-{}-sfhgrid{:02d}-{}.fits'.format(prefix, sfhgrid, phot))
-            outfile = os.path.join(paper2dir, 'paper2-{}-sfhgrid{:02d}-{}.fits'.format(prefix, sfhgrid, phot))
-
-            mstar = fitsio.read(samplefile, rows=rows, ext=1)
-            kcorr = fitsio.read(samplefile, rows=rows, ext=2)
-
-            print('Writing {}'.format(outfile))
-            fitsio.write(outfile, mstar, extname='ISEDFIT', clobber=True)
-            fitsio.write(outfile, kcorr, extname='KCORR')
 
 def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--dr', type=str, default='dr8', help='Data release to analyze.')
-    parser.add_argument('--zmax', type=float, default='0.4', help='Maximum redshift.')
-    parser.add_argument('--minpcen', type=float, default='0.9', help='Minimum P(cen) to make it into the sample.')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
 
     args = parser.parse_args()
 
-    prefix = 'centrals'
-    samplefile = os.path.join(paper1dir, 'paper1-{}-{}.fits'.format(prefix, args.dr))
-    outfile = os.path.join(paper2dir, 'paper2-{}-{}.fits'.format(prefix, args.dr))
+    outfile = os.path.join(legacyhalos.io.profiles_dir(), 'data', 'sample-profiles-{}.fits'.format(args.dr))
+    if os.path.isfile(outfile) and not args.clobber:
+        print('Output file {} exists; use clobber.'.format(outfile))
+        return
 
-    allcen = fitsio.read(samplefile, ext=1)
+    allcen = legacyhalos.io.read_redmapper()
 
-    rows = np.where((allcen['P_CEN'][:, 0] > args.minpcen) *
+    rows = np.where((allcen['P_CEN'][:, 0] > 0.9) *
                     (allcen['BCG_SPEC_Z'] != -1) * # require specz
-                    #(allcen['LAMBDA_CHISQ'] > 10) *
+                    (allcen['LAMBDA_CHISQ'] > 10) *
                     #(allcen['Z_LAMBDA'] >= 0.1) *
-                    (allcen['Z_LAMBDA'] >= 0.05) *
-                    (allcen['Z_LAMBDA'] <= args.zmax))[0]
+                    (allcen['Z_LAMBDA'] >= 0.1) *
+                    (allcen['Z_LAMBDA'] <= 0.3))[0]
     cen = allcen[rows]
 
     # Temporary hack to write out a pilot sample of 1000 galaxies drawn
     # uniformly from halo mass.
-    if True:
+    if False:
         npilot = 1000
 
         mhalo = np.log10(legacyhalos.misc.lambda2mhalo(cen['LAMBDA_CHISQ'], redshift=cen['Z_LAMBDA']))
@@ -84,11 +60,7 @@ def main():
         cen = cen[these[srt]]
 
     print('Writing {} / {} centrals to {}'.format(len(cen), len(allcen), outfile))
-    fitsio.write(outfile, cen, clobber=True)
-
-    # Also write out the stellar masses and K-corrections based on the Tractor
-    # photometry, but just based on SFHGRID01.
-    write_mstarcat(prefix, args.dr, rows)
+    cen.write(outfile, overwrite=True)
     
 if __name__ == '__main__':
     main()

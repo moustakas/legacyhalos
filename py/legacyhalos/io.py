@@ -12,7 +12,7 @@ import numpy.ma as ma
 from glob import glob
 
 import fitsio
-from astropy.table import Table
+from astropy.table import Table, hstack
 from astropy.io import fits
 
 def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
