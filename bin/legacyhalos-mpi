@@ -374,11 +374,16 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
+    if hsc:
+        zcolumn = 'Z_BEST'
+    else:
+        zcolumn = 'Z_LAMBDA'
+
     if debug:
         _start(galaxy)
         err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                           pixscale=pixscale, survey=survey, clobber=clobber,
-                                          verbose=verbose, nproc=nproc,
+                                          verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
                                           ccdqa=ccdqa, maketrends=False, hsc=hsc)
         _done(galaxy, err, t0)
     else:
@@ -387,7 +392,7 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                 _start(galaxy, log=log)
                 err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                                   pixscale=pixscale, survey=survey, clobber=clobber,
-                                                  verbose=verbose, nproc=nproc,
+                                                  verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
                                                   ccdqa=ccdqa, maketrends=False, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
 

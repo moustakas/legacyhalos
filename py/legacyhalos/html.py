@@ -61,31 +61,46 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     if not os.path.isfile(ccdposfile) or clobber:
         display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
 
-def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, barlabel=None,
-                      clobber=False, verbose=True):
+def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
+                      barlabel=None, clobber=False, verbose=True):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
 
     """
-    from pkg_resources import resource_filename
+    #from pkg_resources import resource_filename
     from PIL import Image, ImageDraw, ImageFont
     montagefile = os.path.join(htmlgalaxydir, '{}-grz-montage.png'.format(galaxy))
 
-    fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
+    fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
+    #fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
 
-    def addbar(jpgfile, barlen, barlabel):
-        pngfile = jpgfile.replace('.jpg', '.png')
+    def addbar(jpgfile, barlen, barlabel, imtype):
+        pngfile = os.path.join(htmlgalaxydir, os.path.basename(jpgfile).replace('.jpg', '.png'))
         im = Image.open(jpgfile)
-        sz = im.size
-        fntsize = np.round(sz[0]/28).astype('int')
-        width = np.round(sz[0]/175).astype('int')
-        font = ImageFont.truetype(fonttype, size=fntsize)
         draw = ImageDraw.Draw(im)
-        # Add a scale bar and label--
-        x0, x1, y0, y1 = sz[1]-fntsize*2-barlen, sz[1]-fntsize*2, sz[0]-fntsize*2, sz[0]-fntsize*4
-        draw.line((x0, y0, x1, y0), fill='white', width=width)
-        draw.text(((x1-x0)/2+x0, y1), barlabel, font=font)
+        sz = im.size
+        width = np.round(sz[0]/150).astype('int')
+
+        # Bar and label
+        if barlen:
+            fntsize = 20 # np.round(sz[0]/20).astype('int')
+            font = ImageFont.truetype(fonttype, size=fntsize)
+            # Add a scale bar and label--
+            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            draw.line((x0, y1, x1, y1), fill='white', width=width)
+            ww, hh = draw.textsize(barlabel, font=font)
+            dx = ((x1-x0) - ww)//2
+            #print(x0, x1, y0, y1, ww, x0+dx, sz)
+            draw.text((x0+dx, y0), barlabel, font=font)
+            #print('Writing {}'.format(pngfile))
+        # Image type
+        if imtype:
+            fntsize = 20 # np.round(sz[0]/20).astype('int')
+            font = ImageFont.truetype(fonttype, size=fntsize)
+            ww, hh = draw.textsize(imtype, font=font)
+            x0, y0, y1 = sz[0]-ww-fntsize*2, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            draw.text((x0, y1), imtype, font=font)
         im.save(pngfile)
         return pngfile
 
@@ -102,13 +117,19 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, barlabel=No
                 
         if check:
             # Add a bar and label
-            if barlen:
-                addbar(jpgfile, barlen, barlabel)
-                pdb.set_trace()
-                pngfile = [addbar(jpgfile, barlen, barlabel) for ff in jpgfile]
-            
             cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-            cmd = cmd+' '.join(ff for ff in jpgfile)
+            if barlen:
+                #pngfile = []
+                #for ff, blen, blab, imtype in zip(jpgfile, (barlen, None, None),
+                #                                  (barlabel, None, None),
+                #                                  ('Image stack', 'Tractor model', 'Central galaxy')):
+                #    pngfile.append(addbar(ff, blen, blab, imtype))
+                #cmd = cmd+' '.join(ff for ff in pngfile)
+                pngfile = [addbar(ff, barlen, barlabel, None) for ff in jpgfile]
+                cmd = cmd+' '+pngfile[0]+' '
+                cmd = cmd+' '.join(ff for ff in jpgfile[1:])
+            else:
+                cmd = cmd+' '.join(ff for ff in jpgfile)
             cmd = cmd+' {}'.format(montagefile)
 
             if verbose:
@@ -282,6 +303,12 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
 
+        # Build the montage coadds.
+        barlen_kpc = 100
+        barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int')
+        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen, barlabel='100 kpc',
+                          clobber=clobber, verbose=verbose)
+
         # Sersic fiting results
         if False:
             qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
@@ -291,12 +318,6 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
                            clobber=clobber, verbose=verbose)
         
-        # Build the montage coadds.
-        barlen_kpc = 50
-        barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int')
-        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen, barlabel='50 kpc',
-                          clobber=clobber, verbose=verbose)
-
         # Build the CCD-level QA.  This QA script needs to be last, because we
         # check the completeness of the HTML portion of legacyhalos-mpi based on
         # the ccdpos file.

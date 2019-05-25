@@ -437,9 +437,9 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         err = legacyhalos.html.make_plots(sample, datadir=datadir, htmldir=htmldir, refband=refband,
                                           band=band, pixscale=pixscale, survey=survey, clobber=clobber,
                                           verbose=verbose, nproc=nproc, ccdqa=ccdqa, maketrends=maketrends,
-                                          hsc=True)
+                                          zcolumn=zcolumn, hsc=True)
 
-    cmd = '/usr/bin/chgrp -R cosmo {}'.format(htmldir)
+    cmd = 'chgrp -R cosmo {}'.format(htmldir)
     print(cmd)
     err1 = subprocess.call(cmd.split())
 

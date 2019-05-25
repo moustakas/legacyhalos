@@ -500,7 +500,9 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
     #from astropy.visualization import PercentileInterval as Interval
     #interval = Interval(0.9)
 
-    cmap = 'viridis'
+    cmap = plt.cm.viridis
+    cmap.set_bad(color='white')
+    
     from astropy.visualization import ZScaleInterval as Interval
     interval = Interval(contrast=0.9)
 
@@ -516,8 +518,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
         
     for filt, ax1 in zip(band, ax):
 
-        img = data['{}_masked'.format(filt)]
-        img.filled(0)
+        img = data['{}_masked'.format(filt)]#.filled(0)
         #img = data[filt]
 
         norm = ImageNormalize(img, interval=interval, stretch=stretch)
