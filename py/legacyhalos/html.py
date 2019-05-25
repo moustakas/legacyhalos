@@ -137,7 +137,7 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
             subprocess.call(cmd.split())
 
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                       clobber=False, verbose=True):
+                       barlen=None, barlabel=None, clobber=False, verbose=True):
     """Generate QAplots from the ellipse-fitting.
 
     """
@@ -169,8 +169,8 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(galaxy, galaxydir, bands=bands)
-            display_multiband(data, ellipsefit=ellipsefit, indx=indx,
-                              png=multibandfile, verbose=verbose)
+            display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
+                              barlabel=barlabel, png=multibandfile, verbose=verbose)
 
         ellipsefitfile = os.path.join(htmlgalaxydir, '{}-ellipse-ellipsefit.png'.format(galaxy))
         if not os.path.isfile(ellipsefitfile) or clobber:
@@ -303,21 +303,24 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
 
-        # Build the montage coadds.
-        barlen_kpc = 100
+        barlen_kpc, barlabel = 100, '100 kpc'
         barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int')
-        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen, barlabel='100 kpc',
-                          clobber=clobber, verbose=verbose)
+
+        # Build the ellipse plots.
+        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,
+                           barlabel=barlabel, clobber=clobber, verbose=verbose)
+
+        pdb.set_trace()
+        
+        # Build the montage coadds.
+        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
+                          barlabel=barlabel, clobber=clobber, verbose=verbose)
 
         # Sersic fiting results
         if False:
             qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
                               clobber=clobber, verbose=verbose)
 
-        # Build the ellipse plots.
-        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
-                           clobber=clobber, verbose=verbose)
-        
         # Build the CCD-level QA.  This QA script needs to be last, because we
         # check the completeness of the HTML portion of legacyhalos-mpi based on
         # the ccdpos file.

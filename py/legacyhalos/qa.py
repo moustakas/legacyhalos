@@ -7,8 +7,8 @@ Code to do produce various QA (quality assurance) plots.
 https://xkcd.com/color/rgb/
 
 """
-import matplotlib
-matplotlib.use('Agg')
+import matplotlib as mpl
+mpl.use('Agg')
 
 import os, pdb
 import warnings
@@ -482,51 +482,68 @@ def display_sersic(sersic, png=None, verbose=False):
         plt.show()
 
 def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=None,
-                      magrange=10, inchperband=3, contours=False, png=None,
-                      verbose=True, vertical=False):
+                      magrange=10, inchperband=3, contours=False, barlen=None,
+                      barlabel=None, png=None, verbose=True, vertical=False):
     """Display the multi-band images and, optionally, the isophotal fits based on
     either MGE and/or Ellipse.
 
     vertical -- for talks...
 
     """
+    import numpy.ma as ma
+
     from astropy.visualization import AsinhStretch as Stretch
     from astropy.visualization import ImageNormalize
+    from astropy.visualization import ZScaleInterval as Interval
+    #from astropy.visualization import PercentileInterval as Interval
 
     band = data['bands']
     nband = len(band)
 
-    #cmap = 'RdBu_r'
-    #from astropy.visualization import PercentileInterval as Interval
-    #interval = Interval(0.9)
-
     cmap = plt.cm.viridis
-    cmap.set_bad(color='white')
-    
-    from astropy.visualization import ZScaleInterval as Interval
-    interval = Interval(contrast=0.9)
+    stretch = Stretch(a=0.9)
+    interval = Interval(contrast=0.5, nsamples=10000)
 
+    #cmap = 'RdBu_r'
     #cmap = {'g': 'winter_r', 'r': 'summer', 'z': 'autumn_r'}
     #cmap = {'g': 'Blues', 'r': 'Greens', 'z': 'Reds'}
 
-    stretch = Stretch(a=0.95)
+    fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
+    prop = mpl.font_manager.FontProperties(fname=fonttype, size=14)
 
     if vertical:
         fig, ax = plt.subplots(3, 1, figsize=(nband, inchperband*nband))
     else:
         fig, ax = plt.subplots(1, 3, figsize=(inchperband*nband, nband))
         
-    for filt, ax1 in zip(band, ax):
-
-        img = data['{}_masked'.format(filt)]#.filled(0)
-        #img = data[filt]
+    for ii, (filt, ax1) in enumerate(zip(band, ax)):
+        dat = data['{}_masked'.format(filt)]
+        img = ma.masked_array(dat.data, dat.mask)
+        mask = ma.masked_array(dat.data, ~dat.mask)
 
         norm = ImageNormalize(img, interval=interval, stretch=stretch)
 
-        im = ax1.imshow(img, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
-                        interpolation='nearest')
+        # There's an annoying bug in matplotlib>2.0.2 which ignores masked
+        # pixels (it used to render them in white), so we have to overplot the
+        # mask.
+        # https://github.com/matplotlib/matplotlib/issues/11039
+        # https://stackoverflow.com/questions/22128166/two-different-color-colormaps-in-the-same-imshow-matplotlib
+        #cmap.set_bad('white', alpha=1.0) # doesn't work!
+        ax1.imshow(img, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
+                   interpolation='none')
+        ax1.imshow(mask, origin='lower', cmap=mpl.colors.ListedColormap(['white']),
+                   interpolation='none')
         plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
-                 ha='center', va='center', color='k', fontsize=16)
+                 ha='center', va='center', color='k', fontsize=14)
+
+        # Add a scale bar and label
+        if barlen and ii == 0:
+            sz = img.shape
+            x0, y0 = sz[0]*0.08, sz[0]*0.05
+            x1, y1 = x0 + barlen, y0*2.5
+            ax1.plot([x0, x1], [y1, y1], lw=3, color='k')
+            ax1.text(x0+barlen/4, y0, barlabel, ha='center', va='center',
+                     transform=None, fontproperties=prop)
 
         if mgefit:
             from mge.mge_print_contours import _multi_gauss, _gauss2d_mge
