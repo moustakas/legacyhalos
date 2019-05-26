@@ -169,7 +169,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Get the viewer link
     def _viewer_link(gal):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_kpc(redshift=gal[zcolumn], pixscale=0.262) # [pixels]
+        width = 2 * cutout_radius_kpc(redshift=gal[zcolumn], pixscale=pixscale) # [pixels]
         if width > 400:
             zoom = 14
         else:
@@ -288,7 +288,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         with open(htmlfile, 'w') as html:
             html.write('<html><body>\n')
             html.write('<style type="text/css">\n')
-            html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
+            html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black}\n')
             html.write('</style>\n')
 
             html.write('<h1>HSC Galaxy {}</h1>\n'.format(galaxy1))
@@ -337,35 +337,60 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             #html.write('<br />\n')
 
             html.write('<h2>Elliptical Isophote Analysis</h2>\n')
-
             html.write('<table>\n')
-            html.write('<tr>\n')
-            html.write('<th>PA</th>\n')
-            html.write('<th>&nbsp</th>\n')
-            html.write('</tr>\n')
-            html.write('<tr>\n')
-            html.write('<th>(deg)</th>\n')
-            html.write('<th>b/a</th>\n')
-            html.write('</tr>\n')
-            html.write('<tr>\n')
-            html.write('<td>{:.1f}</td>\n'.format(ellipse['pa']))
-            html.write('<td>{:.3f}</td>\n'.format(ellipse['eps']))
-            html.write('</tr>\n')
+
+            html.write('<tr><th colspan="3">Initial Geometry</th>')
+            html.write('<th colspan="3">Fitted Geometry</th>')
+            if ellipse['input_ellipse']:
+                html.write('<th colspan="2">Input Geometry</th></tr>\n')
+            else:
+                html.write('</tr>\n')
+            
+            html.write('<tr><th>PA<br />(deg)</th><th>e</th><th>Semi-major axis<br />(arcsec)</th>')
+            html.write('<th>PA<br />(deg)</th><th>e</th><th>Semi-major axis<br />(arcsec)</th>')
+            if ellipse['input_ellipse']:
+                html.write('<th>PA<br />(deg)</th><th>e</th></tr>\n')
+            else:
+                html.write('</tr>\n')
+            
+            html.write('<tr><td>{:.1f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
+                ellipse['mge_pa'], ellipse['mge_eps'], ellipse['mge_majoraxis']*pixscale))
+            html.write('<td>{:.1f}+/-{:.1f}</td><td>{:.3f}+/-{:.3f}</td><td>{:.3f}</td>'.format(
+                ellipse['pa'], ellipse['pa_err'], ellipse['eps'], ellipse['eps_err'],
+                ellipse[refband].sma.max()*pixscale))
+            if ellipse['input_ellipse']:
+                html.write('<td>{:.1f}</td><td>{:.3f}</td></tr>\n'.format(
+                    np.degrees(ellipse['geometry'].pa)+90, ellipse['geometry'].eps))
+            else:
+                html.write('</tr>\n')
             html.write('</table>\n')
+            html.write('<br />\n')
 
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
             html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" alt="Missing file {}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
             html.write('</tr>\n')
             html.write('</table>\n')
+            html.write('<br />\n')
 
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
             #html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" alt="Missing file {}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-            html.write('<td width="50%"><a href="{}-ellipse-sbprofile.png"><img src="{}-ellipse-sbprofile.png" alt="Missing file {}-ellipse-sbprofile.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+            pngfile = '{}-ellipse-sbprofile.png'.format(galaxy1)
+            html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+            pngfile = '{}-ellipse-cog.png'.format(galaxy1)
+            html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('<td></td>\n')
             html.write('</tr>\n')
             html.write('</table>\n')
+            html.write('<br />\n')
+
+            html.write('<h2>Integrated Photometry</h2>\n')
+            html.write('<table>\n')
+            html.write('<tr><th colspan="3">Flux<br />(<30 kpc)</th><th colspan="3">Flux<br />(<100 kpc)</th><tr/>')
+            html.write('<tr><th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th><tr/>')
+            html.write('</table>\n')
+            html.write('<br />\n')
 
             if False:
                 html.write('<h2>Surface Brightness Profile Modeling</h2>\n')

@@ -509,7 +509,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
     #cmap = {'g': 'Blues', 'r': 'Greens', 'z': 'Reds'}
 
     fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
-    prop = mpl.font_manager.FontProperties(fname=fonttype, size=14)
+    prop = mpl.font_manager.FontProperties(fname=fonttype, size=12)
 
     if vertical:
         fig, ax = plt.subplots(3, 1, figsize=(nband, inchperband*nband))
