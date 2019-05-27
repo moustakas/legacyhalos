@@ -42,7 +42,8 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale):
     apphot = mu_flux * pixscale**2 # [nanomaggies]
     return apphot
 
-def ellipse_apphot(bands, data, ellipsefit, maxsma, pixscalefactor, pool=None):
+def ellipse_apphot(bands, data, refellipsefit, pixscalefactor,
+                   pixscale, pool=None):
     """Perform elliptical aperture photometry for the curve-of-growth analysis.
 
     maxsma in pixels
@@ -53,7 +54,8 @@ def ellipse_apphot(bands, data, ellipsefit, maxsma, pixscalefactor, pool=None):
     from astropy.utils.exceptions import AstropyUserWarning
 
     deltaa = 0.5 # pixel spacing 
-    theta = np.radians(ellipsefit['pa']-90)
+    maxsma = refellipsefit['maxsma']
+    theta = np.radians(refellipsefit['pa']-90)
 
     results = {}
 
@@ -62,20 +64,12 @@ def ellipse_apphot(bands, data, ellipsefit, maxsma, pixscalefactor, pool=None):
         #img = ma.getdata(data['{}_masked'.format(filt)]) * pixscale**2 # [nanomaggies/arcsec2-->nanomaggies]
         mask = ma.getmask(data['{}_masked'.format(filt)])
 
-        #if filt == 'NUV':
-        #    bb = img.copy()
-        #    bb[mask] = 0
-        #    #plt.imshow(mask*1, origin='lower') ; plt.show()
-        #    plt.imshow(bb, origin='lower') ; plt.show()
-        #    #plt.imshow(img, origin='lower') ; plt.show()
-        #    pdb.set_trace()
-
         deltaa_filt = deltaa * pixscalefactor
         sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
-        smb = sma * ellipsefit['eps']
+        smb = sma * refellipsefit['eps']
 
-        x0 = ellipsefit['x0'] * pixscalefactor
-        y0 = ellipsefit['y0'] * pixscalefactor
+        x0 = refellipsefit['x0'] * pixscalefactor
+        y0 = refellipsefit['y0'] * pixscalefactor
 
         with np.errstate(all='ignore'):
             with warnings.catch_warnings():
@@ -167,6 +161,9 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
     refband, refpixscale = refellipsefit['refband'], refellipsefit['refpixscale']
     refisophot = refellipsefit[refband]
 
+    pixscalefactor = refpixscale / pixscale
+    maxsma = refellipsefit[refband].sma.max() * pixscalefactor
+
     integrmode, nclip, sclip = refellipsefit['integrmode'], refellipsefit['nclip'], refellipsefit['sclip']
     step, fflag, linear = refellipsefit['step'], refellipsefit['fflag'], refellipsefit['linear']
 
@@ -195,8 +192,6 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
         if newmask is not None:
             img.mask = newmask
 
-        pixscalefactor = refpixscale / pixscale
-
         # Loop on the reference band isophotes.
         isobandfit = pool.map(_integrate_isophot_one, [(iso, img, pixscalefactor, integrmode, sclip, nclip)
                                                        for iso in refisophot])
@@ -212,18 +207,18 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
     print('Time for all images = {:.3f} sec'.format(time.time()-tall))
     ellipsefit['success'] = True
 
-    ## Perform elliptical aperture photometry.
-    #print('Performing elliptical aperture photometry.')
-    #t0 = time.time()
-    #apphot = ellipse_apphot(bands, data, ellipsefit, maxsma, 1.0, pool=pool)
-    #ellipsefit.update(apphot)
-    #print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
+    # Perform elliptical aperture photometry.
+    print('Performing elliptical aperture photometry.')
+    t0 = time.time()
+    apphot = ellipse_apphot(bands, data, refellipsefit, pixscalefactor,
+                            pixscale, pool=pool)
+    ellipsefit.update(apphot)
+    print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
 
     # Write out
     if not nowrite:
         legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
                                         filesuffix=filesuffix, verbose=True)
-
     pool.close()
 
     return ellipsefit
@@ -417,6 +412,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         maxsma = data[refband].shape[0] / 2 * (1 - geometry.eps)
     ellipsefit['maxsma'] = maxsma
 
+    pdb.set_trace()
+
     # Fit the reference bands first then the other bands.
     newmask = None
     if verbose:
@@ -479,7 +476,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     # Perform elliptical aperture photometry.
     print('Performing elliptical aperture photometry.')
     t0 = time.time()
-    apphot = ellipse_apphot(bands, data, ellipsefit, maxsma, 1.0, pool=pool)
+    apphot = ellipse_apphot(bands, data, ellipsefit, 1.0, pixscale, pool=pool)
     ellipsefit.update(apphot)
     print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
 
@@ -577,8 +574,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          sdss_pixscale=sdss_pixscale,
                                          sdss=sdss, pipeline=pipeline)
 
-    print('HACK!!!!')
-    pipeline = True
+    #print('HACK!!!!')
+    #pipeline = True
     
     # Do ellipse-fitting.
     if bool(data):
