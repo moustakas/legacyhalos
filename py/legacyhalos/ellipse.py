@@ -151,49 +151,53 @@ def integrate_isophot_one(iso, img, pixscalefactor, integrmode,
         
     return out
 
-def sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=1, bands=('g', 'r', 'i'),
-                              refband='r', pixscale=0.262, sdss_pixscale=0.396,
-                              nowrite=False, verbose=False):
-    """Performed elliptical surface brightness profile fitting on the SDSS image
-    stacks using the LS ellipse-fitting results as a reference.
+def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
+                                bands=('g', 'r', 'z'), pixscale=0.262,
+                                nproc=1, nowrite=False, verbose=False):
+    """Performed "forced" elliptical surface brightness profile fitting (e.g., on
+    the SDSS and pipeline-derived image products) using the nominal
+    ellipse-fitting results as a reference.
 
     """
     from legacyhalos.io import read_ellipsefit
 
-    pool = multiprocessing.Pool(nproc)
-
-    refellipsefit = read_ellipsefit(galaxy, galaxydir)
+    refellipsefit = read_ellipsefit(galaxy, galaxydir, verbose=verbose)
     if not refellipsefit['success']:
-        print('No reference ellipsefit.')
-        return 0
+        print('No reference ellipsefit file found!')
+        return {'success': False}
 
+    refband, refpixscale = refellipsefit['refband'], refellipsefit['refpixscale']
     refisophot = refellipsefit[refband]
+
     integrmode, nclip, sclip = refellipsefit['integrmode'], refellipsefit['nclip'], refellipsefit['sclip']
     step, fflag, linear = refellipsefit['step'], refellipsefit['fflag'], refellipsefit['linear']
 
     ellipsefit = dict()
     ellipsefit['success'] = False
     ellipsefit['bands'] = bands
-    ellipsefit['refband'] = refband
-    ellipsefit['pixscale'] = sdss_pixscale
-    ellipsefit['redshift'] = refellipsefit['redshift']
-    print('Fix me -- what is psfsigma!!')
-    for filt in bands:
-        ellipsefit['psfsigma_{}'.format(filt)] = 1.3
+    ellipsefit['pixscale'] = pixscale
+    ellipsefit['refpixscale'] = refpixscale
+    #ellipsefit['refband'] = refband
+    #ellipsefit['redshift'] = refellipsefit['redshift']
+
+    #print('Fix me -- what is psfsigma!!')
+    #for filt in bands:
+    #    ellipsefit['psfsigma_{}'.format(filt)] = 1.3
 
     newmask = None
+    pool = multiprocessing.Pool(nproc)
 
     # Forced photometry.
     tall = time.time()
     for filt in bands:
         t0 = time.time()
-        print('Fitting SDSS band {}.'.format(filt))
+        print('Fitting band {}.'.format(filt))
 
         img = data['{}_masked'.format(filt)]
         if newmask is not None:
             img.mask = newmask
 
-        pixscalefactor = pixscale / sdss_pixscale
+        pixscalefactor = refpixscale / pixscale
 
         # Loop on the reference band isophotes.
         isobandfit = pool.map(_integrate_isophot_one, [(iso, img, pixscalefactor, integrmode, sclip, nclip)
@@ -220,7 +224,7 @@ def sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=1, bands=('g', 'r',
     # Write out
     if not nowrite:
         legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
-                                        verbose=True, sdss=True)
+                                        filesuffix=filesuffix, verbose=True)
 
     pool.close()
 
@@ -252,7 +256,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     else:
         maxrit = None
 
-    bands, refband, pixscale = data['bands'], data['refband'], data['pixscale']
+    bands, refband, refpixscale = data['bands'], data['refband'], data['refpixscale']
     xcen, ycen = data[refband].shape
     xcen /= 2
     ycen /= 2
@@ -286,7 +290,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     ellipsefit['redshift'] = sample[zcolumn]
     ellipsefit['bands'] = bands
     ellipsefit['refband'] = refband
-    ellipsefit['pixscale'] = pixscale
+    ellipsefit['refpixscale'] = refpixscale
     for filt in bands: # [Gaussian sigma]
         #if 'PSFSIZE_{}'.format(filt.upper()) in sample.colnames:
         #    psfsize = sample['PSFSIZE_{}'.format(filt.upper())]
@@ -296,20 +300,20 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         else:
             psfsize = 1.1 # [FWHM, arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] = psfsize / np.sqrt(8 * np.log(2)) # [arcsec]
-        ellipsefit['psfsigma_{}'.format(filt)] /= pixscale # [pixels]
+        ellipsefit['psfsigma_{}'.format(filt)] /= refpixscale # [pixels]
 
     # Create a pixel scale mapping to accommodate GALEX and unWISE imaging.
-    filt2pixscalefactor = {'g': 1.0, 'r': 1.0, 'z': 1.0, 'g_pixscale': pixscale,
-                           'r_pixscale': pixscale, 'z_pixscale': pixscale}
+    filt2pixscalefactor = {'g': 1.0, 'r': 1.0, 'z': 1.0, 'g_pixscale': refpixscale,
+                           'r_pixscale': refpixscale, 'z_pixscale': refpixscale}
     if 'NUV' in bands:
         ellipsefit['galex_pixscale'] = data['galex_pixscale']
-        factor = pixscale / data['galex_pixscale']
+        factor = refpixscale / data['galex_pixscale']
         filt2pixscalefactor.update({'FUV': factor, 'NUV': factor, 'FUV_pixscale': data['galex_pixscale'],
                                     'NUV_pixscale': data['galex_pixscale']})
         
     if 'W1' in bands:
         ellipsefit['unwise_pixscale'] = data['unwise_pixscale']
-        factor = pixscale / data['unwise_pixscale']
+        factor = refpixscale / data['unwise_pixscale']
         filt2pixscalefactor.update({'W1': factor, 'W2': factor, 'W3': factor, 'W4': factor,
                                     'W1_pixscale': data['unwise_pixscale'], 'W2_pixscale': data['unwise_pixscale'],
                                     'W3_pixscale': data['unwise_pixscale'], 'W4_pixscale': data['unwise_pixscale']})
@@ -514,7 +518,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
 
     """
     bands, refband = ellipsefit['bands'], ellipsefit['refband']
-    pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
+    refpixscale, redshift = ellipsefit['refpixscale'], ellipsefit['redshift']
 
     indx = np.ones(len(ellipsefit[refband]), dtype=bool)
 
@@ -525,11 +529,11 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
     
     sbprofile['minerr'] = minerr
     sbprofile['smaunit'] = 'arcsec'
-    sbprofile['sma'] = ellipsefit['r'].sma[indx] * pixscale # [arcsec]
+    sbprofile['sma'] = ellipsefit['r'].sma[indx] * refpixscale # [arcsec]
 
     with np.errstate(invalid='ignore'):
         for filt in bands:
-            #area = ellipsefit[filt].sarea[indx] * pixscale**2
+            #area = ellipsefit[filt].sarea[indx] * refpixscale**2
 
             sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx]) # [mag/arcsec2]
 
@@ -566,7 +570,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
     return sbprofile
 
 def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
-                        sdss_pixscale=0.396, nproc=1,
+                        sdss_pixscale=0.396, pipeline=False, nproc=1,
                         refband='r', bands=('g', 'r', 'z'), maxsma=None,
                         integrmode='median', nclip=2, sclip=3, zcolumn='Z',
                         galex_pixscale=1.5, unwise_pixscale=2.75,
@@ -574,7 +578,9 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         debug=False, hsc=False, sdss=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
-    noellipsefit - do not fit for the ellipse parameters (use the mean values from MGE). 
+    noellipsefit - do not fit for the ellipse parameters (use the mean values from MGE).
+
+    pipeline - read the pipeline-built images (default is custom)
 
     """
     if galaxydir is None or galaxy is None:
@@ -589,18 +595,25 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          galex_pixscale=galex_pixscale,
                                          unwise_pixscale=unwise_pixscale,
                                          sdss_pixscale=sdss_pixscale,
-                                         sdss=sdss)
+                                         sdss=sdss, pipeline=pipeline)
+
+    print('HACK!!!!')
+    pipeline = True
+    
     # Do ellipse-fitting.
     if bool(data):
-        if sdss:
-            ellipsefit = sdss_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
-                                                   refband=refband, pixscale=pixscale,
-                                                   sdss_pixscale=sdss_pixscale,
-                                                   verbose=verbose)
+        if sdss or pipeline:
+            if pipeline:
+                ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
+                                                         filesuffix='pipeline', bands=('g','r','z'),
+                                                         pixscale=pixscale, verbose=verbose)
+            if sdss:
+                ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
+                                                         filesuffix='sdss', bands=('g','r','i'),
+                                                         pixscale=sdss_pixscale, verbose=verbose)
         else:
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
-                                              maxsma=maxsma, nproc=nproc,
-                                              integrmode=integrmode,
+                                              nproc=nproc, integrmode=integrmode,
                                               nclip=nclip, sclip=sclip, zcolumn=zcolumn,
                                               verbose=verbose, noellipsefit=noellipsefit,
                                               input_ellipse=input_ellipse)

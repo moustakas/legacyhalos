@@ -131,31 +131,30 @@ def profiles_dir(figures=False, data=False):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
-def write_ellipsefit(galaxy, galaxydir, ellipsefit, sdss=False, verbose=False):
+def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
 
     """
-    if sdss:
-        suffix = 'sdss-'
+    if filesuffix.strip() == '':
+        ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
     else:
-        suffix = ''
+        ellipsefitfile = os.path.join(galaxydir, '{}-{}-ellipsefit.p'.format(galaxy, filesuffix))
         
-    ellipsefitfile = os.path.join(galaxydir, '{}-{}ellipsefit.p'.format(galaxy, suffix))
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
     with open(ellipsefitfile, 'wb') as ell:
         pickle.dump(ellipsefit, ell, protocol=2)
 
-def read_ellipsefit(galaxy, galaxydir, sdss=False, verbose=True):
-    """Read the output of write_ellipsefit."""
+def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True):
+    """Read the output of write_ellipsefit.
 
-    if sdss:
-        suffix = 'sdss-'
+    """
+    if filesuffix.strip() == '':
+        ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
     else:
-        suffix = ''
-
-    ellipsefitfile = os.path.join(galaxydir, '{}-{}ellipsefit.p'.format(galaxy, suffix))
+        ellipsefitfile = os.path.join(galaxydir, '{}-{}-ellipsefit.p'.format(galaxy, filesuffix))
+        
     try:
         with open(ellipsefitfile, 'rb') as ell:
             ellipsefit = pickle.load(ell)
@@ -306,7 +305,7 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, maskfactor=2.0, fill_value=0.0,
-                   sdss=False):
+                   pipeline=False, sdss=False):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
@@ -336,10 +335,14 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             }
     else:
         masksuffix = 'custom-mask-grz'
+        if pipeline:
+            prefix = 'pipeline'
+        else:
+            prefix = 'custom'
         filt2imfile = {
-            'g': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-            'r': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-            'z': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar']
+            'g': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar'],
+            'r': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar'],
+            'z': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar']
             }
         filt2pixscale =  {
             'g': pixscale,
@@ -521,7 +524,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
 
     data['bands'] = bands
     data['refband'] = refband
-    data['pixscale'] = pixscale
+    data['refpixscale'] = pixscale
 
     if 'NUV' in bands:
         data['galex_pixscale'] = galex_pixscale
