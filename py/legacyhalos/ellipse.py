@@ -575,7 +575,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         integrmode='median', nclip=2, sclip=3, zcolumn='Z',
                         galex_pixscale=1.5, unwise_pixscale=2.75,
                         input_ellipse=None, noellipsefit=False, verbose=False,
-                        debug=False, hsc=False, sdss=False):
+                        debug=False, hsc=False, sdss=False, galex=False, unwise=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
     noellipsefit - do not fit for the ellipse parameters (use the mean values from MGE).
@@ -602,7 +602,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     
     # Do ellipse-fitting.
     if bool(data):
-        if sdss or pipeline:
+        if pipeline or sdss or unwise or galex:
             if pipeline:
                 ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
                                                          filesuffix='pipeline', bands=('g','r','z'),
@@ -611,6 +611,14 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                 ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
                                                          filesuffix='sdss', bands=('g','r','i'),
                                                          pixscale=sdss_pixscale, verbose=verbose)
+            if unwise:
+                ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
+                                                         filesuffix='unwise', bands=('W1','W2','W3','W4'),
+                                                         pixscale=unwise_pixscale, verbose=verbose)
+            if galex:
+                ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
+                                                         filesuffix='galex', bands=('NUV','FUV''),
+                                                         pixscale=galex_pixscale, verbose=verbose)
         else:
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
                                               nproc=nproc, integrmode=integrmode,
