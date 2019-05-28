@@ -86,10 +86,10 @@ def ellipse_apphot(bands, data, refellipsefit, pixscalefactor,
     from astropy.modeling import Fittable1DModel, Parameter, fitting
     class CogModel(Fittable1DModel):
         """m(r) = m0 + C1 * exp**(-C2*radius**(-C3))"""
-        m0 = Parameter(default=20.0, bounds=(15, 30))
-        C1 = Parameter(default=1.0, bounds=(-1, 1))
-        C2 = Parameter(default=1.0, bounds=(-1, 1))
-        C3 = Parameter(default=1.0, bounds=(-1, 1))
+        m0 = Parameter(default=20.0, bounds=(10, 30))
+        C1 = Parameter(default=-1.0, bounds=(-5, 0))
+        C2 = Parameter(default=-1.0, bounds=(-5, 0))
+        C3 = Parameter(default=-1.0, bounds=(-5, 0))
         linear = False
         def __init__(self, m0=m0.default, C1=C1.default, C2=C2.default, C3=C3.default):
             super(CogModel, self).__init__(m0, C1, C2, C3)
@@ -108,11 +108,18 @@ def ellipse_apphot(bands, data, refellipsefit, pixscalefactor,
     #        self.fitter = fitting.LevMarLSWFitter()
     
     for filt in bands:
-        radius, cog = results['apphot_sma_{}'.format(filt)], results['apphot_mag_{}'.format(filt)]
-    
-        params = fitting.LevMarLSQFitter()(CogModel(), radius, cog)
-        print(params)
+        radius = results['apphot_sma_{}'.format(filt)]
+        cog = 22.5 - 2.5 * np.log10(results['apphot_mag_{}'.format(filt)])
 
+        model = CogModel()
+        P = fitting.LevMarLSQFitter()(model, radius, cog)
+        print(P)
+        plt.plot(radius, cog, label='Data')
+        plt.plot(radius, model.evaluate(radius, P.m0.default, P.C1.default, P.C2.default, P.C3.default), label='Default')
+        plt.plot(radius, model.evaluate(radius, P.m0.value, P.C1.value, P.C2.value, P.C3.value), label='Best Fit')
+        plt.legend()
+        plt.ylim(10, 30)
+        plt.savefig('junk.png')
         pdb.set_trace()
 
     #fig, ax = plt.subplots()
@@ -601,6 +608,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
     print('HACK!!!!')
     pipeline = True
+    bands='r'
     
     # Do ellipse-fitting.
     if bool(data):
@@ -608,7 +616,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             if pipeline:
                 print('Forced ellipse-fitting on the pipeline images.')
                 ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
-                                                         filesuffix='pipeline', bands=('g','r','z'),
+                                                         filesuffix='pipeline', bands=bands,#('g','r','z'),
                                                          pixscale=pixscale, verbose=verbose)
             if sdss:
                 print('Forced ellipse-fitting on the SDSS images.')
