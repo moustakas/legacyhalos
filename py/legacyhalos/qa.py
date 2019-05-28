@@ -41,34 +41,42 @@ def _sbprofile_colors():
     colors = iter([_colors[1], _colors[2], _colors[0], _colors[3], _colors[4]])
     return colors
 
-def qa_curveofgrowth(ellipsefit, png=None, verbose=True):
+def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
+                     verbose=True):
     """Plot up the curve of growth versus semi-major axis.
 
     """
     fig, ax = plt.subplots(figsize=(9, 7))
     bands, refband, redshift = ellipsefit['bands'], ellipsefit['refband'], ellipsefit['redshift']
 
-    maxsma = ellipsefit['apphot_sma_{}'.format(refband)].max()
+    maxsma = ellipsefit['cog_sma_{}'.format(refband)].max()
     smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
     yfaint, ybright = 0, 50
     for filt in bands:
-        flux = ellipsefit['apphot_mag_{}'.format(filt)]
-        good = np.where( np.isfinite(flux) * (flux > 0) )[0]
-        sma = ellipsefit['apphot_sma_{}'.format(filt)][good]
-        mag = 22.5-2.5*np.log10(flux[good])
+        #flux = ellipsefit['apphot_mag_{}'.format(filt)]
+        #good = np.where( np.isfinite(flux) * (flux > 0) )[0]
+        #mag = 22.5-2.5*np.log10(flux[good])
+        sma = ellipsefit['cog_sma_{}'.format(filt)]
+        cog = ellipsefit['cog_mag_{}'.format(filt)]
+        magtot = ellipsefit['cog_params_{}'.format(filt)][0]
 
-        magtot = np.mean(mag[-5:])
-        ax.plot(sma, mag, label='{}={:.3f}'.format(filt, magtot))
+        #magtot = np.mean(mag[-5:])
+        ax.plot(sma, cog, label='{}={:.3f}'.format(filt, magtot))
+
+        if pipeline_ellipsefit:
+            ax.plot(pipeline_ellipsefit['cog_sma_{}'.format(filt)],
+                    pipeline_ellipsefit['cog_mag_{}'.format(filt)],
+                    color='k')
 
         #print(filt, np.mean(mag[-5:]))
         #print(filt, mag[-5:], np.mean(mag[-5:])
         #print(filt, np.min(mag))
 
-        if mag.max() > yfaint:
-            yfaint = mag.max()
-        if mag.min() < ybright:
-            ybright = mag.min()
+        if cog.max() > yfaint:
+            yfaint = cog.max()
+        if cog.min() < ybright:
+            ybright = cog.min()
 
     ax.set_xlabel(r'Semi-major Axis $a$ (arcsec)')
     ax.set_ylabel('Cumulative Flux (AB mag)')
@@ -193,11 +201,11 @@ def display_sersic(sersic, png=None, verbose=False):
                 sb_model2 = SersicSingleWaveModel(seed=model.seed, psfsigma_g=model.psfsigma_g*0,
                                                   psfsigma_r=model.psfsigma_r*0, psfsigma_z=model.psfsigma_z*0,
                                                   pixscale=model.pixscale).evaluate(
-                                                      #rad, wave,
-                                                      rad_model, wave2,
-                                                      nref=model.nref, r50ref=model.r50ref, 
-                                                      alpha=model.alpha, beta=model.beta, 
-                                                      mu50_g=model.mu50_g, mu50_r=model.mu50_r, mu50_z=model.mu50_z)
+                                                  #rad, wave,
+                                                  rad_model, wave2,
+                                                  nref=model.nref, r50ref=model.r50ref, 
+                                                  alpha=model.alpha, beta=model.beta, 
+                                                  mu50_g=model.mu50_g, mu50_r=model.mu50_r, mu50_z=model.mu50_z)
                 #ax.plot(rad_model, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
                 #ax.plot(rad, 22.5-2.5*np.log10(sb_model2), ls='-', lw=2, alpha=1, color='orange')
                 #pdb.set_trace()
@@ -466,7 +474,7 @@ def display_sersic(sersic, png=None, verbose=False):
 
     ylim = ax.get_ylim()
     if sersic['success']:
-        ax.fill_between([0, 3*model.psfsigma_r*sersic['pixscale']], [ylim[0], ylim[0]], # [arcsec]
+        ax.fill_between([0, 3*model.psfsigma_r*sersic['refpixscale']], [ylim[0], ylim[0]], # [arcsec]
                         [ylim[1], ylim[1]], color='grey', alpha=0.1)
         ax.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10)
@@ -622,19 +630,19 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
     if ellipsefit['success']:
         
         band, refband = ellipsefit['bands'], ellipsefit['refband']
-        pixscale, redshift = ellipsefit['pixscale'], ellipsefit['redshift']
+        refpixscale, redshift = ellipsefit['refpixscale'], ellipsefit['redshift']
         smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
         
         good = (ellipsefit[refband].stop_code < 4)
         bad = ~good
-        ax1.fill_between(ellipsefit[refband].sma[good] * pixscale,
+        ax1.fill_between(ellipsefit[refband].sma[good] * refpixscale,
                          ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
                          ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good])#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
-            ax1.scatter(ellipsefit[refband].sma[bad] * pixscale, ellipsefit[refband].eps[bad],
+            ax1.scatter(ellipsefit[refband].sma[bad] * refpixscale, ellipsefit[refband].eps[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
 
         #ax1.errorbar(ellipsefit[refband].sma[good] * smascale,
@@ -644,12 +652,12 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         #ax1.set_ylim(0, 0.5)
         ax1.xaxis.set_major_formatter(ScalarFormatter())
 
-        ax2.fill_between(ellipsefit[refband].sma[good] * pixscale, 
+        ax2.fill_between(ellipsefit[refband].sma[good] * refpixscale, 
                          np.degrees(ellipsefit[refband].pa[good]-ellipsefit[refband].pa_err[good]),
                          np.degrees(ellipsefit[refband].pa[good]+ellipsefit[refband].pa_err[good]))#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
-            ax2.scatter(ellipsefit[refband].sma[bad] * pixscale, np.degrees(ellipsefit[refband].pa[bad]),
+            ax2.scatter(ellipsefit[refband].sma[bad] * refpixscale, np.degrees(ellipsefit[refband].pa[bad]),
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         #ax2.errorbar(ellipsefit[refband].sma[good] * smascale,
         #             np.degrees(ellipsefit[refband].pa[good]),
@@ -657,12 +665,12 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         #             markersize=4)#, color=color[refband])
         #ax2.set_ylim(0, 180)
 
-        ax3.fill_between(ellipsefit[refband].sma[good] * pixscale,
+        ax3.fill_between(ellipsefit[refband].sma[good] * refpixscale,
                          ellipsefit[refband].x0[good]-ellipsefit[refband].x0_err[good],
                          ellipsefit[refband].x0[good]+ellipsefit[refband].x0_err[good])#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
-            ax3.scatter(ellipsefit[refband].sma[bad] * pixscale, ellipsefit[refband].x0[bad],
+            ax3.scatter(ellipsefit[refband].sma[bad] * refpixscale, ellipsefit[refband].x0[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         #ax3.errorbar(ellipsefit[refband].sma[good] * smascale, ellipsefit[refband].x0[good],
         #             ellipsefit[refband].x0_err[good], fmt='o',
@@ -670,12 +678,12 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         ax3.xaxis.set_major_formatter(ScalarFormatter())
         ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
-        ax4.fill_between(ellipsefit[refband].sma[good] * pixscale, 
+        ax4.fill_between(ellipsefit[refband].sma[good] * refpixscale, 
                          ellipsefit[refband].y0[good]-ellipsefit[refband].y0_err[good],
                          ellipsefit[refband].y0[good]+ellipsefit[refband].y0_err[good])#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
-            ax4.scatter(ellipsefit[refband].sma[bad] * pixscale, ellipsefit[refband].y0[bad],
+            ax4.scatter(ellipsefit[refband].sma[bad] * refpixscale, ellipsefit[refband].y0[bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         #ax4.errorbar(ellipsefit[refband].sma[good] * smascale, ellipsefit[refband].y0[good],
         #             ellipsefit[refband].y0_err[good], fmt='o',
@@ -738,7 +746,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
         sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr)
         
         band, refband = ellipsefit['bands'], ellipsefit['refband']
-        redshift, pixscale = ellipsefit['redshift'], ellipsefit['pixscale']
+        redshift, refpixscale = ellipsefit['redshift'], ellipsefit['refpixscale']
         smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
         if png:
@@ -756,35 +764,35 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
         good = (ellipsefit[refband].stop_code < 4)
         bad = ~good
         if False:
-            ax1.fill_between(ellipsefit[refband].sma[good] * pixscale,
+            ax1.fill_between(ellipsefit[refband].sma[good] * refpixscale,
                              ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
                              ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good])#,
                              #edgecolor='k', lw=2)
             if np.count_nonzero(bad) > 0:
-                ax1.scatter(ellipsefit[refband].sma[bad] * pixscale, ellipsefit[refband].eps[bad],
+                ax1.scatter(ellipsefit[refband].sma[bad] * refpixscale, ellipsefit[refband].eps[bad],
                             marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         else:
-            ax1.plot(ellipsefit[refband].sma * pixscale, ellipsefit[refband].eps, zorder=1, alpha=0.9, lw=2)
-            ax1.scatter(ellipsefit[refband].sma * pixscale, ellipsefit[refband].eps,
+            ax1.plot(ellipsefit[refband].sma * refpixscale, ellipsefit[refband].eps, zorder=1, alpha=0.9, lw=2)
+            ax1.scatter(ellipsefit[refband].sma * refpixscale, ellipsefit[refband].eps,
                         marker='s', s=50, edgecolor='k', lw=2, alpha=0.75, zorder=2)
-            #ax1.fill_between(ellipsefit[refband].sma * pixscale,
+            #ax1.fill_between(ellipsefit[refband].sma * refpixscale,
             #                 ellipsefit[refband].eps-0.02,
             #                 ellipsefit[refband].eps+0.02, color='gray', alpha=0.5)
 
         # ax2 - position angle versus semi-major axis
         if False:
-            ax2.fill_between(ellipsefit[refband].sma[good] * pixscale, 
+            ax2.fill_between(ellipsefit[refband].sma[good] * refpixscale, 
                              np.degrees(ellipsefit[refband].pa[good]-ellipsefit[refband].pa_err[good]),
                              np.degrees(ellipsefit[refband].pa[good]+ellipsefit[refband].pa_err[good]))#,
                              #edgecolor='k', lw=2)
             if np.count_nonzero(bad) > 0:
-                ax2.scatter(ellipsefit[refband].sma[bad] * pixscale, np.degrees(ellipsefit[refband].pa[bad]),
+                ax2.scatter(ellipsefit[refband].sma[bad] * refpixscale, np.degrees(ellipsefit[refband].pa[bad]),
                             marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         else:
-            ax2.plot(ellipsefit[refband].sma * pixscale, np.degrees(ellipsefit[refband].pa), zorder=1, alpha=0.9, lw=2)
-            ax2.scatter(ellipsefit[refband].sma * pixscale, np.degrees(ellipsefit[refband].pa),
+            ax2.plot(ellipsefit[refband].sma * refpixscale, np.degrees(ellipsefit[refband].pa), zorder=1, alpha=0.9, lw=2)
+            ax2.scatter(ellipsefit[refband].sma * refpixscale, np.degrees(ellipsefit[refband].pa),
                         marker='s', s=50, edgecolor='k', lw=2, alpha=0.75, zorder=2)
-            #ax2.fill_between(ellipsefit[refband].sma * pixscale,
+            #ax2.fill_between(ellipsefit[refband].sma * refpixscale,
             #                 np.degrees(ellipsefit[refband].pa)-5,
             #                 np.degrees(ellipsefit[refband].pa)+5, color='gray', alpha=0.5)
 
@@ -824,7 +832,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                 xminmax[1] = np.nanmax(sma)
 
             if bool(skyellipsefit):
-                skysma = skyellipsefit['sma'] * pixscale
+                skysma = skyellipsefit['sma'] * refpixscale
 
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore')
@@ -896,7 +904,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             xx.set_xlim(xlim)
             
             ylim = xx.get_ylim()
-            xx.fill_between([0, 3*ellipsefit['psfsigma_r']*ellipsefit['pixscale']], [ylim[0], ylim[0]],
+            xx.fill_between([0, 3*ellipsefit['psfsigma_r']*ellipsefit['refpixscale']], [ylim[0], ylim[0]],
                             [ylim[1], ylim[1]], color='grey', alpha=0.1)
             
         ax4.text(0.03, 0.09, 'PSF\n(3$\sigma$)', ha='center', va='center',
@@ -960,7 +968,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                              alpha=0.75, edgecolor='k', lw=2)
 
             if bool(skyellipsefit):
-                skysma = skyellipsefit['sma'] * ellipsefit['pixscale']
+                skysma = skyellipsefit['sma'] * ellipsefit['refpixscale']
 
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore')
@@ -1046,7 +1054,7 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         for xx in (ax1, ax2):
             ylim = xx.get_ylim()
-            xx.fill_between([0, 3*ellipsefit['psfsigma_r']*ellipsefit['pixscale']], [ylim[0], ylim[0]],
+            xx.fill_between([0, 3*ellipsefit['psfsigma_r']*ellipsefit['refpixscale']], [ylim[0], ylim[0]],
                             [ylim[1], ylim[1]], color='grey', alpha=0.1)
             
         ax2.text(0.03, 0.1, 'PSF\n(3$\sigma$)', ha='center', va='center',
@@ -1254,7 +1262,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:
                     refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
-                    smascale = ellipsefit['pixscale'] * legacyhalos.misc.arcsec2kpc(redshift) # [kpc/pixel]
+                    smascale = ellipsefit['refpixscale'] * legacyhalos.misc.arcsec2kpc(redshift) # [kpc/pixel]
                     
                     good = (ellipsefit[refband].stop_code < 4)
                     #good = np.arange( len(ellipsefit[refband].sma) )

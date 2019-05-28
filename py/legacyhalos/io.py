@@ -305,10 +305,13 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, maskfactor=2.0, fill_value=0.0,
-                   pipeline=False, sdss=False):
+                   pipeline=False, sdss=False, verbose=False):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
+
+    This script needs to be refactored to pull out the unWISE + GALEX stuff (see
+    ellipse.legacyhalos_ellipse).
 
     """
     from scipy.ndimage.filters import gaussian_filter
@@ -396,6 +399,9 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     # and poor model fits because of the higher spatial sampling/resolution.
     opt_residual_mask = []
     for filt in bands:
+        if verbose:
+            print('Reading {}'.format(filt2imfile[filt][0]))
+            print('Reading {}'.format(filt2imfile[filt][2]))
         image = fitsio.read(filt2imfile[filt][0])
         allmodel = fitsio.read(filt2imfile[filt][2]) # read the all-model image
 

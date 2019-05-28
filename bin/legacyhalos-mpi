@@ -311,8 +311,7 @@ def _call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
                                                       zcolumn=zcolumn,
                                                       input_ellipse=input_ellipse,
                                                       verbose=verbose, debug=debug,
-                                                      hsc=hsc,
-                                                      sdss=sdss, sdss_pixscale=sdss_pixscale,
+                                                      hsc=hsc, sdss=sdss, sdss_pixscale=sdss_pixscale,
                                                       pipeline=True, unwise=False)
         _done(galaxy, err, t0)
     else:
@@ -323,8 +322,7 @@ def _call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
                                                               zcolumn=zcolumn,
                                                               input_ellipse=input_ellipse,
                                                               verbose=verbose, debug=debug,
-                                                              hsc=hsc,
-                                                              sdss=sdss, sdss_pixscale=sdss_pixscale,
+                                                              hsc=hsc, sdss=sdss, sdss_pixscale=sdss_pixscale,
                                                               pipeline=True, unwise=False)
                 _done(galaxy, err, t0, log=log)
 

@@ -146,9 +146,10 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                 display_ellipse_sbprofile, qa_curveofgrowth)
 
     ellipsefit = read_ellipsefit(galaxy, galaxydir)
+    pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
     skyellipsefit = read_sky_ellipsefit(galaxy, galaxydir)
 
-    sdssellipsefit = read_ellipsefit(galaxy, galaxydir, sdss=True)
+    sdssellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
 
     if len(ellipsefit) > 0:
         # Toss out bad fits.
@@ -158,7 +159,8 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
         cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
         if not os.path.isfile(cogfile) or clobber:
-            qa_curveofgrowth(ellipsefit, png=cogfile, verbose=verbose)
+            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
+                             png=cogfile, verbose=verbose)
 
         sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
         if not os.path.isfile(sbprofilefile) or clobber:
@@ -309,7 +311,6 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,
                            barlabel=barlabel, clobber=clobber, verbose=verbose)
-
         pdb.set_trace()
         
         # Build the montage coadds.
