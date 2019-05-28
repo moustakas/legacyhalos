@@ -14,6 +14,8 @@ import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
 
+import astropy.modeling
+
 import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
@@ -23,12 +25,36 @@ from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
 from photutils.isophote.sample import CentralEllipseSample
 from photutils.isophote.fitter import CentralEllipseFitter
 
+class CogModel(astropy.modeling.Fittable1DModel):
+    """Class to empirically model the curve of growth.
+
+    radius in arcsec
+    r0 - constant scale factor (10)
+
+    m(r) = mtot + mcen * (1-exp**(-alpha1*(radius/r0)**(-alpha2))
+    """
+    mtot = astropy.modeling.Parameter(default=20.0, bounds=(5, 25)) # integrated magnitude (r-->infty)
+    m0 = astropy.modeling.Parameter(default=10.0, bounds=(0, 20)) # central magnitude (r=0)
+    alpha1 = astropy.modeling.Parameter(default=0.3, bounds=(0, 5)) # scale factor 1
+    alpha2 = astropy.modeling.Parameter(default=0.5, bounds=(0, 5)) # scale factor 2
+
+    def __init__(self, mtot=mtot.default, m0=m0.default,
+                 alpha1=alpha1.default, alpha2=alpha2.default):
+        super(CogModel, self).__init__(mtot, m0, alpha1, alpha2)
+
+        self.r0 = 10 # scale factor [arcsec]
+        
+    def evaluate(self, radius, mtot, m0, alpha1, alpha2):
+        """Evaluate the COG model."""
+        model = mtot + m0 * (1 - np.exp(-alpha1*(radius/self.r0)**(-alpha2)))
+        return model
+        
 def _apphot_one(args):
     """Wrapper function for the multiprocessing."""
-    return apphot_one(*args)
+    return cog_one(*args)
 
 def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale):
-    """Perform aperture photometry in one elliptical annulus.
+    """Perform aperture photometry in a single elliptical annulus.
 
     """
     from photutils import EllipticalAperture, aperture_photometry
@@ -42,9 +68,10 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale):
     apphot = mu_flux * pixscale**2 # [nanomaggies]
     return apphot
 
-def ellipse_apphot(bands, data, refellipsefit, pixscalefactor,
+def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                    pixscale, pool=None):
-    """Perform elliptical aperture photometry for the curve-of-growth analysis.
+    """Measure the curve of growth (CoG) by performing elliptical aperture
+    photometry.
 
     maxsma in pixels
     pixscalefactor - assumed to be constant for all bandpasses!
@@ -59,9 +86,12 @@ def ellipse_apphot(bands, data, refellipsefit, pixscalefactor,
 
     results = {}
 
+    cogmodel = CogModel()
+    cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
+
+    plt.clf()
     for filt in bands:
         img = ma.getdata(data['{}_masked'.format(filt)]) # [nanomaggies/arcsec2]
-        #img = ma.getdata(data['{}_masked'.format(filt)]) * pixscale**2 # [nanomaggies/arcsec2-->nanomaggies]
         mask = ma.getmask(data['{}_masked'.format(filt)])
 
         deltaa_filt = deltaa * pixscalefactor
@@ -74,49 +104,30 @@ def ellipse_apphot(bands, data, refellipsefit, pixscalefactor,
         with np.errstate(all='ignore'):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', category=AstropyUserWarning)
-                apphot = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale)
+                cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale)
                                                 for aa, bb in zip(sma, smb)])
-                apphot = np.hstack(apphot)
+                cogflux = np.hstack(cogflux)
 
-        results['apphot_smaunit'] = 'arcsec'
-        results['apphot_sma_{}'.format(filt)] = sma * pixscale # [arcsec]
-        results['apphot_mag_{}'.format(filt)] = apphot
+        cogmag = 22.5 - 2.5 * np.log10(cogflux) # [mag]
+        sma_arcsec = sma * pixscale             # [arcsec]
 
-    print('Modeling the curve of growth.')
-    from astropy.modeling import Fittable1DModel, Parameter, fitting
-    class CogModel(Fittable1DModel):
-        """m(r) = m0 + C1 * exp**(-C2*radius**(-C3))"""
-        m0 = Parameter(default=20.0, bounds=(5, 25))
-        C1 = Parameter(default=10.0, bounds=(-10, 50))
-        C2 = Parameter(default=0.3, bounds=(0, 5))
-        C3 = Parameter(default=0.5, bounds=(0, 5))
-        linear = False
-        def __init__(self, m0=m0.default, C1=C1.default, C2=C2.default, C3=C3.default):
-            super(CogModel, self).__init__(m0, C1, C2, C3)
-        @staticmethod
-        def evaluate(radius, m0, C1, C2, C3):
-            """Evaluate the COG model."""
-            smascale = 10
-            model = m0 + C1 * (1 - np.exp(-C2*(sma/smascale)**(-C3)))
-            return model
+        results['cog_smaunit'] = 'arcsec'
+        results['cog_mag_{}'.format(filt)] = cogmag
+        results['cog_sma_{}'.format(filt)] = sma_arcsec
+
+        #print('Modeling the curve of growth.')
+        P = cogfitter(cogmodel, sma_arcsec, cogmag)
+        results['cog_params_{}'.format(filt)] = (P.mtot.value, P.m0.value, P.alpha1.value, P.alpha2.value)
         
-    for filt in bands:
-        radius = results['apphot_sma_{}'.format(filt)] # [arcsec]
-        cog = 22.5 - 2.5 * np.log10(results['apphot_mag_{}'.format(filt)])
-
-        model = CogModel()
-        P = fitting.LevMarLSQFitter()(model, radius, cog)
-        
-        print(P)
-        plt.plot(radius, cog, label='Data')
-        plt.plot(radius, model.evaluate(radius, P.m0.default, P.C1.default, P.C2.default, P.C3.default), label='Default')
-        plt.plot(radius, model.evaluate(radius, P.m0.value, P.C1.value, P.C2.value, P.C3.value), label='Best Fit')
-        #plt.plot(radius, model.evaluate(radius, P.m0.default, P.r0.default, P.gamma.default), label='Default')
-        #plt.plot(radius, model.evaluate(radius, P.m0.value, P.r0.value, P.gamma.value), label='Best Fit')
-        plt.legend()
-        plt.ylim(15, 30)
-        plt.savefig('junk.png')
-        pdb.set_trace()
+    #    print(filt, P)
+    #    default_model = cogmodel.evaluate(radius, P.mtot.default, P.m0.default, P.alpha1.default, P.alpha2.default)
+    #    bestfit_model = cogmodel.evaluate(radius, P.mtot.value, P.m0.value, P.alpha1.value, P.alpha2.value)
+    #    plt.scatter(radius, cog, label='Data {}'.format(filt), s=10)
+    #    plt.plot(radius, bestfit_model, label='Best Fit {}'.format(filt), color='k', lw=1, alpha=0.5)
+    #plt.legend(fontsize=10)
+    #plt.ylim(15, 30)
+    #plt.savefig('junk.png')
+    #pdb.set_trace()
 
     #fig, ax = plt.subplots()
     #for filt in bands:
@@ -244,9 +255,9 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
     # Perform elliptical aperture photometry.
     print('Performing elliptical aperture photometry.')
     t0 = time.time()
-    apphot = ellipse_apphot(bands, data, refellipsefit, pixscalefactor,
-                            pixscale, pool=pool)
-    ellipsefit.update(apphot)
+    cog = ellipse_cog(bands, data, refellipsefit, pixscalefactor,
+                      pixscale, pool=pool)
+    ellipsefit.update(cog)
     print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
 
     # Write out
@@ -604,7 +615,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
     print('HACK!!!!')
     pipeline = True
-    bands='r'
     
     # Do ellipse-fitting.
     if bool(data):
@@ -612,7 +622,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             if pipeline:
                 print('Forced ellipse-fitting on the pipeline images.')
                 ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data, nproc=nproc,
-                                                         filesuffix='pipeline', bands=bands,#('g','r','z'),
+                                                         filesuffix='pipeline', bands=('g','r','z'),
                                                          pixscale=pixscale, verbose=verbose)
             if sdss:
                 print('Forced ellipse-fitting on the SDSS images.')
