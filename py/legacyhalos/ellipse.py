@@ -51,7 +51,7 @@ class CogModel(astropy.modeling.Fittable1DModel):
         
 def _apphot_one(args):
     """Wrapper function for the multiprocessing."""
-    return cog_one(*args)
+    return apphot_one(*args)
 
 def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale):
     """Perform aperture photometry in a single elliptical annulus.
@@ -272,7 +272,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
                          integrmode='median', nclip=2, sclip=3,
                          step=0.1, fflag=0.7, linear=False, zcolumn='Z',
                          input_ellipse=None, nowrite=False, verbose=False,
-                         noellipsefit=True, debug=False):
+                         fitgeometry=False, debug=False):
     """Ellipse-fit the multiband data.
 
     See
@@ -287,12 +287,13 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
 
     pool = multiprocessing.Pool(nproc)
     
-    # If noellipsefit=True, use the mean geometry of the galaxy to extract the
-    # surface-brightness profile (turn off fitting).
-    if noellipsefit:
-        maxrit = -1
-    else:
+    # If fitgeometry=True then fit for the geometry as a function of semimajor
+    # axis, otherwise (the default) use the mean geometry of the galaxy to
+    # extract the surface-brightness profile.
+    if fitgeometry:
         maxrit = None
+    else:
+        maxrit = -1
 
     bands, refband, refpixscale = data['bands'], data['refband'], data['refpixscale']
     xcen, ycen = data[refband].shape
@@ -590,11 +591,12 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         refband='r', bands=('g', 'r', 'z'), maxsma=None,
                         integrmode='median', nclip=2, sclip=3, zcolumn='Z',
                         galex_pixscale=1.5, unwise_pixscale=2.75,
-                        input_ellipse=None, noellipsefit=False, verbose=False,
+                        input_ellipse=None, fitgeometry=False, verbose=False,
                         debug=False, hsc=False, sdss=False, galex=False, unwise=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
-    noellipsefit - do not fit for the ellipse parameters (use the mean values from MGE).
+    fitgeometry - fit for the ellipse parameters (do not use the mean values
+      from MGE).
 
     pipeline - read the pipeline-built images (default is custom)
 
@@ -613,9 +615,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          sdss_pixscale=sdss_pixscale,
                                          sdss=sdss, pipeline=pipeline)
 
-    print('HACK!!!!')
-    pipeline = True
-    
     # Do ellipse-fitting.
     if bool(data):
         if pipeline or sdss or unwise or galex:
@@ -643,7 +642,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
                                               nproc=nproc, integrmode=integrmode,
                                               nclip=nclip, sclip=sclip, zcolumn=zcolumn,
-                                              verbose=verbose, noellipsefit=noellipsefit,
+                                              verbose=verbose, fitgeometry=fitgeometry,
                                               input_ellipse=input_ellipse)
         if ellipsefit['success']:
             return 1

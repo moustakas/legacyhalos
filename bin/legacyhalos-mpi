@@ -311,8 +311,9 @@ def _call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
                                                       zcolumn=zcolumn,
                                                       input_ellipse=input_ellipse,
                                                       verbose=verbose, debug=debug,
-                                                      noellipsefit=True, hsc=hsc,
-                                                      sdss=sdss, sdss_pixscale=sdss_pixscale)
+                                                      hsc=hsc,
+                                                      sdss=sdss, sdss_pixscale=sdss_pixscale,
+                                                      pipeline=True, unwise=False)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -322,8 +323,9 @@ def _call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
                                                               zcolumn=zcolumn,
                                                               input_ellipse=input_ellipse,
                                                               verbose=verbose, debug=debug,
-                                                              noellipsefit=True, hsc=hsc,
-                                                              sdss=sdss, sdss_pixscale=sdss_pixscale)
+                                                              hsc=hsc,
+                                                              sdss=sdss, sdss_pixscale=sdss_pixscale,
+                                                              pipeline=True, unwise=False)
                 _done(galaxy, err, t0, log=log)
 
 def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
