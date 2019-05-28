@@ -86,39 +86,35 @@ def ellipse_apphot(bands, data, refellipsefit, pixscalefactor,
     from astropy.modeling import Fittable1DModel, Parameter, fitting
     class CogModel(Fittable1DModel):
         """m(r) = m0 + C1 * exp**(-C2*radius**(-C3))"""
-        m0 = Parameter(default=20.0, bounds=(10, 30))
-        C1 = Parameter(default=-1.0, bounds=(-5, 0))
-        C2 = Parameter(default=-1.0, bounds=(-5, 0))
-        C3 = Parameter(default=-1.0, bounds=(-5, 0))
+        m0 = Parameter(default=20.0, bounds=(5, 25))
+        C1 = Parameter(default=10.0, bounds=(-10, 50))
+        C2 = Parameter(default=0.3, bounds=(0, 5))
+        C3 = Parameter(default=0.5, bounds=(0, 5))
         linear = False
         def __init__(self, m0=m0.default, C1=C1.default, C2=C2.default, C3=C3.default):
             super(CogModel, self).__init__(m0, C1, C2, C3)
         @staticmethod
         def evaluate(radius, m0, C1, C2, C3):
             """Evaluate the COG model."""
-            model = m0 + C1 * np.exp(-C2*sma**(-C3))
+            smascale = 10
+            model = m0 + C1 * (1 - np.exp(-C2*(sma/smascale)**(-C3)))
             return model
-
-    ##custom_model
-    #def cogmodel(radius, m0=20.0, C1=1.0, C2=0.1, C3=0.1):
-    #    return m0 + C1 * np.exp(-C2*radius**(-C3))
-
-    #class CogFit(object):
-    #    def __init__(self):
-    #        self.fitter = fitting.LevMarLSWFitter()
-    
+        
     for filt in bands:
-        radius = results['apphot_sma_{}'.format(filt)]
+        radius = results['apphot_sma_{}'.format(filt)] # [arcsec]
         cog = 22.5 - 2.5 * np.log10(results['apphot_mag_{}'.format(filt)])
 
         model = CogModel()
         P = fitting.LevMarLSQFitter()(model, radius, cog)
+        
         print(P)
         plt.plot(radius, cog, label='Data')
         plt.plot(radius, model.evaluate(radius, P.m0.default, P.C1.default, P.C2.default, P.C3.default), label='Default')
         plt.plot(radius, model.evaluate(radius, P.m0.value, P.C1.value, P.C2.value, P.C3.value), label='Best Fit')
+        #plt.plot(radius, model.evaluate(radius, P.m0.default, P.r0.default, P.gamma.default), label='Default')
+        #plt.plot(radius, model.evaluate(radius, P.m0.value, P.r0.value, P.gamma.value), label='Best Fit')
         plt.legend()
-        plt.ylim(10, 30)
+        plt.ylim(15, 30)
         plt.savefig('junk.png')
         pdb.set_trace()
 
