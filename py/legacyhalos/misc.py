@@ -10,8 +10,6 @@ from __future__ import absolute_import, division, print_function
 import os, sys
 import numpy as np
 
-from astrometry.util.util import Tan
-
 RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
 
 def srcs2image(srcs, wcs, psf_sigma=1.0):
@@ -51,6 +49,8 @@ def ellipse_mask(xcen, ycen, semia, semib, phi, x, y):
 
 def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262, zcolumn='Z'):
     '''Build a simple WCS object for a single galaxy.'''
+    from astrometry.util.util import Tan
+
     if zcolumn in onegal.colnames:
         galdiam = 2 * cutout_radius_kpc(redshift=onegal[zcolumn], pixscale=pixscale)
     else:
@@ -64,6 +64,8 @@ def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262, zcolumn='Z'):
 
 def ccdwcs(ccd):
     '''Build a simple WCS object for a single CCD table.'''
+    from astrometry.util.util import Tan
+
     W, H = ccd.width, ccd.height
     ccdwcs = Tan(*[float(xx) for xx in [ccd.crval1, ccd.crval2, ccd.crpix1,
                                         ccd.crpix2, ccd.cd1_1, ccd.cd1_2,
