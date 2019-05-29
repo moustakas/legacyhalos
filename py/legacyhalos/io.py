@@ -329,12 +329,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             }
             
     filt2imfile.update({
-        'FUV': ['image', 'model-nocentral', 'custom-model'],
-        'NUV': ['image', 'model-nocentral', 'custom-model'],
-        'W1':  ['image', 'model-nocentral', 'custom-model'],
-        'W2':  ['image', 'model-nocentral', 'custom-model'],
-        'W3':  ['image', 'model-nocentral', 'custom-model'],
-        'W4':  ['image', 'model-nocentral', 'custom-model']
+        'FUV': ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'NUV': ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'W1':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'W2':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'W3':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'W4':  ['image', 'model-nocentral', 'custom-model', 'invvar']
         })
         
     filt2pixscale.update({
@@ -392,8 +392,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                       (tractor['BY'] > np.int(H / 2 - dH)) * (tractor['BY'] < np.int(H / 2 + dH)) )
             if np.sum(these) == 0:
                 print('No sources at the center of the field, sonable to get PSF size!')
-            data['NPSFSIZE_{}'.format(filt.upper())] = np.sum(these).astype(int)
-            data['PSFSIZE_{}'.format(filt.upper())] = np.median(tractor[psfcol])
+            data['npsfsize_{}'.format(filt)] = np.sum(these).astype(int)
+            data['psfsize_{}'.format(filt)] = np.median(tractor[psfcol])
         
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
@@ -453,7 +453,9 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
 
         # Initialize the mask with the inverse variance map, if available.
         if len(filt2imfile[filt]) == 4:
+            print('Reading {}'.format(filt2imfile[filt][3]))
             invvar = fitsio.read(filt2imfile[filt][3])
+            data['{}_invvar'.format(filt)] = invvar
             mask = invvar <= 0 # True-->bad, False-->good
         else:
             mask = np.zeros_like(image).astype(bool)

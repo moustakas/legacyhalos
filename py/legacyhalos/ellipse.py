@@ -333,8 +333,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     for filt in bands: # [Gaussian sigma]
         #if 'PSFSIZE_{}'.format(filt.upper()) in sample.colnames:
         #    psfsize = sample['PSFSIZE_{}'.format(filt.upper())]
-        if 'PSFSIZE_{}'.format(filt.upper()) in data.keys():
-            psfsize = data['PSFSIZE_{}'.format(filt.upper())]
+        if 'psfsize_{}'.format(filt) in data.keys():
+            psfsize = data['psfsize_{}'.format(filt)]
             #print(filt, psfsize)
         else:
             psfsize = 1.1 # [FWHM, arcsec]
@@ -619,7 +619,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          galex_pixscale=galex_pixscale,
                                          unwise_pixscale=unwise_pixscale,
                                          verbose=verbose)
-    
+    print('HACK!!!')
     if bool(data):
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
                                           nproc=nproc, integrmode=integrmode,
