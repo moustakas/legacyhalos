@@ -96,9 +96,10 @@ def read_parent(first=None, last=None, verbose=False):
     
     """
     hdir = hsc_dir()
+    samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_decals_full_fdfc_bsm_ell.fits')
     #samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_dec_30_for_john.fits')
     # Hack for MUSE proposal
-    samplefile = os.path.join(hdir, 's18a_z0.07_0.12_rcmod_18.5_etg_muse_massive_0313.fits')
+    #samplefile = os.path.join(hdir, 's18a_z0.07_0.12_rcmod_18.5_etg_muse_massive_0313.fits')
 
     if first and last:
         if first > last:
@@ -139,7 +140,7 @@ def read_parent(first=None, last=None, verbose=False):
 def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', first=None, last=None,
               nproc=1, survey=None, makeplots=True, clobber=False, verbose=True,
-              maketrends=False, ccdqa=True):
+              maketrends=False, ccdqa=False):
     """Make the HTML pages.
 
     """
@@ -161,6 +162,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         sample = astropy.table.Table(sample)
 
     galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
+    ellipse = legacyhalos.io.read_ellipsefit(galaxy, galaxydir, verbose=verbose)
 
     # Write the last-updated date to a webpage.
     js = legacyhalos.html._javastring()       
@@ -332,8 +334,24 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
             html.write('</table>\n')
             #html.write('<br />\n')
-            
+
             html.write('<h2>Elliptical Isophote Analysis</h2>\n')
+
+            html.write('<table>\n')
+            html.write('<tr>\n')
+            html.write('<th>PA</th>\n')
+            html.write('<th>&nbsp</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<th>(deg)</th>\n')
+            html.write('<th>b/a</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td>{:.1f}</td>\n'.format(ellipse['pa']))
+            html.write('<td>{:.3f}</td>\n'.format(ellipse['eps']))
+            html.write('</tr>\n')
+            html.write('</table>\n')
+
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
             html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" alt="Missing file {}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
@@ -383,7 +401,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
 
                 html.write('<br />\n')
 
-            if nccds:
+            if nccds and ccdqa:
                 html.write('<h2>CCD Diagnostics</h2>\n')
                 html.write('<table width="90%">\n')
                 html.write('<tr>\n')

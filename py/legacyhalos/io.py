@@ -12,7 +12,7 @@ import numpy.ma as ma
 from glob import glob
 
 import fitsio
-from astropy.table import Table
+from astropy.table import Table, hstack
 from astropy.io import fits
 
 def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
@@ -103,8 +103,8 @@ def sample_dir():
         os.makedirs(sdir, exist_ok=True)
     return sdir
 
-def paper1_dir(figures=False, data=False):
-    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper1')
+def smf_dir(figures=False, data=False):
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'smf')
     if not os.path.isdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
@@ -117,8 +117,8 @@ def paper1_dir(figures=False, data=False):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
-def paper2_dir(figures=False, data=False):
-    pdir = os.path.join(legacyhalos_dir(), 'science', 'paper2')
+def profiles_dir(figures=False, data=False):
+    pdir = os.path.join(legacyhalos_dir(), 'science', 'profiles')
     if not os.path.isdir(pdir):
         os.makedirs(pdir, exist_ok=True)
     if figures:
@@ -131,21 +131,31 @@ def paper2_dir(figures=False, data=False):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
-def write_ellipsefit(galaxy, galaxydir, ellipsefit, verbose=False):
+def write_ellipsefit(galaxy, galaxydir, ellipsefit, sdss=False, verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
 
     """
-    ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
+    if sdss:
+        suffix = 'sdss-'
+    else:
+        suffix = ''
+        
+    ellipsefitfile = os.path.join(galaxydir, '{}-{}ellipsefit.p'.format(galaxy, suffix))
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
     with open(ellipsefitfile, 'wb') as ell:
         pickle.dump(ellipsefit, ell, protocol=2)
 
-def read_ellipsefit(galaxy, galaxydir, verbose=True):
+def read_ellipsefit(galaxy, galaxydir, sdss=False, verbose=True):
     """Read the output of write_ellipsefit."""
 
-    ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
+    if sdss:
+        suffix = 'sdss-'
+    else:
+        suffix = ''
+
+    ellipsefitfile = os.path.join(galaxydir, '{}-{}ellipsefit.p'.format(galaxy, suffix))
     try:
         with open(ellipsefitfile, 'rb') as ell:
             ellipsefit = pickle.load(ell)
@@ -293,15 +303,15 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     else:
         print('File {} exists.'.format(resultsfile))
 
-def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
+def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
-                   maskfactor=2.0):
+                   sdss_pixscale=0.396, maskfactor=2.0, fill_value=0.0,
+                   sdss=False):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
 
     """
-    from skimage.transform import resize
     from scipy.ndimage.filters import gaussian_filter
     from scipy.ndimage.morphology import binary_dilation
     from astropy.stats import sigma_clipped_stats
@@ -311,30 +321,52 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
 
     # Dictionary mapping between filter and filename coded up in coadds.py,
     # galex.py, and unwise.py (see the LSLGA product, too).
-    filt2imfile = {
-        'g':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-        'r':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-        'z':   ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+    if sdss:
+        masksuffix = 'sdss-mask-gri'
+        bands = ('g', 'r', 'i')
+        filt2imfile = {
+            'g': ['sdss-image', 'sdss-model-nocentral', 'sdss-model'],
+            'r': ['sdss-image', 'sdss-model-nocentral', 'sdss-model'],
+            'i': ['sdss-image', 'sdss-model-nocentral', 'sdss-model']
+            }
+        filt2pixscale =  {
+            'g': sdss_pixscale,
+            'r': sdss_pixscale,
+            'i': sdss_pixscale
+            }
+    else:
+        masksuffix = 'custom-mask-grz'
+        filt2imfile = {
+            'g': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+            'r': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
+            'z': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar']
+            }
+        filt2pixscale =  {
+            'g': pixscale,
+            'r': pixscale,
+            'z': pixscale
+            }
+            
+    filt2imfile.update({
         'FUV': ['image', 'model-nocentral', 'custom-model'],
         'NUV': ['image', 'model-nocentral', 'custom-model'],
         'W1':  ['image', 'model-nocentral', 'custom-model'],
         'W2':  ['image', 'model-nocentral', 'custom-model'],
         'W3':  ['image', 'model-nocentral', 'custom-model'],
-        'W4':  ['image', 'model-nocentral', 'custom-model']}
+        'W4':  ['image', 'model-nocentral', 'custom-model']
+        })
         
-    filt2pixscale =  {
-        'g':   pixscale,
-        'r':   pixscale,
-        'z':   pixscale,
+    filt2pixscale.update({
         'FUV': galex_pixscale,
         'NUV': galex_pixscale,
         'W1':  unwise_pixscale,
         'W2':  unwise_pixscale,
         'W3':  unwise_pixscale,
-        'W4':  unwise_pixscale}
+        'W4':  unwise_pixscale
+        })
 
     found_data = True
-    for filt in band:
+    for filt in bands:
         for ii, imtype in enumerate(filt2imfile[filt]):
             for suffix in ('.fz', ''):
                 imfile = os.path.join(galaxydir, '{}-{}-{}.fits{}'.format(galaxy, imtype, filt, suffix))
@@ -345,14 +377,13 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    #tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
-    #if os.path.isfile(tractorfile):
-    #    cat = fits_table(tractorfile)
-    #    #cat = Table(fitsio.read(tractorfile, upper=True))
-    #    print('Read {} sources from {}'.format(len(cat), tractorfile))
-    #else:
-    #    print('Missing Tractor catalog {}'.format(tractorfile))
-    #    found_data = False
+    tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    if os.path.isfile(tractorfile):
+        tractor = Table(fitsio.read(tractorfile, upper=True))
+        print('Read {} sources from {}'.format(len(tractor), tractorfile))
+    else:
+        print('Missing Tractor catalog {}'.format(tractorfile))
+        found_data = False
 
     data = dict()
     if not found_data:
@@ -360,24 +391,37 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
 
     # Treat the optical/grz special because we are most sensitive to residuals
     # and poor model fits because of the higher spatial sampling/resolution.
-    grz_residual_mask = []
-    for filt in ('g', 'r', 'z'):
+    opt_residual_mask = []
+    for filt in bands:
         image = fitsio.read(filt2imfile[filt][0])
         allmodel = fitsio.read(filt2imfile[filt][2]) # read the all-model image
 
+        # Get the average PSF size in each bandpass.
         H, W = image.shape
+
+        psfcol = 'PSFSIZE_{}'.format(filt.upper())
+        if not psfcol in tractor.colnames:
+            print('Warning: PSF column {} not found in Tractor catalog!'.format(psfcol))
+        else:
+            dH = 0.1 * H
+            these = ( (tractor['BX'] > np.int(H / 2 - dH)) * (tractor['BX'] < np.int(H / 2 + dH)) *
+                      (tractor['BY'] > np.int(H / 2 - dH)) * (tractor['BY'] < np.int(H / 2 + dH)) )
+            if np.sum(these) == 0:
+                print('No sources at the center of the field, sonable to get PSF size!')
+            data['NPSFSIZE_{}'.format(filt.upper())] = np.sum(these).astype(int)
+            data['PSFSIZE_{}'.format(filt.upper())] = np.median(tractor[psfcol])
         
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
         
-        grz_residual_mask.append(np.abs(resid) > 3*sig)
-        #grz_residual_mask.append(np.logical_or(resid > 3*sig, resid < 5*sig))
+        opt_residual_mask.append(np.abs(resid) > 3*sig)
+        #opt_residual_mask.append(np.logical_or(resid > 3*sig, resid < 5*sig))
         
         # "Find" the galaxy in the reference band.
         if filt == refband:
             #wcs = ConstantFitsWcs(Tan(filt2imfile[filt][0], 1))
             
-            grz_shape = image.shape
+            opt_shape = image.shape
             model = fitsio.read(filt2imfile[filt][1]) # model excluding the central
 
             mgegalaxy = find_galaxy(image-model, nblob=1, binning=3, quiet=True)
@@ -385,30 +429,30 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
             H, W = image.shape
             xobj, yobj = np.ogrid[0:H, 0:W] # mask the galaxy
             majoraxis = 1.3*mgegalaxy.majoraxis
-            grz_objmask = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
+            opt_objmask = ellipse_mask(H/2, W/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
                                        np.radians(mgegalaxy.theta-90), xobj, yobj)
 
             # Read the coadded (custom) mask and flag/mask pixels with bright stars etc.
-            maskfile = os.path.join(galaxydir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
+            maskfile = os.path.join(galaxydir, '{}-{}.fits.gz'.format(galaxy, masksuffix))
             if os.path.isfile(maskfile):
                 #print('Reading {}'.format(maskfile))
-                grz_custom_mask = fitsio.read(maskfile)
-                grz_custom_mask =  grz_custom_mask & 2**0 != 0 # True=masked
+                opt_custom_mask = fitsio.read(maskfile)
+                opt_custom_mask =  opt_custom_mask & 2**0 != 0 # True=masked
                 # Restore masked pixels from either mis-identified stars (e.g.,
                 # 0000433-033703895) or stars that are too close to the center.
-                grz_custom_mask[grz_objmask] = False
+                opt_custom_mask[opt_objmask] = False
             else:
-                grz_custom_mask = np.zeros_like(image).astype(bool)
+                opt_custom_mask = np.zeros_like(image).astype(bool)
 
     # Find the union of all residuals but restore pixels centered on the central
     # object.
-    grz_residual_mask = np.logical_or.reduce(np.array(grz_residual_mask))
-    grz_residual_mask[grz_objmask] = False
+    opt_residual_mask = np.logical_or.reduce(np.array(opt_residual_mask))
+    opt_residual_mask[opt_objmask] = False
     
-    #grz_residual_mask = np.logical_or(grz_custom_mask, np.logical_or.reduce(np.array(grz_residual_mask)))
+    #opt_residual_mask = np.logical_or(opt_custom_mask, np.logical_or.reduce(np.array(opt_residual_mask)))
 
     # Now loop on each filter.
-    for filt in band:
+    for filt in bands:
         thispixscale = filt2pixscale[filt]
 
         image = fitsio.read(filt2imfile[filt][0])
@@ -442,12 +486,13 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         # Add the custom mask (based on masked bright stars) to the mask,
         # resizing if necessary for this image/pixel scale.  For grz also add
         # the residual mask.
-        if image.shape != grz_shape:
-            custom_mask = resize(grz_custom_mask, image.shape, mode='reflect')
+        if image.shape != opt_shape:
+            from skimage.transform import resize
+            custom_mask = resize(opt_custom_mask, image.shape, mode='reflect')
             mask = np.logical_or(mask, custom_mask)
         else:
-            mask = np.logical_or(mask, grz_custom_mask)
-            mask = np.logical_or(mask, grz_residual_mask)
+            mask = np.logical_or(mask, opt_custom_mask)
+            mask = np.logical_or(mask, opt_residual_mask)
 
         # Finally restore the pixels of the central galaxy.
         #mask[objmask] = False
@@ -470,15 +515,17 @@ def read_multiband(galaxy, galaxydir, band=('g', 'r', 'z'), refband='r',
         data[filt] = (image - model) / thispixscale**2 # [nanomaggies/arcsec**2]
         
         data['{}_masked'.format(filt)] = ma.masked_array(data[filt], mask)
-        ma.set_fill_value(data['{}_masked'.format(filt)], 0)
+        ma.set_fill_value(data['{}_masked'.format(filt)], fill_value)
+        #data['{}_masked'.format(filt)].filled(fill_value)
+        #pdb.set_trace()
 
-    data['band'] = band
+    data['bands'] = bands
     data['refband'] = refband
     data['pixscale'] = pixscale
 
-    if 'NUV' in band:
+    if 'NUV' in bands:
         data['galex_pixscale'] = galex_pixscale
-    if 'W1' in band:
+    if 'W1' in bands:
         data['unwise_pixscale'] = unwise_pixscale
 
     return data
@@ -578,17 +625,17 @@ def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
             
     return sample
 
-def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
+def _read_paper_sample(paper='profiles', first=None, last=None, dr='dr8',
                        sfhgrid=1, isedfit_lsphot=False, isedfit_sdssphot=False,
                        isedfit_lhphot=False, candidates=False, kcorr=False,
                        verbose=False):
     """Wrapper to read a sample for a given paper.
 
     """
-    if paper == 'paper1':
-        paperdir = paper1_dir(data=True)
-    elif paper == 'paper2':
-        paperdir = paper2_dir(data=True)
+    if paper == 'profiles':
+        paperdir = profiles_dir(data=True)
+    elif paper == 'smf':
+        paperdir = smf_dir(data=True)
     else:
         print('Unrecognized paper {}!'.format(paper))
         raise ValueError()
@@ -605,7 +652,7 @@ def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
     elif isedfit_lhphot:
         samplefile = os.path.join(paperdir, '{}-{}-sfhgrid{:02d}-lhphot.fits'.format(paper, prefix, sfhgrid))
     else:
-        samplefile = os.path.join(paperdir, '{}-{}-{}.fits'.format(paper, prefix, dr))
+        samplefile = os.path.join(paperdir, 'sample-{}-{}-{}.fits'.format(paper, prefix, dr))
         
     if not os.path.isfile(samplefile):
         print('File {} not found.'.format(samplefile))
@@ -645,32 +692,73 @@ def _read_paper_sample(paper='paper1', first=None, last=None, dr='dr6-dr7',
 
     return sample
 
-def read_paper1_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
-                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
-                       kcorr=False, verbose=False):
-    """Read the Paper 1 sample.
+def read_smf_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
+                    isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                    kcorr=False, verbose=False):
+    """Read the SMF paper sample.
 
     """
-    sample = _read_paper_sample(paper='paper1', first=first, last=last, dr=dr,
+    sample = _read_paper_sample(paper='smf', first=first, last=last, dr=dr,
                                 sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
                                 isedfit_sdssphot=isedfit_sdssphot,
                                 isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
                                 candidates=candidates, verbose=verbose)
     return sample
     
-def read_paper2_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1, isedfit_lsphot=False,
-                       isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
-                       kcorr=False, verbose=False):
-    """Read the Paper 1 sample.
+def read_profiles_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
+                         isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                         kcorr=False, verbose=False):
+    """Read the profiles paper sample.
 
     """
-    sample = _read_paper_sample(paper='paper2', first=first, last=last, dr=dr,
+    sample = _read_paper_sample(paper='profiles', first=first, last=last, dr=dr,
                                 sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
                                 isedfit_sdssphot=isedfit_sdssphot,
                                 isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
                                 candidates=candidates, verbose=verbose)
     return sample
+
+def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', index=None, satellites=False):
+    """Read the parent redMaPPer cluster catalog and updated photometry.
     
+    """
+    if satellites:
+        suffix1, suffix2 = '_members', '-members'
+    else:
+        suffix1, suffix2 = '', '-centrals'
+    rmfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                          'dr8_run_redmapper_{}_lgt5_catalog{}.fit'.format(rmversion, suffix1) )
+    rmphotfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                          'redmapper-{}-lgt5{}-sdssWISEphot-{}.fits'.format(rmversion, suffix2, sdssdr) )
+    
+    rm = Table(fitsio.read(rmfile, ext=1, upper=True, rows=index))
+    rmphot = Table(fitsio.read(rmphotfile, ext=1, upper=True, rows=index))
+
+    print('Read {} galaxies from {}'.format(len(rm), rmfile))
+    print('Read {} galaxies from {}'.format(len(rmphot), rmphotfile))
+    
+    rm.rename_column('RA', 'RA_REDMAPPER')
+    rm.rename_column('DEC', 'DEC_REDMAPPER')
+    rmphot.rename_column('RA', 'RA_SDSS')
+    rmphot.rename_column('DEC', 'DEC_SDSS')
+    rmphot.rename_column('OBJID', 'SDSS_OBJID')
+
+    assert(np.sum(rmphot['MEM_MATCH_ID'] - rm['MEM_MATCH_ID']) == 0)
+    if satellites:
+        assert(np.sum(rmphot['ID'] - rm['ID']) == 0)
+        rm.remove_columns( ('ID', 'MEM_MATCH_ID') )
+    else:
+        rm.remove_column('MEM_MATCH_ID')
+    rmout = hstack( (rmphot, rm) )
+    del rmphot, rm
+
+    # Add a central_id column
+    #rmout.rename_column('MEM_MATCH_ID', 'CENTRAL_ID')
+    #cid = ['{:07d}'.format(cid) for cid in rmout['MEM_MATCH_ID']]
+    #rmout.add_column(Column(name='CENTRAL_ID', data=cid, dtype='U7'), index=0)
+    
+    return rmout
+
 def literature(kravtsov=True, gonzalez=False):
     """Assemble some data from the literature here.
 
