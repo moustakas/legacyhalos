@@ -212,7 +212,7 @@ def legacyhalos_sky(sample, survey=None, objid=None, objdir=None, ncpu=1, nsky=3
 
             if bool(skyellipsefit):
                 # write out!
-                legacyhalos.io.write_sky_ellipsefit(objid, objdir, sky, verbose=True)
+                legacyhalos.io.write_ellipsefit(objid, objdir, sky, verbose=True, filesuffix='sky')
                 return 1
             else:
                 return 0

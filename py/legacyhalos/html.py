@@ -146,10 +146,9 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                 display_ellipse_sbprofile, qa_curveofgrowth)
 
     ellipsefit = read_ellipsefit(galaxy, galaxydir)
-    pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
-    skyellipsefit = read_sky_ellipsefit(galaxy, galaxydir)
-
+    skyellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
     sdssellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
+    pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
 
     if len(ellipsefit) > 0:
         # Toss out bad fits.

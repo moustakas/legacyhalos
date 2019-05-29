@@ -166,31 +166,6 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True):
 
     return ellipsefit
 
-def write_sky_ellipsefit(galaxy, galaxydir, skyellipsefit, verbose=False):
-    """Pickle the sky ellipse-fitting results
-
-    """
-    skyellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit-sky.p'.format(galaxy))
-    if verbose:
-        print('Writing {}'.format(skyellipsefitfile))
-    with open(skyellipsefitfile, 'wb') as ell:
-        pickle.dump(skyellipsefit, ell, protocol=2)
-
-def read_sky_ellipsefit(galaxy, galaxydir, verbose=True):
-    """Read the output of write_skyellipsefit."""
-
-    skyellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit-sky.p'.format(galaxy))
-    try:
-        with open(skyellipsefitfile, 'rb') as ell:
-            skyellipsefit = pickle.load(ell)
-    except:
-        #raise IOError
-        if verbose:
-            print('File {} not found!'.format(skyellipsefitfile))
-        skyellipsefit = dict()
-
-    return skyellipsefit
-
 def write_sersic(galaxy, galaxydir, sersic, modeltype='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).

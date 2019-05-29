@@ -380,7 +380,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             pngfile = '{}-ellipse-cog.png'.format(galaxy1)
             html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-            html.write('<td></td>\n')
+            #html.write('<td></td>\n')
             html.write('</tr>\n')
             html.write('</table>\n')
             html.write('<br />\n')
