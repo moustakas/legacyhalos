@@ -737,8 +737,8 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         else:
             plt.show()
         
-def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
-                              sdssellipsefit={},
+def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit={}, 
+                              sdss_ellipsefit={}, minerr=0.0,
                               png=None, use_ylim=None, verbose=True):
     """Display the multi-band surface brightness profile.
 
@@ -784,12 +784,21 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color=col,
                              alpha=0.75, edgecolor='k', lw=2)
 
-            if bool(skyellipsefit):
-                skysma = skyellipsefit['sma'] * ellipsefit['refpixscale']
+            if bool(pipeline_ellipsefit):
+                pipeline_sbprofile = ellipse_sbprofile(pipeline_ellipsefit, minerr=minerr)
+                _sma = pipeline_sbprofile['sma']
+                _mu = pipeline_sbprofile['mu_{}'.format(filt)]
+                _muerr = pipeline_sbprofile['mu_{}_err'.format(filt)]
+                #ax1.plot(sma, mu, color='k', alpha=0.5)
+                ax1.fill_between(_sma, _mu-_muerr, _mu+_muerr, color=col,
+                                 alpha=0.2, edgecolor='k', lw=3)
+                
+            if bool(sky_ellipsefit):
+                skysma = sky_ellipsefit['sma'] * ellipsefit['refpixscale']
 
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore')
-                    sky = astropy.stats.mad_std(skyellipsefit[filt], axis=1, ignore_nan=True)
+                    sky = astropy.stats.mad_std(sky_ellipsefit[filt], axis=1, ignore_nan=True)
                     # sky = np.nanstd(skyellipsefit[filt], axis=1) # / np.sqrt(skyellipsefit[
                     
                 skygood = np.isfinite(sky)
@@ -809,12 +818,12 @@ def display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             #    ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
             #    ax1.axhline(y=ysky, color=col, ls='--')
 
-        if bool(sdssellipsefit):
-            sdsssbprofile = ellipse_sbprofile(sdssellipsefit, minerr=minerr)
-            for filt in sdssellipsefit['bands']:
-                sma = sdsssbprofile['sma']
-                mu = sdsssbprofile['mu_{}'.format(filt)]
-                muerr = sdsssbprofile['mu_{}_err'.format(filt)]
+        if bool(sdss_ellipsefit):
+            sdss_sbprofile = ellipse_sbprofile(sdss_ellipsefit, minerr=minerr)
+            for filt in sdss_ellipsefit['bands']:
+                sma = sdss_sbprofile['sma']
+                mu = sdss_sbprofile['mu_{}'.format(filt)]
+                muerr = sdss_sbprofile['mu_{}_err'.format(filt)]
                 #ax1.plot(sma, mu, color='k', alpha=0.5)
                 ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color='k',
                                  alpha=0.2, edgecolor='k', lw=3)

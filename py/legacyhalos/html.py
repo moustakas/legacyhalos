@@ -141,13 +141,13 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     """Generate QAplots from the ellipse-fitting.
 
     """
-    from legacyhalos.io import read_multiband, read_ellipsefit, read_sky_ellipsefit
+    from legacyhalos.io import read_multiband, read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth)
 
     ellipsefit = read_ellipsefit(galaxy, galaxydir)
-    skyellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
-    sdssellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
+    sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
+    sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
     pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
 
     if len(ellipsefit) > 0:
@@ -163,9 +163,10 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
         sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
         if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
+            display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
+                                      pipeline_ellipsefit=pipeline_ellipsefit,
                                       png=sbprofilefile, verbose=verbose, minerr=0.0,
-                                      sdssellipsefit=sdssellipsefit)
+                                      sdss_ellipsefit=sdss_ellipsefit)
 
         multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
         if not os.path.isfile(multibandfile) or clobber:
@@ -310,7 +311,6 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,
                            barlabel=barlabel, clobber=clobber, verbose=verbose)
-        pdb.set_trace()
         
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,

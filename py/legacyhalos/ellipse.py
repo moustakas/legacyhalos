@@ -534,29 +534,34 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
     profiles.
 
     """
-    bands, refband = ellipsefit['bands'], ellipsefit['refband']
-    refpixscale, redshift = ellipsefit['refpixscale'], ellipsefit['redshift']
-
-    indx = np.ones(len(ellipsefit[refband]), dtype=bool)
+    bands = ellipsefit['bands']
+    if 'refpixscale' in ellipsefit.keys():
+        pixscale = ellipsefit['refpixscale']
+    else:
+        pixscale = ellipsefit['pixscale']
 
     sbprofile = dict()
     for filt in bands:
-        sbprofile['psfsigma_{}'.format(filt)] = ellipsefit['psfsigma_{}'.format(filt)]
-    sbprofile['redshift'] = redshift
+        psfkey = 'psfsigma_{}'.format(filt)
+        if psfkey in ellipsefit.keys():
+            sbprofile[psfkey] = ellipsefit[psfkey]
+
+    if 'redshift' in ellipsefit.keys():
+        sbprofile['redshift'] = ellipsefit['redshift']
     
     sbprofile['minerr'] = minerr
     sbprofile['smaunit'] = 'arcsec'
-    sbprofile['sma'] = ellipsefit['r'].sma[indx] * refpixscale # [arcsec]
+    sbprofile['sma'] = ellipsefit[bands[0]].sma * pixscale # [arcsec]
 
     with np.errstate(invalid='ignore'):
         for filt in bands:
-            #area = ellipsefit[filt].sarea[indx] * refpixscale**2
+            #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx]) # [mag/arcsec2]
+            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens) # [mag/arcsec2]
 
-            #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens[indx])
-            sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err[indx] / \
-              ellipsefit[filt].intens[indx] / np.log(10)
+            #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens)
+            sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err / \
+              ellipsefit[filt].intens / np.log(10)
             sbprofile['mu_{}_err'.format(filt)] = np.sqrt(sbprofile['mu_{}_err'.format(filt)]**2 + minerr**2)
 
             # Just for the plot use a minimum uncertainty
@@ -568,6 +573,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
     if 'r' in bands and 'z' in bands:
         sbprofile['rz'] = sbprofile['mu_r'] - sbprofile['mu_z']
         sbprofile['rz_err'] = np.sqrt(sbprofile['mu_r_err']**2 + sbprofile['mu_z_err']**2)
+        
     # SDSS
     if 'r' in bands and 'i' in bands:
         sbprofile['ri'] = sbprofile['mu_r'] - sbprofile['mu_i']
