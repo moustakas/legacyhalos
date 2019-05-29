@@ -167,11 +167,10 @@ class find_galaxy(object):
             level = np.percentile(a, (1 - fraction)*100)
 
         if type(img) is ma.MaskedArray:
-            mask = ma.getmask(img)
-        else:
-            mask = np.zeros_like(img).astype(bool)
+            badmask = ma.getmask(img)
+            a[badmask] = 0
 
-        mask = np.logical_or(mask, a > level)
+        mask = a > level
         labels, nb = ndimage.label(mask)   # Get blob indices
         sizes = ndimage.sum(mask, labels, np.arange(nb + 1))
         j = np.argsort(sizes)[-nblob]      # find the nblob-th largest blob
