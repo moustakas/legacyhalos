@@ -25,14 +25,20 @@ RUN cd /build \
     && make install \
     && make clean
 
-RUN cd /build \
-    && wget https://www.imagemagick.org/download/ImageMagick-7.0.8-46.tar.gz \
-    && tar xvzf ImageMagick-7.0.8-46.tar.gz \
-    && cd /build/ImageMagick-7.0.8-46 \
-    && ./configure \
-    && make \
-    && make install \
-    && make clean
+# Install imagemagick
+RUN apt -y update && apt install -y apt-utils && echo yes \
+    && apt-get install -y --no-install-recommends \
+    imagemagick \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+#RUN cd /build \
+#    && wget https://www.imagemagick.org/download/ImageMagick-7.0.8-46.tar.gz \
+#    && tar xvzf ImageMagick-7.0.8-46.tar.gz \
+#    && cd /build/ImageMagick-7.0.8-46 \
+#    && ./configure \
+#    && make \
+#    && make install \
+#    && make clean
 
 RUN /sbin/ldconfig
 
