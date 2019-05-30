@@ -21,6 +21,24 @@ from legacypipe.catalog import read_fits_catalog
 import legacyhalos.misc
 from legacyhalos.misc import custom_brickname
 
+def _forced_phot(args):
+    """Wrapper function for the multiprocessing."""
+    return forced_phot(*args)
+
+def forced_phot(newtims, custom_srcs, band):
+    """Perform forced photometry, returning the bandpass, the (newly optimized)
+    flux, and the (new) inverse variance flux (all in nanomaggies).
+
+    """
+    bandtims = [tim for tim in newtims if tim.band == band]
+    tr = tractor.Tractor(bandtims, custom_srcs)
+    tr.freezeParamsRecursive('*')
+    tr.thawPathsTo(band)
+    R = tr.optimize_forced_photometry(
+        minsb=0, mindlnp=1.0, sky=False, fitstats=True,
+        variance=True, shared_params=False, wantims=False)
+    return (band, np.array(tr.getParams()), R.IV)
+
 def _mosaic_width(radius_mosaic, pixscale):
     """Ensure the mosaic is an odd number of pixels so the central can land on a
     whole pixel (important for ellipse-fitting).
@@ -165,9 +183,6 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                      ra=onegal['RA'], dec=onegal['DEC'], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
                      galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run)
-    
-    return 1
-    
     print(cmd, flush=True, file=log)
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
     if err != 0:
@@ -180,7 +195,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         # tractor catalog
         ok = _copyfile(
             os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-tractor.fits'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-pipeline-tractor.fits'.format(galaxy)) )
         if not ok:
             return ok
 
@@ -414,12 +429,13 @@ def _custom_sky(skyargs):
     hdr.add_record(dict(name='YCEN', value=y0-1))
 
     out = dict()
-    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-    out['{}-mask'.format(key)] = mask
-    out['{}-image'.format(key)] = img
-    out['{}-splinesky'.format(key)] = splineskytable
-    out['{}-header'.format(key)] = hdr
-    out['{}-comask'.format(key)] = comask
+    ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname)
+    #ext = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
+    out['{}-mask'.format(ext)] = mask
+    out['{}-image'.format(ext)] = img
+    out['{}-splinesky'.format(ext)] = splineskytable
+    out['{}-header'.format(ext)] = hdr
+    out['{}-comask'.format(ext)] = comask
     
     return out
 
@@ -436,7 +452,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
       with the central with dedicated code.
 
     """
-    from tractor.sky import ConstantSky
+    import copy
+    import tractor
     
     from legacypipe.runbrick import stage_tims
     from legacypipe.runbrick import _get_mod
@@ -496,10 +513,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         P = call_stage_tims()
 
-    tims, brickwcs, bands, version_header = P['tims'], P['targetwcs'], P['bands'], P['version_header']
+    tims, brickwcs = P['tims'], P['targetwcs']
+    bands, version_header = P['bands'], P['version_header']
     del P
 
-    # Read the outliers masks and apply them
+    # Read and apply the outlier masks.
     outliersfile = os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy))
     if not os.path.isfile(outliersfile):
         print('Missing outliers masks {}'.format(outliersfile))
@@ -545,8 +563,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             os.remove(skyfile)
         for ii, ccd in enumerate(survey.ccds):
             im = survey.get_image_object(ccd)
-            key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-            sky['{}-splinesky'.format(key)].write_to(skyfile, append=ii>0, extname=key)
+            ext = '{}-{:02d}-{}'.format(im.camera, im.expnum, im.ccdname)
+            sky['{}-splinesky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
         
         # Write out separate CCD-level files with the images/data, individual masks
         # (converted to unsigned integer), and the pipeline/splinesky binary FITS
@@ -558,9 +576,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         with fitsio.FITS(ccdfile, 'rw') as ff:
             for ii, ccd in enumerate(survey.ccds):
                 im = survey.get_image_object(ccd)
-                key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-                hdr = sky['{}-header'.format(key)]
-                ff.write(sky['{}-mask'.format(key)], extname=key, header=hdr)
+                ext = '{}-{:02d}-{}'.format(im.camera, im.expnum, im.ccdname)
+                hdr = sky['{}-header'.format(ext)]
+                ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
 
         # These are the actual images, which results in a giant file.  Keeping
         # the code here for legacy purposes but I'm not sure we should ever
@@ -573,66 +591,97 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             with fitsio.FITS(ccdfile, 'rw') as ff:
                 for ii, ccd in enumerate(survey.ccds):
                     im = survey.get_image_object(ccd)
-                    key = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
-                    hdr = sky['{}-header'.format(key)]
-                    ff.write(sky['{}-image'.format(key)].astype('f4'), extname=key, header=hdr)
+                    ext = '{}-{:02d}-{}'.format(im.camera, im.expnum, im.ccdname)
+                    hdr = sky['{}-header'.format(ext)]
+                    ff.write(sky['{}-image'.format(ext)].astype('f4'), extname=ext, header=hdr)
 
-    # [3] Modify each tim by subtracting our new estimate of the sky.
-    newtims = []
+    # [3] Modify each tim by subtracting our new estimate of the sky. Then
+    # sky-subtract the pipeline_tims so we can build coadds without the central,
+    # below.
+    custom_tims, pipeline_tims = [], []
     for tim in tims:
-        image = tim.getImage()
-        key = '{}-{:02d}-{}'.format(tim.imobj.name, tim.imobj.hdu, tim.imobj.band)
-        newsky = sky['{}-header'.format(key)]['SKYMED']
-        tim.setImage(image - newsky)
-        tim.sky = ConstantSky(0)
-        newtims.append(tim)
+        custom_tim = copy.deepcopy(tim)
+        image = custom_tim.getImage()
+        ext = '{}-{:02d}-{}'.format(custom_tim.imobj.camera, custom_tim.imobj.expnum, custom_tim.imobj.ccdname)
+        newsky = sky['{}-header'.format(ext)]['SKYMED']
+        custom_tim.setImage(image - newsky)
+        custom_tim.sky = tractor.sky.ConstantSky(0)
+        custom_tims.append(custom_tim)
+        del custom_tim
+
+        pipeline_tim = copy.deepcopy(tim)
+        pipesky = np.zeros_like(tim.getImage())
+        pipeline_tim.sky.addTo(pipesky)
+        pipeline_tim.setImage(image - pipesky)
+        pipeline_tim.sky = tractor.sky.ConstantSky(0)
+        pipeline_tims.append(pipeline_tim)
+        del pipeline_tim
     del sky, tims
 
-    # [4] Read the Tractor catalog and render the model image of each CCD, with
-    # and without the central large galaxy.
-    tractorfile = os.path.join(survey.output_dir, '{}-tractor.fits'.format(galaxy))
+    # [4] Read the pipeline Tractor catalog and update the individual-object
+    # photometry measured from the custom sky-subtracted CCDs.
+    tractorfile = os.path.join(survey.output_dir, '{}-pipeline-tractor.fits'.format(galaxy))
     if not os.path.isfile(tractorfile):
         print('Missing Tractor catalog {}'.format(tractorfile))
         return 0
-    
-    cat = fits_table(tractorfile)
-    print('Read {} sources from {}'.format(len(cat), tractorfile), flush=True, file=log)
+    pipeline_cat = fits_table(tractorfile)
+    print('Read {} sources from {}'.format(len(pipeline_cat), tractorfile), flush=True, file=log)
+
+    pipeline_srcs = read_fits_catalog(pipeline_cat, fluxPrefix='')
+    custom_srcs = [src.copy() for src in pipeline_srcs]
+
+    print('Performing forced photometry on the custom sky-subtracted CCDs.', flush=True, file=log)
+    forcedflx = mp.map(_forced_phot, [(custom_tims, custom_srcs, band) for band in bands])
+
+    # Populate the new custom catalog and write out.
+    custom_cat = pipeline_cat.copy()
+    for band, flux, ivar in forcedflx:
+        custom_cat.set('flux_{}'.format(band), flux.astype('f4'))
+        custom_cat.set('flux_ivar_{}'.format(band), ivar.astype('f4'))
+        
+    tractorfile = os.path.join(survey.output_dir, '{}-custom-tractor.fits'.format(galaxy))
+    if os.path.isfile(tractorfile):
+        os.remove(tractorfile)
+    custom_cat.writeto(tractorfile)
+    print('Wrote {} sources to {}'.format(len(custom_cat), tractorfile), flush=True, file=log)
+        
+    custom_srcs = read_fits_catalog(custom_cat, fluxPrefix='')
+
+    # [5] Next, render the model image of each CCD, with and without the central
+    # large galaxy (custom and pipeline).
 
     # Custom code for dealing with centrals.
-    keep = isolate_central(cat, brickwcs, centrals=centrals)
+    keep = isolate_central(custom_cat, brickwcs, centrals=centrals)
 
-    #print('Creating tractor sources...', flush=True, file=log)
-    srcs = read_fits_catalog(cat, fluxPrefix='')
-    srcs_nocentral = np.array(srcs)[keep].tolist()
+    custom_srcs_nocentral = np.array(custom_srcs)[keep].tolist()
+    pipeline_srcs_nocentral = np.array(pipeline_srcs)[keep].tolist()
     
-    if False:
-        print('Sources:')
-        [print(' ', src) for src in srcs]
-
     print('Rendering model images with and without surrounding galaxies...', flush=True, file=log)
-    modargs = [(tim, srcs) for tim in newtims]
-    mods = mp.map(_get_mod, modargs)
+    custom_mods = mp.map(_get_mod, [(tim, custom_srcs) for tim in custom_tims])
+    pipeline_mods = mp.map(_get_mod, [(tim, pipeline_srcs) for tim in pipeline_tims])
 
-    modargs = [(tim, srcs_nocentral) for tim in newtims]
-    mods_nocentral = mp.map(_get_mod, modargs)
+    custom_mods_nocentral = mp.map(_get_mod, [(tim, custom_srcs_nocentral) for tim in custom_tims])
+    pipeline_mods_nocentral = mp.map(_get_mod, [(tim, pipeline_srcs_nocentral) for tim in pipeline_tims])
     
     #import matplotlib.pyplot as plt ; plt.imshow(np.log10(mod), origin='lower') ; plt.savefig('junk.png')    
     #pdb.set_trace()
 
-    # [5] Build the custom coadds, with and without the surrounding galaxies.
+    # [6] Build the custom coadds, with and without the surrounding galaxies.
     print('Producing coadds...', flush=True, file=log)
-    def call_make_coadds(usemods):
-        return make_coadds(newtims, bands, brickwcs, mods=usemods, mp=mp,
+    def call_make_coadds(usemods, usetims):
+        return make_coadds(usetims, bands, brickwcs, mods=usemods, mp=mp,
                            callback=write_coadd_images,
                            callback_args=(survey, brickname, version_header, 
-                                          newtims, brickwcs))
+                                          usetims, brickwcs))
 
-    # Custom coadds (all galaxies).
+    # Custom coadds--all galaxies. (Pipeline coadds already exist.)
     if log:
         with redirect_stdout(log), redirect_stderr(log):
-            C = call_make_coadds(mods)
+            C = call_make_coadds(custom_mods, custom_tims)
+            #P = call_make_coadds(pipeline_mods, pipeline_tims)
     else:
-        C = call_make_coadds(mods)
+        C = call_make_coadds(custom_mods, custom_tims)
+        #P = call_make_coadds(pipeline_mods, pipeline_tims)
 
     for suffix in ('image', 'model'):
         for band in bands:
@@ -645,42 +694,51 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             if not ok:
                 return ok
 
-    # Custom coadds (without the central).
+    # Custom coadds--without the central. 
+    imtype = 'custom'
     if log:
         with redirect_stdout(log), redirect_stderr(log):
-            C_nocentral = call_make_coadds(mods_nocentral)
+            C_nocentral = call_make_coadds(custom_mods_nocentral, custom_tims)
     else:
-        C_nocentral = call_make_coadds(mods_nocentral)
-
-    # Move (rename) the coadds into the desired output directory - no central.
-    for suffix in np.atleast_1d('model'):
-    #for suffix in ('image', 'model'):
-        for band in bands:
-            ok = _copyfile(
-                os.path.join(survey.output_dir, 'coadd', brickname[:3], 
-                                   brickname, 'legacysurvey-{}-{}-{}.fits.fz'.format(
-                    brickname, suffix, band)),
-                os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
-                #os.path.join(survey.output_dir, '{}-custom-{}-nocentral-{}.fits.fz'.format(galaxy, suffix, band)) )
-            if not ok:
-                return ok
+        C_nocentral = call_make_coadds(custom_mods_nocentral, custom_tims)
+    for band in bands:
+        ok = _copyfile(
+            os.path.join(survey.output_dir, 'coadd', brickname[:3], 
+                               brickname, 'legacysurvey-{}-model-{}.fits.fz'.format(
+                brickname, band)),
+            os.path.join(survey.output_dir, '{}-{}-model-nocentral-{}.fits.fz'.format(galaxy, imtype, band)) )
+        if not ok:
+            return ok
             
-    if cleanup:
-        shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
-
-    # [6] Finally, build png images.
-    def call_make_png(C, nocentral=False):
+    # Pipeline coadds--without the central. 
+    imtype = 'pipeline'
+    if log:
+        with redirect_stdout(log), redirect_stderr(log):
+            P_nocentral = call_make_coadds(pipeline_mods_nocentral, pipeline_tims)
+    else:
+        P_nocentral = call_make_coadds(pipeline_mods_nocentral, pipeline_tims)
+    for band in bands:
+        ok = _copyfile(
+            os.path.join(survey.output_dir, 'coadd', brickname[:3], 
+                               brickname, 'legacysurvey-{}-model-{}.fits.fz'.format(
+                brickname, band)),
+            os.path.join(survey.output_dir, '{}-{}-model-nocentral-{}.fits.fz'.format(galaxy, imtype, band)) )
+        if not ok:
+            return ok
+            
+    # [7] Finally, build png images.
+    def call_make_png(R, imtype, nocentral=False):
         rgbkwargs = dict(mnmx=(-1, 100), arcsinh=1)
         #rgbkwargs_resid = dict(mnmx=(0.1, 2), arcsinh=1)
         rgbkwargs_resid = dict(mnmx=(-1, 100), arcsinh=1)
 
         if nocentral:
-            coadd_list = [('custom-model-nocentral', C.comods, rgbkwargs),
-                          ('custom-image-central', C.coresids, rgbkwargs_resid)]
+            coadd_list = [('{}-model-nocentral'.format(imtype), R.comods, rgbkwargs),
+                          ('{}-image-central'.format(imtype), R.coresids, rgbkwargs_resid)]
         else:
-            coadd_list = [('custom-image', C.coimgs,   rgbkwargs),
-                          ('custom-model', C.comods,   rgbkwargs),
-                          ('custom-resid', C.coresids, rgbkwargs_resid)]
+            coadd_list = [('custom-image', R.coimgs,   rgbkwargs),
+                          ('custom-model', R.comods,   rgbkwargs),
+                          ('custom-resid', R.coresids, rgbkwargs_resid)]
 
         for suffix, ims, rgbkw in coadd_list:
             rgb = get_rgb(ims, bands, **rgbkw)
@@ -690,7 +748,15 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             imsave_jpeg(outfn, rgb, origin='lower', **kwa)
             del rgb
 
-    call_make_png(C, nocentral=False)
-    call_make_png(C_nocentral, nocentral=True)
+    call_make_png(C, 'custom', nocentral=False)
+    call_make_png(C_nocentral, 'custom', nocentral=True)
+    call_make_png(P_nocentral, 'pipeline', nocentral=True)
+
+    if cleanup:
+        shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
+        for stage in ('srcs', 'checkpoint'):
+            picklefile = os.path.join(survey.output_dir, '{}-runbrick-{}.p'.format(galaxy, stage))
+            if os.path.isfile(picklefile):
+                os.remove(picklefile)
 
     return 1

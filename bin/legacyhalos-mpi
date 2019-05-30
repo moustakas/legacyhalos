@@ -25,6 +25,8 @@ import legacyhalos.sdss
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC, HSC_RADIUS_CLUSTER_KPC
 
+SURVEY_DIR = '/global/project/projectdirs/cosmo/work/legacysurvey/dr8'
+
 def read_all_ccds(dr='dr8'):
     """Read the CCDs files, treating DECaLS and BASS+MzLS separately.
 
@@ -128,17 +130,6 @@ def check_and_read_ccds(galaxy, survey, debug=False, logfile=None):
         return False
     return True
 
-def get_survey_dir(onegal):
-    #if onegal['RELEASE'] == 6000:
-    #    return '/global/project/projectdirs/cosmo/work/legacysurvey/dr6'
-    #elif onegal['RELEASE'] == 7000 or onegal['RELEASE'] == 7001:
-    #    return '/global/project/projectdirs/cosmo/work/legacysurvey/dr7'
-    #else:
-    #    print('Unrecognized DR!')
-    #    raise ValueError
-    #return
-    return '/global/project/projectdirs/cosmo/work/legacysurvey/dr8'
-
 def missing_files(sample, filetype='coadds', size=1, htmldir=None,
                   hsc=False, sdss=False, clobber=False):
     """Find missing data of a given filetype."""    
@@ -239,30 +230,38 @@ def _done(galaxy, err, t0, log=None):
     print('Finished galaxy {} in {:.3f} minutes.'.format(
           galaxy, (time.time() - t0)/60), flush=True, file=log)
 
-def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey,
-                          kdccds_north, kdccds_south, pixscale,
-                          nproc, force, debug, logfile):
+def _call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
+                          kdccds_south, pixscale, nproc, force, debug, hsc,
+                          logfile):
     """Wrapper script to build the pipeline coadds.
 
     radius_mosaic in arcsec
 
     """
+    cleanup = True
+
     t0 = time.time()
     if debug:
         _start(galaxy)
-        run = get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
+        if hsc:
+            run = 'decam'
+        else:
+            run = get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
         err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                  survey=survey, pixscale=pixscale, run=run,
-                                                 nproc=nproc, force=force, cleanup=True)
+                                                 nproc=nproc, force=force, cleanup=cleanup)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                run = get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south, log=log)
+                if hsc:
+                    run = 'decam'
+                else:
+                    run = get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south, log=log)
                 err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                          survey=survey, pixscale=pixscale, run=run,
-                                                         nproc=nproc, force=force, log=log, cleanup=True)
+                                                         nproc=nproc, force=force, log=log, cleanup=cleanup)
                 _done(galaxy, err, t0, log=log)
 
 def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
@@ -284,11 +283,11 @@ def _call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                 _start(galaxy, log=log)
                 if sdss:
                     err = legacyhalos.sdss.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                         nsurvey=survey, pixscale=sdss_pixscale,
+                                                         survey=survey, pixscale=sdss_pixscale,
                                                          nproc=nproc, log=log)
                 else:
                     err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                           nsurvey=survey, pixscale=pixscale,
+                                                           survey=survey, pixscale=pixscale,
                                                            nproc=nproc, log=log)
                 _done(galaxy, err, t0, log=log)
                 
@@ -312,8 +311,8 @@ def _call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
                                                       zcolumn=zcolumn,
                                                       input_ellipse=input_ellipse,
                                                       verbose=verbose, debug=debug,
-                                                      noellipsefit=True, hsc=hsc,
-                                                      sdss=sdss, sdss_pixscale=sdss_pixscale)
+                                                      hsc=hsc, sdss=sdss, sdss_pixscale=sdss_pixscale,
+                                                      pipeline=True, unwise=False)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -323,8 +322,8 @@ def _call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
                                                               zcolumn=zcolumn,
                                                               input_ellipse=input_ellipse,
                                                               verbose=verbose, debug=debug,
-                                                              noellipsefit=True, hsc=hsc,
-                                                              sdss=sdss, sdss_pixscale=sdss_pixscale)
+                                                              hsc=hsc, sdss=sdss, sdss_pixscale=sdss_pixscale,
+                                                              pipeline=True, unwise=False)
                 _done(galaxy, err, t0, log=log)
 
 def _call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
@@ -375,11 +374,16 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
+    if hsc:
+        zcolumn = 'Z_BEST'
+    else:
+        zcolumn = 'Z_LAMBDA'
+
     if debug:
         _start(galaxy)
         err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                           pixscale=pixscale, survey=survey, clobber=clobber,
-                                          verbose=verbose, nproc=nproc,
+                                          verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
                                           ccdqa=ccdqa, maketrends=False, hsc=hsc)
         _done(galaxy, err, t0)
     else:
@@ -388,7 +392,7 @@ def _call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                 _start(galaxy, log=log)
                 err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                                   pixscale=pixscale, survey=survey, clobber=clobber,
-                                                  verbose=verbose, nproc=nproc,
+                                                  verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
                                                   ccdqa=ccdqa, maketrends=False, hsc=hsc)
                 _done(galaxy, err, t0, log=log)
 
@@ -436,60 +440,59 @@ def main():
         comm = None
         rank, size = 0, 1
 
-    # Read and broadcast the sample.
+    # Read and broadcast the sample.  For some reason, can't pickle the CCDs
+    # files, so have each rank read them (the error is with pickling
+    # spherematch).
     if rank == 0:
         if args.hsc:
-            sample = legacyhalos.hsc.read_parent(first=args.first, last=args.last)
+            sample = legacyhalos.hsc.read_parent(first=args.first, last=args.last,
+                                                 verbose=args.verbose)
         else:
-            sample = legacyhalos.io.read_profiles_sample(first=args.first, last=args.last)
+            sample = legacyhalos.io.read_profiles_sample(first=args.first, last=args.last,
+                                                         verbose=args.verbose)
+            print('Hack!')
             sample = sample[(sample['DEC'] > 25) * (sample['DEC'] < 40)]
+            pdb.set_trace()
             #sample = sample[[61, 74, 84]]
             #sample = sample[[8, 11, 136, 156, 157, 188, 214, 390, 603, 670, 871, 940]]
-        if not args.count:
-            kdccds_north, kdccds_south = read_all_ccds()
+        #if args.coadds and not args.count:
+        #    kdccds_north, kdccds_south = read_all_ccds()
+        #else:
+        #    kdccds_north, kdccds_south = None, None
     else:
-        sample, kdccds_north, kdccds_south = None, None, None
+        sample = None
+        #sample, kdccds_north, kdccds_south = None, None, None
 
     if comm:
         sample = comm.bcast(sample, root=0)
-        kdccds_north = comm.bcast(kdccds_north, root=0)
-        kdccds_south = comm.bcast(kdccds_south, root=0)
+        #kdccds_north = comm.bcast(kdccds_north, root=0)
+        #kdccds_south = comm.bcast(kdccds_south, root=0)
+
+    if args.coadds and not args.count:
+        kdccds_north, kdccds_south = read_all_ccds()
 
     # Build the web-page; integrate the ellipse-fitting results.
     if args.htmlindex:
         if rank == 0:
+            intflux = legacyhalos.io.read_integrated_flux(first=args.first, last=args.last,
+                                                          hsc=args.hsc, verbose=args.verbose)
             if args.hsc:
-                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_BEST',
-                                          nproc=args.nproc, clobber=args.clobber, makeplots=False,
-                                          verbose=args.verbose, htmldir=args.htmldir, ccdqa=args.ccdqa)
+                legacyhalos.hsc.make_html(sample, intflux=intflux, survey=None, pixscale=args.pixscale,
+                                          zcolumn='Z_BEST', nproc=args.nproc, clobber=args.clobber,
+                                          makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                          ccdqa=args.ccdqa)
             else:
-                legacyhalos.html.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_LAMBDA',
-                                           nproc=args.nproc, clobber=args.clobber, makeplots=False,
-                                           verbose=args.verbose, htmldir=args.htmldir, ccdqa=args.ccdqa)
+                legacyhalos.html.make_html(sample, intflux=intflux, survey=None, pixscale=args.pixscale,
+                                           zcolumn='Z_LAMBDA', nproc=args.nproc, clobber=args.clobber,
+                                           makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                           ccdqa=args.ccdqa)
         return
 
     if args.integrate:
         if rank == 0:
-            if args.hsc:
-                outfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'profiles1d-flux.fits')
-            else:
-                # Temporary paper2 hack--
-                outfile = os.path.join(legacyhalos.io.paper2_dir(data=True), 'paper2-profiles1d-flux.fits')
-                
-            if os.path.exists(outfile) and args.clobber is False:
-                print('Output file {} exists; use --clobber.'.format(outfile))
-                return
-            
             results = legacyhalos.integrate.legacyhalos_integrate(
-                sample, nproc=args.nproc, verbose=args.verbose, hsc=args.hsc)
-            if args.hsc:
-                cols = ['OBJECT_ID', 'RA', 'DEC', 'Z_SPEC']
-            else:
-                cols = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z_LAMBDA', 'LAMBDA_CHISQ', 'ID_CENT',
-                        'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
-            out = hstack((sample[cols], results))
-            print('Writing {}'.format(outfile))
-            out.write(outfile, overwrite=True)
+                sample, nproc=args.nproc, verbose=args.verbose, hsc=args.hsc,
+                clobber=args.clobber)            
         return
 
     # Determine how many more objects we need to analyze and divide them
@@ -559,8 +562,7 @@ def main():
                 radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
                     redshift=onegal['Z_LAMBDA'], radius_kpc=RADIUS_CLUSTER_KPC) # [arcsec]
 
-            survey = LegacySurveyData()
-            survey.survey_dir = get_survey_dir(onegal)
+            survey = LegacySurveyData(survey_dir=SURVEY_DIR)
             survey.output_dir = galaxydir
 
         if args.coadds:
@@ -570,7 +572,8 @@ def main():
             else:
                 _call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
                                       kdccds_north, kdccds_south, args.pixscale,
-                                      args.nproc, args.force, args.debug, logfile)
+                                      args.nproc, args.force, args.debug, args.hsc,
+                                      logfile)
                     
         if args.custom_coadds or args.htmlplots:
             if not check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile):

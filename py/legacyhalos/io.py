@@ -131,31 +131,77 @@ def profiles_dir(figures=False, data=False):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
-def write_ellipsefit(galaxy, galaxydir, ellipsefit, sdss=False, verbose=False):
+def get_integrated_filename(hsc=False):
+    """Return the name of the file containing the integrated photometry."""
+    if hsc:
+        import legacyhalos.hsc
+        integratedfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'integrated-flux.fits')
+    else:
+        integratedfile = os.path.join(profiles_dir(data=True), 'integrated-flux.fits')
+    return integratedfile
+
+def read_integrated_flux(first=None, last=None, hsc=False, verbose=False):
+    """Read the output of legacyhalos.integrate.
+    
+    """
+    integratedfile = get_integrated_filename(hsc=hsc)
+    if not os.path.isfile(integratedfile):
+        print('File {} not found.'.format(integratedfile)) # non-catastrophic error is OK
+        return None
+    
+    if first and last:
+        if first > last:
+            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+            raise ValueError()
+    ext = 1
+    info = fitsio.FITS(integratedfile)
+    nrows = info[ext].get_nrows()
+
+    if first is None:
+        first = 0
+    if last is None:
+        last = nrows
+        rows = np.arange(first, last)
+    else:
+        if last >= nrows:
+            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
+            raise ValueError()
+        rows = np.arange(first, last + 1)
+    results = Table(info[ext].read(rows=rows, upper=True))
+    
+    if verbose:
+        if len(rows) == 1:
+            print('Read galaxy index {} from {}'.format(first, integratedfile))
+        else:
+            print('Read galaxy indices {} through {} (N={}) from {}'.format(
+                first, last, len(results), integratedfile))
+            
+    return results
+
+def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
 
     """
-    if sdss:
-        suffix = 'sdss-'
+    if filesuffix.strip() == '':
+        ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
     else:
-        suffix = ''
+        ellipsefitfile = os.path.join(galaxydir, '{}-{}-ellipsefit.p'.format(galaxy, filesuffix))
         
-    ellipsefitfile = os.path.join(galaxydir, '{}-{}ellipsefit.p'.format(galaxy, suffix))
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
     with open(ellipsefitfile, 'wb') as ell:
         pickle.dump(ellipsefit, ell, protocol=2)
 
-def read_ellipsefit(galaxy, galaxydir, sdss=False, verbose=True):
-    """Read the output of write_ellipsefit."""
+def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True):
+    """Read the output of write_ellipsefit.
 
-    if sdss:
-        suffix = 'sdss-'
+    """
+    if filesuffix.strip() == '':
+        ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
     else:
-        suffix = ''
-
-    ellipsefitfile = os.path.join(galaxydir, '{}-{}ellipsefit.p'.format(galaxy, suffix))
+        ellipsefitfile = os.path.join(galaxydir, '{}-{}-ellipsefit.p'.format(galaxy, filesuffix))
+        
     try:
         with open(ellipsefitfile, 'rb') as ell:
             ellipsefit = pickle.load(ell)
@@ -166,31 +212,6 @@ def read_ellipsefit(galaxy, galaxydir, sdss=False, verbose=True):
         ellipsefit = dict()
 
     return ellipsefit
-
-def write_sky_ellipsefit(galaxy, galaxydir, skyellipsefit, verbose=False):
-    """Pickle the sky ellipse-fitting results
-
-    """
-    skyellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit-sky.p'.format(galaxy))
-    if verbose:
-        print('Writing {}'.format(skyellipsefitfile))
-    with open(skyellipsefitfile, 'wb') as ell:
-        pickle.dump(skyellipsefit, ell, protocol=2)
-
-def read_sky_ellipsefit(galaxy, galaxydir, verbose=True):
-    """Read the output of write_skyellipsefit."""
-
-    skyellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit-sky.p'.format(galaxy))
-    try:
-        with open(skyellipsefitfile, 'rb') as ell:
-            skyellipsefit = pickle.load(ell)
-    except:
-        #raise IOError
-        if verbose:
-            print('File {} not found!'.format(skyellipsefitfile))
-        skyellipsefit = dict()
-
-    return skyellipsefit
 
 def write_sersic(galaxy, galaxydir, sersic, modeltype='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
@@ -306,10 +327,13 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, maskfactor=2.0, fill_value=0.0,
-                   sdss=False):
+                   pipeline=False, sdss=False, verbose=False):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
+
+    This script needs to be refactored to pull out the unWISE + GALEX stuff (see
+    ellipse.legacyhalos_ellipse).
 
     """
     from scipy.ndimage.filters import gaussian_filter
@@ -336,10 +360,14 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             }
     else:
         masksuffix = 'custom-mask-grz'
+        if pipeline:
+            prefix = 'pipeline'
+        else:
+            prefix = 'custom'
         filt2imfile = {
-            'g': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-            'r': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar'],
-            'z': ['custom-image', 'custom-model-nocentral', 'custom-model', 'invvar']
+            'g': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar'],
+            'r': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar'],
+            'z': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar']
             }
         filt2pixscale =  {
             'g': pixscale,
@@ -348,12 +376,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             }
             
     filt2imfile.update({
-        'FUV': ['image', 'model-nocentral', 'custom-model'],
-        'NUV': ['image', 'model-nocentral', 'custom-model'],
-        'W1':  ['image', 'model-nocentral', 'custom-model'],
-        'W2':  ['image', 'model-nocentral', 'custom-model'],
-        'W3':  ['image', 'model-nocentral', 'custom-model'],
-        'W4':  ['image', 'model-nocentral', 'custom-model']
+        'FUV': ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'NUV': ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'W1':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'W2':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'W3':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
+        'W4':  ['image', 'model-nocentral', 'custom-model', 'invvar']
         })
         
     filt2pixscale.update({
@@ -377,7 +405,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    tractorfile = os.path.join(galaxydir, '{}-tractor.fits'.format(galaxy))
+    tractorfile = os.path.join(galaxydir, '{}-custom-tractor.fits'.format(galaxy))
     if os.path.isfile(tractorfile):
         tractor = Table(fitsio.read(tractorfile, upper=True))
         print('Read {} sources from {}'.format(len(tractor), tractorfile))
@@ -393,23 +421,34 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     # and poor model fits because of the higher spatial sampling/resolution.
     opt_residual_mask = []
     for filt in bands:
+        if verbose:
+            print('Reading {}'.format(filt2imfile[filt][0]))
+            print('Reading {}'.format(filt2imfile[filt][2]))
         image = fitsio.read(filt2imfile[filt][0])
         allmodel = fitsio.read(filt2imfile[filt][2]) # read the all-model image
 
-        # Get the average PSF size in each bandpass.
+        # Get the average PSF size and depth in each bandpass.
         H, W = image.shape
 
-        psfcol = 'PSFSIZE_{}'.format(filt.upper())
-        if not psfcol in tractor.colnames:
-            print('Warning: PSF column {} not found in Tractor catalog!'.format(psfcol))
+        psfsizecol = 'PSFSIZE_{}'.format(filt.upper())
+        psfdepthcol = 'PSFDEPTH_{}'.format(filt.upper())
+        if not psfsizecol in tractor.colnames or not psfdepthcol in tractor.colnames:
+            print('Warning: PSFSIZE ({}) or PSFDEPTH ({}) column not found in Tractor catalog!'.format(
+                psfsizecol, psfdepthcol))
         else:
             dH = 0.1 * H
             these = ( (tractor['BX'] > np.int(H / 2 - dH)) * (tractor['BX'] < np.int(H / 2 + dH)) *
                       (tractor['BY'] > np.int(H / 2 - dH)) * (tractor['BY'] < np.int(H / 2 + dH)) )
             if np.sum(these) == 0:
                 print('No sources at the center of the field, sonable to get PSF size!')
-            data['NPSFSIZE_{}'.format(filt.upper())] = np.sum(these).astype(int)
-            data['PSFSIZE_{}'.format(filt.upper())] = np.median(tractor[psfcol])
+            #data['npsfsize_{}'.format(filt)] = np.sum(these).astype(int)
+            data['psfsize_{}'.format(filt)] = np.median(tractor[psfsizecol][these]).astype('f4') # [arcsec]
+            data['psfsize_min_{}'.format(filt)] = np.min(tractor[psfsizecol]).astype('f4')
+            data['psfsize_max_{}'.format(filt)] = np.max(tractor[psfsizecol]).astype('f4')
+
+            data['psfdepth_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.median(tractor[psfdepthcol][these]))).astype('f4') # [AB mag, 5-sigma]
+            data['psfdepth_min_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.min(tractor[psfdepthcol]))).astype('f4')
+            data['psfdepth_max_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.max(tractor[psfdepthcol]))).astype('f4')
         
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
@@ -469,9 +508,11 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
 
         # Initialize the mask with the inverse variance map, if available.
         if len(filt2imfile[filt]) == 4:
+            print('Reading {}'.format(filt2imfile[filt][3]))
             invvar = fitsio.read(filt2imfile[filt][3])
             mask = invvar <= 0 # True-->bad, False-->good
         else:
+            invvar = None
             mask = np.zeros_like(image).astype(bool)
 
         # Flag significant pixels (i.e., fitted objects) in the model image,
@@ -516,12 +557,16 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         
         data['{}_masked'.format(filt)] = ma.masked_array(data[filt], mask)
         ma.set_fill_value(data['{}_masked'.format(filt)], fill_value)
-        #data['{}_masked'.format(filt)].filled(fill_value)
-        #pdb.set_trace()
+        #data['{}_masked'.format(filt)].filled(fill_value)        
+
+        if invvar is not None:
+            var = np.zeros_like(invvar)
+            var[~mask] = 1 / invvar[~mask]
+            data['{}_var'.format(filt)] = var / thispixscale**4 # [nanomaggies**2/arcsec**4]
 
     data['bands'] = bands
     data['refband'] = refband
-    data['pixscale'] = pixscale
+    data['refpixscale'] = pixscale
 
     if 'NUV' in bands:
         data['galex_pixscale'] = galex_pixscale

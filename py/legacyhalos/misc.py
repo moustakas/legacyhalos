@@ -10,8 +10,6 @@ from __future__ import absolute_import, division, print_function
 import os, sys
 import numpy as np
 
-from astrometry.util.util import Tan
-
 RADIUS_CLUSTER_KPC = 500.0     # default cluster radius
 HSC_RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
 
@@ -47,7 +45,10 @@ def ellipse_mask(xcen, ycen, semia, semib, phi, x, y):
     return (xp / semia)**2 + (yp/semib)**2 <= 1
 
 def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262, zcolumn='Z'):
-    '''Build a simple WCS object for a single galaxy.'''
+    '''Build a simple WCS object for a single galaxy.
+
+    radius in pixels
+    '''
     from astrometry.util.util import Tan
 
     if zcolumn in onegal.colnames:
@@ -109,7 +110,7 @@ def plot_style(paper=False, talk=False):
         palette = 'deep'
         rc.update({'text.usetex': True})
 
-    sns.set(context=context, style='ticks', font_scale=1.3, rc=rc)
+    sns.set(context=context, style='ticks', font_scale=1.2, rc=rc)
     sns.set_palette(palette, 12)
 
     colors = sns.color_palette()

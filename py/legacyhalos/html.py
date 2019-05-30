@@ -13,7 +13,6 @@ import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
 
-from legacyhalos.misc import RADIUS_CLUSTER_KPC
 sns, _ = legacyhalos.misc.plot_style()
 
 #import seaborn as sns
@@ -34,7 +33,7 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
 
     radius_pixel = legacyhalos.misc.cutout_radius_kpc(
         redshift=onegal[zcolumn], pixscale=pixscale,
-        radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
+        radius_kpc=radius_mosaic_kpc) # [pixels]
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
@@ -61,10 +60,69 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     if not os.path.isfile(ccdposfile) or clobber:
         display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
 
-def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
-    """Montage the coadds into a nice QAplot."""
+def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
+              radius=None, survey=None, clobber=False, verbose=True):
+    """Build CCD positions QA.
 
+    """
+    from astrometry.util.fits import fits_table
+    from legacyhalos.qa import display_ccdpos
+
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+
+    ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
+    if os.path.isfile(ccdsfile):
+        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+
+    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+    if not os.path.isfile(ccdposfile) or clobber:
+        display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
+
+def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
+                      barlabel=None, clobber=False, verbose=True):
+    """Montage the coadds into a nice QAplot.
+
+    barlen - pixels
+
+    """
+    #from pkg_resources import resource_filename
+    from PIL import Image, ImageDraw, ImageFont
     montagefile = os.path.join(htmlgalaxydir, '{}-grz-montage.png'.format(galaxy))
+
+    fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
+    #fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
+
+    def addbar(jpgfile, barlen, barlabel, imtype):
+        pngfile = os.path.join(htmlgalaxydir, os.path.basename(jpgfile).replace('.jpg', '.png'))
+        im = Image.open(jpgfile)
+        draw = ImageDraw.Draw(im)
+        sz = im.size
+        width = np.round(sz[0]/150).astype('int')
+
+        # Bar and label
+        if barlen:
+            fntsize = 20 # np.round(sz[0]/20).astype('int')
+            font = ImageFont.truetype(fonttype, size=fntsize)
+            # Add a scale bar and label--
+            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            draw.line((x0, y1, x1, y1), fill='white', width=width)
+            ww, hh = draw.textsize(barlabel, font=font)
+            dx = ((x1-x0) - ww)//2
+            #print(x0, x1, y0, y1, ww, x0+dx, sz)
+            draw.text((x0+dx, y0), barlabel, font=font)
+            #print('Writing {}'.format(pngfile))
+        # Image type
+        if imtype:
+            fntsize = 20 # np.round(sz[0]/20).astype('int')
+            font = ImageFont.truetype(fonttype, size=fntsize)
+            ww, hh = draw.textsize(imtype, font=font)
+            x0, y0, y1 = sz[0]-ww-fntsize*2, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            draw.text((x0, y1), imtype, font=font)
+        im.save(pngfile)
+        return pngfile
 
     if not os.path.isfile(montagefile) or clobber:
         # Make sure all the files exist.
@@ -77,9 +135,21 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=T
                 print('File {} not found!'.format(_jpgfile))
                 check = False
                 
-        if check:        
+        if check:
+            # Add a bar and label
             cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-            cmd = cmd+' '.join(ff for ff in jpgfile)
+            if barlen:
+                #pngfile = []
+                #for ff, blen, blab, imtype in zip(jpgfile, (barlen, None, None),
+                #                                  (barlabel, None, None),
+                #                                  ('Image stack', 'Tractor model', 'Central galaxy')):
+                #    pngfile.append(addbar(ff, blen, blab, imtype))
+                #cmd = cmd+' '.join(ff for ff in pngfile)
+                pngfile = [addbar(ff, barlen, barlabel, None) for ff in jpgfile]
+                cmd = cmd+' '+pngfile[0]+' '
+                cmd = cmd+' '.join(ff for ff in jpgfile[1:])
+            else:
+                cmd = cmd+' '.join(ff for ff in jpgfile)
             cmd = cmd+' {}'.format(montagefile)
 
             if verbose:
@@ -87,18 +157,18 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=T
             subprocess.call(cmd.split())
 
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                       clobber=False, verbose=True):
+                       barlen=None, barlabel=None, clobber=False, verbose=True):
     """Generate QAplots from the ellipse-fitting.
 
     """
-    from legacyhalos.io import read_multiband, read_ellipsefit, read_sky_ellipsefit
+    from legacyhalos.io import read_multiband, read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth)
 
     ellipsefit = read_ellipsefit(galaxy, galaxydir)
-    skyellipsefit = read_sky_ellipsefit(galaxy, galaxydir)
-
-    sdssellipsefit = read_ellipsefit(galaxy, galaxydir, sdss=True)
+    sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
+    sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
+    pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
 
     if len(ellipsefit) > 0:
         # Toss out bad fits.
@@ -108,19 +178,21 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
         cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
         if not os.path.isfile(cogfile) or clobber:
-            qa_curveofgrowth(ellipsefit, png=cogfile, verbose=verbose)
+            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
+                             png=cogfile, verbose=verbose)
 
         sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
         if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, skyellipsefit=skyellipsefit,
+            display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
+                                      pipeline_ellipsefit=pipeline_ellipsefit,
                                       png=sbprofilefile, verbose=verbose, minerr=0.0,
-                                      sdssellipsefit=sdssellipsefit)
+                                      sdss_ellipsefit=sdss_ellipsefit)
 
         multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(galaxy, galaxydir, bands=bands)
-            display_multiband(data, ellipsefit=ellipsefit, indx=indx,
-                              png=multibandfile, verbose=verbose)
+            display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
+                              barlabel=barlabel, png=multibandfile, verbose=verbose)
 
         ellipsefitfile = os.path.join(htmlgalaxydir, '{}-ellipse-ellipsefit.png'.format(galaxy))
         if not os.path.isfile(ellipsefitfile) or clobber:
@@ -215,6 +287,9 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
     """Make QA plots.
 
     """
+    from legacyhalos.qa import display_ccdpos
+    from legacyhalos.coadds import _mosaic_width
+    
     if datadir is None:
         if hsc:
             datadir = legacyhalos.io.hsc_data_dir()
@@ -238,6 +313,12 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         from astrometry.util.multiproc import multiproc
         mp = multiproc(nthreads=nproc)
 
+    if hsc:
+        from legacyhalos.misc import HSC_RADIUS_CLUSTER_KPC as radius_mosaic_kpc
+    else:
+        from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
+
+    # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
 
         if galaxylist is None:
@@ -253,18 +334,30 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
 
+        barlen_kpc, barlabel = 100, '100 kpc'
+        barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int')
+
+        radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+            redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
+        radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
+
+        # Build the ellipse plots.
+        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,
+                           barlabel=barlabel, clobber=clobber, verbose=verbose)
+
+        # CCD positions
+        qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                  radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
+                  verbose=verbose)
+
+        # Build the montage coadds.
+        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
+                          barlabel=barlabel, clobber=clobber, verbose=verbose)
+
         # Sersic fiting results
         if False:
             qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
                               clobber=clobber, verbose=verbose)
-
-        # Build the ellipse plots.
-        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
-                           clobber=clobber, verbose=verbose)
-        
-        # Build the montage coadds.
-        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir,
-                          clobber=clobber, verbose=verbose)
 
         # Build the CCD-level QA.  This QA script needs to be last, because we
         # check the completeness of the HTML portion of legacyhalos-mpi based on
@@ -312,14 +405,15 @@ def _javastring():
     return js
         
 def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, zcolumn='Z', first=None, last=None,
-              nproc=1, survey=None, makeplots=True, clobber=False, verbose=True,
-              maketrends=False, ccdqa=False):
+              refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
+              first=None, last=None, nproc=1, survey=None, makeplots=True,
+              clobber=False, verbose=True, maketrends=False, ccdqa=False):
     """Make the HTML pages.
 
     """
     import subprocess
     import fitsio
+    from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
     if datadir is None:
         datadir = legacyhalos.io.legacyhalos_data_dir()
@@ -342,7 +436,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         baseurl = 'http://legacysurvey.org/viewer/'
         width = 2 * legacyhalos.misc.cutout_radius_kpc(
             redshift=gal[zcolumn], pixscale=0.262,
-            radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
+            radius_kpc=radius_mosaic_kpc) # [pixels]
         if width > 400:
             zoom = 14
         else:
@@ -446,6 +540,12 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Make a separate HTML page for each object.
     for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate( zip(
         sample, np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir) ) ):
+
+        radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+            redshift=gal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
+        diam_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale)
+
+        ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose)
         
         if not os.path.exists(htmlgalaxydir1):
             os.makedirs(htmlgalaxydir1)
@@ -503,8 +603,10 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</tr>\n')
             html.write('</table>\n')
 
-            html.write('<h2>Image mosaics</h2>\n')
-            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 500 kpc by 500 kpc.</p>\n')
+            html.write('<h2>Image Mosaics</h2>\n')
+            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, and residual image containing just the central galaxy) is {:.0f} kpc = {:.3f} arcsec = {:.0f} pixels in diameter.</p>\n'.format(2*radius_mosaic_kpc, 2*radius_mosaic_arcsec, diam_mosaic_pixels))
+            #html.write('<br />\n')
+
             html.write('<table width="90%">\n')
             html.write('<tr><td><a href="{}-grz-montage.png"><img src="{}-grz-montage.png" alt="Missing file {}-grz-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(galaxy1, galaxy1, galaxy1))
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
