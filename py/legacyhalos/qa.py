@@ -99,13 +99,13 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         if cog.min() < ybright:
             ybright = cog.min()
 
-    ax.set_xlabel(r'Semi-major Axis $a$ (arcsec)')
+    ax.set_xlabel(r'Semi-major axis $r$ (arcsec)')
     ax.set_ylabel('Cumulative Flux (AB mag)')
 
     ax.set_xlim(0, maxsma*1.01)
     ax_twin = ax.twiny()
     ax_twin.set_xlim( (0, maxsma*smascale) )
-    ax_twin.set_xlabel('Semi-major Axis $a$ (kpc)')
+    ax_twin.set_xlabel('Semi-major axis $r$ (kpc)')
 
     yfaint += 0.5
     ybright += -0.5
@@ -466,9 +466,9 @@ def display_sersic(sersic, png=None, verbose=False):
         ax.text(0.07, 0.04, txt, ha='left', va='bottom', linespacing=1.3,
                 transform=ax.transAxes, fontsize=10)
 
-    ax.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
-    ax.set_ylabel(r'$\mu(r)$ (mag arcsec$^{-2}$)')
-    #ax.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
+    ax.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
+    ax.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
+    #ax.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
 
     ylim = [ymnmax[0]-1.5, ymnmax[1]+0.5]
     if sersic['modeltype'] == 'triple':
@@ -761,9 +761,9 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
 
         ax1.set_ylabel(r'Ellipticity $\epsilon$')
         ax2.set_ylabel('Position Angle (deg)')
-        ax3.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
+        ax3.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
         ax3.set_ylabel(r'$x$ Center')
-        ax4.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
+        ax4.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
         ax4.set_ylabel(r'$y$ Center')
 
         if xlog:
@@ -796,48 +796,47 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 
         colors = _sbprofile_colors()
 
-        bands, refband = ellipsefit['bands'], ellipsefit['refband']
-        redshift = ellipsefit['redshift']
-        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+        bands, refband, redshift = ellipsefit['bands'], ellipsefit['refband'], ellipsefit['redshift']         
+        radscale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
 
         yminmax = [40, 0]
-        xminmax = [0, 0]
+        xminmax = [1, 0]
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
                                        gridspec_kw = {'height_ratios':[2, 1]})
         for filt in bands:
-            sma = sbprofile['sma']
+            radius = sbprofile['radius_{}'.format(filt)]**0.25
             mu = sbprofile['mu_{}'.format(filt)]
-            muerr = sbprofile['mu_{}_err'.format(filt)]
+            muerr = sbprofile['muerr_{}'.format(filt)]
 
             #good = (ellipsefit[filt].stop_code < 4)
             #bad = ~good
             
             #with np.errstate(invalid='ignore'):
             #    good = np.isfinite(mu) * (mu / muerr > 3)
-            good = np.isfinite(mu)
-            if np.sum(good) == 0:
-                continue
-            
-            sma = sma[good]
-            mu = mu[good]
-            muerr = muerr[good]
+            #good = np.isfinite(mu)
+            #if np.sum(good) == 0:
+            #    continue
+            #sma = sma[good]
+            #mu = mu[good]
+            #muerr = muerr[good]
             
             col = next(colors)
-            ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color=col,
+            ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color=col,
                              alpha=0.75, edgecolor='k', lw=2)
 
-            if bool(pipeline_ellipsefit):
+            if bool(pipeline_ellipsefit) and False:
                 pipeline_sbprofile = ellipse_sbprofile(pipeline_ellipsefit, minerr=minerr)
-                _sma = pipeline_sbprofile['sma']
+                _radius = pipeline_sbprofile['radius_{}'.format(filt)]**0.25
                 _mu = pipeline_sbprofile['mu_{}'.format(filt)]
                 _muerr = pipeline_sbprofile['mu_{}_err'.format(filt)]
-                #ax1.plot(sma, mu, color='k', alpha=0.5)
-                ax1.fill_between(_sma, _mu-_muerr, _mu+_muerr, color=col,
+                #ax1.plot(radius, mu, color='k', alpha=0.5)
+                ax1.fill_between(_radius, _mu-_muerr, _mu+_muerr, color=col,
                                  alpha=0.2, edgecolor='k', lw=3)
                 
             if bool(sky_ellipsefit):
-                skysma = sky_ellipsefit['sma'] * ellipsefit['refpixscale']
+                print('Fix me')
+                skyradius = sky_ellipsefit['radius'] * ellipsefit['refpixscale']
 
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore')
@@ -845,16 +844,16 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                     # sky = np.nanstd(skyellipsefit[filt], axis=1) # / np.sqrt(skyellipsefit[
                     
                 skygood = np.isfinite(sky)
-                skysma = skysma[skygood]
+                skyradius = skyradius[skygood]
                 skymu = 22.5 - 2.5 * np.log10(sky[skygood])
-                ax1.plot( skysma, skymu , color=col, ls='--', alpha=0.5)
+                ax1.plot( skyradius, skymu , color=col, ls='--', alpha=0.5)
 
             if np.nanmin(mu-muerr) < yminmax[0]:
                 yminmax[0] = np.nanmin(mu-muerr)
             if np.nanmax(mu+muerr) > yminmax[1]:
                 yminmax[1] = np.nanmax(mu+muerr)
-            if np.nanmax(sma) > xminmax[1]:
-                xminmax[1] = np.nanmax(sma)
+            if np.nanmax(radius) > xminmax[1]:
+                xminmax[1] = np.nanmax(radius)
 
             #ax1.axhline(y=ellipsefit['mu_{}_sky'.format(filt)], color=col, ls='--')
             #if filt == refband:
@@ -864,14 +863,14 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         if bool(sdss_ellipsefit):
             sdss_sbprofile = ellipse_sbprofile(sdss_ellipsefit, minerr=minerr)
             for filt in sdss_ellipsefit['bands']:
-                sma = sdss_sbprofile['sma']
+                radius = sdss_sbprofile['radius_{}'.format(filt)]**0.25
                 mu = sdss_sbprofile['mu_{}'.format(filt)]
                 muerr = sdss_sbprofile['mu_{}_err'.format(filt)]
-                #ax1.plot(sma, mu, color='k', alpha=0.5)
-                ax1.fill_between(sma, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color='k',
+                #ax1.plot(radius, mu, color='k', alpha=0.5)
+                ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color='k',
                                  alpha=0.2, edgecolor='k', lw=3)
                 
-        ax1.set_ylabel(r'$\mu(a)$ (mag arcsec$^{-2}$)')
+        ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
         #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
 
         ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
@@ -892,42 +891,47 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         #ax1.margins(xmargin=0)
         
         ax1_twin = ax1.twiny()
-        ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
-        #ax1_twin.set_xlabel(r'Galactocentric radius $r$ (kpc)')
-        ax1_twin.set_xlabel(r'Semi-major Axis $a$ (kpc)')
+        ax1_twin.set_xlim( (radscale*xlim[0]**4, radscale*xlim[1]**4) )
+        ax1_twin.set_xlabel(r'Galactocentric radius (kpc)')
+        #ax1_twin.set_xlabel(r'Semi-major axis $r^{1/4}$ (kpc)')
 
         #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
         #ax1.set_ylim(31.99, 18)
 
         ax1.legend(loc='upper right')
 
-        ax2.fill_between(sbprofile['sma'],
+        ax2.fill_between(sbprofile['radius_gr']**0.25,
                          sbprofile['gr'] - sbprofile['gr_err'],
                          sbprofile['gr'] + sbprofile['gr_err'],
                          label=r'$g - r$', color=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
-        ax2.fill_between(sbprofile['sma'],
+        ax2.fill_between(sbprofile['radius_rz']**0.25,
                          sbprofile['rz'] - sbprofile['rz_err'],
                          sbprofile['rz'] + sbprofile['rz_err'],
                          label=r'$r - z$', color=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
-        ax2.set_xlabel(r'Semi-major Axis $a$ (arcsec)')
-        #ax2.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
+        #ax2.set_xlabel(r'Semi-major axis $r$ (arcsec)')
+        ax2.set_xlabel(r'(Galactocentric radius)$^{1/4}$ (arcsec)')
+        #ax2.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
         ax2.legend(loc='upper right')
         #ax2.legend(bbox_to_anchor=(0.25, 0.98))
         
         ax2.set_ylabel('Color (mag)')
         ax2.set_ylim(-0.5, 3)
+        ax2.set_xlim(xlim)
+        ax2.autoscale(False) # do not scale further
 
         for xx in (ax1, ax2):
             ylim = xx.get_ylim()
-            xx.fill_between([0, 3*ellipsefit['psfsigma_r']*ellipsefit['refpixscale']], [ylim[0], ylim[0]],
-                            [ylim[1], ylim[1]], color='grey', alpha=0.1)
+            xx.fill_between([0, (3*ellipsefit['psfsigma_r']*ellipsefit['refpixscale'])**0.25],
+                            [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
             
-        ax2.text(0.03, 0.1, 'PSF\n(3$\sigma$)', ha='center', va='center',
+        ax2.text(0.05, 0.15, 'PSF\n(3$\sigma$)', ha='center', va='center',
             transform=ax2.transAxes, fontsize=10)
+        #ax2.text(0.03, 0.1, 'PSF\n(3$\sigma$)', ha='center', va='center',
+        #    transform=ax2.transAxes, fontsize=10)
 
         fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.12, top=0.85)
 
@@ -1005,7 +1009,7 @@ def display_mge_sbprofile(mgefit, indx=None, png=None, verbose=True):
     #                 sbprofile['gr']+sbprofile['gr_err'],
     #                 label=r'$g - r$', color=next(colors), alpha=0.75)
 
-    ax2.set_xlabel('Galactocentric radius $r$ ({})'.format(smaunit), alpha=0.75)
+    ax2.set_xlabel('Galactocentric radius $r^{1/4}$ ({})'.format(smaunit), alpha=0.75)
     ax2.set_ylabel('Color')
     ax2.set_ylim(-0.5, 2.5)
     #ax2.legend(loc='upper left')
@@ -1102,7 +1106,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
         ax1.set_xlim(xlim)
         ax1.set_ylim(0, 2.5)
         ax1.set_ylabel(r'{}'.format(label))
-        ax1.set_xlabel('Galactocentric radius $r$ (kpc)')
+        ax1.set_xlabel('Galactocentric radius $r^{1/4}$ (kpc)')
 
         fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
 
@@ -1161,18 +1165,14 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
     _color_vs_sma()       # color vs semi-major axis
     _ellipticity_vs_sma() # ellipticity vs semi-major axis
 
-def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, zcolumn='Z',
-                   png=None, verbose=False):
+def display_ccdpos(onegal, ccds, radius, pixscale=0.262, png=None, verbose=False):
     """Visualize the position of all the CCDs contributing to the image stack of a
     single galaxy.
 
-    """
-    if radius is None:
-        radius = legacyhalos.misc.cutout_radius_kpc(
-            redshift=onegal[zcolumn], pixscale=pixscale,
-            radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
+    radius in pixels
 
-    wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius, pixscale=pixscale, zcolumn=zcolumn)
+    """
+    wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius, pixscale=pixscale)
     width, height = wcs.get_width() * pixscale / 3600, wcs.get_height() * pixscale / 3600 # [degrees]
     bb, bbcc = wcs.radec_bounds(), wcs.radec_center() # [degrees]
     pad = 0.2 # [degrees]
@@ -1212,7 +1212,7 @@ def display_ccdpos(onegal, ccds, radius=None, pixscale=0.262, zcolumn='Z',
                                            label='ccd{:02d}'.format(these[ii])))
             ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=10)
 
-    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.1, right=0.97, top=0.95)
+    plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.12, right=0.97, top=0.95)
 
     if png:
         if verbose:
@@ -1564,9 +1564,9 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             #    ysky = ellipsefit['mu_{}_sky'.format(filt)] - 2.5 * np.log10(0.1) # 10% of sky
             #    ax3.axhline(y=ysky, color=col, ls='--')
 
-        ax3.set_ylabel(r'$\mu(a)$ (mag arcsec$^{-2}$)')
+        ax3.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
         #ax3.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
-        #ax3.set_ylabel(r'Surface Brightness $\mu(r)$ (mag arcsec$^{-2}$)')
+        #ax3.set_ylabel(r'Surface Brightness $\mu$ (mag arcsec$^{-2}$)')
 
         ylim = [yminmax[0]-0.5, yminmax[1]+0.75]
         if ylim[0] < 17:
@@ -1585,7 +1585,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         ax1_twin = ax1.twiny()
         ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
-        ax1_twin.set_xlabel('Semi-major Axis $a$ (kpc)')
+        ax1_twin.set_xlabel('Semi-major axis $r$ (kpc)')
 
         ax3.legend(loc='upper right')
 
@@ -1602,7 +1602,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                          label=r'$r - z$', color=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
-        ax4.set_xlabel(r'Semi-major Axis $a$ (arcsec)')
+        ax4.set_xlabel(r'Semi-major axis $r$ (arcsec)')
         #ax4.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
         #ax4.legend(loc='upper left')
         ax4.legend(bbox_to_anchor=(0.25, 0.99))

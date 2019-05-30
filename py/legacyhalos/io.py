@@ -395,13 +395,13 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             if np.sum(these) == 0:
                 print('No sources at the center of the field, sonable to get PSF size!')
             #data['npsfsize_{}'.format(filt)] = np.sum(these).astype(int)
-            data['psfsize_{}'.format(filt)] = np.median(tractor[psfsizecol][these]) # [arcsec]
-            data['psfsize_min_{}'.format(filt)] = np.min(tractor[psfsizecol])
-            data['psfsize_max_{}'.format(filt)] = np.max(tractor[psfsizecol])
+            data['psfsize_{}'.format(filt)] = np.median(tractor[psfsizecol][these]).astype('f4') # [arcsec]
+            data['psfsize_min_{}'.format(filt)] = np.min(tractor[psfsizecol]).astype('f4')
+            data['psfsize_max_{}'.format(filt)] = np.max(tractor[psfsizecol]).astype('f4')
 
-            data['psfdepth_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.median(tractor[psfdepthcol][these]))) # [AB mag, 5-sigma]
-            data['psfdepth_min_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.min(tractor[psfdepthcol])))
-            data['psfdepth_max_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.max(tractor[psfdepthcol])))
+            data['psfdepth_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.median(tractor[psfdepthcol][these]))).astype('f4') # [AB mag, 5-sigma]
+            data['psfdepth_min_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.min(tractor[psfdepthcol]))).astype('f4')
+            data['psfdepth_max_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.max(tractor[psfdepthcol]))).astype('f4')
         
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)

@@ -13,7 +13,6 @@ import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
 
-from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 sns, _ = legacyhalos.misc.plot_style()
 
 #import seaborn as sns
@@ -60,6 +59,27 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
     if not os.path.isfile(ccdposfile) or clobber:
         display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
+
+def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
+              radius=None, survey=None, clobber=False, verbose=True):
+    """Build CCD positions QA.
+
+    """
+    from astrometry.util.fits import fits_table
+    from legacyhalos.qa import display_ccdpos
+
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+
+    ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
+    if os.path.isfile(ccdsfile):
+        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+
+    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+    if not os.path.isfile(ccdposfile) or clobber:
+        display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                       barlabel=None, clobber=False, verbose=True):
@@ -156,17 +176,19 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
         #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
 
-        cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
-        if not os.path.isfile(cogfile) or clobber:
-            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
-                             png=cogfile, verbose=verbose)
-
         sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
         if not os.path.isfile(sbprofilefile) or clobber:
             display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
                                       pipeline_ellipsefit=pipeline_ellipsefit,
                                       png=sbprofilefile, verbose=verbose, minerr=0.0,
                                       sdss_ellipsefit=sdss_ellipsefit)
+
+        pdb.set_trace()
+        
+        cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
+        if not os.path.isfile(cogfile) or clobber:
+            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
+                             png=cogfile, verbose=verbose)
 
         multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
         if not os.path.isfile(multibandfile) or clobber:
@@ -267,6 +289,9 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
     """Make QA plots.
 
     """
+    from legacyhalos.qa import display_ccdpos
+    from legacyhalos.coadds import _mosaic_width
+    
     if datadir is None:
         if hsc:
             datadir = legacyhalos.io.hsc_data_dir()
@@ -290,6 +315,12 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         from astrometry.util.multiproc import multiproc
         mp = multiproc(nthreads=nproc)
 
+    if hsc:
+        from legacyhalos.misc import HSC_RADIUS_CLUSTER_KPC as radius_mosaic_kpc
+    else:
+        from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
+
+    # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
 
         if galaxylist is None:
@@ -308,10 +339,21 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         barlen_kpc, barlabel = 100, '100 kpc'
         barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int')
 
+        radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+            redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
+        radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
+
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,
                            barlabel=barlabel, clobber=clobber, verbose=verbose)
+
+        pdb.set_trace()
         
+        # CCD positions
+        qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                  radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
+                  verbose=verbose)
+
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
                           barlabel=barlabel, clobber=clobber, verbose=verbose)
@@ -375,6 +417,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     """
     import subprocess
     import fitsio
+    from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
     if datadir is None:
         datadir = legacyhalos.io.legacyhalos_data_dir()

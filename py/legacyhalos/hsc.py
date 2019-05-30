@@ -339,7 +339,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
 
             html.write('<table>\n')
             html.write('<tr><th colspan="3">Mosaic radius</th><th colspan="3">Point-source depth<br />(5-sigma, mag)</th><th colspan="3">Image quality<br />(FWHM, arcsec)</th></tr>\n')
-            html.write('<tr><th>kpc</th><th>arcsec</th><th>pixels</th><th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th></tr>\n')
+            html.write('<tr><th>kpc</th><th>arcsec</th><th>grz pixels</th><th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th></tr>\n')
             html.write('<tr><td>{:.0f}</td><td>{:.3f}</td><td>{:.1f}</td>'.format(
                 radius_mosaic_kpc, radius_mosaic_arcsec, radius_mosaic_pixels))
             html.write('<td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td>'.format(
@@ -357,8 +357,18 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             #html.write('<br />\n')
             
             html.write('<table width="90%">\n')
-            html.write('<tr><td><a href="{}-grz-montage.png"><img src="{}-grz-montage.png" alt="Missing file {}-grz-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(galaxy1, galaxy1, galaxy1))
+            pngfile = '{}-grz-montage.png'.format(galaxy1)
+            html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
+                pngfile))
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
+            html.write('</table>\n')
+            #html.write('<br />\n')
+            html.write('<p>Spatial distribution of CCDs.</p>\n')
+
+            html.write('<table width="90%">\n')
+            pngfile = '{}-ccdpos.png'.format(galaxy1)
+            html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
+                pngfile))
             html.write('</table>\n')
             #html.write('<br />\n')
 
@@ -373,14 +383,14 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             else:
                 html.write('</tr>\n')
 
-            html.write('<tr><th>Integer center<br />(x,y, pixels)</th><th>Flux-weighted center<br />(x,y pixels)</th><th>Flux-weighted size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>')
-            html.write('<th>Fitting range<br />(arcsec)</th><th>Center<br />(x,y pixels)</th><th>PA<br />(deg)</th><th>e</th>')
+            html.write('<tr><th>Integer center<br />(x,y, grz pixels)</th><th>Flux-weighted center<br />(x,y grz pixels)</th><th>Flux-weighted size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>')
+            html.write('<th>Semi-major axis<br />(fitting range, arcsec)</th><th>Center<br />(x,y grz pixels)</th><th>PA<br />(deg)</th><th>e</th>')
             if ellipse['input_ellipse']:
                 html.write('<th>PA<br />(deg)</th><th>e</th></tr>\n')
             else:
                 html.write('</tr>\n')
             
-            html.write('<tr><td>({:.0f}, {:.0f})</td><td>({:.3f}, {:.3f})</td><td>{:.1f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
+            html.write('<tr><td>({:.0f}, {:.0f})</td><td>({:.3f}, {:.3f})</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
                 ellipse['x0'], ellipse['y0'], ellipse['mge_xmed'], ellipse['mge_ymed'], ellipse['mge_majoraxis']*pixscale,
                 ellipse['mge_pa'], ellipse['mge_eps']))
             
@@ -399,7 +409,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<table>\n')
             html.write('<tr><th>Fitting range<br />(arcsec)</th><th>Integration<br />mode</th><th>Clipping<br />iterations</th><th>Clipping<br />sigma</th></tr>')
             html.write('<tr><td>{:.3f}-{:.3f}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
-                ellipse[refband].sma.min(), ellipse[refband].sma.max(), ellipse['integrmode'],
+                ellipse[refband].sma.min()*pixscale, ellipse[refband].sma.max()*pixscale, ellipse['integrmode'],
                 ellipse['nclip'], ellipse['sclip']))
             html.write('</table>\n')
             html.write('<br />\n')

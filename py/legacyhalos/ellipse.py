@@ -350,8 +350,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
             #print(filt, psfsize)
         else:
             psfsize = 1.1 # [FWHM, arcsec]
-        ellipsefit['psfsigma_{}'.format(filt)] = psfsize / np.sqrt(8 * np.log(2)) # [arcsec]
-        ellipsefit['psfsigma_{}'.format(filt)] /= refpixscale # [pixels]
+        ellipsefit['psfsigma_{}'.format(filt)] = (psfsize / np.sqrt(8 * np.log(2)) / refpixscale).astype('f4') # [pixels]
 
         ellipsefit['psfsize_{}'.format(filt)] = data['psfsize_{}'.format(filt)] # [FWHM, arcsec]
         ellipsefit['psfsize_min_{}'.format(filt)] = data['psfsize_min_{}'.format(filt)]
@@ -550,7 +549,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     
     return ellipsefit
 
-def ellipse_sbprofile(ellipsefit, minerr=0.0):
+def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
 
@@ -572,33 +571,54 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0):
     
     sbprofile['minerr'] = minerr
     sbprofile['smaunit'] = 'arcsec'
-    sbprofile['sma'] = ellipsefit[bands[0]].sma * pixscale # [arcsec]
 
-    with np.errstate(invalid='ignore'):
-        for filt in bands:
-            #area = ellipsefit[filt].sarea[indx] * pixscale**2
+    # semi-major axis and circularized radius
+    #sbprofile['sma'] = ellipsefit[bands[0]].sma * pixscale # [arcsec]
 
-            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens) # [mag/arcsec2]
+    for filt in bands:
+        #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-            #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens)
-            sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err / \
-              ellipsefit[filt].intens / np.log(10)
-            sbprofile['mu_{}_err'.format(filt)] = np.sqrt(sbprofile['mu_{}_err'.format(filt)]**2 + minerr**2)
+        sb = ellipsefit[filt].intens             # [nanomaggies/arcsec2]
+        sberr = np.sqrt(ellipsefit[filt].int_err**2 + (0.4 * np.log(10) * sb * minerr)**2)
+        radius = ellipsefit[filt].sma * np.sqrt(1 - ellipsefit['eps']) * pixscale # circularized radius [arcsec]
 
-            # Just for the plot use a minimum uncertainty
-            #sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            keep = np.isfinite(sb) * (sb / sberr > snrmin)
+        sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(sb[keep]) # [mag/arcsec2]
+        sbprofile['muerr_{}'.format(filt)] = 2.5 * sberr[keep] / sb[keep] / np.log(10)
+        sbprofile['radius_{}'.format(filt)] = radius[keep] # [arcsec]
 
-    if 'g' in bands and 'r' in bands:
-        sbprofile['gr'] = sbprofile['mu_g'] - sbprofile['mu_r']
-        sbprofile['gr_err'] = np.sqrt(sbprofile['mu_g_err']**2 + sbprofile['mu_r_err']**2)
-    if 'r' in bands and 'z' in bands:
-        sbprofile['rz'] = sbprofile['mu_r'] - sbprofile['mu_z']
-        sbprofile['rz_err'] = np.sqrt(sbprofile['mu_r_err']**2 + sbprofile['mu_z_err']**2)
+        #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens)
+        #sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err / \
+        #  ellipsefit[filt].intens / np.log(10)
+        #sbprofile['mu_{}_err'.format(filt)] = np.sqrt(sbprofile['mu_{}_err'.format(filt)]**2 + minerr**2)
+
+        # Just for the plot use a minimum uncertainty
+        #sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
+
+    if 'g' in bands and 'r' in bands and 'z' in bands:
+        radius_gr, indx_g, indx_r = np.intersect1d(sbprofile['radius_g'], sbprofile['radius_r'], return_indices=True)
+        sbprofile['gr'] = sbprofile['mu_g'][indx_g] - sbprofile['mu_r'][indx_r]
+        sbprofile['gr_err'] = np.sqrt(sbprofile['muerr_g'][indx_g]**2 + sbprofile['muerr_r'][indx_r]**2)
+        sbprofile['radius_gr'] = radius_gr
+
+        radius_rz, indx_r, indx_z = np.intersect1d(sbprofile['radius_r'], sbprofile['radius_z'], return_indices=True)
+        sbprofile['rz'] = sbprofile['mu_r'][indx_r] - sbprofile['mu_z'][indx_z]
+        sbprofile['rz_err'] = np.sqrt(sbprofile['muerr_r'][indx_r]**2 + sbprofile['muerr_z'][indx_z]**2)
+        sbprofile['radius_rz'] = radius_rz
         
     # SDSS
-    if 'r' in bands and 'i' in bands:
-        sbprofile['ri'] = sbprofile['mu_r'] - sbprofile['mu_i']
-        sbprofile['ri_err'] = np.sqrt(sbprofile['mu_r_err']**2 + sbprofile['mu_i_err']**2)
+    if sdss and 'g' in bands and 'r' in bands and 'i' in bands:
+        radius_gr, indx_g, indx_r = np.intersect1d(sbprofile['radius_g'], sbprofile['radius_r'], return_indices=True)
+        sbprofile['gr'] = sbprofile['mu_g'][indx_g] - sbprofile['mu_r'][indx_r]
+        sbprofile['gr_err'] = np.sqrt(sbprofile['muerr_g'][indx_g]**2 + sbprofile['muerr_r'][indx_r]**2)
+        sbprofile['radius_gr'] = radius_gr
+
+        radius_ri, indx_r, indx_i = np.intersect1d(sbprofile['radius_r'], sbprofile['radius_i'], return_indices=True)
+        sbprofile['ri'] = sbprofile['mu_r'][indx_r] - sbprofile['mu_i'][indx_i]
+        sbprofile['ri_err'] = np.sqrt(sbprofile['muerr_r'][indx_r]**2 + sbprofile['muerr_i'][indx_i]**2)
+        sbprofile['radius_ri'] = radius_ri
         
     # Just for the plot use a minimum uncertainty
     #sbprofile['gr_err'][sbprofile['gr_err'] < minerr] = minerr
