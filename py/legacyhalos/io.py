@@ -380,20 +380,28 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         image = fitsio.read(filt2imfile[filt][0])
         allmodel = fitsio.read(filt2imfile[filt][2]) # read the all-model image
 
-        # Get the average PSF size in each bandpass.
+        # Get the average PSF size and depth in each bandpass.
         H, W = image.shape
 
-        psfcol = 'PSFSIZE_{}'.format(filt.upper())
-        if not psfcol in tractor.colnames:
-            print('Warning: PSF column {} not found in Tractor catalog!'.format(psfcol))
+        psfsizecol = 'PSFSIZE_{}'.format(filt.upper())
+        psfdepthcol = 'PSFDEPTH_{}'.format(filt.upper())
+        if not psfsizecol in tractor.colnames or not psfdepthcol in tractor.colnames:
+            print('Warning: PSFSIZE ({}) or PSFDEPTH ({}) column not found in Tractor catalog!'.format(
+                psfsizecol, psfdepthcol))
         else:
             dH = 0.1 * H
             these = ( (tractor['BX'] > np.int(H / 2 - dH)) * (tractor['BX'] < np.int(H / 2 + dH)) *
                       (tractor['BY'] > np.int(H / 2 - dH)) * (tractor['BY'] < np.int(H / 2 + dH)) )
             if np.sum(these) == 0:
                 print('No sources at the center of the field, sonable to get PSF size!')
-            data['npsfsize_{}'.format(filt)] = np.sum(these).astype(int)
-            data['psfsize_{}'.format(filt)] = np.median(tractor[psfcol])
+            #data['npsfsize_{}'.format(filt)] = np.sum(these).astype(int)
+            data['psfsize_{}'.format(filt)] = np.median(tractor[psfsizecol][these]) # [arcsec]
+            data['psfsize_min_{}'.format(filt)] = np.min(tractor[psfsizecol])
+            data['psfsize_max_{}'.format(filt)] = np.max(tractor[psfsizecol])
+
+            data['psfdepth_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.median(tractor[psfdepthcol][these]))) # [AB mag, 5-sigma]
+            data['psfdepth_min_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.min(tractor[psfdepthcol])))
+            data['psfdepth_max_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.max(tractor[psfdepthcol])))
         
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
@@ -455,9 +463,9 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         if len(filt2imfile[filt]) == 4:
             print('Reading {}'.format(filt2imfile[filt][3]))
             invvar = fitsio.read(filt2imfile[filt][3])
-            data['{}_invvar'.format(filt)] = invvar
             mask = invvar <= 0 # True-->bad, False-->good
         else:
+            invvar = None
             mask = np.zeros_like(image).astype(bool)
 
         # Flag significant pixels (i.e., fitted objects) in the model image,
@@ -502,8 +510,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         
         data['{}_masked'.format(filt)] = ma.masked_array(data[filt], mask)
         ma.set_fill_value(data['{}_masked'.format(filt)], fill_value)
-        #data['{}_masked'.format(filt)].filled(fill_value)
-        #pdb.set_trace()
+        #data['{}_masked'.format(filt)].filled(fill_value)        
+
+        if invvar is not None:
+            var = np.zeros_like(invvar)
+            var[~mask] = 1 / invvar[~mask]
+            data['{}_var'.format(filt)] = var / thispixscale**4 # [nanomaggies**2/arcsec**4]
 
     data['bands'] = bands
     data['refband'] = refband

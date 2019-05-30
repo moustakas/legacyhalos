@@ -53,7 +53,7 @@ def _apphot_one(args):
     """Wrapper function for the multiprocessing."""
     return apphot_one(*args)
 
-def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale):
+def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False):
     """Perform aperture photometry in a single elliptical annulus.
 
     """
@@ -65,7 +65,10 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale):
     
     #area = (aperture_photometry(~mask*1, aperture, mask=mask, method='exact'))['aperture_sum'].data * pixscale**2 # [arcsec**2]
     mu_flux = (aperture_photometry(img, aperture, mask=mask, method='exact'))['aperture_sum'].data # [nanomaggies/arcsec2]
-    apphot = mu_flux * pixscale**2 # [nanomaggies]
+    if variance:
+        apphot = np.sqrt(mu_flux) * pixscale**2 # [nanomaggies]
+    else:
+        apphot = mu_flux * pixscale**2 # [nanomaggies]
     return apphot
 
 def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
@@ -93,7 +96,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     for filt in bands:
         img = ma.getdata(data['{}_masked'.format(filt)]) # [nanomaggies/arcsec2]
         mask = ma.getmask(data['{}_masked'.format(filt)])
-
+            
         deltaa_filt = deltaa * pixscalefactor
         sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
         smb = sma * refellipsefit['eps']
@@ -104,9 +107,17 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         with np.errstate(all='ignore'):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', category=AstropyUserWarning)
-                cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale)
+                cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False)
                                                 for aa, bb in zip(sma, smb)])
                 cogflux = np.hstack(cogflux)
+
+                if '{}_var'.format(filt) in data.keys():
+                    var = data['{}_var'.format(filt)] # [nanomaggies**2/arcsec**4]
+                    cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True)
+                                                    for aa, bb in zip(sma, smb)])
+                    cogferr = np.hstack(cogferr)
+                else:
+                    cogferr = None
 
         cogmag = 22.5 - 2.5 * np.log10(cogflux) # [mag]
         sma_arcsec = sma * pixscale             # [arcsec]
@@ -115,9 +126,13 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         results['cog_mag_{}'.format(filt)] = cogmag
         results['cog_sma_{}'.format(filt)] = sma_arcsec
 
+        if cogferr is not None:
+            results['cog_magerr_{}'.format(filt)] = 2.5 * cogferr / cogflux / np.log(10)
+
         #print('Modeling the curve of growth.')
         P = cogfitter(cogmodel, sma_arcsec, cogmag)
-        results['cog_params_{}'.format(filt)] = (P.mtot.value, P.m0.value, P.alpha1.value, P.alpha2.value)
+        results['cog_params_{}'.format(filt)] = {'mtot': P.mtot.value, 'm0': P.m0.value,
+                                                 'alpha1': P.alpha1.value, 'alpha2': P.alpha2.value}
         
     #    print(filt, P)
     #    default_model = cogmodel.evaluate(radius, P.mtot.default, P.m0.default, P.alpha1.default, P.alpha2.default)
@@ -269,10 +284,9 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
     return ellipsefit
 
 def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
-                         integrmode='median', nclip=2, sclip=3,
-                         step=0.1, fflag=0.7, linear=False, zcolumn='Z',
-                         input_ellipse=None, nowrite=False, verbose=False,
-                         fitgeometry=False, debug=False):
+                         integrmode='median', nclip=2, sclip=3, 
+                         zcolumn='Z', input_ellipse=None, nowrite=False,
+                         verbose=False, fitgeometry=False, debug=False):
     """Ellipse-fit the multiband data.
 
     See
@@ -307,8 +321,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     ellipsefit = dict()
     img = data['{}_masked'.format(refband)]
 
-    galprops = find_galaxy(img, nblob=1, fraction=0.05,
-                           binning=3, plot=debug, quiet=not verbose)
+    galprops = find_galaxy(img, nblob=1, fraction=0.05, binning=3, quiet=not verbose)#, plot=True)
     galprops.pa = galprops.pa % 180 # put into range [0-180]
     if debug:
         plt.savefig('debug.png')
@@ -341,6 +354,14 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         ellipsefit['psfsigma_{}'.format(filt)] = psfsize / np.sqrt(8 * np.log(2)) # [arcsec]
         ellipsefit['psfsigma_{}'.format(filt)] /= refpixscale # [pixels]
 
+        ellipsefit['psfsize_{}'.format(filt)] = data['psfsize_{}'.format(filt)] # [FWHM, arcsec]
+        ellipsefit['psfsize_min_{}'.format(filt)] = data['psfsize_min_{}'.format(filt)]
+        ellipsefit['psfsize_max_{}'.format(filt)] = data['psfsize_max_{}'.format(filt)]
+
+        ellipsefit['psfdepth_{}'.format(filt)] = data['psfdepth_{}'.format(filt)] # [AB mag]
+        ellipsefit['psfdepth_min_{}'.format(filt)] = data['psfdepth_min_{}'.format(filt)]
+        ellipsefit['psfdepth_max_{}'.format(filt)] = data['psfdepth_max_{}'.format(filt)]
+
     ##### ##################################################
     #print('MAXSMA HACK!!!')
     #maxsma = 20
@@ -351,9 +372,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = sclip
     ellipsefit['nclip'] = nclip
-    ellipsefit['step'] = step
-    ellipsefit['fflag'] = fflag
-    ellipsefit['linear'] = linear
 
     # Get the mean geometry of the system by ellipse-fitting the inner part and
     # taking the mean values of everything.
@@ -365,9 +383,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     t0 = time.time()
     majoraxis = ellipsefit['mge_majoraxis']
     geometry0 = EllipseGeometry(x0=ellipsefit['mge_xpeak'], y0=ellipsefit['mge_ypeak'],
-                                eps=ellipsefit['mge_eps'], sma=0.5*majoraxis, 
+                                eps=ellipsefit['mge_eps'], sma=majoraxis, 
                                 pa=np.radians(ellipsefit['mge_pa']-90))
-    
     ellipse0 = Ellipse(img, geometry=geometry0)
 
     smamin, smamax = 3*ellipsefit['psfsigma_{}'.format(refband)], 1.5*majoraxis # inner, outer radius
@@ -385,20 +402,24 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
                                       integrmode=integrmode, sclip=sclip, nclip=nclip)
             if len(iso0) > 0:
                 break
-
+            
     if len(iso0) == 0:
         print('Initial ellipse-fitting failed!')
         return ellipsefit
 
     # Mask out outliers and the inner part of the galaxy where seeing dominates.
     #good = ~sigma_clip(iso0.pa, sigma=3).mask
-    good = (iso0.sma > smamin) * (iso0.stop_code <= 4) * ~sigma_clip(iso0.pa, sigma=3).mask
+    good = (iso0.sma > smamin)
+    #good = (iso0.sma > smamin) * (iso0.stop_code <= 4) * ~sigma_clip(iso0.pa, sigma=3).mask
     #good = (iso0.sma > 3 * ellipsefit['psfsigma_{}'.format(refband)]) * ~sigma_clip(iso0.pa, sigma=3).mask
     #good = (iso0.stop_code < 4) * ~sigma_clip(iso0.pa, sigma=3).mask
     ngood = np.sum(good)
     if ngood == 0:
         print('Too few good measurements to get ellipse geometry!')
         return ellipsefit
+
+    ellipsefit['init_smamin'] = iso0.sma[good].min()
+    ellipsefit['init_smamax'] = iso0.sma[good].max()
 
     # Fix the center to be the peak (pixel) values.
     ellipsefit['x0'] = ellipsefit['mge_xpeak']
@@ -440,9 +461,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     # of ellipticity parameters.
     if input_ellipse:
         ellipsefit['input_ellipse'] = True
+        input_eps, input_pa = input_ellipse['eps'], input_ellipse['pa'] % 180
         geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
-                                   eps=input_ellipse['eps'], sma=majoraxis, 
-                                   pa=np.radians(input_ellipse['pa']-90))
+                                   eps=input_eps, sma=majoraxis, 
+                                   pa=np.radians(input_pa-90))
     else:
         # Note: we use the MGE, not fitted geometry here because it's more
         # reliable.
@@ -619,7 +641,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          galex_pixscale=galex_pixscale,
                                          unwise_pixscale=unwise_pixscale,
                                          verbose=verbose)
-    print('HACK!!!')
     if bool(data):
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
                                           nproc=nproc, integrmode=integrmode,

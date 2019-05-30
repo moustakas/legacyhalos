@@ -13,7 +13,7 @@ import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
 
-from legacyhalos.misc import RADIUS_CLUSTER_KPC
+from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 sns, _ = legacyhalos.misc.plot_style()
 
 #import seaborn as sns
@@ -34,7 +34,7 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
 
     radius_pixel = legacyhalos.misc.cutout_radius_kpc(
         redshift=onegal[zcolumn], pixscale=pixscale,
-        radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
+        radius_kpc=radius_mosaic_kpc) # [pixels]
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
@@ -397,7 +397,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         baseurl = 'http://legacysurvey.org/viewer/'
         width = 2 * legacyhalos.misc.cutout_radius_kpc(
             redshift=gal[zcolumn], pixscale=0.262,
-            radius_kpc=RADIUS_CLUSTER_KPC) # [pixels]
+            radius_kpc=radius_mosaic_kpc) # [pixels]
         if width > 400:
             zoom = 14
         else:
@@ -501,6 +501,12 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Make a separate HTML page for each object.
     for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate( zip(
         sample, np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir) ) ):
+
+        radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+            redshift=gal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
+        diam_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale)
+
+        ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose)
         
         if not os.path.exists(htmlgalaxydir1):
             os.makedirs(htmlgalaxydir1)
@@ -558,8 +564,10 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</tr>\n')
             html.write('</table>\n')
 
-            html.write('<h2>Image mosaics</h2>\n')
-            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 500 kpc by 500 kpc.</p>\n')
+            html.write('<h2>Image Mosaics</h2>\n')
+            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, and residual image containing just the central galaxy) is {:.0f} kpc = {:.3f} arcsec = {:.0f} pixels in diameter.</p>\n'.format(2*radius_mosaic_kpc, 2*radius_mosaic_arcsec, diam_mosaic_pixels))
+            #html.write('<br />\n')
+
             html.write('<table width="90%">\n')
             html.write('<tr><td><a href="{}-grz-montage.png"><img src="{}-grz-montage.png" alt="Missing file {}-grz-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(galaxy1, galaxy1, galaxy1))
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')

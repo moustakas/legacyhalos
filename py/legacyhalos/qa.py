@@ -46,6 +46,10 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     """Plot up the curve of growth versus semi-major axis.
 
     """
+    from legacyhalos.ellipse import CogModel
+    
+    colors = _sbprofile_colors()
+    
     fig, ax = plt.subplots(figsize=(9, 7))
     bands, refband, redshift = ellipsefit['bands'], ellipsefit['refband'], ellipsefit['redshift']
 
@@ -59,21 +63,33 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         #mag = 22.5-2.5*np.log10(flux[good])
         sma = ellipsefit['cog_sma_{}'.format(filt)]
         cog = ellipsefit['cog_mag_{}'.format(filt)]
-        magtot = ellipsefit['cog_params_{}'.format(filt)][0]
+        cogerr = ellipsefit['cog_magerr_{}'.format(filt)]
+        cogparams = ellipsefit['cog_params_{}'.format(filt)]
+        magtot = cogparams['mtot']
 
         #magtot = np.mean(mag[-5:])
         if pipeline_ellipsefit:
-            pipeline_magtot = pipeline_ellipsefit['cog_params_{}'.format(filt)][0]
+            pipeline_magtot = pipeline_ellipsefit['cog_params_{}'.format(filt)]['mtot']
             label = '{}={:.3f} ({:.3f})'.format(filt, magtot, pipeline_magtot)
         else:
             label = '{}={:.3f}'.format(filt, magtot)
-        ax.plot(sma, cog, label=label)
+            
+        col = next(colors)
+        #ax.plot(sma, cog, label=label)
+        ax.fill_between(sma, cog-cogerr, cog+cogerr, label=label,
+                        color=col)#, edgecolor='k', lw=2)
 
         if pipeline_ellipsefit:
-            ax.plot(pipeline_ellipsefit['cog_sma_{}'.format(filt)],
-                    pipeline_ellipsefit['cog_mag_{}'.format(filt)],
-                    alpha=0.5, color='gray')
+            _sma = pipeline_ellipsefit['cog_sma_{}'.format(filt)]
+            _cog = pipeline_ellipsefit['cog_mag_{}'.format(filt)]
+            _cogerr = pipeline_ellipsefit['cog_magerr_{}'.format(filt)]
+            #ax.plot(_sma, _cog, alpha=0.5, color='gray')
+            ax.fill_between(_sma, _cog-_cogerr, _cog+_cogerr,
+                            color=col, alpha=0.5)#, edgecolor='k', lw=1)
 
+        cogmodel = CogModel().evaluate(sma, magtot, cogparams['m0'], cogparams['alpha1'], cogparams['alpha2'])
+        ax.plot(sma, cogmodel, color=col, lw=2, ls='--')
+        
         #print(filt, np.mean(mag[-5:]))
         #print(filt, mag[-5:], np.mean(mag[-5:])
         #print(filt, np.min(mag))
@@ -504,6 +520,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
 
     """
     import numpy.ma as ma
+    from photutils import EllipticalAperture
 
     from astropy.visualization import AsinhStretch as Stretch
     from astropy.visualization import ImageNormalize
@@ -579,26 +596,40 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                         extent=extent, alpha=0.5, lw=1)
 
         if geometry:
-            from photutils import EllipticalAperture
-            
             ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
                                          geometry.sma*(1 - geometry.eps), geometry.pa)
-            ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.75)
+            ellaper.plot(color='k', lw=1, axes=ax1, alpha=0.75)
 
         if ellipsefit:
             if ellipsefit['success']:
                 if len(ellipsefit[filt]) > 0:
                     if indx is None:
                         indx = np.ones(len(ellipsefit[filt]), dtype=bool)
-
+                        
                     nfit = len(indx) # len(ellipsefit[filt])
                     nplot = np.rint(0.5*nfit).astype('int')
 
                     smas = np.linspace(0, ellipsefit[filt].sma[indx].max(), nplot)
+                    #smas = ellipsefit[filt].sma
                     for sma in smas:
                         efit = ellipsefit[filt].get_closest(sma)
                         x, y, = efit.sampled_coordinates()
-                        ax1.plot(x, y, color='k', lw=1, alpha=0.5)
+                        ax1.plot(x, y, color='k', lw=1, alpha=0.5)#, label='Fitted isophote')
+                        
+                    ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
+                                                 ellipsefit['mge_majoraxis'],
+                                                 ellipsefit['mge_majoraxis']*(1 - ellipsefit['mge_eps']),
+                                                 np.radians(ellipsefit['mge_pa']-90))
+                    ellaper.plot(color='red', lw=2, axes=ax1, alpha=0.75, label='Mean geometry')
+                    if ellipsefit['input_ellipse']:
+                        geometry = ellipsefit['geometry']
+                        ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
+                                                     geometry.sma*(1 - geometry.eps), geometry.pa)
+                        ellaper.plot(color='navy', lw=2, axes=ax1, alpha=0.75, label='Input geometry')
+
+                    if ii == 2:
+                        ax1.legend(loc='lower right', fontsize=8, frameon=True)
+                    
             else:
                 from photutils import EllipticalAperture
                 geometry = ellipsefit['geometry']

@@ -13,14 +13,14 @@
 # #SBATCH -t 02:00:00
 
 #SBATCH -p debug
-#SBATCH -N 8
-#SBATCH -n 32
+#SBATCH -N 4
+#SBATCH -n 16
 #SBATCH -t 00:30:00
 
 # sbatch hsc-mpi-shifter.slurm
 
 # pipeline coadds
-time srun -N 8 -n 32 -c 8 shifter --image=docker:flagnarg/legacyhalos:latest ./hsc-mpi-shifter.sh
+time srun -N 4 -n 16 -c 8 shifter --image=docker:flagnarg/legacyhalos:latest ./hsc-mpi-shifter.sh
 
 #time srun -N 1 -n 3 -c 8 $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --first 0 --last 49 --coadds --nproc 8 --mpi --hsc
 

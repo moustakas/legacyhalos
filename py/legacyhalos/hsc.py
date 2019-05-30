@@ -148,7 +148,9 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     import fitsio
 
     import legacyhalos.io
+    from legacyhalos.coadds import _mosaic_width
     from legacyhalos.misc import cutout_radius_kpc
+    from legacyhalos.misc import HSC_RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
     if datadir is None:
         datadir = hsc_data_dir()
@@ -169,7 +171,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Get the viewer link
     def _viewer_link(gal):
         baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * cutout_radius_kpc(redshift=gal[zcolumn], pixscale=pixscale) # [pixels]
+        width = 2 * cutout_radius_kpc(radius_kpc=radius_mosaic_kpc, redshift=gal[zcolumn],
+                                      pixscale=pixscale) # [pixels]
         if width > 400:
             zoom = 14
         else:
@@ -270,6 +273,10 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate( zip(
         sample, np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir) ) ):
 
+        radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+            redshift=gal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
+        radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
+
         ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose)
         
         if not os.path.exists(htmlgalaxydir1):
@@ -328,8 +335,27 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</tr>\n')
             html.write('</table>\n')
 
-            html.write('<h2>Image mosaics</h2>\n')
-            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, residual image containing just the central galaxy) is 500 kpc by 500 kpc.</p>\n')
+            html.write('<h2>Image Mosaics</h2>\n')
+
+            html.write('<table>\n')
+            html.write('<tr><th colspan="3">Mosaic radius</th><th colspan="3">Point-source depth<br />(5-sigma, mag)</th><th colspan="3">Image quality<br />(FWHM, arcsec)</th></tr>\n')
+            html.write('<tr><th>kpc</th><th>arcsec</th><th>pixels</th><th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th></tr>\n')
+            html.write('<tr><td>{:.0f}</td><td>{:.3f}</td><td>{:.1f}</td>'.format(
+                radius_mosaic_kpc, radius_mosaic_arcsec, radius_mosaic_pixels))
+            html.write('<td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td>'.format(
+                ellipse['psfdepth_g'], ellipse['psfdepth_min_g'], ellipse['psfdepth_max_g'],
+                ellipse['psfdepth_r'], ellipse['psfdepth_min_r'], ellipse['psfdepth_max_r'],
+                ellipse['psfdepth_z'], ellipse['psfdepth_min_z'], ellipse['psfdepth_max_z']))
+            html.write('<td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td></tr>\n'.format(
+                ellipse['psfsize_g'], ellipse['psfsize_min_g'], ellipse['psfsize_max_g'],
+                ellipse['psfsize_r'], ellipse['psfsize_min_r'], ellipse['psfsize_max_r'],
+                ellipse['psfsize_z'], ellipse['psfsize_min_z'], ellipse['psfsize_max_z']))
+            html.write('</table>\n')
+            #html.write('<br />\n')
+
+            html.write('<p>(Left) data, (middle) model of every object in the field except the central galaxy, (right) residual image containing just the central galaxy.</p>\n')
+            #html.write('<br />\n')
+            
             html.write('<table width="90%">\n')
             html.write('<tr><td><a href="{}-grz-montage.png"><img src="{}-grz-montage.png" alt="Missing file {}-grz-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(galaxy1, galaxy1, galaxy1))
             #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
@@ -339,30 +365,42 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<h2>Elliptical Isophote Analysis</h2>\n')
             html.write('<table>\n')
 
-            html.write('<tr><th colspan="3">Initial Geometry</th>')
-            html.write('<th colspan="3">Fitted Geometry</th>')
+            html.write('<tr><th colspan="5">Mean Geometry</th>')
+
+            html.write('<th colspan="4">Ellipse-fitted Geometry</th>')
             if ellipse['input_ellipse']:
                 html.write('<th colspan="2">Input Geometry</th></tr>\n')
             else:
                 html.write('</tr>\n')
-            
-            html.write('<tr><th>PA<br />(deg)</th><th>e</th><th>Semi-major axis<br />(arcsec)</th>')
-            html.write('<th>PA<br />(deg)</th><th>e</th><th>Semi-major axis<br />(arcsec)</th>')
+
+            html.write('<tr><th>Integer center<br />(x,y, pixels)</th><th>Flux-weighted center<br />(x,y pixels)</th><th>Flux-weighted size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>')
+            html.write('<th>Fitting range<br />(arcsec)</th><th>Center<br />(x,y pixels)</th><th>PA<br />(deg)</th><th>e</th>')
             if ellipse['input_ellipse']:
                 html.write('<th>PA<br />(deg)</th><th>e</th></tr>\n')
             else:
                 html.write('</tr>\n')
             
-            html.write('<tr><td>{:.1f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
-                ellipse['mge_pa'], ellipse['mge_eps'], ellipse['mge_majoraxis']*pixscale))
-            html.write('<td>{:.1f}+/-{:.1f}</td><td>{:.3f}+/-{:.3f}</td><td>{:.3f}</td>'.format(
-                ellipse['pa'], ellipse['pa_err'], ellipse['eps'], ellipse['eps_err'],
-                ellipse[refband].sma.max()*pixscale))
+            html.write('<tr><td>({:.0f}, {:.0f})</td><td>({:.3f}, {:.3f})</td><td>{:.1f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
+                ellipse['x0'], ellipse['y0'], ellipse['mge_xmed'], ellipse['mge_ymed'], ellipse['mge_majoraxis']*pixscale,
+                ellipse['mge_pa'], ellipse['mge_eps']))
+            
+            html.write('<td>{:.3f}-{:.3f}</td><td>({:.3f}, {:.3f})<br />+/-({:.3f}, {:.3f})</td><td>{:.1f}+/-{:.1f}</td><td>{:.3f}+/-{:.3f}</td>'.format(
+                ellipse['init_smamin']*pixscale, ellipse['init_smamax']*pixscale, ellipse['x0_median'],
+                ellipse['y0_median'], ellipse['x0_err'], ellipse['y0_err'], ellipse['pa'], ellipse['pa_err'],
+                ellipse['eps'], ellipse['eps_err']))
             if ellipse['input_ellipse']:
                 html.write('<td>{:.1f}</td><td>{:.3f}</td></tr>\n'.format(
                     np.degrees(ellipse['geometry'].pa)+90, ellipse['geometry'].eps))
             else:
                 html.write('</tr>\n')
+            html.write('</table>\n')
+            html.write('<br />\n')
+
+            html.write('<table>\n')
+            html.write('<tr><th>Fitting range<br />(arcsec)</th><th>Integration<br />mode</th><th>Clipping<br />iterations</th><th>Clipping<br />sigma</th></tr>')
+            html.write('<tr><td>{:.3f}-{:.3f}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
+                ellipse[refband].sma.min(), ellipse[refband].sma.max(), ellipse['integrmode'],
+                ellipse['nclip'], ellipse['sclip']))
             html.write('</table>\n')
             html.write('<br />\n')
 
