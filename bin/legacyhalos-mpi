@@ -440,7 +440,9 @@ def main():
         comm = None
         rank, size = 0, 1
 
-    # Read and broadcast the sample.
+    # Read and broadcast the sample.  For some reason, can't pickle the CCDs
+    # files, so have each rank read them (the error is with pickling
+    # spherematch).
     if rank == 0:
         if args.hsc:
             sample = legacyhalos.hsc.read_parent(first=args.first, last=args.last)
@@ -449,17 +451,21 @@ def main():
             sample = sample[(sample['DEC'] > 25) * (sample['DEC'] < 40)]
             #sample = sample[[61, 74, 84]]
             #sample = sample[[8, 11, 136, 156, 157, 188, 214, 390, 603, 670, 871, 940]]
-        if args.coadds and not args.count:
-            kdccds_north, kdccds_south = read_all_ccds()
-        else:
-            kdccds_north, kdccds_south = None, None
+        #if args.coadds and not args.count:
+        #    kdccds_north, kdccds_south = read_all_ccds()
+        #else:
+        #    kdccds_north, kdccds_south = None, None
     else:
-        sample, kdccds_north, kdccds_south = None, None, None
+        sample = None
+        #sample, kdccds_north, kdccds_south = None, None, None
 
     if comm:
         sample = comm.bcast(sample, root=0)
-        kdccds_north = comm.bcast(kdccds_north, root=0)
-        kdccds_south = comm.bcast(kdccds_south, root=0)
+        #kdccds_north = comm.bcast(kdccds_north, root=0)
+        #kdccds_south = comm.bcast(kdccds_south, root=0)
+
+    if args.coadds and not args.count:
+        kdccds_north, kdccds_south = read_all_ccds()
 
     # Build the web-page; integrate the ellipse-fitting results.
     if args.htmlindex:

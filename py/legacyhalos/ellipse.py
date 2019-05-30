@@ -225,7 +225,6 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
     maxsma = refellipsefit[refband].sma.max() * pixscalefactor
 
     integrmode, nclip, sclip = refellipsefit['integrmode'], refellipsefit['nclip'], refellipsefit['sclip']
-    step, fflag, linear = refellipsefit['step'], refellipsefit['fflag'], refellipsefit['linear']
 
     ellipsefit = dict()
     ellipsefit['success'] = False
@@ -409,7 +408,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
 
     # Mask out outliers and the inner part of the galaxy where seeing dominates.
     #good = ~sigma_clip(iso0.pa, sigma=3).mask
-    good = (iso0.sma > smamin)
+    good = (iso0.sma > smamin) * (iso0.stop_code <= 4)
     #good = (iso0.sma > smamin) * (iso0.stop_code <= 4) * ~sigma_clip(iso0.pa, sigma=3).mask
     #good = (iso0.sma > 3 * ellipsefit['psfsigma_{}'.format(refband)]) * ~sigma_clip(iso0.pa, sigma=3).mask
     #good = (iso0.stop_code < 4) * ~sigma_clip(iso0.pa, sigma=3).mask
@@ -424,14 +423,14 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     # Fix the center to be the peak (pixel) values.
     ellipsefit['x0'] = ellipsefit['mge_xpeak']
     ellipsefit['y0'] = ellipsefit['mge_ypeak']
-    ellipsefit['x0_median'] = np.median(iso0.x0[good])
-    ellipsefit['y0_median'] = np.median(iso0.y0[good])
+    ellipsefit['x0_median'] = np.mean(iso0.x0[good])
+    ellipsefit['y0_median'] = np.mean(iso0.y0[good])
     ellipsefit['x0_err'] = np.std(iso0.x0[good]) / np.sqrt(ngood)
     ellipsefit['y0_err'] = np.std(iso0.y0[good]) / np.sqrt(ngood)
 
-    ellipsefit['pa'] = (np.degrees(np.median(iso0.pa[good]))+90) % 180
+    ellipsefit['pa'] = (np.degrees(np.mean(iso0.pa[good]))+90) % 180
     ellipsefit['pa_err'] = np.degrees(np.std(iso0.pa[good])) / np.sqrt(ngood)
-    ellipsefit['eps'] = np.median(iso0.eps[good])
+    ellipsefit['eps'] = np.mean(iso0.eps[good])
     ellipsefit['eps_err'] = np.std(iso0.eps[good]) / np.sqrt(ngood)
 
     if verbose:

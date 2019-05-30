@@ -615,17 +615,29 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                         efit = ellipsefit[filt].get_closest(sma)
                         x, y, = efit.sampled_coordinates()
                         ax1.plot(x, y, color='k', lw=1, alpha=0.5)#, label='Fitted isophote')
-                        
+
+                    # Visualize the mean geometry
+                    maxis = ellipsefit['mge_majoraxis']
                     ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                                                 ellipsefit['mge_majoraxis'],
-                                                 ellipsefit['mge_majoraxis']*(1 - ellipsefit['mge_eps']),
+                                                 maxis, maxis*(1 - ellipsefit['mge_eps']),
                                                  np.radians(ellipsefit['mge_pa']-90))
-                    ellaper.plot(color='red', lw=2, axes=ax1, alpha=0.75, label='Mean geometry')
+                    ellaper.plot(color='red', lw=2, axes=ax1, alpha=1.0, label='Mean geometry')
+                    
+                    # Visualize the fitted geometry
+                    maxis = ellipsefit['mge_majoraxis'] * 1.2
+                    ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
+                                                 maxis, maxis*(1 - ellipsefit['eps']),
+                                                 np.radians(ellipsefit['pa']-90))
+                    ellaper.plot(color='k', lw=2, axes=ax1, alpha=1.0, label='Fitted geometry')
+
+                    # Visualize the input geometry
                     if ellipsefit['input_ellipse']:
                         geometry = ellipsefit['geometry']
-                        ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
-                                                     geometry.sma*(1 - geometry.eps), geometry.pa)
-                        ellaper.plot(color='navy', lw=2, axes=ax1, alpha=0.75, label='Input geometry')
+                        #maxis = geometry.sma
+                        maxis = geometry.sma * 0.8
+                        ellaper = EllipticalAperture((geometry.x0, geometry.y0), maxis,
+                                                     maxis*(1 - geometry.eps), geometry.pa)
+                        ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
 
                     if ii == 2:
                         ax1.legend(loc='lower right', fontsize=8, frameon=True)
