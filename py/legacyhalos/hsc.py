@@ -138,9 +138,9 @@ def read_parent(first=None, last=None, verbose=False):
     return sample
 
 def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, zcolumn='Z', first=None, last=None,
-              nproc=1, survey=None, makeplots=True, clobber=False, verbose=True,
-              maketrends=False, ccdqa=False):
+              refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
+              first=None, last=None, nproc=1, survey=None, makeplots=True,
+              clobber=False, verbose=True, maketrends=False, ccdqa=False):
     """Make the HTML pages.
 
     """
@@ -188,6 +188,20 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         else:
             return ''
 
+    def _get_mags(cat, rad='10'):
+        res = []
+        for band in ('g', 'r', 'z'):
+            iv = intflux['FLUX{}_IVAR_{}'.format(rad, band.upper())][0]
+            ff = intflux['FLUX{}_{}'.format(rad, band.upper())][0]
+            if iv > 0:
+                ee = 1 / np.sqrt(iv)
+                mag = 22.5-2.5*np.log10(ff)
+                magerr = 2.5 * ee / ff / np.log(10)
+                res.append('{:.3f}+/-{:.3f}'.format(mag, magerr))
+            else:
+                res.append('...')
+        return res
+            
     trendshtml = 'trends.html'
     homehtml = 'index.html'
 
@@ -278,6 +292,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
         ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose)
+        pipeline_ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose,
+                                                          filesuffix='pipeline')
         
         if not os.path.exists(htmlgalaxydir1):
             os.makedirs(htmlgalaxydir1)
@@ -433,10 +449,52 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</table>\n')
             html.write('<br />\n')
 
-            html.write('<h2>Integrated Photometry</h2>\n')
+            html.write('<h2>Observed & rest-frame photometry</h2>\n')
+
+            html.write('<h4>Integrated photometry</h4>\n')
             html.write('<table>\n')
-            html.write('<tr><th colspan="3">Flux<br />(<30 kpc)</th><th colspan="3">Flux<br />(<100 kpc)</th><tr/>')
-            html.write('<tr><th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th><tr/>')
+            html.write('<tr>')
+            html.write('<th colspan="3">Curve of growth<br />(custom sky, mag)</th><th colspan="3">Curve of growth<br />(pipeline sky, mag)</th>')
+            html.write('</tr>')
+
+            html.write('<tr>')
+            html.write('<th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th>')
+            html.write('</tr>')
+
+            html.write('<tr>')
+            g, r, z = (ellipse['cog_params_g']['mtot'], ellipse['cog_params_r']['mtot'],
+                       ellipse['cog_params_z']['mtot'])
+            html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(g, r, z))
+
+            g, r, z = (pipeline_ellipse['cog_params_g']['mtot'], pipeline_ellipse['cog_params_r']['mtot'],
+                       pipeline_ellipse['cog_params_z']['mtot'])
+            html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(g, r, z))
+            html.write('</tr>')
+            html.write('</table>\n')
+            html.write('<br />\n')
+
+            html.write('<h4>Aperture photometry</h4>\n')
+            html.write('<table>\n')
+            html.write('<tr>')
+            html.write('<th colspan="3"><10 kpc (mag)</th>')
+            html.write('<th colspan="3"><30 kpc (mag)</th>')
+            html.write('<th colspan="3"><100 kpc (mag)</th>')
+            html.write('</tr>')
+
+            html.write('<tr>')
+            html.write('<th>g</th><th>r</th><th>z</th>')
+            html.write('<th>g</th><th>r</th><th>z</th>')
+            html.write('<th>g</th><th>r</th><th>z</th>')
+            html.write('</tr>')
+
+            html.write('<tr>')
+            g, r, z = _get_mags(intflux[ii], rad='10')
+            html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
+            g, r, z = _get_mags(intflux[ii], rad='30')
+            html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
+            g, r, z = _get_mags(intflux[ii], rad='100')
+            html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
+            html.write('</tr>')
             html.write('</table>\n')
             html.write('<br />\n')
 

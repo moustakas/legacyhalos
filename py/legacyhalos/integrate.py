@@ -10,7 +10,7 @@ import multiprocessing
 import numpy as np
 
 from scipy.interpolate import interp1d
-from astropy.table import Table, Column, vstack
+from astropy.table import Table, Column, vstack, hstack
     
 import legacyhalos.io
 import legacyhalos.misc
@@ -176,21 +176,28 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, snrmin=1,
             
     return phot
 
-def legacyhalos_integrate(sample=None, first=None, last=None, nproc=1,
+def legacyhalos_integrate(sample, first=None, last=None, nproc=1,
                           minerr=0.01, snrmin=1, nrad_uniform=30, hsc=False,
                           verbose=False, clobber=False):
     """Wrapper script to integrate the profiles for the full sample.
 
     """
-    if sample is None:
-        sample = legacyhalos.io.read_paper2_sample(first=first, last=last)
     ngal = len(sample)
 
     phot = _init_phot(ngal=ngal, nrad_uniform=nrad_uniform)
     if hsc:
         galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(sample)
+        cols = ['ID_S16A', 'RA', 'DEC', 'Z_BEST']
     else:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
+        cols = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z_LAMBDA', 'LAMBDA_CHISQ', 'ID_CENT',
+                'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
+            
+    integratedfile = legacyhalos.io.get_integrated_filename(hsc=hsc)
+    if os.path.exists(integratedfile) and clobber is False:
+        print('Output file {} exists; use --clobber.'.format(integratedfile))
+        return []
+            
     galaxy, galaxydir = np.atleast_1d(galaxy), np.atleast_1d(galaxydir)
 
     args = list()
@@ -205,8 +212,11 @@ def legacyhalos_integrate(sample=None, first=None, last=None, nproc=1,
         out = list()
         for _args in args:
             out.append(_integrate_one(_args))
-            
     results = vstack(out)
+    
+    out = hstack((sample[cols], results))
+    if verbose:
+        print('Writing {}'.format(integratedfile))
+    out.write(integratedfile, overwrite=True)
 
-    return results
-
+    return out

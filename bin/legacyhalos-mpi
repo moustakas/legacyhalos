@@ -445,10 +445,14 @@ def main():
     # spherematch).
     if rank == 0:
         if args.hsc:
-            sample = legacyhalos.hsc.read_parent(first=args.first, last=args.last)
+            sample = legacyhalos.hsc.read_parent(first=args.first, last=args.last,
+                                                 verbose=args.verbose)
         else:
-            sample = legacyhalos.io.read_profiles_sample(first=args.first, last=args.last)
+            sample = legacyhalos.io.read_profiles_sample(first=args.first, last=args.last,
+                                                         verbose=args.verbose)
+            print('Hack!')
             sample = sample[(sample['DEC'] > 25) * (sample['DEC'] < 40)]
+            pdb.set_trace()
             #sample = sample[[61, 74, 84]]
             #sample = sample[[8, 11, 136, 156, 157, 188, 214, 390, 603, 670, 871, 940]]
         #if args.coadds and not args.count:
@@ -470,39 +474,25 @@ def main():
     # Build the web-page; integrate the ellipse-fitting results.
     if args.htmlindex:
         if rank == 0:
+            intflux = legacyhalos.io.read_integrated_flux(first=args.first, last=args.last,
+                                                          hsc=args.hsc, verbose=args.verbose)
             if args.hsc:
-                legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_BEST',
-                                          nproc=args.nproc, clobber=args.clobber, makeplots=False,
-                                          verbose=args.verbose, htmldir=args.htmldir, ccdqa=args.ccdqa)
+                legacyhalos.hsc.make_html(sample, intflux=intflux, survey=None, pixscale=args.pixscale,
+                                          zcolumn='Z_BEST', nproc=args.nproc, clobber=args.clobber,
+                                          makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                          ccdqa=args.ccdqa)
             else:
-                legacyhalos.html.make_html(sample, survey=None, pixscale=args.pixscale, zcolumn='Z_LAMBDA',
-                                           nproc=args.nproc, clobber=args.clobber, makeplots=False,
-                                           verbose=args.verbose, htmldir=args.htmldir, ccdqa=args.ccdqa)
+                legacyhalos.html.make_html(sample, intflux=intflux, survey=None, pixscale=args.pixscale,
+                                           zcolumn='Z_LAMBDA', nproc=args.nproc, clobber=args.clobber,
+                                           makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                           ccdqa=args.ccdqa)
         return
 
     if args.integrate:
         if rank == 0:
-            if args.hsc:
-                outfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'integrated-flux.fits')
-            else:
-                outfile = os.path.join(legacyhalos.io.profiles_dir(data=True), 'integrated-flux.fits')
-                
-            if os.path.exists(outfile) and args.clobber is False:
-                print('Output file {} exists; use --clobber.'.format(outfile))
-                return
-            
             results = legacyhalos.integrate.legacyhalos_integrate(
-                sample, nproc=args.nproc, verbose=args.verbose, hsc=args.hsc)
-
-            if args.hsc:
-                cols = ['ID_S16A', 'RA', 'DEC', 'Z_BEST']
-                #cols = ['OBJECT_ID', 'RA', 'DEC', 'Z_SPEC']
-            else:
-                cols = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z_LAMBDA', 'LAMBDA_CHISQ', 'ID_CENT',
-                        'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
-            out = hstack((sample[cols], results))
-            print('Writing {}'.format(outfile))
-            out.write(outfile, overwrite=True)
+                sample, nproc=args.nproc, verbose=args.verbose, hsc=args.hsc,
+                clobber=args.clobber)            
         return
 
     # Determine how many more objects we need to analyze and divide them

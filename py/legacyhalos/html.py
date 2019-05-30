@@ -405,9 +405,9 @@ def _javastring():
     return js
         
 def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, zcolumn='Z', first=None, last=None,
-              nproc=1, survey=None, makeplots=True, clobber=False, verbose=True,
-              maketrends=False, ccdqa=False):
+              refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
+              first=None, last=None, nproc=1, survey=None, makeplots=True,
+              clobber=False, verbose=True, maketrends=False, ccdqa=False):
     """Make the HTML pages.
 
     """

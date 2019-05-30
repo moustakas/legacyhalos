@@ -131,6 +131,53 @@ def profiles_dir(figures=False, data=False):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
+def get_integrated_filename(hsc=False):
+    """Return the name of the file containing the integrated photometry."""
+    if hsc:
+        import legacyhalos.hsc
+        integratedfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'integrated-flux.fits')
+    else:
+        integratedfile = os.path.join(profiles_dir(data=True), 'integrated-flux.fits')
+    return integratedfile
+
+def read_integrated_flux(first=None, last=None, hsc=False, verbose=False):
+    """Read the output of legacyhalos.integrate.
+    
+    """
+    integratedfile = get_integrated_filename(hsc=hsc)
+    if not os.path.isfile(integratedfile):
+        print('File {} not found.'.format(integratedfile)) # non-catastrophic error is OK
+        return None
+    
+    if first and last:
+        if first > last:
+            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+            raise ValueError()
+    ext = 1
+    info = fitsio.FITS(integratedfile)
+    nrows = info[ext].get_nrows()
+
+    if first is None:
+        first = 0
+    if last is None:
+        last = nrows
+        rows = np.arange(first, last)
+    else:
+        if last >= nrows:
+            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
+            raise ValueError()
+        rows = np.arange(first, last + 1)
+    results = Table(info[ext].read(rows=rows, upper=True))
+    
+    if verbose:
+        if len(rows) == 1:
+            print('Read galaxy index {} from {}'.format(first, integratedfile))
+        else:
+            print('Read galaxy indices {} through {} (N={}) from {}'.format(
+                first, last, len(results), integratedfile))
+            
+    return results
+
 def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).

@@ -77,8 +77,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             
         col = next(colors)
         #ax.plot(sma, cog, label=label)
-        ax.fill_between(sma, cog-cogerr, cog+cogerr, label=label,
-                        facecolor=col)#, edgecolor='k', lw=2)
+        ax.fill_between(sma, cog-cogerr, cog+cogerr, label=label, color=col)
+                        #facecolor=col, edgecolor='k', lw=2)
 
         if pipeline_ellipsefit and False:
             _sma = pipeline_ellipsefit['cog_sma_{}'.format(filt)]
