@@ -483,10 +483,9 @@ def main():
     if args.integrate:
         if rank == 0:
             if args.hsc:
-                outfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'profiles1d-flux.fits')
+                outfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'integrated-flux.fits')
             else:
-                # Temporary paper2 hack--
-                outfile = os.path.join(legacyhalos.io.paper2_dir(data=True), 'paper2-profiles1d-flux.fits')
+                outfile = os.path.join(legacyhalos.io.profiles_dir(data=True), 'integrated-flux.fits')
                 
             if os.path.exists(outfile) and args.clobber is False:
                 print('Output file {} exists; use --clobber.'.format(outfile))
@@ -494,8 +493,10 @@ def main():
             
             results = legacyhalos.integrate.legacyhalos_integrate(
                 sample, nproc=args.nproc, verbose=args.verbose, hsc=args.hsc)
+
             if args.hsc:
-                cols = ['OBJECT_ID', 'RA', 'DEC', 'Z_SPEC']
+                cols = ['ID_S16A', 'RA', 'DEC', 'Z_BEST']
+                #cols = ['OBJECT_ID', 'RA', 'DEC', 'Z_SPEC']
             else:
                 cols = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z_LAMBDA', 'LAMBDA_CHISQ', 'ID_CENT',
                         'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']

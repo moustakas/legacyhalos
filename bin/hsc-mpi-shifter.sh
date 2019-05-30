@@ -43,5 +43,7 @@ export MPICH_GNI_FORK_MODE=FULLCOPY
 
 # time srun -N 1 -n 4 -c 8 shifter --image=docker:flagnarg/legacyhalos:latest $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 8 --mpi --hsc --first 1 --last 5 --clobber
 
-time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc 8 --mpi --hsc --verbose --last 49
+time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --htmlplots --mpi --hsc --verbose --last 49
+#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --nproc 8 --mpi --hsc --verbose --last 49
+#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc 8 --mpi --hsc --verbose --last 49
 # time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 8 --mpi --hsc --verbose --last 49

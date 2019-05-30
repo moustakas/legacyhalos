@@ -66,19 +66,19 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         cog = ellipsefit['cog_mag_{}'.format(filt)]
         cogerr = ellipsefit['cog_magerr_{}'.format(filt)]
         cogparams = ellipsefit['cog_params_{}'.format(filt)]
-        magtot = cogparams['mtot']
+        magtot, chi2 = cogparams['mtot'], cogparams['chi2']
 
         #magtot = np.mean(mag[-5:])
-        if pipeline_ellipsefit:
+        if pipeline_ellipsefit and False:
             pipeline_magtot = pipeline_ellipsefit['cog_params_{}'.format(filt)]['mtot']
             label = '{}={:.3f} ({:.3f})'.format(filt, magtot, pipeline_magtot)
         else:
-            label = '{}={:.3f}'.format(filt, magtot)
+            label = r'{}={:.3f} ($\chi^2_\nu={:.1f}$)'.format(filt, magtot, chi2)
             
         col = next(colors)
         #ax.plot(sma, cog, label=label)
         ax.fill_between(sma, cog-cogerr, cog+cogerr, label=label,
-                        color=col)#, edgecolor='k', lw=2)
+                        facecolor=col)#, edgecolor='k', lw=2)
 
         if pipeline_ellipsefit and False:
             _sma = pipeline_ellipsefit['cog_sma_{}'.format(filt)]
@@ -86,10 +86,11 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             _cogerr = pipeline_ellipsefit['cog_magerr_{}'.format(filt)]
             #ax.plot(_sma, _cog, alpha=0.5, color='gray')
             ax.fill_between(_sma, _cog-_cogerr, _cog+_cogerr,
-                            color=col, alpha=0.5)#, edgecolor='k', lw=1)
+                            facecolor=col, alpha=0.5)#, edgecolor='k', lw=1)
 
-        cogmodel = CogModel().evaluate(sma, magtot, cogparams['m0'], cogparams['alpha1'], cogparams['alpha2'])
-        ax.plot(sma, cogmodel, color=col, lw=2, ls='--')
+        cogmodel = CogModel().evaluate(sma, magtot, cogparams['m0'],
+                                       cogparams['alpha1'], cogparams['alpha2'])
+        ax.plot(sma, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
 
         if sma.max() > maxsma:
             maxsma = sma.max()
@@ -104,7 +105,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             ybright = cog.min()
 
     ax.set_xlabel(r'Semi-major axis (arcsec)')
-    ax.set_ylabel('Cumulative Flux (AB mag)')
+    ax.set_ylabel('Cumulative brightness (AB mag)')
 
     ax.set_xlim(0, maxsma*1.01)
     #ax.margins(x=0)
@@ -206,7 +207,7 @@ def display_sersic(sersic, png=None, verbose=False):
         mu = 22.5 - 2.5 * np.log10(sb)
         muerr = 2.5 * sberr / np.log(10) / sb
             
-        ax.fill_between(rad, mu-muerr, mu+muerr, color=col, label=label, alpha=0.9)
+        ax.fill_between(rad, mu-muerr, mu+muerr, facecolor=col, label=label, alpha=0.9)
 
         if np.nanmin(mu-muerr) < ymnmax[0]:
             ymnmax[0] = np.nanmin(mu-muerr)
@@ -503,7 +504,7 @@ def display_sersic(sersic, png=None, verbose=False):
     ylim = ax.get_ylim()
     if sersic['success']:
         ax.fill_between([0, 3*model.psfsigma_r*sersic['refpixscale']], [ylim[0], ylim[0]], # [arcsec]
-                        [ylim[1], ylim[1]], color='grey', alpha=0.1)
+                        [ylim[1], ylim[1]], facecolor='grey', alpha=0.1)
         ax.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10)
 
@@ -829,8 +830,8 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
             #muerr = muerr[good]
             
             col = next(colors)
-            ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color=col,
-                             alpha=0.75, edgecolor='k', lw=2)
+            ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt),
+                             facecolor=col, edgecolor='k', lw=2, alpha=0.75)
 
             if bool(pipeline_ellipsefit) and False:
                 pipeline_sbprofile = ellipse_sbprofile(pipeline_ellipsefit, minerr=minerr)
@@ -874,8 +875,8 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 mu = sdss_sbprofile['mu_{}'.format(filt)]
                 muerr = sdss_sbprofile['mu_{}_err'.format(filt)]
                 #ax1.plot(radius, mu, color='k', alpha=0.5)
-                ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt), color='k',
-                                 alpha=0.2, edgecolor='k', lw=3)
+                ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt),
+                                 facecolor='k', alpha=0.2, edgecolor='k', lw=3)
                 
         ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
         #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
@@ -919,13 +920,13 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         ax2.fill_between(sbprofile['radius_gr']**0.25,
                          sbprofile['gr'] - sbprofile['gr_err'],
                          sbprofile['gr'] + sbprofile['gr_err'],
-                         label=r'$g - r$', color=next(colors), alpha=0.75,
+                         label=r'$g - r$', facecolor=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
         ax2.fill_between(sbprofile['radius_rz']**0.25,
                          sbprofile['rz'] - sbprofile['rz_err'],
                          sbprofile['rz'] + sbprofile['rz_err'],
-                         label=r'$r - z$', color=next(colors), alpha=0.75,
+                         label=r'$r - z$', facecolor=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
         #ax2.set_xlabel(r'Semi-major axis $r$ (arcsec)')

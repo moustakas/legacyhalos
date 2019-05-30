@@ -621,9 +621,13 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     
     return ellipsefit
 
-def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False):
+def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False,
+                      linear=False):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
+
+    linear - stay in linear (nanomaggies/arcsec2) units (i.e., don't convert to
+      mag/arcsec2) and do not compute colors; used by legacyhalos.integrate
 
     """
     bands = ellipsefit['bands']
@@ -658,11 +662,17 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False):
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            keep = np.isfinite(sb) * (sb / sberr > snrmin)
-        sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(sb[keep]) # [mag/arcsec2]
-        sbprofile['muerr_{}'.format(filt)] = 2.5 * sberr[keep] / sb[keep] / np.log(10)
+            keep = np.isfinite(sb) * ((sb / sberr) > snrmin)
+
         sbprofile['sma_{}'.format(filt)] = sma[keep]       # [pixels]
         sbprofile['radius_{}'.format(filt)] = radius[keep] # [arcsec]
+        if linear:
+            sbprofile['mu_{}'.format(filt)] = sb[keep] # [nanomaggies/arcsec2]
+            sbprofile['muerr_{}'.format(filt)] = sberr[keep]
+            continue
+        else:
+            sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(sb[keep]) # [mag/arcsec2]
+            sbprofile['muerr_{}'.format(filt)] = 2.5 * sberr[keep] / sb[keep] / np.log(10)
 
         #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens)
         #sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err / \

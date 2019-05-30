@@ -15,6 +15,7 @@ from astropy.table import Table, Column, vstack
 import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
+import legacyhalos.ellipse
 
 def _init_phot(nrad_uniform=30, ngal=1, band=('g', 'r', 'z')):
     """Initialize the output photometry table.
@@ -97,7 +98,8 @@ def _integrate_one(args):
     """Wrapper for the multiprocessing."""
     return integrate_one(*args)
 
-def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=30, count=1):
+def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, snrmin=1,
+                  nrad_uniform=30, count=1):
     """Integrate over various radial ranges.
 
     """
@@ -105,30 +107,26 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=30, co
         phot = _init_phot(ngal=1, nrad_uniform=nrad_uniform)
     phot = Table(phot)
 
-    print(count, galaxy)
+    print(count, galaxy, nrad_uniform)
     ellipsefit = legacyhalos.io.read_ellipsefit(galaxy, galaxydir)
     if not bool(ellipsefit) or ellipsefit['success'] == False:
         return phot
 
-    allband, pixscale = ellipsefit['band'], ellipsefit['pixscale']
+    sbprofile = legacyhalos.ellipse.ellipse_sbprofile(ellipsefit, minerr=minerr,
+                                                      snrmin=snrmin, linear=True)
+    allband, refpixscale = ellipsefit['bands'], ellipsefit['refpixscale']
     arcsec2kpc = legacyhalos.misc.arcsec2kpc(ellipsefit['redshift']) # [kpc/arcsec]
     
-    def _get_sbprofile(ellipsefit, band, minerr=0.01, snrmin=1):
-        radius = ellipsefit[band].sma * np.sqrt(1 - ellipsefit[band].eps) * pixscale * arcsec2kpc # [kpc]
-        sb = ellipsefit[band].intens / arcsec2kpc**2 # [nanomaggies/kpc**2]
-        sberr = np.sqrt( (ellipsefit[band].int_err/arcsec2kpc**2)**2 + (0.4 * np.log(10) * sb * minerr)**2 )
-
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            good = np.isfinite(sb) * (sb / sberr > snrmin)
-            #print('Keeping {} / {} measurements in band {}'.format(np.sum(good), len(radius), band))
-            
-        return radius[good], sb[good], sberr[good]
+    def _get_sbprofile(sbprofile, band, minerr=0.01, snrmin=1):
+        sb = sbprofile['mu_{}'.format(band)] / arcsec2kpc**2       # [nanomaggies/kpc2]
+        sberr = sbprofile['muerr_{}'.format(band)] / arcsec2kpc**2 # [nanomaggies/kpc2]
+        radius = sbprofile['radius_{}'.format(band)] * arcsec2kpc  # [kpc]
+        return radius, sb, sberr
 
     # First integrate to r=10, 30, 100, and max kpc.
     min_r, max_r = [], []
     for band in allband:
-        radius, sb, sberr = _get_sbprofile(ellipsefit, band, minerr=minerr)
+        radius, sb, sberr = _get_sbprofile(sbprofile, band, minerr=minerr, snrmin=snrmin)
         if len(radius) == 0:
             continue
 
@@ -163,7 +161,7 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=30, co
     phot['RAD'][:] = (rmax_uniform - rmin_uniform) / 2 + rmin_uniform
     
     for band in allband:
-        radius, sb, sberr = _get_sbprofile(ellipsefit, band, minerr=minerr)
+        radius, sb, sberr = _get_sbprofile(sbprofile, band, minerr=minerr, snrmin=snrmin)
         for ii, (rmin, rmax) in enumerate(zip(rmin_uniform, rmax_uniform)):
             #if band == 'r' and ii == 49:
             #    pdb.set_trace()
@@ -179,7 +177,7 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, nrad_uniform=30, co
     return phot
 
 def legacyhalos_integrate(sample=None, first=None, last=None, nproc=1,
-                          minerr=0.01, nrad_uniform=30, hsc=False,
+                          minerr=0.01, snrmin=1, nrad_uniform=30, hsc=False,
                           verbose=False, clobber=False):
     """Wrapper script to integrate the profiles for the full sample.
 
@@ -197,7 +195,7 @@ def legacyhalos_integrate(sample=None, first=None, last=None, nproc=1,
 
     args = list()
     for ii in range(ngal):
-        args.append((galaxy[ii], galaxydir[ii], phot[ii], minerr, nrad_uniform, ii))
+        args.append((galaxy[ii], galaxydir[ii], phot[ii], minerr, snrmin, nrad_uniform, ii))
 
     # Divide the sample by cores.
     if nproc > 1:
