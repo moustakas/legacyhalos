@@ -53,8 +53,9 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     fig, ax = plt.subplots(figsize=(9, 7))
     bands, refband, redshift = ellipsefit['bands'], ellipsefit['refband'], ellipsefit['redshift']
 
-    maxsma = ellipsefit['cog_sma_{}'.format(refband)].max()
     smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+    #maxsma = ellipsefit['cog_sma_{}'.format(refband)].max()
+    maxsma = 0
 
     yfaint, ybright = 0, 50
     for filt in bands:
@@ -79,7 +80,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         ax.fill_between(sma, cog-cogerr, cog+cogerr, label=label,
                         color=col)#, edgecolor='k', lw=2)
 
-        if pipeline_ellipsefit:
+        if pipeline_ellipsefit and False:
             _sma = pipeline_ellipsefit['cog_sma_{}'.format(filt)]
             _cog = pipeline_ellipsefit['cog_mag_{}'.format(filt)]
             _cogerr = pipeline_ellipsefit['cog_magerr_{}'.format(filt)]
@@ -89,6 +90,9 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
         cogmodel = CogModel().evaluate(sma, magtot, cogparams['m0'], cogparams['alpha1'], cogparams['alpha2'])
         ax.plot(sma, cogmodel, color=col, lw=2, ls='--')
+
+        if sma.max() > maxsma:
+            maxsma = sma.max()
         
         #print(filt, np.mean(mag[-5:]))
         #print(filt, mag[-5:], np.mean(mag[-5:])
@@ -99,13 +103,16 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         if cog.min() < ybright:
             ybright = cog.min()
 
-    ax.set_xlabel(r'Semi-major axis $r$ (arcsec)')
+    ax.set_xlabel(r'Semi-major axis (arcsec)')
     ax.set_ylabel('Cumulative Flux (AB mag)')
 
     ax.set_xlim(0, maxsma*1.01)
+    #ax.margins(x=0)
+    xlim = ax.get_xlim()
     ax_twin = ax.twiny()
-    ax_twin.set_xlim( (0, maxsma*smascale) )
-    ax_twin.set_xlabel('Semi-major axis $r$ (kpc)')
+    ax_twin.set_xlim(xlim[0]*smascale, xlim[1]*smascale)
+    ax_twin.set_xlabel('Semi-major axis (kpc)')
+    #ax_twin.margins(x=0)
 
     yfaint += 0.5
     ybright += -0.5
@@ -748,7 +755,7 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         ax4.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
         for xx in (ax1, ax2, ax3, ax4):
-            xx.set_xlim(xmin=0)
+            xx.set_xlim(left=0)
         
         xlim = ax1.get_xlim()
         ax1_twin = ax1.twiny()
@@ -891,7 +898,16 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         #ax1.margins(xmargin=0)
         
         ax1_twin = ax1.twiny()
-        ax1_twin.set_xlim( (radscale*xlim[0]**4, radscale*xlim[1]**4) )
+        ax1_twin.set_xlim(xlim)
+        #xlim_twinx = (radscale*xlim[0]**4, radscale*xlim[1]**4)
+        #ax1_twin.set_xlim(xlim_twinx[0], xlim_twinx[1])
+        #ax1_twin.set_xticks(ax1.get_xticks()**4*radscale)
+        #ax1_twin.set_xticks(np.linspace(xlim_twinx[0], xlim_twinx[1], len(ax1.get_xticks())+1))
+        kpc = np.array([1, 3, 5, 10, 20, 30, 50, 75, 100, 150, 200])
+        #kpc = kpc[kpc < radscale*xlim[1]**4]
+        kpc = kpc[(kpc >= radscale*xlim[0]**4) * (kpc <= radscale*xlim[1]**4)]
+        ax1_twin.set_xticks((kpc / radscale)**0.25)
+        ax1_twin.set_xticklabels(['{:g}'.format(kk) for kk in kpc])
         ax1_twin.set_xlabel(r'Galactocentric radius (kpc)')
         #ax1_twin.set_xlabel(r'Semi-major axis $r^{1/4}$ (kpc)')
 
@@ -1585,7 +1601,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
 
         ax1_twin = ax1.twiny()
         ax1_twin.set_xlim( (xlim[0]*smascale, xlim[1]*smascale) )
-        ax1_twin.set_xlabel('Semi-major axis $r$ (kpc)')
+        ax1_twin.set_xlabel('Semi-major axis (kpc)')
 
         ax3.legend(loc='upper right')
 
@@ -1602,7 +1618,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
                          label=r'$r - z$', color=next(colors), alpha=0.75,
                          edgecolor='k', lw=2)
 
-        ax4.set_xlabel(r'Semi-major axis $r$ (arcsec)')
+        ax4.set_xlabel(r'Semi-major axis (arcsec)')
         #ax4.set_xlabel(r'Galactocentric radius $r$ (arcsec)')
         #ax4.legend(loc='upper left')
         ax4.legend(bbox_to_anchor=(0.25, 0.99))

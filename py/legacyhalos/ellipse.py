@@ -72,7 +72,7 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False):
     return apphot
 
 def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
-                pixscale, pool=None):
+                pixscale, pool=None, seed=1):
     """Measure the curve of growth (CoG) by performing elliptical aperture
     photometry.
 
@@ -84,20 +84,27 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     from astropy.utils.exceptions import AstropyUserWarning
 
     deltaa = 0.5 # pixel spacing 
-    maxsma = refellipsefit['maxsma']
     theta = np.radians(refellipsefit['pa']-90)
+    refband = refellipsefit['refband']
 
     results = {}
 
-    cogmodel = CogModel()
-    cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
+    sbprofile = ellipse_sbprofile(refellipsefit)
+    #maxsma = refellipsefit['maxsma']
 
-    plt.clf()
     for filt in bands:
         img = ma.getdata(data['{}_masked'.format(filt)]) # [nanomaggies/arcsec2]
         mask = ma.getmask(data['{}_masked'.format(filt)])
-            
+
         deltaa_filt = deltaa * pixscalefactor
+
+        if filt in refellipsefit['bands']:
+            maxsma = sbprofile['sma_{}'.format(filt)].max()        # [pixels]
+            #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt)] # [pixels]
+        else:
+            maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
+            #minsma = 3 * refellipsefit['psfsigma_{}'.format(refband)] # [pixels]
+            
         sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
         smb = sma * refellipsefit['eps']
 
@@ -127,13 +134,76 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         results['cog_sma_{}'.format(filt)] = sma_arcsec
 
         if cogferr is not None:
-            results['cog_magerr_{}'.format(filt)] = 2.5 * cogferr / cogflux / np.log(10)
+            cogmagerr = 2.5 * cogferr / cogflux / np.log(10)
+            results['cog_magerr_{}'.format(filt)] = cogmagerr
+        else:
+            cogmagerr = np.ones(len(cogmag))
 
         #print('Modeling the curve of growth.')
-        P = cogfitter(cogmodel, sma_arcsec, cogmag)
-        results['cog_params_{}'.format(filt)] = {'mtot': P.mtot.value, 'm0': P.m0.value,
-                                                 'alpha1': P.alpha1.value, 'alpha2': P.alpha2.value}
+        def get_chi2(bestfit):
+            sbmodel = bestfit(self.radius, self.wave)
+            chi2 = np.sum( (self.sb - sbmodel)**2 / self.sberr**2 ) / dof
+            
         
+        cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
+        cogmodel = CogModel()
+
+        nball = 10
+
+        # perturb the parameter values
+        rand = np.random.RandomState(seed)
+        nparams = len(cogmodel.parameters)
+        dof = len(cogmag) - nparams
+
+        params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
+        for ii, pp in enumerate(cogmodel.param_names):
+            pinfo = getattr(cogmodel, pp)
+            if pinfo.bounds[0] is not None:
+                scale = 0.2 * pinfo.default
+                params[ii, :] += rand.normal(scale=scale, size=nball)
+                toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
+                if len(toosmall) > 0:
+                    params[ii, toosmall] = pinfo.default
+                toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
+                if len(toobig) > 0:
+                    params[ii, toobig] = pinfo.default
+            else:
+                params[ii, :] += rand.normal(scale=0.2 * pinfo.default, size=nball)
+                
+        # perform the fit nball times
+        chi2fail = 1e6
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            chi2 = np.zeros(nball) + chi2fail
+            for jj in range(nball):
+                cogmodel.parameters = params[:, jj]
+                ballfit = cogfitter(cogmodel, sma_arcsec, cogmag, maxiter=100,
+                                    weights=1/cogmagerr)
+                bestfit = ballfit(sma_arcsec)
+                chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
+                if cogfitter.fit_info['param_cov'] is None: # failed
+                    if False:
+                        print(jj, cogfitter.fit_info['message'], chi2[jj])
+                else:
+                    params[:, jj] = ballfit.parameters # update
+
+        # if at least one fit succeeded, re-evaluate the model at the chi2
+        # minimum.
+        good = chi2 < chi2fail
+        if np.sum(good) == 0:
+            print('{} CoG modeling failed.'.format(filt))
+            #result.update({'fit_message': cogfitter.fit_info['message']})
+            #return result
+        mindx = np.argmin(chi2)
+        minchi2 = chi2[mindx]
+        cogmodel.parameters = params[:, mindx]
+        P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr, maxiter=100)
+        print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+        
+        #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)
+        results['cog_params_{}'.format(filt)] = {'mtot': P.mtot.value, 'm0': P.m0.value,
+                                                 'alpha1': P.alpha1.value, 'alpha2': P.alpha2.value,
+                                                 'chi2': minchi2}
     #    print(filt, P)
     #    default_model = cogmodel.evaluate(radius, P.mtot.default, P.m0.default, P.alpha1.default, P.alpha2.default)
     #    bestfit_model = cogmodel.evaluate(radius, P.mtot.value, P.m0.value, P.alpha1.value, P.alpha2.value)
@@ -214,8 +284,8 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
     from legacyhalos.io import read_ellipsefit
 
     refellipsefit = read_ellipsefit(galaxy, galaxydir, verbose=verbose)
-    if not refellipsefit['success']:
-        print('No reference ellipsefit file found!')
+    if bool(refellipsefit) and not refellipsefit['success']:
+        print('Reference ellipsefit not found or unsuccessful!')
         return {'success': False}
 
     refband, refpixscale = refellipsefit['refband'], refellipsefit['refpixscale']
@@ -477,7 +547,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
 
     # Integrate to the edge [pixels].
     if maxsma is None:
-        maxsma = (data[refband].shape[0]/2) / np.cos(geometry.pa % (np.pi/4))
+        maxsma = 0.95 * (data[refband].shape[0]/2) / np.cos(geometry.pa % (np.pi/4))
     ellipsefit['maxsma'] = maxsma
 
     # Fit the reference bands first then the other bands.
@@ -490,8 +560,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         print('Fitting the reference band: {}'.format(refband))
-        _sma0 = (1, 3, 6, 9, 12)
-        for ii, sma0 in enumerate(_sma0): # try a few different starting minor axes
+        smamin = 3 * ellipsefit['psfsigma_{}'.format(refband)]
+        factor = (1.0, 1.1, 1.2, 1.3, 1.4)
+        for ii, fac in enumerate(factor): # try a few different starting sma0
+            sma0 = smamin * fac
             if ii > 0:
                 print('Failed with sma0={:.1f} pixels, trying sma0={:.1f} pixels.'.format(_sma0[ii-1], sma0))
             try:
@@ -570,7 +642,8 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False):
         sbprofile['redshift'] = ellipsefit['redshift']
     
     sbprofile['minerr'] = minerr
-    sbprofile['smaunit'] = 'arcsec'
+    sbprofile['smaunit'] = 'pixels'
+    sbprofile['radiusunit'] = 'arcsec'
 
     # semi-major axis and circularized radius
     #sbprofile['sma'] = ellipsefit[bands[0]].sma * pixscale # [arcsec]
@@ -580,13 +653,15 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False):
 
         sb = ellipsefit[filt].intens             # [nanomaggies/arcsec2]
         sberr = np.sqrt(ellipsefit[filt].int_err**2 + (0.4 * np.log(10) * sb * minerr)**2)
-        radius = ellipsefit[filt].sma * np.sqrt(1 - ellipsefit['eps']) * pixscale # circularized radius [arcsec]
+        sma = ellipsefit[filt].sma                               # semi-major axis [pixels]
+        radius = sma * np.sqrt(1 - ellipsefit['eps']) * pixscale # circularized radius [arcsec]
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             keep = np.isfinite(sb) * (sb / sberr > snrmin)
         sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(sb[keep]) # [mag/arcsec2]
         sbprofile['muerr_{}'.format(filt)] = 2.5 * sberr[keep] / sb[keep] / np.log(10)
+        sbprofile['sma_{}'.format(filt)] = sma[keep]       # [pixels]
         sbprofile['radius_{}'.format(filt)] = radius[keep] # [arcsec]
 
         #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens)
@@ -669,7 +744,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     else:
         return 0
 
-    if pipeline and ellipsefit['success']:
+    if pipeline:
         print('Forced ellipse-fitting on the pipeline images.')
         pipeline_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
                                                       refband=refband, pixscale=pixscale,
@@ -679,7 +754,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                                               nproc=nproc, filesuffix='pipeline',
                                                               bands=bands, pixscale=pixscale,
                                                               verbose=verbose)
-    if sdss and ellipsefit['success']:          
+    if sdss:
         print('Forced ellipse-fitting on the SDSS images.')
         sdss_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=sdss_bands,
                                                   refband='r', sdss_pixscale=sdss_pixscale,
@@ -690,14 +765,14 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                                       bands=sdss_bands, pixscale=sdss_pixscale,
                                                       verbose=verbose)
 
-    if unwise and ellipsefit['success']:          
+    if unwise:
         print('Forced ellipse-fitting on the unWISE images.')
         unwise_ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data,
                                                         nproc=nproc, filesuffix='unwise',
                                                         bands=('W1','W2','W3','W4'),
                                                         pixscale=unwise_pixscale,
                                                         verbose=verbose)
-    if galex and ellipsefit['success']:          
+    if galex:
         print('Forced ellipse-fitting on the GALEX images.')
         galex_ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, data,
                                                        nproc=nproc, filesuffix='galex',

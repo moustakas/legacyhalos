@@ -176,19 +176,17 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
         #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
 
+        cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
+        if not os.path.isfile(cogfile) or clobber:
+            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
+                             png=cogfile, verbose=verbose)
+
         sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
         if not os.path.isfile(sbprofilefile) or clobber:
             display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
                                       pipeline_ellipsefit=pipeline_ellipsefit,
                                       png=sbprofilefile, verbose=verbose, minerr=0.0,
                                       sdss_ellipsefit=sdss_ellipsefit)
-
-        pdb.set_trace()
-        
-        cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
-        if not os.path.isfile(cogfile) or clobber:
-            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
-                             png=cogfile, verbose=verbose)
 
         multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
         if not os.path.isfile(multibandfile) or clobber:
@@ -347,8 +345,6 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,
                            barlabel=barlabel, clobber=clobber, verbose=verbose)
 
-        pdb.set_trace()
-        
         # CCD positions
         qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
                   radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
