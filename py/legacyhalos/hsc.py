@@ -57,21 +57,30 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     if htmldir is None:
         htmldir = hsc_html_dir()
 
-    if 'OBJECT_ID' in cat.colnames:
-        galid = cat['OBJECT_ID']
-    elif 'ID_S16A' in cat.colnames:
+    if 'ID_S16A' in cat.colnames and 'NAME' in cat.colnames:
         galid = cat['ID_S16A']
+        name = cat['NAME']
     else:
-        print('Unrecognized ID in catalog!')
+        print('Missing ID_S16A and NAME in catalog!')
         raise ValuerError
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
-        galaxy = ['{:017d}'.format(galid)]
+        if galid == -1:
+            galaxy = [name]
+        else:
+            galaxy = ['{:017d}'.format(galid)]
         pixnum = [radec2pix(nside, cat['RA'], cat['DEC'])]
     else:
         ngal = len(cat)
-        galaxy = np.array(['{:017d}'.format(gid) for gid in galid])
+        #galaxy = np.array(['{:017d}'.format(gid) for gid in galid])
+        galaxy = []
+        for gid, nm in zip(galid, name):
+            if gid == -1:
+                galaxy.append(nm.strip())
+            else:
+                galaxy.append('{:017d}'.format(gid))
+        galaxy = np.array(galaxy)
         pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
 
     galaxydir = np.array([os.path.join(datadir, '{}'.format(nside), '{}'.format(pix), gal)
@@ -93,19 +102,39 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
 
 def read_parent(first=None, last=None, verbose=False):
     """Read/generate the parent HSC catalog.
+
+    import fitsio
+    from astropy.table import Table, Column, vstack
+    s1 = Table(fitsio.read('low-z-shape-for-john.fits', upper=True))
+    s2 = Table(fitsio.read('s16a_massive_z_0.5_logm_11.4_decals_full_fdfc_bsm_ell.fits', upper=True))
+
+    s1out = s1['NAME', 'RA', 'DEC', 'Z', 'MEAN_E', 'MEAN_PA']
+    s1out.rename_column('Z', 'Z_BEST')
+    s1out.add_column(Column(name='ID_S16A', dtype=s2['ID_S16A'].dtype, length=len(s1out)), index=1)
+    s1out['ID_S16A'] = -1
+    s2out = s2['ID_S16A', 'RA', 'DEC', 'Z_BEST', 'MEAN_E', 'MEAN_PA']
+    s2out.add_column(Column(name='NAME', dtype=s1['NAME'].dtype, length=len(s2out)), index=0)
+    sout = vstack((s1out, s2out))
+    sout.write('hsc-sample-s16a-lowz.fits', overwrite=True)
     
     """
     hdir = hsc_dir()
-    samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_decals_full_fdfc_bsm_ell.fits')
-    #samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_dec_30_for_john.fits')
     # Hack for MUSE proposal
     #samplefile = os.path.join(hdir, 's18a_z0.07_0.12_rcmod_18.5_etg_muse_massive_0313.fits')
+    
+    # intermediate-z sample only
+    #samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_decals_full_fdfc_bsm_ell.fits')
+    #samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_dec_30_for_john.fits')
 
+    # low-z sample only
+    #samplefile = os.path.join(hdir, 'low-z-shape-for-john.fits')
+
+    # combined sample (see comment block above)
+    samplefile = os.path.join(hdir, 'hsc-sample-s16a-lowz.fits')
     if first and last:
         if first > last:
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
-
     ext = 1
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
