@@ -450,9 +450,9 @@ def main():
         else:
             sample = legacyhalos.io.read_profiles_sample(first=args.first, last=args.last,
                                                          verbose=args.verbose)
-            print('Hack!')
-            sample = sample[(sample['DEC'] > 25) * (sample['DEC'] < 40)]
-            pdb.set_trace()
+            #print('Hack!')
+            #sample = sample[(sample['DEC'] > 25) * (sample['DEC'] < 40)]
+            #pdb.set_trace()
             #sample = sample[[61, 74, 84]]
             #sample = sample[[8, 11, 136, 156, 157, 188, 214, 390, 603, 670, 871, 940]]
         #if args.coadds and not args.count:

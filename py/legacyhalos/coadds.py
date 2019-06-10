@@ -392,7 +392,12 @@ def _custom_sky(skyargs):
 
     skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
 
-    skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
+    print('ahack!!', im.expnum, im.ccdname)
+    #if im.expnum == 625736 and im.ccdname == 'S22':
+    try:
+        skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
+    except:
+        pdb.set_trace()
     #skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
     #skymed = np.median(img[skypix])
     try:
