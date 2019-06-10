@@ -45,5 +45,5 @@ export MPICH_GNI_FORK_MODE=FULLCOPY
 
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --htmlplots --mpi --hsc --verbose --last 49
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --nproc 8 --mpi --hsc --verbose --last 49
-time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc 16 --mpi --hsc --verbose --first 3 --last 4
-#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 8 --mpi --hsc --verbose --last 4 --first 1
+time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc 4 --mpi --hsc --verbose
+#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 8 --mpi --hsc --verbose
