@@ -531,10 +531,13 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     outliers = fitsio.FITS(outliersfile)
     for tim in tims:
         ext = '{}-{}-{}'.format(tim.imobj.camera, tim.imobj.expnum, tim.imobj.ccdname)
-        mask = outliers[ext].read()
-        maskhdr = outliers[ext].read_header()
-        tim.dq |= (mask > 0) * DQ_BITS['outlier']
-        tim.inverr[mask > 0] = 0.0
+        if ext in outliers:
+            mask = outliers[ext].read()
+            maskhdr = outliers[ext].read_header()
+            tim.dq |= (mask > 0) * DQ_BITS['outlier']
+            tim.inverr[mask > 0] = 0.0
+        else:
+            print('Warning: extension {} not found in image {}'.format(ext, outliersfile))
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
