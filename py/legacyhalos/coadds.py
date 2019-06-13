@@ -571,7 +571,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             os.remove(skyfile)
         for ii, ccd in enumerate(survey.ccds):
             im = survey.get_image_object(ccd)
-            ext = '{}-{:02d}-{}'.format(im.camera, im.expnum, im.ccdname)
+            ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname)
             sky['{}-splinesky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
         
         # Write out separate CCD-level files with the images/data, individual masks
@@ -584,7 +584,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         with fitsio.FITS(ccdfile, 'rw') as ff:
             for ii, ccd in enumerate(survey.ccds):
                 im = survey.get_image_object(ccd)
-                ext = '{}-{:02d}-{}'.format(im.camera, im.expnum, im.ccdname)
+                ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname)
                 hdr = sky['{}-header'.format(ext)]
                 ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
 
@@ -599,7 +599,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             with fitsio.FITS(ccdfile, 'rw') as ff:
                 for ii, ccd in enumerate(survey.ccds):
                     im = survey.get_image_object(ccd)
-                    ext = '{}-{:02d}-{}'.format(im.camera, im.expnum, im.ccdname)
+                    ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname)
                     hdr = sky['{}-header'.format(ext)]
                     ff.write(sky['{}-image'.format(ext)].astype('f4'), extname=ext, header=hdr)
 
@@ -610,7 +610,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     for tim in tims:
         custom_tim = copy.deepcopy(tim)
         image = custom_tim.getImage()
-        ext = '{}-{:02d}-{}'.format(custom_tim.imobj.camera, custom_tim.imobj.expnum, custom_tim.imobj.ccdname)
+        ext = '{}-{}-{}'.format(custom_tim.imobj.camera, custom_tim.imobj.expnum, custom_tim.imobj.ccdname)
         newsky = sky['{}-header'.format(ext)]['SKYMED']
         custom_tim.setImage(image - newsky)
         custom_tim.sky = tractor.sky.ConstantSky(0)

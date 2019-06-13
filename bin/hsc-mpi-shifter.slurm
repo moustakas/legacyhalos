@@ -16,7 +16,7 @@
 #SBATCH -p regular
 #SBATCH -N 5
 #SBATCH -n 40
-#SBATCH -t 02:00:00
+#SBATCH -t 01:00:00
 
 # sbatch hsc-mpi-shifter.slurm
 
