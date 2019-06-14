@@ -203,7 +203,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         ok = _copyfile(
             os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                          'legacysurvey-{}-ccds.fits'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run)) )
         if not ok:
             return ok
 
