@@ -588,10 +588,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                 im = survey.get_image_object(ccd)
                 ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
                 hdr = sky['{}-header'.format(ext)]
-                try:
-                    ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
-                except:
-                    pdb.set_trace()
+                ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
 
         # These are the actual images, which results in a giant file.  Keeping
         # the code here for legacy purposes but I'm not sure we should ever
@@ -617,9 +614,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         image = custom_tim.getImage()
         ext = '{}-{}-{}'.format(custom_tim.imobj.camera, custom_tim.imobj.expnum,
                                 custom_tim.imobj.ccdname.lower().strip())
-        if '{}-header'.format(ext) in sky.keys() is False:
-            print('Missing key {}-header from sky image of galaxy {}'.format(ext, survey.output_dir),
-                  flush=True, file=log)
         newsky = sky['{}-header'.format(ext)]['SKYMED']
         custom_tim.setImage(image - newsky)
         custom_tim.sky = tractor.sky.ConstantSky(0)

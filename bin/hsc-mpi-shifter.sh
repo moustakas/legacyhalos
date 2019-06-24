@@ -41,9 +41,13 @@ export MKL_NUM_THREADS=1
 export KMP_AFFINITY=disabled
 export MPICH_GNI_FORK_MODE=FULLCOPY
 
-# time srun -N 1 -n 4 -c 8 shifter --image=docker:flagnarg/legacyhalos:latest $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 8 --mpi --hsc --first 1 --last 5 --clobber
+ncores=4
+
+maxmem=134217728 # Cori/Haswell = 128 GB
+grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
+let usemem=${maxmem}*${ncores}/64
 
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --htmlplots --mpi --hsc --verbose --last 49
-#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --nproc 8 --mpi --hsc --verbose --last 49
-time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc 4 --mpi --hsc --verbose --first 5
-#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc 8 --mpi --hsc --verbose
+#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --nproc $ncores --mpi --hsc --verbose --last 49
+time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc $ncores --mpi --hsc --verbose --first 5
+#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc $ncores --mpi --hsc --verbose
