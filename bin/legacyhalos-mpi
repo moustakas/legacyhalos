@@ -3,6 +3,12 @@
 
 ls hsc-data/8/*/*/* | grep -v ccddata | tar -cvf hsc-legacysurveys.tar.gz -T -
 
+import glob, os
+dirs = glob.glob('hsc-data/8/*')
+for dd in dirs:
+    os.system('ls -d {0}/* | tar -czf {0}.tar.gz -T -'.format(dd))
+
+
 """
 import matplotlib
 matplotlib.use('Agg')

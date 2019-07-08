@@ -7,7 +7,7 @@ Code to generate grzW1W2 custom coadds / mosaics.
 python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
 
 """
-import os, sys, pdb
+import os, sys, time, pdb
 import shutil
 import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
@@ -643,6 +643,12 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     print('Performing forced photometry on the custom sky-subtracted CCDs.', flush=True, file=log)
     forcedflx = mp.map(_forced_phot, [(custom_tims, custom_srcs, band) for band in bands])
+    if False:
+        forcedflx = []
+        for band in bands:
+            t0 = time.time()
+            forcedflx.append(forced_phot(custom_tims, custom_srcs, band))
+            print('  band {} took {:.3f} sec'.format(band, time.time()-t0), flush=True, file=log)
 
     # Populate the new custom catalog and write out.
     custom_cat = pipeline_cat.copy()
