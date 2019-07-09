@@ -530,6 +530,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
     import numpy.ma as ma
     from photutils import EllipticalAperture
     from photutils.isophote import EllipseSample, Isophote
+    import matplotlib.patches as mpatches
 
     from astropy.visualization import AsinhStretch as Stretch
     from astropy.visualization import ImageNormalize
@@ -607,8 +608,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
         if geometry:
             ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
                                          geometry.sma*(1 - geometry.eps), geometry.pa)
-            print('HACK!')
-            #ellaper.plot(color='k', lw=1, axes=ax1, alpha=0.75)
+            ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.75)
 
         if ellipsefit:
             if ellipsefit['success']:
@@ -617,41 +617,38 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                         indx = np.ones(len(ellipsefit[filt]['sma']), dtype=bool)
                         
                     nfit = len(indx) # len(ellipsefit[filt])
-                    nplot = np.rint(0.5*nfit).astype('int')
+                    nplot = np.rint(0.3*nfit).astype('int')
 
-                    smas = np.linspace(0.1, ellipsefit[filt]['sma'][indx].max(), nplot)
+                    smas = np.linspace(0, ellipsefit[filt]['sma'][indx].max(), nplot)
                     #smas = ellipsefit[filt].sma
-                    #for sma in smas:
-                    #    if sma == 0.0:
-                    #        sample = CentralEllipseSample(img, sma=sma, geometry=ellipsefit['geometry'],
-                    #                                      integrmode=ellipsefit['integrmode'],
-                    #                                      sclip=ellipsefit['sclip'], nclip=ellipsefit['nclip'])
-                    #    else:
-                    #        sample = EllipseSample(img, sma=sma, geometry=ellipsefit['geometry'],
-                    #                               integrmode=ellipsefit['integrmode'],
-                    #                               sclip=ellipsefit['sclip'], nclip=ellipsefit['nclip'])
-                    #        #pdb.set_trace()
-                    #        sample.update()
-                    #        #efit = Isophote(sample, 0, True, 0)
-                    #        print(sma)
-                    #    #efit = ellipsefit[filt].get_closest(sma)
-                    #    #x, y, = efit.sampled_coordinates()
-                    #    x, y, = sample.coordinates()
-                    #    ax1.plot(x, y, color='k', lw=1, alpha=0.5)#, label='Fitted isophote')
 
-                    ## Visualize the mean geometry
-                    #maxis = ellipsefit['mge_majoraxis']
-                    #ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                    #                             maxis, maxis*(1 - ellipsefit['mge_eps']),
-                    #                             np.radians(ellipsefit['mge_pa']-90))
-                    #ellaper.plot(color='red', lw=2, axes=ax1, alpha=1.0, label='Mean geometry')
-                    #
-                    ## Visualize the fitted geometry
-                    #maxis = ellipsefit['mge_majoraxis'] * 1.2
-                    #ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                    #                             maxis, maxis*(1 - ellipsefit['eps']),
-                    #                             np.radians(ellipsefit['pa']-90))
-                    #ellaper.plot(color='k', lw=2, axes=ax1, alpha=1.0, label='Fitted geometry')
+                    # When we used to write out the ellipse pickle files with
+                    # the Isophote objects we used the snippet of code below to
+                    # render the fitted ellipses.  Now, just draw the ellipse
+                    # shapes.
+                    #for sma in smas:
+                    #    efit = ellipsefit[filt].get_closest(sma)
+                    #    x, y, = efit.sampled_coordinates()
+                    #    ax1.plot(x, y, color='k', lw=1, alpha=0.5)#, label='Fitted isophote')
+                    for sma in smas:
+                        ax1.add_patch(mpatches.Ellipse((ellipsefit['x0'], ellipsefit['y0']),
+                                                       2*sma, 2*sma*(1-ellipsefit['eps']),
+                                                       ellipsefit['pa']-90, color='k', lw=1,
+                                                       alpha=0.9, fill=False))#, label='Fitted isophote')
+
+                    # Visualize the mean geometry
+                    maxis = ellipsefit['mge_majoraxis']
+                    ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
+                                                 maxis, maxis*(1 - ellipsefit['mge_eps']),
+                                                 np.radians(ellipsefit['mge_pa']-90))
+                    ellaper.plot(color='red', lw=2, ax=ax1, alpha=1.0, label='Mean geometry')
+                    
+                    # Visualize the fitted geometry
+                    maxis = ellipsefit['mge_majoraxis'] * 1.2
+                    ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
+                                                 maxis, maxis*(1 - ellipsefit['eps']),
+                                                 np.radians(ellipsefit['pa']-90))
+                    ellaper.plot(color='k', lw=2, ax=ax1, alpha=1.0, label='Fitted geometry')
 
                     # Visualize the input geometry
                     if ellipsefit['input_ellipse']:
@@ -660,8 +657,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                         maxis = geometry.sma * 0.8
                         ellaper = EllipticalAperture((geometry.x0, geometry.y0), maxis,
                                                      maxis*(1 - geometry.eps), geometry.pa)
-                        print('HACK!')
-                        #ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
+                        ellaper.plot(color='navy', lw=2, ax=ax1, alpha=1.0, label='Input geometry')
 
                     if ii == 2:
                         ax1.legend(loc='lower right', fontsize=8, frameon=True)
