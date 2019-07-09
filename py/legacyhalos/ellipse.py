@@ -236,18 +236,51 @@ def _unmask_center(img):
     img.mask[xx**2 + yy**2 <= rad**2] = ma.nomask
     return img
 
+def _unpack_isofit(isofit):
+    """Unpack the IsophotList objects into a dictionary because the resulting pickle
+    files are huge.
+
+    https://photutils.readthedocs.io/en/stable/api/photutils.isophote.IsophoteList.html#photutils.isophote.IsophoteList
+
+    """
+    result = {
+        'sma': isofit.sma,
+        'eps': isofit.eps,
+        'eps_err': isofit.ellip_err,
+        'pa': isofit.pa,
+        'pa_err': isofit.pa_err,
+        'intens': isofit.intens,
+        'intens_err': isofit.int_err,
+        'x0': isofit.x0,
+        'x0_err': isofit.x0_err,
+        'y0': isofit.y0,
+        'y0_err': isofit.y0_err,
+        'a3': isofit.a3,
+        'a3_err': isofit.a3_err,
+        'a4': isofit.a4,
+        'a4_err': isofit.a4_err,
+        'rms': isofit.rms,
+        'pix_stddev': isofit.pix_stddev,
+        'stop_code': isofit.stop_code,
+        'ndata': isofit.ndata,
+        'nflag': isofit.nflag,
+        'niter': isofit.niter}
+        
+    return result
+
 def _integrate_isophot_one(args):
     """Wrapper function for the multiprocessing."""
     return integrate_isophot_one(*args)
 
-def integrate_isophot_one(iso, img, pixscalefactor, integrmode,
-                          sclip, nclip):
+def integrate_isophot_one(img, sma, pa, eps, x0, y0, pixscalefactor,
+                          integrmode, sclip, nclip):
     """Integrate the ellipse profile at a single semi-major axis.
 
     """
     #g = iso.sample.geometry # fixed geometry
-    g = copy.deepcopy(iso.sample.geometry) # fixed geometry
-    
+    #g = copy.deepcopy(iso.sample.geometry) # fixed geometry
+    g = EllipseGeometry(x0=x0, y0=y0, eps=eps, sma=sma, pa=pa)
+
     # Use the same integration mode and clipping parameters.
     # The central pixel is a special case:
     with warnings.catch_warnings():
@@ -294,7 +327,7 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
     refisophot = refellipsefit[refband]
 
     pixscalefactor = refpixscale / pixscale
-    maxsma = refellipsefit[refband].sma.max() * pixscalefactor
+    maxsma = refellipsefit[refband]['sma'].max() * pixscalefactor
 
     integrmode, nclip, sclip = refellipsefit['integrmode'], refellipsefit['nclip'], refellipsefit['sclip']
 
@@ -324,11 +357,16 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
             img.mask = newmask
 
         # Loop on the reference band isophotes.
-        isobandfit = pool.map(_integrate_isophot_one, [(iso, img, pixscalefactor, integrmode, sclip, nclip)
-                                                       for iso in refisophot])
+        #isobandfit = pool.map(_integrate_isophot_one, [(iso, img, pixscalefactor, integrmode, sclip, nclip)
+        isobandfit = pool.map(_integrate_isophot_one, [(
+            img, _sma, _pa, _eps, _x0, _y0, pixscalefactor, integrmode, sclip, nclip)
+            for _sma, _pa, _eps, _x0, _y0 in zip(refisophot['sma'], refisophot['pa'],
+                                                 refisophot['eps'], refisophot['x0'],
+                                                 refisophot['y0'])])
 
         # Build the IsophoteList instance with the result.
-        ellipsefit[filt] = IsophoteList(isobandfit)
+        #ellipsefit[filt] = IsophoteList(isobandfit)
+        ellipsefit[filt] = _unpack_isofit(IsophoteList(isobandfit))
         print('  Time = {:.3f} sec'.format(time.time() - t0))
 
         #if np.all( np.isnan(ellipsefit['g'].intens) ):
@@ -593,7 +631,9 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         return ellipsefit
     else:
         ellipsefit['success'] = True
-        ellipsefit[refband] = isophot
+        #ellipsefit[refband] = isophot
+        refisophot = _unpack_isofit(isophot)
+        ellipsefit[refband] = refisophot
 
     # Now do forced photometry at the other bandpasses (or do all the bandpasses
     # if we didn't fit above).
@@ -610,11 +650,18 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
             img.mask = newmask
 
         # Loop on the reference band isophotes.
-        isobandfit = pool.map(_integrate_isophot_one, [(iso, img, 1.0, integrmode, sclip, nclip)
-                                                       for iso in isophot])
+        #isobandfit = pool.map(_integrate_isophot_one, [(iso, img, 1.0, integrmode, sclip, nclip)
+        #                                               for iso in isophot])
+        isobandfit = pool.map(_integrate_isophot_one, [(
+            img, _sma, _pa, _eps, _x0, _y0, 1.0, integrmode, sclip, nclip)
+            for _sma, _pa, _eps, _x0, _y0 in zip(refisophot['sma'], refisophot['pa'],
+                                                 refisophot['eps'], refisophot['x0'],
+                                                 refisophot['y0'])])
+        
 
         # Build the IsophoteList instance with the result.
-        ellipsefit[filt] = IsophoteList(isobandfit)
+        #ellipsefit[filt] = IsophoteList(isobandfit)
+        ellipsefit[filt] = _unpack_isofit(IsophoteList(isobandfit))
         print('  Time = {:.3f} sec'.format(time.time() - t0))
     print('Time for all images = {:.3f} sec'.format(time.time() - tall))
 
@@ -671,9 +718,9 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False,
     for filt in bands:
         #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-        sb = ellipsefit[filt].intens             # [nanomaggies/arcsec2]
-        sberr = np.sqrt(ellipsefit[filt].int_err**2 + (0.4 * np.log(10) * sb * minerr)**2)
-        sma = ellipsefit[filt].sma                               # semi-major axis [pixels]
+        sb = ellipsefit[filt]['intens']             # [nanomaggies/arcsec2]
+        sberr = np.sqrt(ellipsefit[filt]['intens_err']**2 + (0.4 * np.log(10) * sb * minerr)**2)
+        sma = ellipsefit[filt]['sma']                               # semi-major axis [pixels]
         radius = sma * np.sqrt(1 - eps) * pixscale # circularized radius [arcsec]
 
         with warnings.catch_warnings():
