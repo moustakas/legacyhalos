@@ -579,16 +579,19 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         # Write out separate CCD-level files with the images/data, individual masks
         # (converted to unsigned integer), and the pipeline/splinesky binary FITS
         # tables.
-        ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask-grz.fits.gz'.format(galaxy))
-        print('Writing {}'.format(ccdfile), flush=True, file=log)
-        if os.path.isfile(ccdfile):
-            os.remove(ccdfile)
-        with fitsio.FITS(ccdfile, 'rw') as ff:
-            for ii, ccd in enumerate(survey.ccds):
-                im = survey.get_image_object(ccd)
-                ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
-                hdr = sky['{}-header'.format(ext)]
-                ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
+        print('NEED to write out the custom sky values as a FITS table!')
+        pdb.set_trace()
+        if False:
+            ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask-grz.fits.gz'.format(galaxy))
+            print('Writing {}'.format(ccdfile), flush=True, file=log)
+            if os.path.isfile(ccdfile):
+                os.remove(ccdfile)
+            with fitsio.FITS(ccdfile, 'rw') as ff:
+                for ii, ccd in enumerate(survey.ccds):
+                    im = survey.get_image_object(ccd)
+                    ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
+                    hdr = sky['{}-header'.format(ext)]
+                    ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
 
         # These are the actual images, which results in a giant file.  Keeping
         # the code here for legacy purposes but I'm not sure we should ever
