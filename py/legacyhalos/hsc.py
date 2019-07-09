@@ -454,8 +454,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<table>\n')
             html.write('<tr><th>Fitting range<br />(arcsec)</th><th>Integration<br />mode</th><th>Clipping<br />iterations</th><th>Clipping<br />sigma</th></tr>')
             html.write('<tr><td>{:.3f}-{:.3f}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
-                ellipse[refband].sma.min()*pixscale, ellipse[refband].sma.max()*pixscale, ellipse['integrmode'],
-                ellipse['nclip'], ellipse['sclip']))
+                ellipse[refband]['sma'].min()*pixscale, ellipse[refband]['sma'].max()*pixscale,
+                ellipse['integrmode'], ellipse['nclip'], ellipse['sclip']))
             html.write('</table>\n')
             html.write('<br />\n')
 
