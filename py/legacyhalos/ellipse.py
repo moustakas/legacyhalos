@@ -505,12 +505,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         factor = (1, 2, 3, 3.5, 4)
         for ii, fac in enumerate(factor): # try a few different starting sma0
             sma0 = smamin*fac
-            iso0 = ellipse0.fit_image(sma0,
-                                      #minsma=0, maxsma=smamax,
-                                      #minsma=smamin, maxsma=smamax,
-                                      #step=0.1, linear=False,
-                                      #step=0.2, linear=False, # note bigger step size
-                                      integrmode=integrmode, sclip=sclip, nclip=nclip)
+            try:
+                iso0 = ellipse0.fit_image(sma0, integrmode=integrmode, sclip=sclip, nclip=nclip)
+            except:
+                iso0 = []
             if len(iso0) > 0:
                 break
 

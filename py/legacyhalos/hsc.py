@@ -206,7 +206,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             zoom = 14
         else:
             zoom = 15
-        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=ls-dr67'.format(
+        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8'.format(
             baseurl, gal['RA'], gal['DEC'], zoom)
         
         return viewer
@@ -321,6 +321,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
         ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose)
+        #if 'psfdepth_g' not in ellipse.keys():
+        #    pdb.set_trace()
         pipeline_ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose,
                                                           filesuffix='pipeline')
         
@@ -387,14 +389,15 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<tr><th>kpc</th><th>arcsec</th><th>grz pixels</th><th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th></tr>\n')
             html.write('<tr><td>{:.0f}</td><td>{:.3f}</td><td>{:.1f}</td>'.format(
                 radius_mosaic_kpc, radius_mosaic_arcsec, radius_mosaic_pixels))
-            html.write('<td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td>'.format(
-                ellipse['psfdepth_g'], ellipse['psfdepth_min_g'], ellipse['psfdepth_max_g'],
-                ellipse['psfdepth_r'], ellipse['psfdepth_min_r'], ellipse['psfdepth_max_r'],
-                ellipse['psfdepth_z'], ellipse['psfdepth_min_z'], ellipse['psfdepth_max_z']))
-            html.write('<td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td></tr>\n'.format(
-                ellipse['psfsize_g'], ellipse['psfsize_min_g'], ellipse['psfsize_max_g'],
-                ellipse['psfsize_r'], ellipse['psfsize_min_r'], ellipse['psfsize_max_r'],
-                ellipse['psfsize_z'], ellipse['psfsize_min_z'], ellipse['psfsize_max_z']))
+            if bool(ellipse):
+                html.write('<td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td>'.format(
+                    ellipse['psfdepth_g'], ellipse['psfdepth_min_g'], ellipse['psfdepth_max_g'],
+                    ellipse['psfdepth_r'], ellipse['psfdepth_min_r'], ellipse['psfdepth_max_r'],
+                    ellipse['psfdepth_z'], ellipse['psfdepth_min_z'], ellipse['psfdepth_max_z']))
+                html.write('<td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td></tr>\n'.format(
+                    ellipse['psfsize_g'], ellipse['psfsize_min_g'], ellipse['psfsize_max_g'],
+                    ellipse['psfsize_r'], ellipse['psfsize_min_r'], ellipse['psfsize_max_r'],
+                    ellipse['psfsize_z'], ellipse['psfsize_min_z'], ellipse['psfsize_max_z']))
             html.write('</table>\n')
             #html.write('<br />\n')
 
@@ -418,46 +421,51 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             #html.write('<br />\n')
 
             html.write('<h2>Elliptical Isophote Analysis</h2>\n')
-            html.write('<table>\n')
+            if bool(ellipse):
+                html.write('<table>\n')
+                html.write('<tr><th colspan="5">Mean Geometry</th>')
 
-            html.write('<tr><th colspan="5">Mean Geometry</th>')
+                html.write('<th colspan="4">Ellipse-fitted Geometry</th>')
+                if ellipse['input_ellipse']:
+                    html.write('<th colspan="2">Input Geometry</th></tr>\n')
+                else:
+                    html.write('</tr>\n')
 
-            html.write('<th colspan="4">Ellipse-fitted Geometry</th>')
-            if ellipse['input_ellipse']:
-                html.write('<th colspan="2">Input Geometry</th></tr>\n')
+                html.write('<tr><th>Integer center<br />(x,y, grz pixels)</th><th>Flux-weighted center<br />(x,y grz pixels)</th><th>Flux-weighted size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>')
+                html.write('<th>Semi-major axis<br />(fitting range, arcsec)</th><th>Center<br />(x,y grz pixels)</th><th>PA<br />(deg)</th><th>e</th>')
+                if ellipse['input_ellipse']:
+                    html.write('<th>PA<br />(deg)</th><th>e</th></tr>\n')
+                else:
+                    html.write('</tr>\n')
+
+                html.write('<tr><td>({:.0f}, {:.0f})</td><td>({:.3f}, {:.3f})</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
+                    ellipse['x0'], ellipse['y0'], ellipse['mge_xmed'], ellipse['mge_ymed'], ellipse['mge_majoraxis']*pixscale,
+                    ellipse['mge_pa'], ellipse['mge_eps']))
+
+                if 'init_smamin' in ellipse.keys():
+                    html.write('<td>{:.3f}-{:.3f}</td><td>({:.3f}, {:.3f})<br />+/-({:.3f}, {:.3f})</td><td>{:.1f}+/-{:.1f}</td><td>{:.3f}+/-{:.3f}</td>'.format(
+                        ellipse['init_smamin']*pixscale, ellipse['init_smamax']*pixscale, ellipse['x0_median'],
+                        ellipse['y0_median'], ellipse['x0_err'], ellipse['y0_err'], ellipse['pa'], ellipse['pa_err'],
+                        ellipse['eps'], ellipse['eps_err']))
+                else:
+                    html.write('<td>...</td><td>...</td><td>...</td><td>...</td>')
+                if ellipse['input_ellipse']:
+                    html.write('<td>{:.1f}</td><td>{:.3f}</td></tr>\n'.format(
+                        np.degrees(ellipse['geometry'].pa)+90, ellipse['geometry'].eps))
+                else:
+                    html.write('</tr>\n')
+                html.write('</table>\n')
+                html.write('<br />\n')
+
+                html.write('<table>\n')
+                html.write('<tr><th>Fitting range<br />(arcsec)</th><th>Integration<br />mode</th><th>Clipping<br />iterations</th><th>Clipping<br />sigma</th></tr>')
+                html.write('<tr><td>{:.3f}-{:.3f}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
+                    ellipse[refband]['sma'].min()*pixscale, ellipse[refband]['sma'].max()*pixscale,
+                    ellipse['integrmode'], ellipse['nclip'], ellipse['sclip']))
+                html.write('</table>\n')
+                html.write('<br />\n')
             else:
-                html.write('</tr>\n')
-
-            html.write('<tr><th>Integer center<br />(x,y, grz pixels)</th><th>Flux-weighted center<br />(x,y grz pixels)</th><th>Flux-weighted size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>')
-            html.write('<th>Semi-major axis<br />(fitting range, arcsec)</th><th>Center<br />(x,y grz pixels)</th><th>PA<br />(deg)</th><th>e</th>')
-            if ellipse['input_ellipse']:
-                html.write('<th>PA<br />(deg)</th><th>e</th></tr>\n')
-            else:
-                html.write('</tr>\n')
-            
-            html.write('<tr><td>({:.0f}, {:.0f})</td><td>({:.3f}, {:.3f})</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
-                ellipse['x0'], ellipse['y0'], ellipse['mge_xmed'], ellipse['mge_ymed'], ellipse['mge_majoraxis']*pixscale,
-                ellipse['mge_pa'], ellipse['mge_eps']))
-            
-            html.write('<td>{:.3f}-{:.3f}</td><td>({:.3f}, {:.3f})<br />+/-({:.3f}, {:.3f})</td><td>{:.1f}+/-{:.1f}</td><td>{:.3f}+/-{:.3f}</td>'.format(
-                ellipse['init_smamin']*pixscale, ellipse['init_smamax']*pixscale, ellipse['x0_median'],
-                ellipse['y0_median'], ellipse['x0_err'], ellipse['y0_err'], ellipse['pa'], ellipse['pa_err'],
-                ellipse['eps'], ellipse['eps_err']))
-            if ellipse['input_ellipse']:
-                html.write('<td>{:.1f}</td><td>{:.3f}</td></tr>\n'.format(
-                    np.degrees(ellipse['geometry'].pa)+90, ellipse['geometry'].eps))
-            else:
-                html.write('</tr>\n')
-            html.write('</table>\n')
-            html.write('<br />\n')
-
-            html.write('<table>\n')
-            html.write('<tr><th>Fitting range<br />(arcsec)</th><th>Integration<br />mode</th><th>Clipping<br />iterations</th><th>Clipping<br />sigma</th></tr>')
-            html.write('<tr><td>{:.3f}-{:.3f}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
-                ellipse[refband]['sma'].min()*pixscale, ellipse[refband]['sma'].max()*pixscale,
-                ellipse['integrmode'], ellipse['nclip'], ellipse['sclip']))
-            html.write('</table>\n')
-            html.write('<br />\n')
+                html.write('<p>Ellipse-fitting not done or failed.</p>\n')
 
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
@@ -491,13 +499,20 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('</tr>')
 
             html.write('<tr>')
-            g, r, z = (ellipse['cog_params_g']['mtot'], ellipse['cog_params_r']['mtot'],
-                       ellipse['cog_params_z']['mtot'])
-            html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(g, r, z))
+            if bool(ellipse):
+                g, r, z = (ellipse['cog_params_g']['mtot'], ellipse['cog_params_r']['mtot'],
+                           ellipse['cog_params_z']['mtot'])
+                html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(g, r, z))
+            else:
+                html.write('<td>...</td><td>...</td><td>...</td>')
 
-            g, r, z = (pipeline_ellipse['cog_params_g']['mtot'], pipeline_ellipse['cog_params_r']['mtot'],
-                       pipeline_ellipse['cog_params_z']['mtot'])
-            html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(g, r, z))
+            if bool(pipeline_ellipse):
+                g, r, z = (pipeline_ellipse['cog_params_g']['mtot'], pipeline_ellipse['cog_params_r']['mtot'],
+                           pipeline_ellipse['cog_params_z']['mtot'])
+                html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(g, r, z))
+            else:
+                html.write('<td>...</td><td>...</td><td>...</td>')
+                
             html.write('</tr>')
             html.write('</table>\n')
             html.write('<br />\n')
@@ -516,14 +531,16 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
             html.write('<th>g</th><th>r</th><th>z</th>')
             html.write('</tr>')
 
-            html.write('<tr>')
-            g, r, z = _get_mags(intflux[ii], rad='10')
-            html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
-            g, r, z = _get_mags(intflux[ii], rad='30')
-            html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
-            g, r, z = _get_mags(intflux[ii], rad='100')
-            html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
-            html.write('</tr>')
+            if intflux:
+                html.write('<tr>')
+                g, r, z = _get_mags(intflux[ii], rad='10')
+                html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
+                g, r, z = _get_mags(intflux[ii], rad='30')
+                html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
+                g, r, z = _get_mags(intflux[ii], rad='100')
+                html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
+                html.write('</tr>')
+
             html.write('</table>\n')
             html.write('<br />\n')
 

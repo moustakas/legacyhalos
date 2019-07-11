@@ -47,7 +47,7 @@ maxmem=134217728 # Cori/Haswell = 128 GB
 grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
 let usemem=${maxmem}*${ncores}/64
 
-#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --htmlplots --mpi --hsc --verbose
-time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --nproc $ncores --mpi --hsc --verbose --first 5
+time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --htmlplots --mpi --hsc --verbose
+#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --nproc $ncores --mpi --hsc --verbose --first 5
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc $ncores --mpi --hsc --verbose --first 5
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc $ncores --mpi --hsc --verbose

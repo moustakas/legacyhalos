@@ -630,11 +630,13 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                     #    efit = ellipsefit[filt].get_closest(sma)
                     #    x, y, = efit.sampled_coordinates()
                     #    ax1.plot(x, y, color='k', lw=1, alpha=0.5)#, label='Fitted isophote')
+                    x0, y0, eps, pa = (ellipsefit['geometry'].x0, ellipsefit['geometry'].y0, 
+                                       ellipsefit['geometry'].eps, ellipsefit['geometry'].pa)
                     for sma in smas:
-                        ax1.add_patch(mpatches.Ellipse((ellipsefit['x0'], ellipsefit['y0']),
-                                                       2*sma, 2*sma*(1-ellipsefit['eps']),
-                                                       ellipsefit['pa']-90, color='k', lw=1,
-                                                       alpha=0.9, fill=False))#, label='Fitted isophote')
+                        this = np.argmin(np.abs(ellipsefit[filt]['sma']-sma))
+                        ax1.add_patch(mpatches.Ellipse((x0, y0), 2*ellipsefit[filt]['sma'][this],
+                                                       2*ellipsefit[filt]['sma'][this]*(1-eps),
+                                                       pa-90, color='k', lw=1, alpha=0.9, fill=False))#, label='Fitted isophote')
 
                     # Visualize the mean geometry
                     maxis = ellipsefit['mge_majoraxis']
@@ -645,9 +647,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                     
                     # Visualize the fitted geometry
                     maxis = ellipsefit['mge_majoraxis'] * 1.2
-                    ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                                                 maxis, maxis*(1 - ellipsefit['eps']),
-                                                 np.radians(ellipsefit['pa']-90))
+                    ellaper = EllipticalAperture((x0, y0), maxis, maxis*(1 - eps), np.radians(pa-90))
                     ellaper.plot(color='k', lw=2, ax=ax1, alpha=1.0, label='Fitted geometry')
 
                     # Visualize the input geometry
