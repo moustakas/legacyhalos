@@ -7,7 +7,7 @@ Code to generate grzW1W2 custom coadds / mosaics.
 python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/data/legacysurvey/dr5 --radec 342.4942 -0.6706 --width 300 --height 300
 
 """
-import os, sys, pdb
+import os, sys, time, pdb
 import shutil
 import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
@@ -84,7 +84,8 @@ def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
         srcs = read_fits_catalog(cat[m1], fluxPrefix='')
         mod = legacyhalos.misc.srcs2image(srcs, wcs, psf_sigma=psf_sigma)
         if np.sum(np.isnan(mod)) > 0:
-            print('HERE galaxy {}'.format(galaxy), flush=True, file=log)
+            print('Problem rendering model image of galaxy {}'.format(galaxy),
+                  flush=True, file=log)
 
         mgegalaxy = find_galaxy(mod, nblob=1, binning=3, quiet=True)
 
@@ -203,7 +204,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         ok = _copyfile(
             os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                          'legacysurvey-{}-ccds.fits'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run)) )
         if not ok:
             return ok
 
@@ -392,7 +393,12 @@ def _custom_sky(skyargs):
 
     skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
 
-    skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
+    #print('ahack!!', im.expnum, im.ccdname)
+    #if im.expnum == 625736 and im.ccdname == 'S22':
+    try:
+        skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
+    except:
+        skymean, skymed, skysig = 0.0, 0.0, 0.0
     #skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
     #skymed = np.median(img[skypix])
     try:
@@ -429,7 +435,7 @@ def _custom_sky(skyargs):
     hdr.add_record(dict(name='YCEN', value=y0-1))
 
     out = dict()
-    ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname)
+    ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
     #ext = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
     out['{}-mask'.format(ext)] = mask
     out['{}-image'.format(ext)] = img
@@ -520,16 +526,20 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # Read and apply the outlier masks.
     outliersfile = os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy))
     if not os.path.isfile(outliersfile):
-        print('Missing outliers masks {}'.format(outliersfile))
+        print('Missing outliers masks {}'.format(outliersfile), flush=True, file=log)
         return 0
 
     outliers = fitsio.FITS(outliersfile)
     for tim in tims:
-        ext = '{}-{}-{}'.format(tim.imobj.camera, tim.imobj.expnum, tim.imobj.ccdname)
-        mask = outliers[ext].read()
-        maskhdr = outliers[ext].read_header()
-        tim.dq |= (mask > 0) * DQ_BITS['outlier']
-        tim.inverr[mask > 0] = 0.0
+        ext = '{}-{}-{}'.format(tim.imobj.camera, tim.imobj.expnum,
+                                tim.imobj.ccdname.lower().strip())
+        if ext in outliers:
+            mask = outliers[ext].read()
+            maskhdr = outliers[ext].read_header()
+            tim.dq |= (mask > 0) * DQ_BITS['outlier']
+            tim.inverr[mask > 0] = 0.0
+        else:
+            print('Warning: extension {} not found in image {}'.format(ext, outliersfile), flush=True, file=log)
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
@@ -554,44 +564,47 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
         maskfile = os.path.join(survey.output_dir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
         fitsio.write(maskfile, comask, header=hdr, clobber=True)
-        print('Writing {}'.format(maskfile))
+        print('Writing {}'.format(maskfile), flush=True, file=log)
         del comask
 
         skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
-        print('Writing {}'.format(skyfile))
+        print('Writing {}'.format(skyfile), flush=True, file=log)
         if os.path.isfile(skyfile):
             os.remove(skyfile)
         for ii, ccd in enumerate(survey.ccds):
             im = survey.get_image_object(ccd)
-            ext = '{}-{:02d}-{}'.format(im.camera, im.expnum, im.ccdname)
+            ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
             sky['{}-splinesky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
         
         # Write out separate CCD-level files with the images/data, individual masks
         # (converted to unsigned integer), and the pipeline/splinesky binary FITS
         # tables.
-        ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask-grz.fits.gz'.format(galaxy))
-        print('Writing {}'.format(ccdfile))
-        if os.path.isfile(ccdfile):
-            os.remove(ccdfile)
-        with fitsio.FITS(ccdfile, 'rw') as ff:
-            for ii, ccd in enumerate(survey.ccds):
-                im = survey.get_image_object(ccd)
-                ext = '{}-{:02d}-{}'.format(im.camera, im.expnum, im.ccdname)
-                hdr = sky['{}-header'.format(ext)]
-                ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
+        print('NEED to write out the custom sky values as a FITS table!')
+        pdb.set_trace()
+        if False:
+            ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask-grz.fits.gz'.format(galaxy))
+            print('Writing {}'.format(ccdfile), flush=True, file=log)
+            if os.path.isfile(ccdfile):
+                os.remove(ccdfile)
+            with fitsio.FITS(ccdfile, 'rw') as ff:
+                for ii, ccd in enumerate(survey.ccds):
+                    im = survey.get_image_object(ccd)
+                    ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
+                    hdr = sky['{}-header'.format(ext)]
+                    ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
 
         # These are the actual images, which results in a giant file.  Keeping
         # the code here for legacy purposes but I'm not sure we should ever
         # write it out.
         if False:
             ccdfile = os.path.join(survey.output_dir, '{}-ccddata-grz.fits.fz'.format(galaxy))
-            print('Writing {}'.format(ccdfile))
+            print('Writing {}'.format(ccdfile), flush=True, file=log)
             if os.path.isfile(ccdfile):
                 os.remove(ccdfile)
             with fitsio.FITS(ccdfile, 'rw') as ff:
                 for ii, ccd in enumerate(survey.ccds):
                     im = survey.get_image_object(ccd)
-                    ext = '{}-{:02d}-{}'.format(im.camera, im.expnum, im.ccdname)
+                    ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
                     hdr = sky['{}-header'.format(ext)]
                     ff.write(sky['{}-image'.format(ext)].astype('f4'), extname=ext, header=hdr)
 
@@ -602,7 +615,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     for tim in tims:
         custom_tim = copy.deepcopy(tim)
         image = custom_tim.getImage()
-        ext = '{}-{:02d}-{}'.format(custom_tim.imobj.camera, custom_tim.imobj.expnum, custom_tim.imobj.ccdname)
+        ext = '{}-{}-{}'.format(custom_tim.imobj.camera, custom_tim.imobj.expnum,
+                                custom_tim.imobj.ccdname.lower().strip())
         newsky = sky['{}-header'.format(ext)]['SKYMED']
         custom_tim.setImage(image - newsky)
         custom_tim.sky = tractor.sky.ConstantSky(0)
@@ -622,7 +636,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # photometry measured from the custom sky-subtracted CCDs.
     tractorfile = os.path.join(survey.output_dir, '{}-pipeline-tractor.fits'.format(galaxy))
     if not os.path.isfile(tractorfile):
-        print('Missing Tractor catalog {}'.format(tractorfile))
+        print('Missing Tractor catalog {}'.format(tractorfile), flush=True, file=log)
         return 0
     pipeline_cat = fits_table(tractorfile)
     print('Read {} sources from {}'.format(len(pipeline_cat), tractorfile), flush=True, file=log)
@@ -632,6 +646,12 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     print('Performing forced photometry on the custom sky-subtracted CCDs.', flush=True, file=log)
     forcedflx = mp.map(_forced_phot, [(custom_tims, custom_srcs, band) for band in bands])
+    if False:
+        forcedflx = []
+        for band in bands:
+            t0 = time.time()
+            forcedflx.append(forced_phot(custom_tims, custom_srcs, band))
+            print('  band {} took {:.3f} sec'.format(band, time.time()-t0), flush=True, file=log)
 
     # Populate the new custom catalog and write out.
     custom_cat = pipeline_cat.copy()

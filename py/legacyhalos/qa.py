@@ -529,6 +529,8 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
     """
     import numpy.ma as ma
     from photutils import EllipticalAperture
+    from photutils.isophote import EllipseSample, Isophote
+    import matplotlib.patches as mpatches
 
     from astropy.visualization import AsinhStretch as Stretch
     from astropy.visualization import ImageNormalize
@@ -606,37 +608,47 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
         if geometry:
             ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
                                          geometry.sma*(1 - geometry.eps), geometry.pa)
-            ellaper.plot(color='k', lw=1, axes=ax1, alpha=0.75)
+            ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.75)
 
         if ellipsefit:
             if ellipsefit['success']:
                 if len(ellipsefit[filt]) > 0:
                     if indx is None:
-                        indx = np.ones(len(ellipsefit[filt]), dtype=bool)
+                        indx = np.ones(len(ellipsefit[filt]['sma']), dtype=bool)
                         
                     nfit = len(indx) # len(ellipsefit[filt])
-                    nplot = np.rint(0.5*nfit).astype('int')
+                    nplot = np.rint(0.3*nfit).astype('int')
 
-                    smas = np.linspace(0, ellipsefit[filt].sma[indx].max(), nplot)
+                    smas = np.linspace(0, ellipsefit[filt]['sma'][indx].max(), nplot)
                     #smas = ellipsefit[filt].sma
+
+                    # When we used to write out the ellipse pickle files with
+                    # the Isophote objects we used the snippet of code below to
+                    # render the fitted ellipses.  Now, just draw the ellipse
+                    # shapes.
+                    #for sma in smas:
+                    #    efit = ellipsefit[filt].get_closest(sma)
+                    #    x, y, = efit.sampled_coordinates()
+                    #    ax1.plot(x, y, color='k', lw=1, alpha=0.5)#, label='Fitted isophote')
+                    x0, y0, eps, pa = (ellipsefit['geometry'].x0, ellipsefit['geometry'].y0, 
+                                       ellipsefit['geometry'].eps, ellipsefit['geometry'].pa)
                     for sma in smas:
-                        efit = ellipsefit[filt].get_closest(sma)
-                        x, y, = efit.sampled_coordinates()
-                        ax1.plot(x, y, color='k', lw=1, alpha=0.5)#, label='Fitted isophote')
+                        this = np.argmin(np.abs(ellipsefit[filt]['sma']-sma))
+                        ax1.add_patch(mpatches.Ellipse((x0, y0), 2*ellipsefit[filt]['sma'][this],
+                                                       2*ellipsefit[filt]['sma'][this]*(1-eps),
+                                                       pa-90, color='k', lw=1, alpha=0.9, fill=False))#, label='Fitted isophote')
 
                     # Visualize the mean geometry
                     maxis = ellipsefit['mge_majoraxis']
                     ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                                  maxis, maxis*(1 - ellipsefit['mge_eps']),
                                                  np.radians(ellipsefit['mge_pa']-90))
-                    ellaper.plot(color='red', lw=2, axes=ax1, alpha=1.0, label='Mean geometry')
+                    ellaper.plot(color='red', lw=2, ax=ax1, alpha=1.0, label='Mean geometry')
                     
                     # Visualize the fitted geometry
                     maxis = ellipsefit['mge_majoraxis'] * 1.2
-                    ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                                                 maxis, maxis*(1 - ellipsefit['eps']),
-                                                 np.radians(ellipsefit['pa']-90))
-                    ellaper.plot(color='k', lw=2, axes=ax1, alpha=1.0, label='Fitted geometry')
+                    ellaper = EllipticalAperture((x0, y0), maxis, maxis*(1 - eps), np.radians(pa-90))
+                    ellaper.plot(color='k', lw=2, ax=ax1, alpha=1.0, label='Fitted geometry')
 
                     # Visualize the input geometry
                     if ellipsefit['input_ellipse']:
@@ -645,7 +657,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                         maxis = geometry.sma * 0.8
                         ellaper = EllipticalAperture((geometry.x0, geometry.y0), maxis,
                                                      maxis*(1 - geometry.eps), geometry.pa)
-                        ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
+                        ellaper.plot(color='navy', lw=2, ax=ax1, alpha=1.0, label='Input geometry')
 
                     if ii == 2:
                         ax1.legend(loc='lower right', fontsize=8, frameon=True)
@@ -691,14 +703,15 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
         
-        good = (ellipsefit[refband].stop_code < 4)
+        good = (ellipsefit[refband]['stop_code'] < 4)
         bad = ~good
-        ax1.fill_between(ellipsefit[refband].sma[good] * refpixscale,
-                         ellipsefit[refband].eps[good]-ellipsefit[refband].ellip_err[good],
-                         ellipsefit[refband].eps[good]+ellipsefit[refband].ellip_err[good])#,
+        ax1.fill_between(ellipsefit[refband]['sma'][good] * refpixscale,
+                         ellipsefit[refband]['eps'][good]-ellipsefit[refband]['eps_err'][good],
+                         ellipsefit[refband]['eps'][good]+ellipsefit[refband]['eps_err'][good])#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
-            ax1.scatter(ellipsefit[refband].sma[bad] * refpixscale, ellipsefit[refband].eps[bad],
+            ax1.scatter(ellipsefit[refband]['sma'][bad] * refpixscale,
+                        ellipsefit[refband]['eps'][bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
 
         #ax1.errorbar(ellipsefit[refband].sma[good] * smascale,
@@ -708,12 +721,13 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         #ax1.set_ylim(0, 0.5)
         ax1.xaxis.set_major_formatter(ScalarFormatter())
 
-        ax2.fill_between(ellipsefit[refband].sma[good] * refpixscale, 
-                         np.degrees(ellipsefit[refband].pa[good]-ellipsefit[refband].pa_err[good]),
-                         np.degrees(ellipsefit[refband].pa[good]+ellipsefit[refband].pa_err[good]))#,
+        ax2.fill_between(ellipsefit[refband]['sma'][good] * refpixscale, 
+                         np.degrees(ellipsefit[refband]['pa'][good]-ellipsefit[refband]['pa_err'][good]),
+                         np.degrees(ellipsefit[refband]['pa'][good]+ellipsefit[refband]['pa_err'][good]))#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
-            ax2.scatter(ellipsefit[refband].sma[bad] * refpixscale, np.degrees(ellipsefit[refband].pa[bad]),
+            ax2.scatter(ellipsefit[refband]['sma'][bad] * refpixscale,
+                        np.degrees(ellipsefit[refband]['pa'][bad]),
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         #ax2.errorbar(ellipsefit[refband].sma[good] * smascale,
         #             np.degrees(ellipsefit[refband].pa[good]),
@@ -721,12 +735,13 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         #             markersize=4)#, color=color[refband])
         #ax2.set_ylim(0, 180)
 
-        ax3.fill_between(ellipsefit[refband].sma[good] * refpixscale,
-                         ellipsefit[refband].x0[good]-ellipsefit[refband].x0_err[good],
-                         ellipsefit[refband].x0[good]+ellipsefit[refband].x0_err[good])#,
+        ax3.fill_between(ellipsefit[refband]['sma'][good] * refpixscale,
+                         ellipsefit[refband]['x0'][good]-ellipsefit[refband]['x0_err'][good],
+                         ellipsefit[refband]['x0'][good]+ellipsefit[refband]['x0_err'][good])#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
-            ax3.scatter(ellipsefit[refband].sma[bad] * refpixscale, ellipsefit[refband].x0[bad],
+            ax3.scatter(ellipsefit[refband]['sma'][bad] * refpixscale,
+                        ellipsefit[refband]['x0'][bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         #ax3.errorbar(ellipsefit[refband].sma[good] * smascale, ellipsefit[refband].x0[good],
         #             ellipsefit[refband].x0_err[good], fmt='o',
@@ -734,12 +749,13 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         ax3.xaxis.set_major_formatter(ScalarFormatter())
         ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
-        ax4.fill_between(ellipsefit[refband].sma[good] * refpixscale, 
-                         ellipsefit[refband].y0[good]-ellipsefit[refband].y0_err[good],
-                         ellipsefit[refband].y0[good]+ellipsefit[refband].y0_err[good])#,
+        ax4.fill_between(ellipsefit[refband]['sma'][good] * refpixscale, 
+                         ellipsefit[refband]['y0'][good]-ellipsefit[refband]['y0_err'][good],
+                         ellipsefit[refband]['y0'][good]+ellipsefit[refband]['y0_err'][good])#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
-            ax4.scatter(ellipsefit[refband].sma[bad] * refpixscale, ellipsefit[refband].y0[bad],
+            ax4.scatter(ellipsefit[refband]['sma'][bad] * refpixscale,
+                        ellipsefit[refband]['y0'][bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         #ax4.errorbar(ellipsefit[refband].sma[good] * smascale, ellipsefit[refband].y0[good],
         #             ellipsefit[refband].y0_err[good], fmt='o',

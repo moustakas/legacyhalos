@@ -72,14 +72,14 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
 
-    ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
-    if os.path.isfile(ccdsfile):
-        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
-        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+    #ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
+    #if os.path.isfile(ccdsfile):
+    #    ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+    #    print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
 
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
     if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
+        display_ccdpos(onegal, survey.ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                       barlabel=None, clobber=False, verbose=True):

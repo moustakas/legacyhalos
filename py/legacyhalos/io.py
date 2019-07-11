@@ -735,6 +735,10 @@ def _read_paper_sample(paper='profiles', first=None, last=None, dr='dr8',
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(sample), samplefile))
 
+    print('Temporary hack to use SDSS coordinates!')
+    from astropy.table import Column
+    sample.add_column(Column(name='RA', data=sample['RA_SDSS']), index=0)
+    sample.add_column(Column(name='DEC', data=sample['DEC_SDSS']), index=1)
     return sample
 
 def read_smf_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
