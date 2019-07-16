@@ -54,6 +54,11 @@ def mpi_args():
 
     return args
 
+def get_integrated_filename():
+    """Return the name of the file containing the integrated photometry."""
+    integratedfile = os.path.join(hsc_dir(), 'integrated-flux.fits')
+    return integratedfile
+
 def missing_files_groups(args, sample, size, htmldir=None):
     """Simple task-specific wrapper on missing_files.
 
@@ -287,7 +292,7 @@ def read_parent(first=None, last=None, verbose=False):
             
     return sample
 
-def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
+def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
               first=None, last=None, nproc=1, survey=None, makeplots=True,
               clobber=False, verbose=True, maketrends=False, ccdqa=False):
@@ -302,10 +307,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     from legacyhalos.misc import cutout_radius_kpc
     from legacyhalos.misc import HSC_RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
-    if datadir is None:
-        datadir = hsc_data_dir()
-    if htmldir is None:
-        htmldir = hsc_html_dir()
+    datadir = hsc_data_dir()
+    htmldir = hsc_html_dir()
 
     if sample is None:
         sample = read_parent(first=first, last=last)
@@ -733,9 +736,9 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Make the plots.
     if makeplots:
         err = legacyhalos.html.make_plots(sample, datadir=datadir, htmldir=htmldir, refband=refband,
-                                          band=band, pixscale=pixscale, survey=survey, clobber=clobber,
+                                          bands=bands, pixscale=pixscale, survey=survey, clobber=clobber,
                                           verbose=verbose, nproc=nproc, ccdqa=ccdqa, maketrends=maketrends,
-                                          zcolumn=zcolumn, hsc=True)
+                                          zcolumn=zcolumn)
 
     cmd = 'chgrp -R cosmo {}'.format(htmldir)
     print(cmd)

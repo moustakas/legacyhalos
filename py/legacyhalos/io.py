@@ -327,7 +327,7 @@ def profiles_dir(figures=False, data=False):
             os.makedirs(pdir, exist_ok=True)
     return pdir
 
-def get_integrated_filename(hsc=False):
+def get_integrated_filename():
     """Return the name of the file containing the integrated photometry."""
     if hsc:
         import legacyhalos.hsc
@@ -336,11 +336,13 @@ def get_integrated_filename(hsc=False):
         integratedfile = os.path.join(profiles_dir(data=True), 'integrated-flux.fits')
     return integratedfile
 
-def read_integrated_flux(first=None, last=None, hsc=False, verbose=False):
+def read_integrated_flux(first=None, last=None, integratedfile=None, verbose=False):
     """Read the output of legacyhalos.integrate.
     
     """
-    integratedfile = get_integrated_filename(hsc=hsc)
+    if integratedfile is None:
+        integratedfile = get_integrated_filename()
+        
     if not os.path.isfile(integratedfile):
         print('File {} not found.'.format(integratedfile)) # non-catastrophic error is OK
         return None

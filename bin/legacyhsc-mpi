@@ -33,9 +33,10 @@ def main():
     from legacypipe.survey import LegacySurveyData
     from legacyhalos.hsc import RADIUS_CLUSTER_KPC, ZCOLUMN
 
-    from legacyhalos.mpi import call_pipeline_coadds
+    from legacyhalos.mpi import (call_pipeline_coadds, call_custom_coadds, call_ellipse,
+                                 call_sersic, call_sky, call_htmlplots)
     
-    args = legacyhalos.mpi.mpi_args()
+    args = legacyhalos.hsc.mpi_args()
 
     if args.mpi:
         from mpi4py import MPI
@@ -62,8 +63,10 @@ def main():
     # the full sample, so do that here and then return.
     if args.htmlindex:
         if rank == 0:
+            integratedfile = legacyhalos.hsc.get_integrated_filename()
             intflux = legacyhalos.io.read_integrated_flux(first=args.first, last=args.last,
-                                                          hsc=args.hsc, verbose=args.verbose)
+                                                          integratedfile=integratedfile,
+                                                          verbose=args.verbose)
             legacyhalos.html.make_html(sample, intflux=intflux, survey=None, pixscale=args.pixscale,
                                        zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
                                        makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
@@ -159,12 +162,12 @@ def main():
         if args.ellipse:
             input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
-                         nproc=args.nproc, verbose=args.verbose, debug=args.debug, logfile=logfile,
-                         input_ellipse=input_ellipse)
+                         nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                         logfile=logfile, zcolumn=ZCOLUMN, input_ellipse=input_ellipse)
                         
         if args.sersic:
             call_sersic(onegal, galaxy, galaxydir, args.seed, args.verbose,
-                         args.debug, logfile, args.hsc)
+                         args.debug, logfile)
             
         if args.sky:
             call_sky(onegal, galaxy, galaxydir, survey, args.seed, args.nproc,
@@ -173,7 +176,7 @@ def main():
         if args.htmlplots:
             call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
                            args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
-                           args.hsc, args.htmldir)
+                           args.htmldir, ZCOLUMN)
 
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(

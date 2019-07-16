@@ -79,16 +79,14 @@ def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                 _done(galaxy, err, t0, log=log)
                 
 def call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
-                  debug=False, logfile=None, hsc=False, input_ellipse=False,
+                  debug=False, logfile=None, input_ellipse=False, zcolumn=None,
                   sdss=False, sdss_pixscale=0.396):
     """Wrapper script to do ellipse-fitting.
 
     """
     import legacyhalos.ellipse
 
-    if hsc:
-        zcolumn = 'Z_BEST'
-    else:
+    if zcolumn is None:
         zcolumn = 'Z_LAMBDA'
 
     t0 = time.time()
@@ -98,7 +96,7 @@ def call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
                                                       zcolumn=zcolumn,
                                                       input_ellipse=input_ellipse,
                                                       verbose=verbose, debug=debug,
-                                                      hsc=hsc, sdss=sdss, sdss_pixscale=sdss_pixscale,
+                                                      sdss=sdss, sdss_pixscale=sdss_pixscale,
                                                       pipeline=True, unwise=False)
         _done(galaxy, err, t0)
     else:
@@ -109,11 +107,11 @@ def call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
                                                               zcolumn=zcolumn,
                                                               input_ellipse=input_ellipse,
                                                               verbose=verbose, debug=debug,
-                                                              hsc=hsc, sdss=sdss, sdss_pixscale=sdss_pixscale,
+                                                              sdss=sdss, sdss_pixscale=sdss_pixscale,
                                                               pipeline=True, unwise=False)
                 _done(galaxy, err, t0, log=log)
 
-def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile, hsc):
+def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile):
     """Wrapper script to do Sersic-fitting.
 
     """
@@ -157,21 +155,16 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 _done(galaxy, err, t0, log=log)
                 
 def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
-                    verbose, ccdqa, logfile, hsc, htmldir):
+                    verbose, ccdqa, logfile, htmldir, zcolumn):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
-
-    if hsc:
-        zcolumn = 'Z_BEST'
-    else:
-        zcolumn = 'Z_LAMBDA'
 
     if debug:
         _start(galaxy)
         err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                           pixscale=pixscale, survey=survey, clobber=clobber,
                                           verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                          ccdqa=ccdqa, maketrends=False, hsc=hsc)
+                                          ccdqa=ccdqa, maketrends=False)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -180,7 +173,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                 err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
                                                   pixscale=pixscale, survey=survey, clobber=clobber,
                                                   verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                                  ccdqa=ccdqa, maketrends=False, hsc=hsc)
+                                                  ccdqa=ccdqa, maketrends=False)
                 _done(galaxy, err, t0, log=log)
 
 def mpi_args():
