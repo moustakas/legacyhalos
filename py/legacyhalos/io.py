@@ -16,8 +16,90 @@ from astropy.table import Table, hstack
 from astropy.io import fits
 from astrometry.util.fits import fits_table
 
-import legacyhalos.hsc
+#import legacyhalos.hsc
 import legacyhalos.coadds
+
+def missing_files_groups(args, sample, size, htmldir=None):
+    """Simple task-specific wrapper on missing_files.
+
+    """
+    if args.coadds:
+        if args.sdss:
+            suffix = 'sdss-coadds'
+        else:
+            suffix = 'coadds'
+    elif args.custom_coadds:
+        if args.sdss:
+            suffix = 'sdss-custom-coadds'
+        else:
+            suffix = 'custom-coadds'
+    elif args.ellipse:
+        if args.sdss:
+            suffix = 'sdss-ellipse'
+        else:
+            suffix = 'ellipse'
+    elif args.sersic:
+        suffix = 'sersic'
+    elif args.sky:
+        suffix = 'sky'
+    elif args.htmlplots:
+        suffix = 'html'
+    else:
+        suffix = ''        
+
+    if suffix != '':
+        groups = missing_files(sample, filetype=suffix, size=size, sdss=args.sdss,
+                               clobber=args.clobber, htmldir=htmldir)
+    else:
+        groups = []        
+
+    return suffix, groups
+
+def missing_files(sample, filetype='coadds', size=1, htmldir=None,
+                  sdss=False, clobber=False):
+    """Find missing data of a given filetype."""    
+
+    if filetype == 'coadds':
+        filesuffix = '-pipeline-resid-grz.jpg'
+    elif filetype == 'custom-coadds':
+        filesuffix = '-custom-resid-grz.jpg'
+    elif filetype == 'ellipse':
+        filesuffix = '-ellipsefit.p'
+    elif filetype == 'sersic':
+        filesuffix = '-sersic-single.p'
+    elif filetype == 'html':
+        filesuffix = '-ccdpos.png'
+        #filesuffix = '-sersic-exponential-nowavepower.png'
+    elif filetype == 'sdss-coadds':
+        filesuffix = '-sdss-image-gri.jpg'
+    elif filetype == 'sdss-custom-coadds':
+        filesuffix = '-sdss-resid-gri.jpg'
+    elif filetype == 'sdss-ellipse':
+        filesuffix = '-sdss-ellipsefit.p'
+    else:
+        print('Unrecognized file type!')
+        raise ValueError
+
+    ngal = len(sample)
+    indices = np.arange(ngal)
+    todo = np.ones(ngal, dtype=bool)
+
+    if filetype == 'html':
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir, html=True)
+    else:
+        galaxy, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir)
+
+    for ii, (gal, gdir) in enumerate( zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)) ):
+        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+        if os.path.exists(checkfile) and clobber is False:
+            todo[ii] = False
+
+    if np.sum(todo) == 0:
+        return list()
+    else:
+        indices = indices[todo]
+        
+    return np.array_split(indices, size)
 
 def read_all_ccds(dr='dr8'):
     """Read the CCDs files, treating DECaLS and BASS+MzLS separately.

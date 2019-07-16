@@ -402,9 +402,9 @@ def _custom_sky(skyargs):
     #skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
     #skymed = np.median(img[skypix])
     try:
-        skymode = estimate_mode(img[skypix], raiseOnWarn=True)
+        skymode = estimate_mode(img[skypix], raiseOnWarn=True).astype('f4')
     except:
-        skymode = 0.0
+        skymode = np.array(0.0).astype('f4')
 
     # Build the final bit-mask image.
     #   0    = 
@@ -435,15 +435,15 @@ def _custom_sky(skyargs):
     hdr.add_record(dict(name='YCEN', value=y0-1))
 
     customsky = fits_table()
-    customsky.camera = im.camera
-    customsky.expnum = im.expnum
-    customsky.ccdname = im.ccdname
-    customsky.skymode = skymode
-    customsky.skymed = skymed
-    customsky.skymean = skymean
-    customsky.skysig = skysig
-    customsky.xcen = x0 - 1 # 0-indexed
-    customsky.ycen = y0 - 1
+    customsky.camera = [im.camera]
+    customsky.expnum = [im.expnum]
+    customsky.ccdname = [im.ccdname]
+    customsky.skymode = [skymode]
+    customsky.skymed = [skymed]
+    customsky.skymean = [skymean]
+    customsky.skysig = [skysig]
+    customsky.xcen = [x0 - 1] # 0-indexed
+    customsky.ycen = [y0 - 1]
     customsky.to_np_arrays()
 
     out = dict()

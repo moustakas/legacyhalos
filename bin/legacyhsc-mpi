@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""MPI wrapper for the legacyhalos profiles sample.
+"""MPI wrapper for the HSC sample.
 
 """
 import matplotlib
@@ -7,6 +7,18 @@ matplotlib.use('Agg')
 
 import os, time, pdb
 import numpy as np
+
+#import legacyhalos.io
+#import legacyhalos.hsc
+#import legacyhalos.coadds
+#import legacyhalos.html
+#import legacyhalos.integrate
+#import legacyhalos.sdss
+
+#from legacyhalos.misc import RADIUS_CLUSTER_KPC, HSC_RADIUS_CLUSTER_KPC
+#from legacyhalos.mpi import (mpi_args, missing_files_groups, call_pipeline_coadds,
+#                             call_custom_coadds, call_ellipse, call_sersic, call_sky,
+#                             call_htmlplots)
 
 def main():
     """Top-level wrapper.
@@ -16,12 +28,13 @@ def main():
     import legacyhalos.io
     import legacyhalos.mpi
     import legacyhalos.html
+    import legacyhalos.hsc
 
     from legacypipe.survey import LegacySurveyData
-    from legacyhalos.misc import RADIUS_CLUSTER_KPC, ZCOLUMN
+    from legacyhalos.hsc import RADIUS_CLUSTER_KPC, ZCOLUMN
 
-    from legacyhalos.mpi import (call_pipeline_coadds, call_custom_coadds)
-
+    from legacyhalos.mpi import call_pipeline_coadds
+    
     args = legacyhalos.mpi.mpi_args()
 
     if args.mpi:
@@ -34,8 +47,8 @@ def main():
 
     # Read and broadcast the sample.
     if rank == 0:
-        sample = legacyhalos.io.read_profiles_sample(first=args.first, last=args.last,
-                                                     verbose=args.verbose)
+        sample = legacyhalos.hsc.read_parent(first=args.first, last=args.last,
+                                             verbose=args.verbose)
     else:
         sample = None
 
@@ -67,7 +80,7 @@ def main():
     # ranks.
     groups, suffix = [], ''
     if rank == 0:
-        suffix, groups = legacyhalos.io.missing_files_groups(args, sample, size, args.htmldir)
+        suffix, groups = legacyhalos.hsc.missing_files_groups(args, sample, size, args.htmldir)
 
     if comm:
         groups = comm.bcast(groups, root=0)
@@ -89,7 +102,7 @@ def main():
 
     if len(groups[rank]) == 0 or args.count:
         if len(groups[rank]) > 0 and args.debug:
-            galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample[groups], htmldir=args.htmldir)
+            galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(sample[groups], htmldir=args.htmldir)
             for ii, dd in zip(groups[rank], galaxydir):
                 print('  {} {}'.format(ii, dd))
             #[print('  {}'.format(dd)) for dd in np.atleast_1d(galaxydir)]
@@ -101,7 +114,7 @@ def main():
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
-        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, htmldir=args.htmldir)
+        galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(onegal, htmldir=args.htmldir)
         if not os.path.isdir(galaxydir):
             os.makedirs(galaxydir, exist_ok=True)
 
@@ -141,10 +154,13 @@ def main():
             call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
                                 args.pixscale, args.nproc, args.debug, logfile,
                                 args.sdss, args.sdss_pixscale)
-                    
+
+        # Use input ellipse parameters.
         if args.ellipse:
+            input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
-                         nproc=args.nproc, verbose=args.verbose, debug=args.debug, logfile=logfile)
+                         nproc=args.nproc, verbose=args.verbose, debug=args.debug, logfile=logfile,
+                         input_ellipse=input_ellipse)
                         
         if args.sersic:
             call_sersic(onegal, galaxy, galaxydir, args.seed, args.verbose,
@@ -162,7 +178,7 @@ def main():
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups = legacyhalos.io.missing_files_groups(args, sample, size, args.htmldir)
+        _, groups = legacyhalos.hsc.missing_files_groups(args, sample, size, args.htmldir)
         if len(groups) > 0:
             stilltodo = len(np.hstack(np.atleast_1d(groups)))
         else:

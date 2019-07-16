@@ -11,8 +11,8 @@ import os, sys
 import numpy as np
 
 RADIUS_CLUSTER_KPC = 500.0     # default cluster radius
-HSC_RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
 #SURVEY_DIR = '/global/project/projectdirs/cosmo/data/legacysurvey/dr8'
+ZCOLUMN = 'Z_LAMBDA'    
 
 def srcs2image(srcs, wcs, psf_sigma=1.0):
     """Build a model image from a Tractor catalog.
