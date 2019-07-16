@@ -434,6 +434,18 @@ def _custom_sky(skyargs):
     hdr.add_record(dict(name='XCEN', value=x0-1)) # 0-indexed
     hdr.add_record(dict(name='YCEN', value=y0-1))
 
+    customsky = fits_table()
+    customsky.camera = im.camera
+    customsky.expnum = im.expnum
+    customsky.ccdname = im.ccdname
+    customsky.skymode = skymode
+    customsky.skymed = skymed
+    customsky.skymean = skymean
+    customsky.skysig = skysig
+    customsky.xcen = x0 - 1 # 0-indexed
+    customsky.ycen = y0 - 1
+    customsky.to_np_arrays()
+
     out = dict()
     ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
     #ext = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
@@ -441,6 +453,7 @@ def _custom_sky(skyargs):
     out['{}-image'.format(ext)] = img
     out['{}-splinesky'.format(ext)] = splineskytable
     out['{}-header'.format(ext)] = hdr
+    out['{}-customsky'.format(ext)] = customsky
     out['{}-comask'.format(ext)] = comask
     
     return out
@@ -576,11 +589,19 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
             sky['{}-splinesky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
         
-        # Write out separate CCD-level files with the images/data, individual masks
-        # (converted to unsigned integer), and the pipeline/splinesky binary FITS
-        # tables.
-        print('NEED to write out the custom sky values as a FITS table!')
-        pdb.set_trace()
+        skyfile = os.path.join(survey.output_dir, '{}-custom-sky.fits'.format(galaxy))
+        print('Writing {}'.format(skyfile), flush=True, file=log)
+        if os.path.isfile(skyfile):
+            os.remove(skyfile)
+        for ii, ccd in enumerate(survey.ccds):
+            im = survey.get_image_object(ccd)
+            ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
+            sky['{}-customsky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
+        
+        # Write out separate CCD-level files with the images/data and individual
+        # masks (converted to unsigned integer).  These are still pretty big and
+        # I'm not sure we will ever need them.  Keep the code here for legacy
+        # value but don't write out.
         if False:
             ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask-grz.fits.gz'.format(galaxy))
             print('Writing {}'.format(ccdfile), flush=True, file=log)

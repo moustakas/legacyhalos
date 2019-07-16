@@ -14,6 +14,7 @@ from glob import glob
 import fitsio
 from astropy.table import Table, hstack
 from astropy.io import fits
+from astrometry.util.fits import fits_table
 
 import legacyhalos.hsc
 import legacyhalos.coadds

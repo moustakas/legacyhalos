@@ -27,7 +27,7 @@ import legacyhalos.html
 import legacyhalos.integrate
 import legacyhalos.sdss
 
-from legacyhalos.misc import RADIUS_CLUSTER_KPC, HSC_RADIUS_CLUSTER_KPC, SURVEY_DIR
+from legacyhalos.misc import RADIUS_CLUSTER_KPC, HSC_RADIUS_CLUSTER_KPC
 from legacyhalos.mpi import (_missing_files, _call_pipeline_coadds, _call_custom_coadds,
                              _call_ellipse, _call_sersic, _call_sky, _call_htmlplots)
 
@@ -194,7 +194,7 @@ def main():
                 radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
                     redshift=onegal['Z_LAMBDA'], radius_kpc=RADIUS_CLUSTER_KPC) # [arcsec]
 
-            survey = LegacySurveyData(survey_dir=SURVEY_DIR)
+            survey = LegacySurveyData()#survey_dir=SURVEY_DIR)
             survey.output_dir = galaxydir
 
         if args.coadds:
