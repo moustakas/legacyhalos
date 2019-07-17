@@ -132,8 +132,9 @@ def main():
                 #pdb.set_trace()
             else:
                 call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                      kdccds_north, kdccds_south, args.pixscale,
-                                      args.nproc, args.force, args.debug, logfile)
+                                      kdccds_north, kdccds_south, pixscale=args.pixscale,
+                                      nproc=args.nproc, force=args.force, debug=args.debug,
+                                      logfile=logfile)
                     
         if args.custom_coadds or args.htmlplots:
             if not legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile):
@@ -141,8 +142,8 @@ def main():
 
         if args.custom_coadds:
             call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                args.pixscale, args.nproc, args.debug, logfile,
-                                args.sdss, args.sdss_pixscale)
+                                pixscale=args.pixscale, nproc=args.nproc, debug=args.debug,
+                                logfile=logfile, sdss=args.sdss, sdss_pixscale=args.sdss_pixscale)
                     
         if args.ellipse:
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,

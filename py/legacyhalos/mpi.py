@@ -25,21 +25,24 @@ def _done(galaxy, err, t0, log=None):
           galaxy, (time.time() - t0)/60), flush=True, file=log)
 
 def call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
-                          kdccds_south, pixscale, nproc, force, debug, logfile):
+                         kdccds_south, pixscale=0.262, nproc=1, force=False,
+                         debug=False, logfile=None, apodize=False, unwise=True,
+                         no_large_galaxies=False, no_gaia=False, no_tycho=False,
+                         cleanup=True):
     """Wrapper script to build the pipeline coadds.
 
     radius_mosaic in arcsec
 
     """
-    cleanup = True
-
     t0 = time.time()
     if debug:
         _start(galaxy)
         run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
         err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                  survey=survey, pixscale=pixscale, run=run,
-                                                 nproc=nproc, force=force, cleanup=cleanup)
+                                                 nproc=nproc, force=force, cleanup=cleanup,
+                                                 apodize=apodize, unwise=unwise, no_large_galaxies=no_large_galaxies,
+                                                 no_gaia=no_gaia, no_tycho=no_tycho)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -48,21 +51,27 @@ def call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                 run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south, log=log)
                 err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
                                                          survey=survey, pixscale=pixscale, run=run,
-                                                         nproc=nproc, force=force, log=log, cleanup=cleanup)
+                                                         nproc=nproc, force=force, log=log, cleanup=cleanup,
+                                                         apodize=apodize, unwise=unwise,
+                                                         no_large_galaxies=no_large_galaxies,
+                                                         no_gaia=no_gaia, no_tycho=no_tycho)
                 _done(galaxy, err, t0, log=log)
 
-def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
-                        nproc, debug, logfile, sdss, sdss_pixscale):
+def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale=0.262,
+                        nproc=1, debug=False, logfile=None, radius_mask=None,
+                        sdss=False, sdss_pixscale=0.396, write_ccddata=False):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
     if debug:
         _start(galaxy)
         if sdss:
             err = legacyhalos.sdss.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                 survey=survey, pixscale=sdss_pixscale, nproc=nproc)
+                                                 survey=survey, radius_mask=radius_mask, pixscale=sdss_pixscale,
+                                                 nproc=nproc)
         else:
             err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                   survey=survey, pixscale=pixscale, nproc=nproc)
+                                                   survey=survey, radius_mask=radius_mask, pixscale=pixscale,
+                                                   nproc=nproc, write_ccddata=write_ccddata)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -70,12 +79,12 @@ def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale,
                 _start(galaxy, log=log)
                 if sdss:
                     err = legacyhalos.sdss.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                         survey=survey, pixscale=sdss_pixscale,
+                                                         survey=survey, radius_mask=radius_mask, pixscale=sdss_pixscale,
                                                          nproc=nproc, log=log)
                 else:
                     err = legacyhalos.coadds.custom_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                           survey=survey, pixscale=pixscale,
-                                                           nproc=nproc, log=log)
+                                                           survey=survey, radius_mask=radius_mask, pixscale=pixscale,
+                                                           nproc=nproc, log=log, write_ccddata=write_ccddata)
                 _done(galaxy, err, t0, log=log)
                 
 def call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,

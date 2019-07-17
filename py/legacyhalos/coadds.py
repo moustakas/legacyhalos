@@ -461,7 +461,7 @@ def _custom_sky(skyargs):
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,
                   apodize=False, plots=False, verbose=False, cleanup=True,
-                  write_ccddata=True, sky_annulus=True, centrals=True):
+                  write_ccddata=False, sky_annulus=True, centrals=True):
     """Build a custom set of coadds for a single galaxy, with a custom mask and sky
     model.
 
@@ -564,55 +564,54 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     [sky.update(res) for res in result]
     del result
 
+    # Write out the "coadd" mask.
+    cokeys = [key for key in sky.keys() if 'comask' in key]
+    _comask = np.array([sky[cokey] for cokey in cokeys])
+
+    comask = np.bitwise_or.reduce(_comask, axis=0)
+    hdr = fitsio.FITSHDR()
+    brickwcs.add_to_header(hdr)
+    hdr.delete('IMAGEW')
+    hdr.delete('IMAGEH')
+
+    maskfile = os.path.join(survey.output_dir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
+    fitsio.write(maskfile, comask, header=hdr, clobber=True)
+    print('Writing {}'.format(maskfile), flush=True, file=log)
+    del comask
+
+    skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
+    print('Writing {}'.format(skyfile), flush=True, file=log)
+    if os.path.isfile(skyfile):
+        os.remove(skyfile)
+    for ii, ccd in enumerate(survey.ccds):
+        im = survey.get_image_object(ccd)
+        ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
+        sky['{}-splinesky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
+
+    skyfile = os.path.join(survey.output_dir, '{}-custom-sky.fits'.format(galaxy))
+    print('Writing {}'.format(skyfile), flush=True, file=log)
+    if os.path.isfile(skyfile):
+        os.remove(skyfile)
+    for ii, ccd in enumerate(survey.ccds):
+        im = survey.get_image_object(ccd)
+        ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
+        sky['{}-customsky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
+        
+    # Optionally write out separate CCD-level files with the images/data and
+    # individual masks (converted to unsigned integer).  These are still pretty
+    # big and I'm not sure we will ever need them.  Keep the code here for
+    # legacy value but don't write out.
     if write_ccddata:
-        # Write out the "coadd" mask.
-        cokeys = [key for key in sky.keys() if 'comask' in key]
-        _comask = np.array([sky[cokey] for cokey in cokeys])
-
-        comask = np.bitwise_or.reduce(_comask, axis=0)
-        hdr = fitsio.FITSHDR()
-        brickwcs.add_to_header(hdr)
-        hdr.delete('IMAGEW')
-        hdr.delete('IMAGEH')
-
-        maskfile = os.path.join(survey.output_dir, '{}-custom-mask-grz.fits.gz'.format(galaxy))
-        fitsio.write(maskfile, comask, header=hdr, clobber=True)
-        print('Writing {}'.format(maskfile), flush=True, file=log)
-        del comask
-
-        skyfile = os.path.join(survey.output_dir, '{}-pipeline-sky.fits'.format(galaxy))
-        print('Writing {}'.format(skyfile), flush=True, file=log)
-        if os.path.isfile(skyfile):
-            os.remove(skyfile)
-        for ii, ccd in enumerate(survey.ccds):
-            im = survey.get_image_object(ccd)
-            ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
-            sky['{}-splinesky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
-        
-        skyfile = os.path.join(survey.output_dir, '{}-custom-sky.fits'.format(galaxy))
-        print('Writing {}'.format(skyfile), flush=True, file=log)
-        if os.path.isfile(skyfile):
-            os.remove(skyfile)
-        for ii, ccd in enumerate(survey.ccds):
-            im = survey.get_image_object(ccd)
-            ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
-            sky['{}-customsky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
-        
-        # Write out separate CCD-level files with the images/data and individual
-        # masks (converted to unsigned integer).  These are still pretty big and
-        # I'm not sure we will ever need them.  Keep the code here for legacy
-        # value but don't write out.
-        if False:
-            ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask-grz.fits.gz'.format(galaxy))
-            print('Writing {}'.format(ccdfile), flush=True, file=log)
-            if os.path.isfile(ccdfile):
-                os.remove(ccdfile)
-            with fitsio.FITS(ccdfile, 'rw') as ff:
-                for ii, ccd in enumerate(survey.ccds):
-                    im = survey.get_image_object(ccd)
-                    ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
-                    hdr = sky['{}-header'.format(ext)]
-                    ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
+        ccdfile = os.path.join(survey.output_dir, '{}-custom-ccdmask-grz.fits.gz'.format(galaxy))
+        print('Writing {}'.format(ccdfile), flush=True, file=log)
+        if os.path.isfile(ccdfile):
+            os.remove(ccdfile)
+        with fitsio.FITS(ccdfile, 'rw') as ff:
+            for ii, ccd in enumerate(survey.ccds):
+                im = survey.get_image_object(ccd)
+                ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
+                hdr = sky['{}-header'.format(ext)]
+                ff.write(sky['{}-mask'.format(ext)], extname=ext, header=hdr)
 
         # These are the actual images, which results in a giant file.  Keeping
         # the code here for legacy purposes but I'm not sure we should ever
