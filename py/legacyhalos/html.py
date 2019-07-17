@@ -64,6 +64,8 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
               radius=None, survey=None, clobber=False, verbose=True):
     """Build CCD positions QA.
 
+    radius in pixels
+
     """
     from astrometry.util.fits import fits_table
     from legacyhalos.qa import display_ccdpos

@@ -306,7 +306,8 @@ def _custom_sky(skyargs):
     from legacypipe.reference import get_reference_sources
     from legacypipe.oneblob import get_inblob_map
 
-    survey, brickname, brickwcs, onegal, radius_mask_arcsec, apodize, sky_annulus, ccd = skyargs
+    (survey, brickname, brickwcs, onegal, radius_mask_arcsec,
+     apodize, sky_annulus, ccd, log) = skyargs
 
     im = survey.get_image_object(ccd)
     hdr = im.read_image_header()
@@ -315,7 +316,7 @@ def _custom_sky(skyargs):
 
     print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
           'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
-          'object', getattr(ccd, 'object', None))
+          'object', getattr(ccd, 'object', None), file=log)
 
     radius_mask = np.round(radius_mask_arcsec / im.pixscale).astype('int') # [pixels]
     
@@ -339,7 +340,7 @@ def _custom_sky(skyargs):
     T = fits_table(im.merged_splineskyfn)
     I, = np.nonzero((T.expnum == im.expnum) * np.array([c.strip() == im.ccdname for c in T.ccdname]))
     if len(I) != 1:
-        print('Multiple splinesky models!')
+        print('Multiple splinesky models!', file=log)
         return 0
     splineskytable = T[I]
 
@@ -364,6 +365,9 @@ def _custom_sky(skyargs):
         inmask = (xmask**2 + ymask**2) <= 2*radius_mask**2
         outmask = (xmask**2 + ymask**2) <= 5*radius_mask**2
         skymask = (outmask*1 - inmask*1 - galmask*1) == 1
+        # There can be no sky pixels if the CCD is on the periphery.
+        if np.sum(skymask) == 0:
+            skymask = np.ones_like(img).astype(bool)
     else:
         skymask = np.ones_like(img).astype(bool)
 
@@ -392,18 +396,23 @@ def _custom_sky(skyargs):
     objmask = binary_dilation(objmask, iterations=3)
 
     skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
+    # This can happen when CCDs get blown away by bright stars
+    if np.sum(skypix) == 0:
+        skypix = ( (ivarmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
 
     #print('ahack!!', im.expnum, im.ccdname)
     #if im.expnum == 625736 and im.ccdname == 'S22':
     try:
         skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
     except:
+        print('Warning: sky statistic estimates failed!', file=log)
         skymean, skymed, skysig = 0.0, 0.0, 0.0
     #skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
     #skymed = np.median(img[skypix])
     try:
         skymode = estimate_mode(img[skypix], raiseOnWarn=True).astype('f4')
     except:
+        print('Warning: sky mode estimation failed!', file=log)
         skymode = np.array(0.0).astype('f4')
 
     # Build the final bit-mask image.
@@ -461,7 +470,8 @@ def _custom_sky(skyargs):
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,
                   apodize=False, plots=False, verbose=False, cleanup=True,
-                  write_ccddata=False, sky_annulus=True, centrals=True):
+                  write_ccddata=False, sky_annulus=True, centrals=True,
+                  doforced_phot=True):
     """Build a custom set of coadds for a single galaxy, with a custom mask and sky
     model.
 
@@ -556,7 +566,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
-    skyargs = [(survey, brickname, brickwcs, onegal, radius_mask, apodize, sky_annulus, _ccd)
+    skyargs = [(survey, brickname, brickwcs, onegal, radius_mask, apodize, sky_annulus, _ccd, log)
                for _ccd in survey.ccds]
     result = mp.map(_custom_sky, skyargs)
     #result = list( zip( *mp.map(_custom_sky, args) ) )
@@ -664,26 +674,29 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     pipeline_srcs = read_fits_catalog(pipeline_cat, fluxPrefix='')
     custom_srcs = [src.copy() for src in pipeline_srcs]
 
-    print('Performing forced photometry on the custom sky-subtracted CCDs.', flush=True, file=log)
-    forcedflx = mp.map(_forced_phot, [(custom_tims, custom_srcs, band) for band in bands])
-    if False:
-        forcedflx = []
-        for band in bands:
-            t0 = time.time()
-            forcedflx.append(forced_phot(custom_tims, custom_srcs, band))
-            print('  band {} took {:.3f} sec'.format(band, time.time()-t0), flush=True, file=log)
-
-    # Populate the new custom catalog and write out.
     custom_cat = pipeline_cat.copy()
-    for band, flux, ivar in forcedflx:
-        custom_cat.set('flux_{}'.format(band), flux.astype('f4'))
-        custom_cat.set('flux_ivar_{}'.format(band), ivar.astype('f4'))
+    if doforced_phot:
+        t0 = time.time()
+        print('Performing forced photometry on the custom sky-subtracted CCDs.', flush=True, file=log)
+        forcedflx = mp.map(_forced_phot, [(custom_tims, custom_srcs, band) for band in bands])
+        #forcedflx = []
+        #for band in bands:
+        #    forcedflx.append(forced_phot(custom_tims, custom_srcs, band))
+        print('  Total time for forced photometry = {:.3f} min'.format(time.time()-t0), flush=True, file=log)
+
+        # Populate the new custom catalog and write out.
+        for band, flux, ivar in forcedflx:
+            custom_cat.set('flux_{}'.format(band), flux.astype('f4'))
+            custom_cat.set('flux_ivar_{}'.format(band), ivar.astype('f4'))
+
+        tractorfile = os.path.join(survey.output_dir, '{}-custom-tractor.fits'.format(galaxy))
+        if os.path.isfile(tractorfile):
+            os.remove(tractorfile)
+        custom_cat.writeto(tractorfile)
+        print('Wrote {} sources to {}'.format(len(custom_cat), tractorfile), flush=True, file=log)
         
-    tractorfile = os.path.join(survey.output_dir, '{}-custom-tractor.fits'.format(galaxy))
-    if os.path.isfile(tractorfile):
-        os.remove(tractorfile)
-    custom_cat.writeto(tractorfile)
-    print('Wrote {} sources to {}'.format(len(custom_cat), tractorfile), flush=True, file=log)
+    else:
+        print('Skipping forced photometry on the custom sky-subtracted CCDs.', flush=True, file=log)
         
     custom_srcs = read_fits_catalog(custom_cat, fluxPrefix='')
 
