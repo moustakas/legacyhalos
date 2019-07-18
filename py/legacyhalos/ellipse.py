@@ -18,7 +18,6 @@ import astropy.modeling
 
 import legacyhalos.io
 import legacyhalos.misc
-import legacyhalos.hsc
 
 from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                 Isophote, IsophoteList)
@@ -785,7 +784,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         maxsma=None, integrmode='median', nclip=2, sclip=3, zcolumn='Z',
                         galex_pixscale=1.5, unwise_pixscale=2.75,
                         input_ellipse=None, fitgeometry=False, verbose=False,
-                        debug=False, hsc=False, sdss=False, galex=False, unwise=False):
+                        debug=False, sdss=False, galex=False, unwise=False):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
     fitgeometry - fit for the ellipse parameters (do not use the mean values
@@ -795,10 +794,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
     """
     if galaxydir is None or galaxy is None:
-        if hsc:
-            galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(onegal)
-        else:
-            galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
+        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
 
     # Do ellipse-fitting on the custom images.
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,

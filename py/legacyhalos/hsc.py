@@ -15,6 +15,135 @@ import astropy.table
 
 import legacyhalos.html
 
+RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
+ZCOLUMN = 'Z_BEST'
+
+def mpi_args():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--nproc', default=1, type=int, help='number of multiprocessing processes per MPI rank.')
+    parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
+
+    parser.add_argument('--first', type=int, help='Index of first object to process.')
+    parser.add_argument('--last', type=int, help='Index of last object to process.')
+    parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
+
+    parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
+    parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
+    parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
+    parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
+    parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
+    parser.add_argument('--sky', action='store_true', help='Estimate the sky variance.')
+    parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
+    parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
+
+    parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
+    
+    parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
+    
+    parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
+    parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
+    parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
+    parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
+
+    parser.add_argument('--debug', action='store_true', help='Log to STDOUT and build debugging plots.')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
+    args = parser.parse_args()
+
+    return args
+
+def get_integrated_filename():
+    """Return the name of the file containing the integrated photometry."""
+    integratedfile = os.path.join(hsc_dir(), 'integrated-flux.fits')
+    return integratedfile
+
+def missing_files_groups(args, sample, size, htmldir=None):
+    """Simple task-specific wrapper on missing_files.
+
+    """
+    if args.coadds:
+        if args.sdss:
+            suffix = 'sdss-coadds'
+        else:
+            suffix = 'coadds'
+    elif args.custom_coadds:
+        if args.sdss:
+            suffix = 'sdss-custom-coadds'
+        else:
+            suffix = 'custom-coadds'
+    elif args.ellipse:
+        if args.sdss:
+            suffix = 'sdss-ellipse'
+        else:
+            suffix = 'ellipse'
+    elif args.sersic:
+        suffix = 'sersic'
+    elif args.sky:
+        suffix = 'sky'
+    elif args.htmlplots:
+        suffix = 'html'
+    else:
+        suffix = ''        
+
+    if suffix != '':
+        groups = missing_files(sample, filetype=suffix, size=size,
+                               clobber=args.clobber, htmldir=htmldir)
+    else:
+        groups = []        
+
+    return suffix, groups
+
+def missing_files(sample, filetype='coadds', size=1, htmldir=None,
+                  clobber=False):
+    """Find missing data of a given filetype."""    
+
+    if filetype == 'coadds':
+        filesuffix = '-pipeline-resid-grz.jpg'
+    elif filetype == 'custom-coadds':
+        filesuffix = '-custom-resid-grz.jpg'
+    elif filetype == 'ellipse':
+        filesuffix = '-ellipsefit.p'
+    elif filetype == 'sersic':
+        filesuffix = '-sersic-single.p'
+    elif filetype == 'html':
+        filesuffix = '-ccdpos.png'
+        #filesuffix = '-sersic-exponential-nowavepower.png'
+    elif filetype == 'sdss-coadds':
+        filesuffix = '-sdss-image-gri.jpg'
+    elif filetype == 'sdss-custom-coadds':
+        filesuffix = '-sdss-resid-gri.jpg'
+    elif filetype == 'sdss-ellipse':
+        filesuffix = '-sdss-ellipsefit.p'
+    else:
+        print('Unrecognized file type!')
+        raise ValueError
+
+    if type(sample) is astropy.table.row.Row:
+        ngal = 1
+    else:
+        ngal = len(sample)
+    indices = np.arange(ngal)
+    todo = np.ones(ngal, dtype=bool)
+
+    if filetype == 'html':
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir, html=True)
+    else:
+        galaxy, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir)
+
+    for ii, (gal, gdir) in enumerate( zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)) ):
+        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+        if os.path.exists(checkfile) and clobber is False:
+            todo[ii] = False
+
+    if np.sum(todo) == 0:
+        return list()
+    else:
+        indices = indices[todo]
+        
+    return np.array_split(indices, size)
+
 def hsc_dir():
     if 'HSC_DIR' not in os.environ:
         print('Required ${HSC_DIR environment variable not set.')
@@ -166,7 +295,7 @@ def read_parent(first=None, last=None, verbose=False):
             
     return sample
 
-def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
+def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
               first=None, last=None, nproc=1, survey=None, makeplots=True,
               clobber=False, verbose=True, maketrends=False, ccdqa=False):
@@ -181,10 +310,8 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     from legacyhalos.misc import cutout_radius_kpc
     from legacyhalos.misc import HSC_RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
-    if datadir is None:
-        datadir = hsc_data_dir()
-    if htmldir is None:
-        htmldir = hsc_html_dir()
+    datadir = hsc_data_dir()
+    htmldir = hsc_html_dir()
 
     if sample is None:
         sample = read_parent(first=first, last=last)
@@ -612,9 +739,9 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Make the plots.
     if makeplots:
         err = legacyhalos.html.make_plots(sample, datadir=datadir, htmldir=htmldir, refband=refband,
-                                          band=band, pixscale=pixscale, survey=survey, clobber=clobber,
+                                          bands=bands, pixscale=pixscale, survey=survey, clobber=clobber,
                                           verbose=verbose, nproc=nproc, ccdqa=ccdqa, maketrends=maketrends,
-                                          zcolumn=zcolumn, hsc=True)
+                                          zcolumn=zcolumn)
 
     cmd = 'chgrp -R cosmo {}'.format(htmldir)
     print(cmd)
@@ -633,3 +760,4 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
         return 0
     
     return 1
+

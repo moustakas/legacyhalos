@@ -64,6 +64,8 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
               radius=None, survey=None, clobber=False, verbose=True):
     """Build CCD positions QA.
 
+    radius in pixels
+
     """
     from astrometry.util.fits import fits_table
     from legacyhalos.qa import display_ccdpos
@@ -230,7 +232,7 @@ def qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', bands=('g', 'r
             display_mge_sbprofile(mgefit, band=band, refband=refband, pixscale=pixscale,
                                   png=sbprofilefile, verbose=verbose)
         
-def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
+def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                       clobber=False, verbose=True):
     """Generate QAplots from the Sersic modeling.
 
@@ -282,8 +284,7 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, band=('g', 'r', 'z'),
 
 def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
-               nproc=1, maketrends=False, ccdqa=False, clobber=False, verbose=True,
-               hsc=False):
+               nproc=1, maketrends=False, ccdqa=False, clobber=False, verbose=True):
     """Make QA plots.
 
     """
@@ -404,7 +405,7 @@ def _javastring():
 
     return js
         
-def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
+def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
               first=None, last=None, nproc=1, survey=None, makeplots=True,
               clobber=False, verbose=True, maketrends=False, ccdqa=False):
@@ -426,6 +427,9 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     if type(sample) is astropy.table.row.Row:
         sample = astropy.table.Table(sample)
 
+    if zcolumn is None:
+        zcolumn = ZCOLUMN
+        
     galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
 
     # Write the last-updated date to a webpage.
@@ -700,7 +704,7 @@ def make_html(sample=None, datadir=None, htmldir=None, band=('g', 'r', 'z'),
     # Make the plots.
     if makeplots:
         err = make_plots(sample, datadir=datadir, htmldir=htmldir, refband=refband,
-                         band=band, pixscale=pixscale, zcolumn=zcolumn, survey=survey,
+                         bands=bands, pixscale=pixscale, zcolumn=zcolumn, survey=survey,
                          clobber=clobber, verbose=verbose, nproc=nproc, ccdqa=ccdqa,
                          maketrends=maketrends)
 

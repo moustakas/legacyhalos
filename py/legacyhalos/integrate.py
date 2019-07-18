@@ -176,22 +176,31 @@ def integrate_one(galaxy, galaxydir, phot=None, minerr=0.01, snrmin=1,
             
     return phot
 
-def legacyhalos_integrate(sample, first=None, last=None, nproc=1,
-                          minerr=0.01, snrmin=1, nrad_uniform=30, hsc=False,
-                          verbose=False, clobber=False):
+def legacyhalos_integrate(sample, galaxy=None, galaxydir=None, nproc=1,
+                          minerr=0.01, snrmin=1, nrad_uniform=30,
+                          columns=None, verbose=False, clobber=False):
     """Wrapper script to integrate the profiles for the full sample.
+
+    columns - columns to include in the output table
 
     """
     ngal = len(sample)
 
     phot = _init_phot(ngal=ngal, nrad_uniform=nrad_uniform)
-    if hsc:
-        galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(sample)
-        cols = ['ID_S16A', 'RA', 'DEC', 'Z_BEST']
-    else:
+
+    if columns is None:
+        columns = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z_LAMBDA', 'LAMBDA_CHISQ', 'ID_CENT',
+                   'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
+
+    if galaxy is None and galaxydir is None:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(sample)
-        cols = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z_LAMBDA', 'LAMBDA_CHISQ', 'ID_CENT',
-                'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
+    
+    #if hsc:
+    #    galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(sample)
+    #    columns = ['ID_S16A', 'RA', 'DEC', 'Z_BEST']
+    #else:
+    #    columns = ['MEM_MATCH_ID', 'RA', 'DEC', 'Z_LAMBDA', 'LAMBDA_CHISQ', 'ID_CENT',
+    #               'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z']
             
     integratedfile = legacyhalos.io.get_integrated_filename(hsc=hsc)
     if os.path.exists(integratedfile) and clobber is False:
@@ -214,7 +223,7 @@ def legacyhalos_integrate(sample, first=None, last=None, nproc=1,
             out.append(_integrate_one(_args))
     results = vstack(out)
     
-    out = hstack((sample[cols], results))
+    out = hstack((sample[columns], results))
     if verbose:
         print('Writing {}'.format(integratedfile))
     out.write(integratedfile, overwrite=True)
