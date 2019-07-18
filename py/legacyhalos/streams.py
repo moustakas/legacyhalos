@@ -65,7 +65,10 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         print('Unrecognized file type!')
         raise ValueError
 
-    ngal = len(sample)
+    if type(sample) is astropy.table.row.Row:
+        ngal = 1
+    else:
+        ngal = len(sample)
     indices = np.arange(ngal)
     todo = np.ones(ngal, dtype=bool)
 

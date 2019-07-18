@@ -306,8 +306,8 @@ def _custom_sky(skyargs):
     from legacypipe.reference import get_reference_sources
     from legacypipe.oneblob import get_inblob_map
 
-    (survey, brickname, brickwcs, onegal, radius_mask_arcsec,
-     apodize, sky_annulus, ccd, log) = skyargs
+    log = None
+    survey, brickname, brickwcs, onegal, radius_mask_arcsec, apodize, sky_annulus, ccd = skyargs
 
     im = survey.get_image_object(ccd)
     hdr = im.read_image_header()
@@ -396,24 +396,33 @@ def _custom_sky(skyargs):
     objmask = binary_dilation(objmask, iterations=3)
 
     skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
-    # This can happen when CCDs get blown away by bright stars
+    # If there are no sky pixels then use the statistics from the pipeline sky
+    # map.  For example, the algorithm here can fail in and around bright stars.
     if np.sum(skypix) == 0:
+        print('No viable sky pixels; using pipeline sky statistics!', file=log)
+        pipesky = np.zeros_like(img)
+        tim.sky.addTo(pipesky)
+        skymean, skymed, skysig = sigma_clipped_stats(pipesky, mask=~skymask, sigma=3.0)
+        try:
+            skymode = estimate_mode(pipesky[skymask], raiseOnWarn=True).astype('f4')
+        except:
+            print('Warning: sky mode estimation failed!', file=log)
+            skymode = np.array(0.0).astype('f4')
+    else:
         skypix = ( (ivarmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
 
-    #print('ahack!!', im.expnum, im.ccdname)
-    #if im.expnum == 625736 and im.ccdname == 'S22':
-    try:
-        skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
-    except:
-        print('Warning: sky statistic estimates failed!', file=log)
-        skymean, skymed, skysig = 0.0, 0.0, 0.0
-    #skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
-    #skymed = np.median(img[skypix])
-    try:
-        skymode = estimate_mode(img[skypix], raiseOnWarn=True).astype('f4')
-    except:
-        print('Warning: sky mode estimation failed!', file=log)
-        skymode = np.array(0.0).astype('f4')
+        try:
+            skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
+        except:
+            print('Warning: sky statistic estimates failed!', file=log)
+            skymean, skymed, skysig = 0.0, 0.0, 0.0
+        #skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
+        #skymed = np.median(img[skypix])
+        try:
+            skymode = estimate_mode(img[skypix], raiseOnWarn=True).astype('f4')
+        except:
+            print('Warning: sky mode estimation failed!', file=log)
+            skymode = np.array(0.0).astype('f4')
 
     # Build the final bit-mask image.
     #   0    = 
@@ -566,7 +575,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     # [2] Derive the custom mask and sky background for each (full) CCD and
     # write out a MEF -custom-mask.fits.gz file.
-    skyargs = [(survey, brickname, brickwcs, onegal, radius_mask, apodize, sky_annulus, _ccd, log)
+    skyargs = [(survey, brickname, brickwcs, onegal, radius_mask, apodize, sky_annulus, _ccd)
                for _ccd in survey.ccds]
     result = mp.map(_custom_sky, skyargs)
     #result = list( zip( *mp.map(_custom_sky, args) ) )

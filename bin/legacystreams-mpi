@@ -69,7 +69,7 @@ def main():
 
     if len(groups[rank]) == 0 or args.count:
         if len(groups[rank]) > 0 and args.debug:
-            galaxy, galaxydir = legacyhalos.streams.get_galaxy_galaxydir(sample[groups])
+            galaxy, galaxydir = legacyhalos.streams.get_galaxy_galaxydir(sample[tuple(groups)])
             for ii, dd in zip(groups[rank], galaxydir):
                 print('  {} {}'.format(ii, dd))
             #[print('  {}'.format(dd)) for dd in np.atleast_1d(galaxydir)]
@@ -115,15 +115,16 @@ def main():
             continue
 
         if args.custom_coadds:
-            from legacyhalos.html import qa_ccdpos
-            qa_ccdpos(onegal, galaxy, galaxydir, galaxydir, pixscale=args.pixscale,
-                      radius=radius_mosaic_arcsec/args.pixscale, survey=survey,
-                      clobber=args.clobber, verbose=args.verbose)
-            call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                pixscale=args.pixscale, nproc=args.nproc,
-                                debug=args.debug, logfile=logfile,
-                                radius_mask=radius_mask_arcsec, write_ccddata=True,
-                                doforced_phot=False)
+            if len(legacyhalos.streams.missing_files(onegal, filetype='coadds')) == 0:
+                from legacyhalos.html import qa_ccdpos
+                qa_ccdpos(onegal, galaxy, galaxydir, galaxydir, pixscale=args.pixscale,
+                          radius=radius_mosaic_arcsec/args.pixscale, survey=survey,
+                          clobber=args.clobber, verbose=args.verbose)
+                call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
+                                    pixscale=args.pixscale, nproc=args.nproc,
+                                    debug=args.debug, logfile=logfile,
+                                    radius_mask=radius_mask_arcsec, write_ccddata=True,
+                                    doforced_phot=False, apodize=True)
 
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(

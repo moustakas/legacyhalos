@@ -14,7 +14,7 @@ from glob import glob
 import fitsio
 from astropy.table import Table, hstack
 from astropy.io import fits
-from astrometry.util.fits import fits_table
+from astrometry.util.fits import fits_table, merge_tables
 
 #import legacyhalos.hsc
 import legacyhalos.coadds
@@ -80,7 +80,10 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         print('Unrecognized file type!')
         raise ValueError
 
-    ngal = len(sample)
+    if type(sample) is astropy.table.row.Row:
+        ngal = 1
+    else:
+        ngal = len(sample)
     indices = np.arange(ngal)
     todo = np.ones(ngal, dtype=bool)
 
