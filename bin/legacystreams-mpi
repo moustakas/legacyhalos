@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """MPI wrapper for the tidal streams project.
 
+funpack -Z -F -v streams/*/*custom*.fz
+funpack -Z -F -v streams/*/*pipeline*.fz
+funpack -Z -F -v streams/*/*invvar*.fz
+
 """
 import matplotlib
 matplotlib.use('Agg')
@@ -72,7 +76,6 @@ def main():
             galaxy, galaxydir = legacyhalos.streams.get_galaxy_galaxydir(sample[tuple(groups)])
             for ii, dd in zip(groups[rank], galaxydir):
                 print('  {} {}'.format(ii, dd))
-            #[print('  {}'.format(dd)) for dd in np.atleast_1d(galaxydir)]
         return
 
     # Loop on the remaining objects.

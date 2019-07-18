@@ -105,10 +105,9 @@ def main():
 
     if len(groups[rank]) == 0 or args.count:
         if len(groups[rank]) > 0 and args.debug:
-            galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(sample[groups], htmldir=args.htmldir)
+            galaxy, galaxydir = legacyhalos.hsc.get_galaxy_galaxydir(sample[tuple(groups)], htmldir=args.htmldir)
             for ii, dd in zip(groups[rank], galaxydir):
                 print('  {} {}'.format(ii, dd))
-            #[print('  {}'.format(dd)) for dd in np.atleast_1d(galaxydir)]
         return
 
     # Loop on the remaining objects.
