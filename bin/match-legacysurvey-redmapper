@@ -54,6 +54,7 @@ def main():
             try:
                 print('Reading {}'.format(path))
                 objects = fitsio.read(path, 1, upper=True)
+                #objects = objects[objects['FLUX_R'] > 10**(-0.4*(24-22.5))]
             except:
                 if ns.ignore_errors:
                     print ("IO Error on %s" %path)
