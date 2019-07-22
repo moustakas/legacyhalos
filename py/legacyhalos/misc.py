@@ -374,6 +374,42 @@ def pix2radec(nside, pix):
     
     return ra, dec
     
+def pixarea2nside(area):
+    """Closest HEALPix nside for a given area.
+
+    Parameters
+    ----------
+    area : :class:`float`
+        area in square degrees.
+
+    Returns
+    -------
+    :class:`int`
+        HEALPix nside that corresponds to passed area.
+
+    Notes
+    -----
+        - Only considers 2**x nside values (1, 2, 4, 8 etc.)
+
+    """
+    import healpy as hp
+    
+    # ADM loop through nsides until we cross the passed area.
+    nside = 1
+    while (hp.nside2pixarea(nside, degrees=True) > area):
+        nside *= 2
+
+    # ADM there is no nside of 0 so bail if nside is still 1.
+    if nside > 1:
+        # ADM is the nside with the area that is smaller or larger
+        # ADM than the passed area "closest" to the passed area?
+        smaller = hp.nside2pixarea(nside, degrees=True)
+        larger = hp.nside2pixarea(nside//2, degrees=True)
+        if larger/area < area/smaller:
+            return nside//2
+
+    return nside
+
 def get_lambdabins(verbose=False):
     """Fixed bins of richness.
     
