@@ -101,7 +101,7 @@ References
 
 .. _`SDSS/CasJobs`: http://skyserver.sdss.org/CasJobs
 
-.. _`redmapper-sdssWISEphot.ipynb`: https://https://nbviewer.jupyter.org/github/moustakas/legacyhalos/blob/master/doc/redmapper-sdssWISEphot.ipynb
+.. _`redmapper-sdssWISEphot.ipynb`: https://nbviewer.jupyter.org/github/moustakas/legacyhalos/blob/master/doc/redmapper-sdssWISEphot.ipynb
 
 .. _`match-legacysurvey-redmapper.slurm`: https://github.com/moustakas/legacyhalos/blob/master/bin/match-legacysurvey-redmapper.slurm
 
