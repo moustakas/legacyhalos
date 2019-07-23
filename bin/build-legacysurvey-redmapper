@@ -9,6 +9,8 @@ from time import time
 from glob import iglob, glob
 import fitsio
 
+from astropy.wcs import WCS
+import legacyhalos.io
 from legacyhalos.desiutil import brickname as get_brickname_from_radec
 
 import multiprocessing
@@ -50,7 +52,7 @@ def release_to_photsys(release):
     unknown = set(release) - set(releasenums)
     if bool(unknown):
         msg = 'Unknown release number {}'.format(unknown)
-        log.critical(msg)
+        print(msg)
         raise ValueError(msg)
 
     # ADM an array with indices running from 0 to the maximum release number + 1.
@@ -109,7 +111,7 @@ def is_in_gal_box(objs, lbbox, radec=False):
     # ADM check for some common mistakes.
     if bmin < -90. or bmax > 90. or bmax <= bmin or lmax <= lmin:
         msg = "Strange input: [lmin, lmax, bmin, bmax] = {}".format(lbbox)
-        log.critical(msg)
+        print(msg)
         raise ValueError(msg)
 
     # ADM convert input RA/Dec to Galactic coordinates.
@@ -244,15 +246,16 @@ def quantities_at_positions_in_a_brick(ras, decs, brickname, drdir, aprad=0.75):
         - First version copied shamelessly from Anand Raichoor.
 
     """
-    import photutils
-    import astropy.io.fits as fits
-    from astropy.wcs import WCS
+    #t0 = time()
+    #import photutils
+    #import astropy.io.fits as fits
+    #from astrometry.util.util import Tan
 
     # ADM guard against too low a density of random locations.
     npts = len(ras)
     if npts == 0:
         msg = 'brick {} is empty. Increase the density of random points!'.format(brickname)
-        log.critical(msg)
+        print(msg)
         raise ValueError(msg)
 
     # ADM determine whether the coadd files have extension .gz or .fz based on the DR directory.
@@ -284,47 +287,32 @@ def quantities_at_positions_in_a_brick(ras, decs, brickname, drdir, aprad=0.75):
             fn = fileform.format(brickname, qin, filt, extn)
             # ADM only process the WCS if there's a file for this filter.
             if os.path.exists(fn):
-                img, header = fitsio.read(fn, header=True)
+                img = fitsio.read(fn, ext=extn_nb)
                 #img = fits.open(fn)[extn_nb]
                 if not iswcs:
+                    header = fitsio.read_header(fn, ext=extn_nb)
                     # ADM store the instrument name, if it isn't stored.
                     instrum = header["INSTRUME"].lower().strip()
                     #instrum = img.header["INSTRUME"].lower().strip()
+                    #wcs = Tan(header['CRVAL1'], header['CRVAL2'], header['CRPIX1'], header['CRPIX2'],
+                    #          header['CD1_1'], header['CD1_2'], header['CD2_1'], header['CD2_2'],
+                    #          header['NAXIS1'], header['NAXIS2'])
                     w = WCS(header)
                     #w = WCS(img.header)
                     x, y = w.all_world2pix(ras, decs, 0)
+                    #_, x, y = wcs.radec2pixelxy(ras, decs)
+                    #x -= 1
+                    #y -= 1
                     iswcs = True
                 # ADM get the quantity of interest at each location and
                 # ADM store in a dictionary with the filter and quantity.
-                if qout == 'apflux':
-                    # ADM special treatment to photometer sky.
-                    # ADM Read in the ivar image.
-                    fnivar = fileform.format(brickname, 'invvar', filt, extn)
-                    ivar = fits.open(fnivar)[extn_nb].data
-                    with np.errstate(divide='ignore', invalid='ignore'):
-                        # ADM ivars->errors, guard against 1/0.
-                        imsigma = 1./np.sqrt(ivar)
-                        imsigma[ivar == 0] = 0
-                    # ADM aperture photometry at requested radius (aprad).
-                    apxy = np.vstack((x, y)).T
-                    aper = photutils.CircularAperture(apxy, aprad)
-                    p = photutils.aperture_photometry(img.data, aper, error=imsigma)
-                    # ADM store the results.
-                    qdict[qout+'_'+filt] = np.array(p.field('aperture_sum'))
-                    err = p.field('aperture_sum_err')
-                    with np.errstate(divide='ignore', invalid='ignore'):
-                        # ADM errors->ivars, guard against 1/0.
-                        ivar = 1./err**2.
-                        ivar[err == 0] = 0.
-                    qdict[qout+'_ivar_'+filt] = np.array(ivar)
-                else:
-                    qdict[qout+'_'+filt] = img[y.astype("int"), x.astype("int")]
-                    #qdict[qout+'_'+filt] = img.data[y.astype("int"), x.astype("int")]
+                qdict[qout+'_'+filt] = img[y.astype("int"), x.astype("int")]
+                #qdict[qout+'_'+filt] = img.data[y.astype("int"), x.astype("int")]
             # ADM if the file doesn't exist, set quantities to zero.
             else:
-                if qout == 'apflux':
-                    qdict['apflux_ivar_'+filt] = np.zeros(npts, dtype=qform)
                 qdict[qout+'_'+filt] = np.zeros(npts, dtype=qform)
+        #print('Band {} {:.3f}'.format(filt, time()-t0))
+    #print('All bands {:.3f}'.format(time()-t0))
 
     # ADM add the MASKBITS and WISEMASK information.
     fn = os.path.join(rootdir, 'legacysurvey-{}-maskbits.fits.{}'.format(brickname, extn))
@@ -335,11 +323,12 @@ def quantities_at_positions_in_a_brick(ras, decs, brickname, drdir, aprad=0.75):
     #             ['>i2', '|u1', '|u1'])
     for mextn, mout, mform in mnames:
         if os.path.exists(fn):
-            img, header = fitsio.read(fn, header=True, ext=mextn)
+            img = fitsio.read(fn, ext=mextn)
             #img = fits.open(fn)[mextn]
             #img = fits.open(fn)[mextn]
             # ADM use the WCS for the per-filter quantities if it exists.
             if not iswcs:
+                header = fitsio.read_header(fn, ext=mextn)
                 # ADM store the instrument name, if it isn't yet stored.
                 instrum = header["INSTRUME"].lower().strip()
                 w = WCS(header)
@@ -368,6 +357,9 @@ def quantities_at_positions_in_a_brick(ras, decs, brickname, drdir, aprad=0.75):
 #    log.info('Recorded quantities for each point in brick {}...t = {:.1f}s'
 #                  .format(brickname,time()-start))
 
+    #print('Time for one brick {:.3f}'.format(time()-t0))
+    #pdb.set_trace()
+    
     ## ADM calculate and add WISE depths. The WCS is different for WISE.
     #iswcs = False
     ## ADM a dictionary of scalings from invvar to depth:
@@ -419,12 +411,14 @@ def dr8_quantities_at_positions_in_a_brick(ras, decs, brickname, drdir):
     drdirs = [os.path.dirname(dd) for dd in wcoadd]
 
     # ADM make the dictionary of quantities for one or two directories.
+    t0 = time()
     qall = []
     for dd in drdirs:
         q = quantities_at_positions_in_a_brick(ras, decs, brickname, dd)
         # ADM don't count bricks where we never read a file header.
         if q is not None:
             qall.append(q)
+    #print('Time for quantities_at_positions_in_a_brick = {:.3f} s'.format(time()-t0))
 
     # ADM concatenate everything in qall into one dictionary.
     qcombine = {}
@@ -808,9 +802,8 @@ def main():
     ap = ArgumentParser(description='Assemble imaging properties at the position of an input target sample.')
     ap.add_argument("--outfile", type=str, default='./redmapper-legacysurvey.fits', 
                     help='Output file name to write final catalog (.fits).')
-    ap.add_argument("--rmversion", type=str, default='v6.3.1', help='redMaPPer catalog version')
-    ap.add_argument("--sdssdr", type=str, default='dr14', help='SDSS catalog version')
-    ap.add_argument("--nproc", type=int, help='number of concurrent processes to use.', default=nproc_default)
+    ap.add_argument("--nproc", type=int, help='number of concurrent processes to use.')
+    ap.add_argument("--chunk", type=int, default=0, help='Chunk number to process [0, 1, 2, or 3].')
     ap.add_argument("--noresolve", action='store_true', help="Do NOT resolve into north/south.")
     ap.add_argument("--satellites", action='store_true', help="Process the satellites (default is to do the centrals).")
 
@@ -821,19 +814,30 @@ def main():
         print('Survey directory does not exist: {}'.format(surveydir))
         sys.exit(1)
 
-    if ns.satellites:
-        suffix1, suffix2 = '_members', '-members'
-    else:
-        suffix1, suffix2 = '', '-centrals'
+    # Chunk the sample so it'll finish in finite time.
+    nchunk = 4
 
-    rmfile = os.path.join( os.getenv('REDMAPPER_DIR'), ns.rmversion,
-                           'dr8_run_redmapper_{}_lgt5_catalog{}.fit'.format(ns.rmversion, suffix1) )
-    rmphotfile = os.path.join( os.getenv('REDMAPPER_DIR'), ns.rmversion,
-                               'redmapper-{}-lgt5{}-sdssWISEphot-{}.fits'.format(ns.rmversion, suffix2, ns.sdssdr) )
-    
-    #rm = fitsio.read(rmfile, ext=1, upper=True)
-    cat = fitsio.read(rmphotfile, ext=1, upper=True)#, rows=np.arange(100))
-    print('Read {} galaxies from {}'.format(len(cat), rmphotfile))
+    ngal = legacyhalos.io.read_redmapper(satellites=ns.satellites, get_ngal=True)
+    index = np.array_split(np.arange(ngal), nchunk)
+
+    cat = legacyhalos.io.read_redmapper(satellites=ns.satellites, index=index[ns.chunk])
+
+    if ns.satellites:
+        suffix = 'satellites'
+    else:
+        suffix = 'centrals'
+
+    rmversion = 'v6.3.1'
+    outfile = os.path.join(os.getenv('REDMAPPER_DIR'), rmversion,
+                           'legacysurvey-dr8-chunk{}-{}-{}-lgt5.fits'.format(ns.chunk, suffix, rmversion))
+
+    #from astrometry.libkd.spherematch import trees_match, tree_build_radec, match_radec
+    #randomfile = os.path.join(surveydir, 'randoms', 'randoms-inside-dr8-0.31.0-1.fits')
+    #rnd = fitsio.read(randomfile)
+    #print('Read {} randoms from {}'.format(len(rnd), randomfile))
+    #kdrnd = tree_build_radec(rnd['RA'], rnd['DEC'])
+    #m1, m2, d12 = trees_match(kdrnd, kdcat, radius)
+    #m1, m2, d12 = match_radec(rnd['RA'], rnd['DEC'], cat['RA'], cat['DEC'], 3/3600.0, nearest=True)
 
     # Go looking for a maskbits file to steal the header for the bit names.
     hdr = None
@@ -855,12 +859,12 @@ def main():
         if 'BITNM' in record:
             hdr[record] = rmhdr['_record_map'][record]
 
-    res = imaging_properties(cat['RA'], cat['DEC'], nproc=ns.nproc,
+    res = imaging_properties(cat['RA_SDSS'], cat['DEC_SDSS'], nproc=ns.nproc,
                              resolve=not (ns.noresolve))
 
     # Write out.
-    print('Writing {} sources to {}'.format(len(res), ns.outfile))
-    fitsio.write(ns.outfile, res, header=hdr, clobber=True)
+    print('Writing {} galaxies to {}'.format(len(res), ns.outfile))
+    fitsio.write(outfile, res, header=hdr, clobber=True)
 
 if __name__ == '__main__':
     main()
