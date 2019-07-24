@@ -342,7 +342,7 @@ def _get_skystats(img, ivarmask, refmask, galmask, objmask, skymask, tim):
         print('No viable sky pixels; using pipeline sky statistics!', file=log)
         pipesky = np.zeros_like(img)
         tim.sky.addTo(pipesky)
-        skymean, skymed, skysig = sigma_clipped_stats(pipesky, mask=~skymask, sigma=3.0)
+        skymean, skymedian, skysig = sigma_clipped_stats(pipesky, mask=~skymask, sigma=3.0)
         try:
             skymode = estimate_mode(pipesky[skymask], raiseOnWarn=True).astype('f4')
         except:
@@ -352,19 +352,19 @@ def _get_skystats(img, ivarmask, refmask, galmask, objmask, skymask, tim):
         skypix = ( (ivarmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
 
         try:
-            skymean, skymed, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
+            skymean, skymedian, skysig = sigma_clipped_stats(img, mask=~skypix, sigma=3.0)
         except:
             print('Warning: sky statistic estimates failed!', file=log)
-            skymean, skymed, skysig = 0.0, 0.0, 0.0
+            skymean, skymedian, skysig = 0.0, 0.0, 0.0
         #skysig = 1.0 / np.sqrt(np.median(ivar[skypix]))
-        #skymed = np.median(img[skypix])
+        #skymedian = np.median(img[skypix])
         try:
             skymode = estimate_mode(img[skypix], raiseOnWarn=True).astype('f4')
         except:
             print('Warning: sky mode estimation failed!', file=log)
             skymode = np.array(0.0).astype('f4')
 
-    return skymean, skymed, skysig, skymode
+    return skymean, skymedian, skysig, skymode
 
 def _custom_sky(args):
     """Wrapper function for the multiprocessing."""
@@ -433,11 +433,13 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
     # Next, optionally define an annulus of sky pixels centered on the object of
     # interest.
     if sky_annulus:
-        skyfactor_in = np.array([1, 1, 2, 2], dtype=np.int8)
-        skyfactor_out = np.array([2, 3, 4, 5], dtype=np.int8)
+        skyfactor_in = np.array([ 0.5, 0.5, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0], dtype='f4')
+        skyfactor_out = np.array([1.0, 2.0, 2.0, 3.0, 4.0, 3.0, 4.0, 5.0, 5.0], dtype='f4')
+        skyrow_use = (skyfactor_in == 1.0) * (skyfactor_out == 2.0)
+        
         nsky = len(skyfactor_in)
         skymean = np.zeros(nsky, dtype='f4')
-        skymed, skysig, skymode = np.zeros_like(skymean), np.zeros_like(skymean), np.zeros_like(skymean)
+        skymedian, skysig, skymode = np.zeros_like(skymean), np.zeros_like(skymean), np.zeros_like(skymean)
         for ii in range(nsky):
             inmask = (xmask**2 + ymask**2) <= skyfactor_in[ii]*radius_mask**2
             outmask = (xmask**2 + ymask**2) <= skyfactor_out[ii]*radius_mask**2
@@ -446,11 +448,16 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
             if np.sum(skymask) == 0:
                 skymask = np.ones_like(img).astype(bool)
 
-            skymean1, skymed1, skysig1, skymode1 = _get_skystats(img, ivarmask, refmask, galmask, objmask, skymask, tim)
-            skymean[ii], skymed[ii], skysig[ii], skymode[ii] = skymean1, skymed1, skysig1, skymode1
+            skymean1, skymedian1, skysig1, skymode1 = _get_skystats(
+                img, ivarmask, refmask, galmask, objmask, skymask, tim)
+            skymean[ii], skymedian[ii], skysig[ii], skymode[ii] = skymean1, skymedian1, skysig1, skymode1
     else:
+        nsky = 1
+        skyfactor_in, skyfactor_out = np.array(0.0, dtype='f4'), np.array(0.0, dtype='f4')
+        skyrow_use = np.array(False)
+        
         skymask = np.ones_like(img).astype(bool)
-        skymean, skymed, skysig, skymode = _get_skystats(img, ivarmask, refmask, galmask, objmask, skymask, tim)
+        skymean, skymedian, skysig, skymode = _get_skystats(img, ivarmask, refmask, galmask, objmask, skymask, tim)
 
     # Final steps: 
 
@@ -480,22 +487,23 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
     #for card, value in zip(('SKYMODE', 'SKYMED', 'SKYMEAN', 'SKYSIG'),
     #                       (skymode, skymed, skymean, skysig)):
     #    hdr.add_record(dict(name=card, value=value))
-    #hdr.add_record(dict(name='XCEN', value=x0-1)) # 0-indexed
-    #hdr.add_record(dict(name='YCEN', value=y0-1))
+    hdr.add_record(dict(name='CAMERA', value=im.camera))
+    hdr.add_record(dict(name='EXPNUM', value=im.expnum))
+    hdr.add_record(dict(name='CCDNAME', value=im.ccdname))
+    hdr.add_record(dict(name='RADMASK', value=np.array(radius_mask, dtype='f4'), comment='pixels'))
+    hdr.add_record(dict(name='XCEN', value=x0-1, comment='zero-indexed'))
+    hdr.add_record(dict(name='YCEN', value=y0-1, comment='zero-indexed'))
 
     customsky = fits_table()
-    customsky.camera = [im.camera]
-    customsky.expnum = [im.expnum]
-    customsky.ccdname = [im.ccdname]
     customsky.skymode = np.array(skymode)
-    customsky.skymed = np.array(skymed)
+    customsky.skymedian = np.array(skymedian)
     customsky.skymean = np.array(skymean)
     customsky.skysig = np.array(skysig)
-    customsky.skyfactor_in = skyfactor_in
-    customsky.skyfactor_out = skyfactor_out
-    customsky.radius_mask = radius_mask
-    customsky.xcen = [x0 - 1] # 0-indexed
-    customsky.ycen = [y0 - 1]
+    customsky.skyfactor_in = np.array(skyfactor_in)
+    customsky.skyfactor_out = np.array(skyfactor_out)
+    customsky.skyrow_use = np.array(skyrow_use)
+    #customsky.xcen = np.repeat(x0 - 1, nsky) # 0-indexed
+    #customsky.ycen = np.repeat(y0 - 1, nsky)
     customsky.to_np_arrays()
 
     # (4) Pack into a dictionary and return.
@@ -649,8 +657,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     for ii, ccd in enumerate(survey.ccds):
         im = survey.get_image_object(ccd)
         ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
-        sky['{}-customsky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext)
-        
+        sky['{}-customsky'.format(ext)].write_to(skyfile, append=ii>0, extname=ext,
+                                                 header=sky['{}-header'.format(ext)])
+
     # Optionally write out separate CCD-level files with the images/data and
     # individual masks (converted to unsigned integer).  These are still pretty
     # big and I'm not sure we will ever need them.  Keep the code here for
@@ -685,14 +694,20 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # [3] Modify each tim by subtracting our new estimate of the sky. Then
     # sky-subtract the pipeline_tims so we can build coadds without the central,
     # below.
-    pdb.set_trace()
     custom_tims, pipeline_tims = [], []
     for tim in tims:
         custom_tim = copy.deepcopy(tim)
         image = custom_tim.getImage()
         ext = '{}-{}-{}'.format(custom_tim.imobj.camera, custom_tim.imobj.expnum,
                                 custom_tim.imobj.ccdname.lower().strip())
-        newsky = sky['{}-header'.format(ext)]['SKYMED']
+
+        # Need to record the row we used somewhere!
+        customsky = sky['{}-customsky'.format(ext)]
+        print('HERE!!!')
+        print(customsky.skyrow_use, customsky.skymedian, customsky.skymedian[customsky.skyrow_use])
+        newsky = customsky.skymedian[customsky.skyrow_use]
+        #newsky = sky['{}-header'.format(ext)]['SKYMED']
+        
         custom_tim.setImage(image - newsky)
         custom_tim.sky = tractor.sky.ConstantSky(0)
         custom_tims.append(custom_tim)
