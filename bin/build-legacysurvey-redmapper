@@ -2,6 +2,12 @@
 """
 Match the redMaPPer sample to the Legacy Surveys DR8 footprint.
 
+time build-legacysurvey-redmapper --nproc 24 --chunk 0
+time build-legacysurvey-redmapper --nproc 24 --chunk 1
+time build-legacysurvey-redmapper --nproc 24 --chunk 2
+time build-legacysurvey-redmapper --nproc 24 --chunk 3
+time build-legacysurvey-redmapper --merge-chunks
+
 """
 import os, sys, pdb
 import numpy as np
@@ -594,7 +600,7 @@ def imaging_properties_bricks(ra, dec, brickdict, bricknames, cat_bricknames,
     drdir = os.getenv('LEGACY_SURVEY_DIR')
 
     nbricks = len(bricknames)
-    print('Run {} bricks from {}...t = {:.1f}s'.format(nbricks, drdir, time()-start))
+    print('Processing {} bricks from {}...t = {:.1f}s'.format(nbricks, drdir, time()-start))
 
     # ADM the critical function to run on every brick.
     def _get_quantities(brickname):
@@ -608,7 +614,7 @@ def imaging_properties_bricks(ra, dec, brickdict, bricknames, cat_bricknames,
     nbrick = np.zeros((), dtype='i8')
     t0 = time()
     # ADM write a total of 25 output messages during processing.
-    interval = nbricks // 25
+    interval = nbricks // 100 # 25
 
     def _update_status(result):
         ''' wrapper function for the critical reduction operation,
@@ -778,7 +784,7 @@ def imaging_properties(ra, dec, nproc=32, resolve=True, dustdir=None):
     wcoadd = glob(os.path.join(drdir, '*', "coadd"))
     drdirs = [os.path.dirname(dd) for dd in wcoadd]
 
-    print('Gather information on all bricks.')
+    print('Gathering information on all bricks.')
     brickdict = get_brick_info(drdirs, counts=True)
     # ADM this is just the UNIQUE brick names across all surveys.
     bricknames = np.array(list(brickdict.keys()))
@@ -802,34 +808,43 @@ def main():
     ap = ArgumentParser(description='Assemble imaging properties at the position of an input target sample.')
     ap.add_argument("--outfile", type=str, default='./redmapper-legacysurvey.fits', 
                     help='Output file name to write final catalog (.fits).')
-    ap.add_argument("--nproc", type=int, help='number of concurrent processes to use.')
-    ap.add_argument("--chunk", type=int, default=0, help='Chunk number to process [0, 1, 2, or 3].')
+    ap.add_argument("--nproc", type=int, help='Number of concurrent processes to use.')
+    ap.add_argument("--nchunk", type=int, default=5, help='Number of chunks to process.')
+    ap.add_argument("--chunk", type=int, default=0, help='Chunk number to process [0,...,nchunk-1].')
+    ap.add_argument("--merge-chunks", action='store_true', help="Merge the individual chunks")
     ap.add_argument("--noresolve", action='store_true', help="Do NOT resolve into north/south.")
     ap.add_argument("--satellites", action='store_true', help="Process the satellites (default is to do the centrals).")
 
     ns = ap.parse_args()
 
-    surveydir = os.getenv('LEGACY_SURVEY_DIR')
-    if not os.path.exists(surveydir):
-        print('Survey directory does not exist: {}'.format(surveydir))
-        sys.exit(1)
-
-    # Chunk the sample so it'll finish in finite time.
-    nchunk = 4
-
-    ngal = legacyhalos.io.read_redmapper(satellites=ns.satellites, get_ngal=True)
-    index = np.array_split(np.arange(ngal), nchunk)
-
-    cat = legacyhalos.io.read_redmapper(satellites=ns.satellites, index=index[ns.chunk])
-
+    rmversion = 'v6.3.1'
     if ns.satellites:
         suffix = 'satellites'
     else:
         suffix = 'centrals'
 
-    rmversion = 'v6.3.1'
-    outfile = os.path.join(os.getenv('REDMAPPER_DIR'), rmversion,
-                           'legacysurvey-dr8-chunk{}-{}-{}-lgt5.fits'.format(ns.chunk, suffix, rmversion))
+    # Chunk the sample so it'll finish in finite time.
+    if ns.merge_chunks:
+        from astropy.table import vstack
+        outfile = os.path.join(os.getenv('REDMAPPER_DIR'), rmversion,
+                               'legacysurvey-dr8-{}-{}-lgt5.fits'.format(suffix, rmversion))
+        out = []
+        for ii in np.arange(ns.nchunk):
+            chunkfile = os.path.join(os.getenv('REDMAPPER_DIR'), rmversion,
+                                     'legacysurvey-dr8-chunk{}-{}-{}-lgt5.fits'.format(ii, suffix, rmversion))
+            cat = Table(fitsio.read(chunkfile))
+            if ii == 0:
+                hdr = fitsio.read_header(chunkfile)
+            print('Read {} galaxies from {}'.format(len(cat), chunkfile))
+            out.append(cat)
+        out = vstack(out)
+        print('Writing {} galaxies to {}'.format(len(out), outfile))
+        out.write(outfile, header=hdr, overwrite=True)
+
+    ngal = legacyhalos.io.read_redmapper(satellites=ns.satellites, get_ngal=True)
+    index = np.array_split(np.arange(ngal), ns.nchunk)
+
+    cat = legacyhalos.io.read_redmapper(satellites=ns.satellites, index=index[ns.chunk])
 
     #from astrometry.libkd.spherematch import trees_match, tree_build_radec, match_radec
     #randomfile = os.path.join(surveydir, 'randoms', 'randoms-inside-dr8-0.31.0-1.fits')
@@ -841,6 +856,11 @@ def main():
 
     # Go looking for a maskbits file to steal the header for the bit names.
     hdr = None
+
+    surveydir = os.getenv('LEGACY_SURVEY_DIR')
+    if not os.path.exists(surveydir):
+        print('Survey directory does not exist: {}'.format(surveydir))
+        sys.exit(1)
 
     gen = iglob(os.path.join(surveydir, "*", "coadd", "*", "*", "*maskbits*"))
     try:
@@ -863,7 +883,10 @@ def main():
                              resolve=not (ns.noresolve))
 
     # Write out.
-    print('Writing {} galaxies to {}'.format(len(res), ns.outfile))
+    outfile = os.path.join(os.getenv('REDMAPPER_DIR'), rmversion,
+                           'legacysurvey-dr8-chunk{}-{}-{}-lgt5.fits'.format(ns.chunk, suffix, rmversion))
+    
+    print('Writing {} galaxies to {}'.format(len(res), outfile))
     fitsio.write(outfile, res, header=hdr, clobber=True)
 
 if __name__ == '__main__':
