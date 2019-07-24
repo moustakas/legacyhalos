@@ -148,7 +148,6 @@ def main():
                 qa_ccdpos(onegal, galaxy, galaxydir, galaxydir, pixscale=args.pixscale,
                           radius=radius_mosaic_arcsec/args.pixscale, survey=survey,
                           clobber=args.clobber, verbose=args.verbose)
-                pdb.set_trace()
                 call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
                                    pixscale=args.pixscale, nproc=args.nproc, debug=args.debug,
                                    logfile=logfile, doforced_phot=False)

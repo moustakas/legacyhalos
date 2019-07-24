@@ -13,9 +13,12 @@ import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 import fitsio
 
+from astropy.stats import sigma_clipped_stats
+
 import tractor
 from astrometry.util.fits import fits_table
 from astrometry.util.multiproc import multiproc
+from astrometry.util.miscutils import estimate_mode
 from legacypipe.catalog import read_fits_catalog
 
 import legacyhalos.misc
@@ -291,98 +294,26 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
         return 1
 
-def _custom_sky(skyargs):
-    """Perform custom sky-subtraction on a single CCD (with multiprocessing).
+def _build_objmask(img, ivar, skypix, boxcar=5, boxsize=1024):
+    """Build an object mask by doing a quick estimate of the sky background on a
+    given CCD.
 
     """
     from scipy.ndimage.morphology import binary_dilation
     from scipy.ndimage.filters import uniform_filter
-    from astropy.stats import sigma_clipped_stats
-
-    from tractor.splinesky import SplineSky
-    from astrometry.util.miscutils import estimate_mode
-    from astrometry.util.resample import resample_with_wcs
-
-    from legacypipe.reference import get_reference_sources
-    from legacypipe.oneblob import get_inblob_map
-
-    log = None
-    survey, brickname, brickwcs, onegal, radius_mask_arcsec, apodize, sky_annulus, ccd = skyargs
-
-    im = survey.get_image_object(ccd)
-    hdr = im.read_image_header()
-    hdr.delete('INHERIT')
-    hdr.delete('EXTVER')
-
-    print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
-          'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
-          'object', getattr(ccd, 'object', None), file=log)
-
-    radius_mask = np.round(radius_mask_arcsec / im.pixscale).astype('int') # [pixels]
     
-    tim = im.get_tractor_image(splinesky=True, subsky=False, hybridPsf=True,
-                               normalizePsf=True, apodize=apodize)
-
-    targetwcs, bands = tim.subwcs, tim.band
-    H, W = targetwcs.shape
-    H, W = np.int(H), np.int(W)
-
-    img = tim.getImage()
-    ivar = tim.getInvvar()
-
-    # Read the splinesky model (for comparison purposes).  Code snippet taken
-    # from image.LegacySurveyImage.read_sky_model.
-    #T = Table.read(im.merged_splineskyfn)
-    #T.remove_column('skyclass') # causes problems when writing out with fitsio
-    #T = fitsio.read(im.merged_splineskyfn)
-    #I, = np.nonzero((T['expnum'] == im.expnum) * np.array([c.strip() == im.ccdname for c in T['ccdname']]))
-
-    T = fits_table(im.merged_splineskyfn)
-    I, = np.nonzero((T.expnum == im.expnum) * np.array([c.strip() == im.ccdname for c in T.ccdname]))
-    if len(I) != 1:
-        print('Multiple splinesky models!', file=log)
-        return 0
-    splineskytable = T[I]
-
-    # Masked pixels in the inverse variance map.
-    ivarmask = ivar <= 0
-
-    # Mask known stars and large galaxies.
-    refs, _ = get_reference_sources(survey, targetwcs, im.pixscale, ['r'],
-                                    tycho_stars=True, gaia_stars=True,
-                                    large_galaxies=False, star_clusters=False)
-    refmask = (get_inblob_map(targetwcs, refs) != 0)
-
-    # Mask the object of interest.
-    #http://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
-    _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
-    xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
-    ymask, xmask = np.ogrid[-ycen:H-ycen, -xcen:W-xcen]
-    galmask = (xmask**2 + ymask**2) <= radius_mask**2
-
-    # Optionally define an annulus of sky pixels centered on the object of interest.
-    if sky_annulus:
-        inmask = (xmask**2 + ymask**2) <= 2*radius_mask**2
-        outmask = (xmask**2 + ymask**2) <= 5*radius_mask**2
-        skymask = (outmask*1 - inmask*1 - galmask*1) == 1
-        # There can be no sky pixels if the CCD is on the periphery.
-        if np.sum(skymask) == 0:
-            skymask = np.ones_like(img).astype(bool)
-    else:
-        skymask = np.ones_like(img).astype(bool)
-
+    from tractor.splinesky import SplineSky
+    
     # Get an initial guess of the sky using the mode, otherwise the median.
-    skypix = (ivarmask*1 + refmask*1 + galmask*1) == 0
     skysig1 = 1.0 / np.sqrt(np.median(ivar[skypix]))
-    try:
-        skyval = estimate_mode(img[skypix], raiseOnWarn=True)
-    except:
-        skyval = np.median(img[skypix])
+    #try:
+    #    skyval = estimate_mode(img[skypix], raiseOnWarn=True)
+    #except:
+    #    skyval = np.median(img[skypix])
+    skyval = np.median(img[skypix])
    
     # Mask objects in a boxcar-smoothed (image - initial sky model), smoothed by
     # a boxcar filter before cutting pixels above the n-sigma threshold.
-    boxcar = 5
-    boxsize = 1024
     if min(img.shape) / boxsize < 4: # handle half-DECam chips
         boxsize /= 2
 
@@ -392,10 +323,19 @@ def _custom_sky(skyargs):
     skyobj.addTo(skymod)
 
     bskysig1 = skysig1 / boxcar # sigma of boxcar-smoothed image.
-    objmask = np.abs(uniform_filter(img-skyval-skymod, size=boxcar, mode='constant') > (3 * bskysig1))
+    objmask = np.abs(uniform_filter(img-skyval-skymod, size=boxcar,
+                                    mode='constant') > (3 * bskysig1))
     objmask = binary_dilation(objmask, iterations=3)
 
+    return objmask
+
+def _get_skystats(img, ivarmask, refmask, galmask, objmask, skymask, tim):
+    """Low-level function to get the sky statistics given an image and the pixels of
+    interest.
+
+    """
     skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
+        
     # If there are no sky pixels then use the statistics from the pipeline sky
     # map.  For example, the algorithm here can fail in and around bright stars.
     if np.sum(skypix) == 0:
@@ -424,7 +364,97 @@ def _custom_sky(skyargs):
             print('Warning: sky mode estimation failed!', file=log)
             skymode = np.array(0.0).astype('f4')
 
-    # Build the final bit-mask image.
+    return skymean, skymed, skysig, skymode
+
+def _custom_sky(args):
+    """Wrapper function for the multiprocessing."""
+    return custom_sky(*args)
+
+def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
+               apodize, sky_annulus, ccd):
+    """Perform custom sky-subtraction on a single CCD.
+
+    """
+    from astrometry.util.resample import resample_with_wcs
+    from legacypipe.reference import get_reference_sources
+    from legacypipe.oneblob import get_inblob_map
+
+    log = None
+
+    # Preliminary stuff: read the full-field tim and parse it.
+    im = survey.get_image_object(ccd)
+    hdr = im.read_image_header()
+    hdr.delete('INHERIT')
+    hdr.delete('EXTVER')
+
+    print(im, im.band, 'exptime', im.exptime, 'propid', ccd.propid,
+          'seeing {:.2f}'.format(ccd.fwhm * im.pixscale), 
+          'object', getattr(ccd, 'object', None), file=log)
+
+    radius_mask = np.round(radius_mask_arcsec / im.pixscale).astype('int') # [pixels]
+    
+    tim = im.get_tractor_image(splinesky=True, subsky=False, hybridPsf=True,
+                               normalizePsf=True, apodize=apodize)
+
+    targetwcs, bands = tim.subwcs, tim.band
+    H, W = targetwcs.shape
+    H, W = np.int(H), np.int(W)
+
+    img = tim.getImage()
+    ivar = tim.getInvvar()
+
+    # Next, read the splinesky model (for comparison purposes).
+    T = fits_table(im.merged_splineskyfn)
+    I, = np.nonzero((T.expnum == im.expnum) * np.array([c.strip() == im.ccdname for c in T.ccdname]))
+    if len(I) != 1:
+        print('Multiple splinesky models!', file=log)
+        return 0
+    splineskytable = T[I]
+
+    # Third, build up a mask consisting of (1) masked pixels in the inverse
+    # variance map; (2) known bright stars; (3) astrophysical sources in the
+    # image; and (4) the object of interest.
+    ivarmask = ivar <= 0
+
+    refs, _ = get_reference_sources(survey, targetwcs, im.pixscale, ['r'],
+                                    tycho_stars=True, gaia_stars=True,
+                                    large_galaxies=False, star_clusters=False)
+    refmask = get_inblob_map(targetwcs, refs) != 0
+
+    #http://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
+    _, x0, y0 = targetwcs.radec2pixelxy(onegal['RA'], onegal['DEC'])
+    xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
+    ymask, xmask = np.ogrid[-ycen:H-ycen, -xcen:W-xcen]
+    galmask = (xmask**2 + ymask**2) <= radius_mask**2
+
+    skypix = (ivarmask*1 + refmask*1 + galmask*1) == 0
+    objmask = _build_objmask(img, ivar, skypix)
+
+    # Next, optionally define an annulus of sky pixels centered on the object of
+    # interest.
+    if sky_annulus:
+        skyfactor_in = np.array([1, 1, 2, 2], dtype=np.int8)
+        skyfactor_out = np.array([2, 3, 4, 5], dtype=np.int8)
+        nsky = len(skyfactor_in)
+        skymean = np.zeros(nsky, dtype='f4')
+        skymed, skysig, skymode = np.zeros_like(skymean), np.zeros_like(skymean), np.zeros_like(skymean)
+        for ii in range(nsky):
+            inmask = (xmask**2 + ymask**2) <= skyfactor_in[ii]*radius_mask**2
+            outmask = (xmask**2 + ymask**2) <= skyfactor_out[ii]*radius_mask**2
+            skymask = (outmask*1 - inmask*1 - galmask*1) == 1
+            # There can be no sky pixels if the CCD is on the periphery.
+            if np.sum(skymask) == 0:
+                skymask = np.ones_like(img).astype(bool)
+
+            skymean1, skymed1, skysig1, skymode1 = _get_skystats(img, ivarmask, refmask, galmask, objmask, skymask, tim)
+            skymean[ii], skymed[ii], skysig[ii], skymode[ii] = skymean1, skymed1, skysig1, skymode1
+    else:
+        skymask = np.ones_like(img).astype(bool)
+        skymean, skymed, skysig, skymode = _get_skystats(img, ivarmask, refmask, galmask, objmask, skymask, tim)
+
+    # Final steps: 
+
+    # (1) Build the final bit-mask image.
     #   0    = 
     #   2**0 = refmask  - reference stars and galaxies
     #   2**1 = objmask  - threshold-detected objects
@@ -435,7 +465,7 @@ def _custom_sky(skyargs):
     mask[objmask]  += 2**1
     mask[galmask]  += 2**2
 
-    # Resample the mask onto the final mosaic image.
+    # (2) Resample the mask onto the final mosaic image.
     HH, WW = brickwcs.shape
     comask = np.zeros((HH, WW), np.int16)
     try:
@@ -444,26 +474,31 @@ def _custom_sky(skyargs):
     except:
         pass
 
-    # Add the sky values and also the central pixel coordinates of the object of
+    # (3) Add the sky values and also the central pixel coordinates of the object of
     # interest (so we won't need the WCS object downstream, in QA).
-    for card, value in zip(('SKYMODE', 'SKYMED', 'SKYMEAN', 'SKYSIG'),
-                           (skymode, skymed, skymean, skysig)):
-        hdr.add_record(dict(name=card, value=value))
-    hdr.add_record(dict(name='XCEN', value=x0-1)) # 0-indexed
-    hdr.add_record(dict(name='YCEN', value=y0-1))
+    
+    #for card, value in zip(('SKYMODE', 'SKYMED', 'SKYMEAN', 'SKYSIG'),
+    #                       (skymode, skymed, skymean, skysig)):
+    #    hdr.add_record(dict(name=card, value=value))
+    #hdr.add_record(dict(name='XCEN', value=x0-1)) # 0-indexed
+    #hdr.add_record(dict(name='YCEN', value=y0-1))
 
     customsky = fits_table()
     customsky.camera = [im.camera]
     customsky.expnum = [im.expnum]
     customsky.ccdname = [im.ccdname]
-    customsky.skymode = [skymode]
-    customsky.skymed = [skymed]
-    customsky.skymean = [skymean]
-    customsky.skysig = [skysig]
+    customsky.skymode = np.array(skymode)
+    customsky.skymed = np.array(skymed)
+    customsky.skymean = np.array(skymean)
+    customsky.skysig = np.array(skysig)
+    customsky.skyfactor_in = skyfactor_in
+    customsky.skyfactor_out = skyfactor_out
+    customsky.radius_mask = radius_mask
     customsky.xcen = [x0 - 1] # 0-indexed
     customsky.ycen = [y0 - 1]
     customsky.to_np_arrays()
 
+    # (4) Pack into a dictionary and return.
     out = dict()
     ext = '{}-{}-{}'.format(im.camera, im.expnum, im.ccdname.lower().strip())
     #ext = '{}-{:02d}-{}'.format(im.name, im.hdu, im.band)
@@ -650,6 +685,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # [3] Modify each tim by subtracting our new estimate of the sky. Then
     # sky-subtract the pipeline_tims so we can build coadds without the central,
     # below.
+    pdb.set_trace()
     custom_tims, pipeline_tims = [], []
     for tim in tims:
         custom_tim = copy.deepcopy(tim)
