@@ -96,7 +96,6 @@ def main():
             logfile = None
         else:
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
-            #print('Logging to {} '.format(logfile), flush=True)
         
         # Need the object "radius" to build the coadds.
         if args.coadds or args.custom_coadds:
@@ -124,10 +123,10 @@ def main():
                           radius=radius_mosaic_arcsec/args.pixscale, survey=survey,
                           clobber=args.clobber, verbose=args.verbose)
                 call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                    pixscale=args.pixscale, nproc=args.nproc,
-                                    debug=args.debug, logfile=logfile,
-                                    radius_mask=radius_mask_arcsec, write_ccddata=True,
-                                    doforced_phot=False, apodize=True)
+                                   pixscale=args.pixscale, nproc=args.nproc,
+                                   debug=args.debug, logfile=logfile,
+                                   radius_mask=radius_mask_arcsec, write_ccddata=True,
+                                   doforced_phot=False, apodize=True)
 
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(

@@ -90,9 +90,9 @@ def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale=0.262,
                                                            doforced_phot=doforced_phot, apodize=apodize)
                 _done(galaxy, err, t0, log=log)
                 
-def call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
-                  debug=False, logfile=None, input_ellipse=False, zcolumn=None,
-                  sdss=False, sdss_pixscale=0.396):
+def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
+                 debug=False, logfile=None, input_ellipse=False, zcolumn=None,
+                 sdss=False, sdss_pixscale=0.396, custom_tractor=True):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -104,23 +104,25 @@ def call_ellipse(onegal, galaxy, pixscale=0.262, nproc=1, verbose=False,
     t0 = time.time()
     if debug:
         _start(galaxy)
-        err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
-                                                      zcolumn=zcolumn,
-                                                      input_ellipse=input_ellipse,
+        err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                                      pixscale=pixscale, nproc=nproc,
+                                                      zcolumn=zcolumn, input_ellipse=input_ellipse,
                                                       verbose=verbose, debug=debug,
                                                       sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                      pipeline=True, unwise=False)
+                                                      pipeline=True, unwise=False,
+                                                      custom_tractor=custom_tractor)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, pixscale=pixscale, nproc=nproc,
-                                                              zcolumn=zcolumn,
-                                                              input_ellipse=input_ellipse,
+                err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                                              pixscale=pixscale, nproc=nproc,
+                                                              zcolumn=zcolumn, input_ellipse=input_ellipse,
                                                               verbose=verbose, debug=debug,
                                                               sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                              pipeline=True, unwise=False)
+                                                              pipeline=True, unwise=False,
+                                                              custom_tractor=custom_tractor)
                 _done(galaxy, err, t0, log=log)
 
 def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile):
