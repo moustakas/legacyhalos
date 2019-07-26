@@ -976,7 +976,8 @@ def read_profiles_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsp
                                 candidates=candidates, verbose=verbose)
     return sample
 
-def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', index=None, satellites=False):
+def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', index=None, satellites=False,
+                   get_ngal=False):
     """Read the parent redMaPPer cluster catalog and updated photometry.
     
     """
@@ -988,6 +989,10 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', index=None, satellites=Fal
                           'dr8_run_redmapper_{}_lgt5_catalog{}.fit'.format(rmversion, suffix1) )
     rmphotfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
                           'redmapper-{}-lgt5{}-sdssWISEphot-{}.fits'.format(rmversion, suffix2, sdssdr) )
+
+    if get_ngal:
+        ngal = fitsio.FITS(rmfile)[1].get_nrows()
+        return ngal
     
     rm = Table(fitsio.read(rmfile, ext=1, upper=True, rows=index))
     rmphot = Table(fitsio.read(rmphotfile, ext=1, upper=True, rows=index))

@@ -19,9 +19,9 @@ Input Data and Sample Selection
 
 2. *Assemble Legacy Surveys photometry.*
    
-   Next, we assemble *grz* and *W1-W4* photometry from the `Legacy Surveys/DR6`_
-   and `Legacy Surveys/DR7`_ sweep files for the full catalog of centrals and
-   satellites using the `match-legacysurvey-redmapper.slurm`_ SLURM script.
+   Next, we assemble *grz* and *W1-W4* photometry from the `Legacy Survey/DR8`_
+   sweep files for the full catalog of centrals and satellites using the
+   `match-legacysurvey-redmapper.slurm`_ SLURM script.
 
 3. *Select the parent sample.*
 
