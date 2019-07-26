@@ -335,7 +335,7 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
     ellipsefit['bands'] = bands
     ellipsefit['pixscale'] = pixscale
     ellipsefit['refpixscale'] = refpixscale
-    #ellipsefit['refband'] = refband
+    ellipsefit['refband'] = refellipsefit['geometry']
     #ellipsefit['redshift'] = refellipsefit['redshift']
 
     #print('Fix me -- what is psfsigma!!')
@@ -391,9 +391,9 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
 
     return ellipsefit
 
-def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
+def ellipsefit_multiband(galaxy, galaxydir, redshift, data, maxsma=None, nproc=1,
                          integrmode='median', nclip=2, sclip=3, 
-                         zcolumn='Z', input_ellipse=None, nowrite=False,
+                         input_ellipse=None, nowrite=False,
                          verbose=False, fitgeometry=False, debug=False):
     """Ellipse-fit the multiband data.
 
@@ -447,7 +447,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, sample, maxsma=None, nproc=1,
         ellipsefit['mge_{}'.format(key)] = float(getattr(galprops, key))
 
     ellipsefit['success'] = False
-    ellipsefit['redshift'] = sample[zcolumn]
+    ellipsefit['redshift'] = redshift
     ellipsefit['bands'] = bands
     ellipsefit['refband'] = refband
     ellipsefit['refpixscale'] = refpixscale
@@ -693,8 +693,10 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False,
     else:
         pixscale = ellipsefit['pixscale']
 
-    #eps = ellipsefit['eps']
-    eps = ellipsefit['geometry'].eps
+    if 'geometry' in ellipsefit.keys():
+        eps = ellipsefit['geometry'].eps
+    else:
+        eps = ellipsefit['eps']
 
     sbprofile = dict()
     for filt in bands:
@@ -796,6 +798,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     if galaxydir is None or galaxy is None:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
 
+    redshift = onegal[zcolumn]
+
     # Do ellipse-fitting on the custom images.
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
                                          refband=refband, pixscale=pixscale,
@@ -803,10 +807,10 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          unwise_pixscale=unwise_pixscale,
                                          verbose=verbose)
     if bool(data):
-        ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, onegal,
+        ellipsefit = ellipsefit_multiband(galaxy, galaxydir, redshift, data, 
                                           nproc=nproc, integrmode=integrmode,
-                                          nclip=nclip, sclip=sclip, zcolumn=zcolumn,
-                                          verbose=verbose, fitgeometry=fitgeometry,
+                                          nclip=nclip, sclip=sclip, verbose=verbose,
+                                          fitgeometry=fitgeometry,
                                           input_ellipse=input_ellipse)
     else:
         return 0

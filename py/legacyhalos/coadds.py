@@ -94,13 +94,16 @@ def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
 
         # Now use the ellipse parameters to get a better list of the model
         # sources in and around the central, and remove the largest ones.
-        majoraxis = mgegalaxy.majoraxis
-        these = legacyhalos.misc.ellipse_mask(width/2, width/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
-                                              np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
+        if False:
+            majoraxis = mgegalaxy.majoraxis
+            these = legacyhalos.misc.ellipse_mask(width/2, width/2, majoraxis, majoraxis*(1-mgegalaxy.eps),
+                                                  np.radians(mgegalaxy.theta-90), cat.bx, cat.by)
 
-        galrad = np.max(np.array((cat.shapedev_r, cat.shapeexp_r)), axis=0)
-        #galrad = (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) # type-weighted radius
-        these *= galrad > 3
+            galrad = np.max(np.array((cat.shapedev_r, cat.shapeexp_r)), axis=0)
+            #galrad = (cat.fracdev * cat.shapedev_r + (1-cat.fracdev) * cat.shapeexp_r) # type-weighted radius
+            these *= galrad > 3
+        else:
+            these = np.zeros(len(cat), dtype=bool)
 
         # Also add the sources nearest to the central coordinates.
         m1, m2, d12 = match_radec(cat.ra, cat.dec, racen, deccen,
@@ -334,6 +337,7 @@ def _get_skystats(img, ivarmask, refmask, galmask, objmask, skymask, tim):
     interest.
 
     """
+    log = None
     skypix = ( (ivarmask*1 + refmask*1 + galmask*1 + objmask*1) == 0 ) * skymask
         
     # If there are no sky pixels then use the statistics from the pipeline sky
@@ -435,7 +439,9 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
     if sky_annulus:
         skyfactor_in = np.array([ 0.5, 0.5, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0], dtype='f4')
         skyfactor_out = np.array([1.0, 2.0, 2.0, 3.0, 4.0, 3.0, 4.0, 5.0, 5.0], dtype='f4')
-        skyrow_use = (skyfactor_in == 1.0) * (skyfactor_out == 2.0)
+        skyrow_use = (skyfactor_in == 2.0) * (skyfactor_out == 4.0)
+        #skyrow_use = np.zeros(len(skyfactor_in)).astype(bool)
+        #skyrow_use[8] = True
         
         nsky = len(skyfactor_in)
         skymean = np.zeros(nsky, dtype='f4')
@@ -701,10 +707,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         ext = '{}-{}-{}'.format(custom_tim.imobj.camera, custom_tim.imobj.expnum,
                                 custom_tim.imobj.ccdname.lower().strip())
 
-        # Need to record the row we used somewhere!
         customsky = sky['{}-customsky'.format(ext)]
-        print('HERE!!!')
-        print(customsky.skyrow_use, customsky.skymedian, customsky.skymedian[customsky.skyrow_use])
         newsky = customsky.skymedian[customsky.skyrow_use]
         #newsky = sky['{}-header'.format(ext)]['SKYMED']
         

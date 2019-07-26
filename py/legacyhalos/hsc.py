@@ -236,7 +236,16 @@ def read_sample(first=None, last=None, verbose=False):
     # low-z sample only
     #samplefile = os.path.join(hdir, 'low-z-shape-for-john.fits')
 
+    # Investigate a subset of galaxies.
+    #cat1 = fitsio.read(os.path.join(hdir, 'hsc-sample-s16a-lowz.fits'), upper=True)
+    #cat2 = fitsio.read(os.path.join(hdir, 'DECaLS_negative_gal.fits'), upper=True)
+    #keep = np.isin(cat1['ID_S16A'], cat2['ID_S16A'])
+    #fitsio.write(os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits'), cat1[keep], clobber=True)
+
     # combined sample (see comment block above)
+    if False:
+        print('Temporary sample!!')
+        samplefile = os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits')
     samplefile = os.path.join(hdir, 'hsc-sample-s16a-lowz.fits')
     if first and last:
         if first > last:
@@ -292,7 +301,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     htmldir = hsc_html_dir()
 
     if sample is None:
-        sample = read_parent(first=first, last=last)
+        sample = read_sample(first=first, last=last)
 
     if type(sample) is astropy.table.row.Row:
         sample = astropy.table.Table(sample)
