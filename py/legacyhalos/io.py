@@ -528,13 +528,17 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, maskfactor=2.0, fill_value=0.0,
-                   pipeline=False, sdss=False, verbose=False):
+                   pipeline=False, sdss=False, verbose=False, custom_tractor=True):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
 
     This script needs to be refactored to pull out the unWISE + GALEX stuff (see
     ellipse.legacyhalos_ellipse).
+
+    custom_tractor - read the custom Tractor catalog, otherwise read the
+      pipeline one (which should only be done if doforced_phot=False when building
+      the custom coadds!)
 
     """
     from scipy.ndimage.filters import gaussian_filter
@@ -606,7 +610,11 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    tractorfile = os.path.join(galaxydir, '{}-custom-tractor.fits'.format(galaxy))
+    if custom_tractor:
+        tractorfile = os.path.join(galaxydir, '{}-custom-tractor.fits'.format(galaxy))
+    else:
+        tractorfile = os.path.join(galaxydir, '{}-pipeline-tractor.fits'.format(galaxy))
+        
     if os.path.isfile(tractorfile):
         tractor = Table(fitsio.read(tractorfile, upper=True))
         print('Read {} sources from {}'.format(len(tractor), tractorfile))

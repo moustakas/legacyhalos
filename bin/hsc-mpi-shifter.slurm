@@ -8,10 +8,10 @@
 #SBATCH --mail-type=ALL
 #SBATCH --image=docker:flagnarg/legacyhalos:latest
 
-#SBATCH -p regular
+#SBATCH -p debug
 #SBATCH -N 8
-#SBATCH -n 32
-#SBATCH -t 02:00:00
+#SBATCH -n 64
+#SBATCH -t 00:30:00
 
 # sbatch hsc-mpi-shifter.slurm
 

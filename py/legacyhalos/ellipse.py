@@ -786,13 +786,18 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         maxsma=None, integrmode='median', nclip=2, sclip=3, zcolumn='Z',
                         galex_pixscale=1.5, unwise_pixscale=2.75,
                         input_ellipse=None, fitgeometry=False, verbose=False,
-                        debug=False, sdss=False, galex=False, unwise=False):
+                        debug=False, sdss=False, galex=False, unwise=False,
+                        custom_tractor=True):
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
     fitgeometry - fit for the ellipse parameters (do not use the mean values
       from MGE).
 
     pipeline - read the pipeline-built images (default is custom)
+
+    custom_tractor - read the custom Tractor catalog, otherwise read the
+      pipeline one (which should only be done if doforced_phot=False when
+      building the custom coadds!)
 
     """
     if galaxydir is None or galaxy is None:
@@ -805,7 +810,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          refband=refband, pixscale=pixscale,
                                          galex_pixscale=galex_pixscale,
                                          unwise_pixscale=unwise_pixscale,
-                                         verbose=verbose)
+                                         verbose=verbose, custom_tractor=custom_tractor)
     if bool(data):
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, redshift, data, 
                                           nproc=nproc, integrmode=integrmode,
@@ -819,7 +824,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         print('Forced ellipse-fitting on the pipeline images.')
         pipeline_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
                                                       refband=refband, pixscale=pixscale,
-                                                      pipeline=True, verbose=verbose)
+                                                      pipeline=True, verbose=verbose,
+                                                      custom_tractor=custom_tractor)
         if bool(pipeline_data):
             pipeline_ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, pipeline_data,
                                                               nproc=nproc, filesuffix='pipeline',

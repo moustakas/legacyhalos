@@ -118,6 +118,12 @@ def main():
             logfile = None
         else:
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
+
+        if onegal['ID_S16A'] == -1: # low-z sample
+            print('Skipping forced photometry for low-z sample!')
+            doforced_phot, custom_tractor = False, False
+        else:
+            doforced_phot, custom_tractor = True, True
         
         # Need the cluster "radius" to build the coadds.
         if args.coadds or args.custom_coadds or args.htmlplots:
@@ -150,14 +156,15 @@ def main():
                           clobber=args.clobber, verbose=args.verbose)
                 call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
                                    pixscale=args.pixscale, nproc=args.nproc, debug=args.debug,
-                                   logfile=logfile, doforced_phot=False)
+                                   logfile=logfile, doforced_phot=doforced_phot)
                 
         # Use input ellipse parameters.
         if args.ellipse:
             input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                          nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                         logfile=logfile, zcolumn=ZCOLUMN, input_ellipse=input_ellipse)
+                         logfile=logfile, zcolumn=ZCOLUMN, input_ellipse=input_ellipse,
+                         custom_tractor=custom_tractor)
                         
         if args.htmlplots:
             call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
