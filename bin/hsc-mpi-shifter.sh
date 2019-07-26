@@ -41,13 +41,13 @@ export MKL_NUM_THREADS=1
 export KMP_AFFINITY=disabled
 export MPICH_GNI_FORK_MODE=FULLCOPY
 
-ncores=4
+ncores=8
 
 maxmem=134217728 # Cori/Haswell = 128 GB
 grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
 let usemem=${maxmem}*${ncores}/64
 
-time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --htmlplots --mpi --hsc --verbose
-#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --ellipse --nproc $ncores --mpi --hsc --verbose --first 5
-#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --custom-coadds --nproc $ncores --mpi --hsc --verbose --first 5
-#time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos-mpi --coadds --nproc $ncores --mpi --hsc --verbose
+#time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --htmlplots --mpi --verbose
+#time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --ellipse --nproc $ncores --mpi --verbose
+time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --custom-coadds --nproc $ncores --mpi --verbose
+#time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --coadds --nproc $ncores --mpi --verbose

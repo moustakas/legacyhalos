@@ -93,7 +93,7 @@ def cosmology(WMAP=False, Planck=False):
 
     return cosmo
 
-def plot_style(paper=False, talk=False):
+def plot_style(font_scale=1.2, paper=False, talk=False):
 
     import seaborn as sns
     rc = {'font.family': 'serif'}#, 'text.usetex': True}
@@ -111,7 +111,7 @@ def plot_style(paper=False, talk=False):
         palette = 'deep'
         rc.update({'text.usetex': True})
 
-    sns.set(context=context, style='ticks', font_scale=1.2, rc=rc)
+    sns.set(context=context, style='ticks', font_scale=font_scale, rc=rc)
     sns.set_palette(palette, 12)
 
     colors = sns.color_palette()

@@ -15,8 +15,9 @@ import astropy.table
 
 import legacyhalos.html
 
-RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
 ZCOLUMN = 'Z_BEST'
+RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
+RADIUS_CLUSTER_LOWZ_KPC = 150.0 # default cluster radius
 
 def mpi_args():
     import argparse
@@ -27,14 +28,11 @@ def mpi_args():
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
-    parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
 
     parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
     parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
-    parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
     parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
-    parser.add_argument('--sky', action='store_true', help='Estimate the sky variance.')
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
 
@@ -64,24 +62,11 @@ def missing_files_groups(args, sample, size, htmldir=None):
 
     """
     if args.coadds:
-        if args.sdss:
-            suffix = 'sdss-coadds'
-        else:
-            suffix = 'coadds'
+        suffix = 'coadds'
     elif args.custom_coadds:
-        if args.sdss:
-            suffix = 'sdss-custom-coadds'
-        else:
-            suffix = 'custom-coadds'
+        suffix = 'custom-coadds'
     elif args.ellipse:
-        if args.sdss:
-            suffix = 'sdss-ellipse'
-        else:
-            suffix = 'ellipse'
-    elif args.sersic:
-        suffix = 'sersic'
-    elif args.sky:
-        suffix = 'sky'
+        suffix = 'ellipse'
     elif args.htmlplots:
         suffix = 'html'
     else:
@@ -105,17 +90,9 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         filesuffix = '-custom-resid-grz.jpg'
     elif filetype == 'ellipse':
         filesuffix = '-ellipsefit.p'
-    elif filetype == 'sersic':
-        filesuffix = '-sersic-single.p'
     elif filetype == 'html':
         filesuffix = '-ccdpos.png'
         #filesuffix = '-sersic-exponential-nowavepower.png'
-    elif filetype == 'sdss-coadds':
-        filesuffix = '-sdss-image-gri.jpg'
-    elif filetype == 'sdss-custom-coadds':
-        filesuffix = '-sdss-resid-gri.jpg'
-    elif filetype == 'sdss-ellipse':
-        filesuffix = '-sdss-ellipsefit.p'
     else:
         print('Unrecognized file type!')
         raise ValueError
@@ -229,8 +206,9 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     else:
         return galaxy, galaxydir
 
-def read_parent(first=None, last=None, verbose=False):
-    """Read/generate the parent HSC catalog.
+def read_sample(first=None, last=None, verbose=False):
+    """Read/generate the parent HSC sample by combining the low-z and intermediate-z
+    samples.
 
     import fitsio
     from astropy.table import Table, Column, vstack
@@ -245,7 +223,7 @@ def read_parent(first=None, last=None, verbose=False):
     s2out.add_column(Column(name='NAME', dtype=s1['NAME'].dtype, length=len(s2out)), index=0)
     sout = vstack((s1out, s2out))
     sout.write('hsc-sample-s16a-lowz.fits', overwrite=True)
-    
+
     """
     hdir = hsc_dir()
     # Hack for MUSE proposal
@@ -258,7 +236,16 @@ def read_parent(first=None, last=None, verbose=False):
     # low-z sample only
     #samplefile = os.path.join(hdir, 'low-z-shape-for-john.fits')
 
+    # Investigate a subset of galaxies.
+    #cat1 = fitsio.read(os.path.join(hdir, 'hsc-sample-s16a-lowz.fits'), upper=True)
+    #cat2 = fitsio.read(os.path.join(hdir, 'DECaLS_negative_gal.fits'), upper=True)
+    #keep = np.isin(cat1['ID_S16A'], cat2['ID_S16A'])
+    #fitsio.write(os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits'), cat1[keep], clobber=True)
+
     # combined sample (see comment block above)
+    if False:
+        print('Temporary sample!!')
+        samplefile = os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits')
     samplefile = os.path.join(hdir, 'hsc-sample-s16a-lowz.fits')
     if first and last:
         if first > last:
@@ -284,7 +271,7 @@ def read_parent(first=None, last=None, verbose=False):
     #    sample.rename_column('Z_BEST', 'Z')
     #if 'Z_SPEC' in sample.colnames:
     #    sample.rename_column('Z_SPEC', 'Z')
-    sample.add_column(astropy.table.Column(name='RELEASE', data=np.repeat(7000, len(sample)).astype(np.int32)))
+    #sample.add_column(astropy.table.Column(name='RELEASE', data=np.repeat(7000, len(sample)).astype(np.int32)))
     
     if verbose:
         if len(rows) == 1:
@@ -314,7 +301,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     htmldir = hsc_html_dir()
 
     if sample is None:
-        sample = read_parent(first=first, last=last)
+        sample = read_sample(first=first, last=last)
 
     if type(sample) is astropy.table.row.Row:
         sample = astropy.table.Table(sample)
