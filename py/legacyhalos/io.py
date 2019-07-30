@@ -647,7 +647,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         else:
             dH = 0.1 * H
             these = ( (tractor['BX'] > np.int(H / 2 - dH)) * (tractor['BX'] < np.int(H / 2 + dH)) *
-                      (tractor['BY'] > np.int(H / 2 - dH)) * (tractor['BY'] < np.int(H / 2 + dH)) )
+                      (tractor['BY'] > np.int(H / 2 - dH)) * (tractor['BY'] < np.int(H / 2 + dH)) *
+                      (tractor[psfdepthcol] > 0) )
             if np.sum(these) == 0:
                 print('No sources at the center of the field, sonable to get PSF size!')
             #data['npsfsize_{}'.format(filt)] = np.sum(these).astype(int)
