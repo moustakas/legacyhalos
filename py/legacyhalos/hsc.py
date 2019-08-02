@@ -243,10 +243,10 @@ def read_sample(first=None, last=None, verbose=False):
     #fitsio.write(os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits'), cat1[keep], clobber=True)
 
     # combined sample (see comment block above)
-    if False:
-        print('Temporary sample!!')
-        samplefile = os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits')
-    samplefile = os.path.join(hdir, 'hsc-sample-s16a-lowz.fits')
+    #if False:
+    print('Temporary sample!!')
+    samplefile = os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits')
+    #samplefile = os.path.join(hdir, 'hsc-sample-s16a-lowz.fits')
     if first and last:
         if first > last:
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))

@@ -439,9 +439,9 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
     if sky_annulus:
         skyfactor_in = np.array([ 0.5, 0.5, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 3.0], dtype='f4')
         skyfactor_out = np.array([1.0, 2.0, 2.0, 3.0, 4.0, 3.0, 4.0, 5.0, 5.0], dtype='f4')
-        skyrow_use = (skyfactor_in == 2.0) * (skyfactor_out == 4.0)
-        #skyrow_use = np.zeros(len(skyfactor_in)).astype(bool)
-        #skyrow_use[8] = True
+        #skyrow_use = (skyfactor_in == 2.0) * (skyfactor_out == 4.0)
+        skyrow_use = np.zeros(len(skyfactor_in)).astype(bool)
+        skyrow_use[7] = True
         
         nsky = len(skyfactor_in)
         skymean = np.zeros(nsky, dtype='f4')

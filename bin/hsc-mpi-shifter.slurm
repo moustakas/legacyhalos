@@ -9,8 +9,8 @@
 #SBATCH --image=docker:flagnarg/legacyhalos:latest
 
 #SBATCH -p debug
-#SBATCH -N 8
-#SBATCH -n 64
+#SBATCH -N 1
+#SBATCH -n 4
 #SBATCH -t 00:30:00
 
 # sbatch hsc-mpi-shifter.slurm
@@ -23,4 +23,4 @@
 #time srun -N 8 -n 128 -c 4 shifter --image=docker:flagnarg/legacyhalos:latest ./hsc-mpi-shifter.sh
 
 # coadds, custom coadds
-time srun -N 8 -n 32 -c 8 shifter --image=docker:flagnarg/legacyhalos:latest ./hsc-mpi-shifter.sh
+time srun -N 1 -n 4 -c 8 shifter --image=docker:flagnarg/legacyhalos:latest ./hsc-mpi-shifter.sh
