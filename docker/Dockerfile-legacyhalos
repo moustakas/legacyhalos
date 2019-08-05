@@ -1,16 +1,16 @@
 # Starting from the legacypipe-nersc docker container, customize our build.  Be sure to do
 #   docker login
-#   docker pull legacysurvey/legacypipe:nersc-dr8.3.1
+#   docker pull legacysurvey/legacypipe:nersc-dr8.3.2
 # before building and pushing the container with
 #   docker build . -t flagnarg/legacyhalos --file Dockerfile-legacyhalos
 #   docker push flagnarg/legacyhalos:latest
 # Finally, run this container with:
 #   docker run -it flagnarg/legacyhalos:latest
 # Can also tag with:
-#   docker tag flagnarg/legacyhalos:latest flagnarg/legacyhalos:v0.0.3
-#   docker push flagnarg/legacyhalos:v0.0.3
+#   docker tag flagnarg/legacyhalos:latest flagnarg/legacyhalos:v0.0.4
+#   docker push flagnarg/legacyhalos:v0.0.4
 
-FROM legacysurvey/legacypipe:nersc-dr8.3.1
+FROM legacysurvey/legacypipe:nersc-dr8.3.2
 
 LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
 
