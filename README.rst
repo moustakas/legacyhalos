@@ -1,7 +1,7 @@
 Stellar Mass Content of Dark Matter Halos in Legacy Survey Imaging
 ==================================================================
 
-The `Legacy Survey`_ is delivering deep *grz* optical imaging and unWISE *W1* and *W2*
+The `Legacy Surveys`_ are delivering deep *grz* optical imaging and unWISE *W1* and *W2*
 mid-infrared imaging of over 14,000 sq. deg of the extragalactic sky.
 
 This repository contains code and papers for a multi-pronged analysis of the
