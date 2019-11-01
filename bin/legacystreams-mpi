@@ -5,6 +5,8 @@ funpack -Z -F -v streams/*/*custom*.fz
 funpack -Z -F -v streams/*/*pipeline*.fz
 funpack -Z -F -v streams/*/*invvar*.fz
 
+montage -bordercolor white -borderwidth 1 -tile 5x5 -geometry +0+0 -resize 512 */*-custom-image-grz.jpg ./streams.png
+
 """
 import matplotlib
 matplotlib.use('Agg')
