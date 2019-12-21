@@ -1,11 +1,7 @@
 #!/usr/bin/env python
 """MPI wrapper for the tidal streams project.
 
-funpack -Z -F -v streams/*/*custom*.fz
-funpack -Z -F -v streams/*/*pipeline*.fz
-funpack -Z -F -v streams/*/*invvar*.fz
-
-montage -bordercolor white -borderwidth 1 -tile 5x5 -geometry +0+0 -resize 512 */*-custom-image-grz.jpg ./streams.png
+time LSLGA-mpi --coadds --first 17328 --last 17328 --nproc 32 --debug --clobber
 
 """
 import matplotlib
@@ -40,6 +36,8 @@ def main():
     if rank == 0:
         sample = legacyhalos.LSLGA.read_sample(first=args.first, last=args.last,
                                                verbose=args.verbose)
+        #print(np.where(['UGC01446' in gg for gg in sample['GALAXY']])[0])
+        #import pdb ; pdb.set_trace()
     else:
         sample = None
 
@@ -101,8 +99,8 @@ def main():
         
         # Need the object "radius" to build the coadds.
         if args.coadds or args.custom_coadds:
-            radius_mask_arcsec = onegal['RADIUS_MASK']  # [arcsec]
-            radius_mosaic_arcsec = onegal['RADIUS_MOSAIC']  # [arcsec]
+            radius_mask_arcsec = onegal['D25'] * 60       # [arcsec]
+            radius_mosaic_arcsec = onegal['D25'] * 60 * 2 # [arcsec]
 
             survey = LegacySurveyData()
             survey.output_dir = galaxydir

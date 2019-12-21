@@ -104,7 +104,7 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         
     return np.array_split(indices, size)
 
-def read_all_ccds(dr='dr8'):
+def read_all_ccds(dr='dr9'):
     """Read the CCDs files, treating DECaLS and BASS+MzLS separately.
 
     """

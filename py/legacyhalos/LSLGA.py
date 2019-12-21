@@ -95,9 +95,9 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
 
     """
     if datadir is None:
-        datadir = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'streams')
+        datadir = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'LSLGA')
     if htmldir is None:
-        htmldir = os.path.join(legacyhalos.io.legacyhalos_html_dir(), 'streams')
+        htmldir = os.path.join(legacyhalos.io.legacyhalos_html_dir(), 'LSLGA')
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
@@ -122,12 +122,13 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
         return galaxy, galaxydir
 
 def read_sample(first=None, last=None, verbose=False):
-    """Read/generate the parent streams/dmd catalog.
+    """Read/generate the parent LSLGA catalog.
 
     """
     import fitsio
     version = 'v3.0'
-    samplefile = os.path.join(os.path.abspath(os.getenv('LSLGA_DIR')), version, 'LSLGA-{}.fits'.format(version))
+    samplefile = os.path.join(os.path.abspath(os.getenv('LSLGA_DIR')), 'sample',
+                              version, 'LSLGA-{}.fits'.format(version))
 
     if first and last:
         if first > last:
