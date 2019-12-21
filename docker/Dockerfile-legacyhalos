@@ -10,9 +10,7 @@
 #   docker tag flagnarg/legacyhalos:latest flagnarg/legacyhalos:v0.0.4
 #   docker push flagnarg/legacyhalos:v0.0.4
 
-FROM legacysurvey/legacypipe:nersc-dr8.3.2
-
-LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
+FROM legacysurvey/legacypipe:dr9d as builder
 
 # Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
 RUN mkdir /build/
@@ -41,6 +39,14 @@ RUN apt -y update && apt install -y apt-utils && echo yes \
 #    && make clean
 
 RUN /sbin/ldconfig
+
+#### Stage 2 ####
+FROM legacysurvey/legacypipe:dr9d
+RUN mkdir /build/
+
+COPY --from=builder /usr/local /usr/local
+
+LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
 
 # pip-install some additional dependencies
 RUN for x in \
