@@ -134,7 +134,8 @@ def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
 def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                     nproc=1, pixscale=0.262, run='decam', splinesky=True,
                     log=None, force=False, no_large_galaxies=True, no_gaia=True,
-                    no_tycho=True, unwise=True, apodize=False, cleanup=True):
+                    no_tycho=True, just_coadds=False, unwise=True, apodize=False,
+                    cleanup=True):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
 
     radius_mosaic in arcsec
@@ -155,7 +156,6 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} --run {run} '
-    #cmd += '--stage image_coadds --early-coadds '
     #cmd += '--write-stage tims '
     cmd += '--write-stage srcs '
     #cmd += '--min-mjd 0 ' # obsolete
@@ -163,6 +163,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     #cmd += '--no-wise-ceres '
     cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p '
     cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
+    if just_coadds:
+        cmd += '--stage image_coadds --early-coadds '
     if unwise:
         cmd += '--unwise-coadds '
     else:
@@ -203,7 +205,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         ok = _copyfile(
             os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
             os.path.join(survey.output_dir, '{}-pipeline-tractor.fits'.format(galaxy)) )
-        if not ok:
+        if not ok and not just_coadds:
             return ok
 
         # CCDs, maskbits, blob images, outlier masks, and depth images
@@ -218,19 +220,19 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                          'legacysurvey-{}-maskbits.fits.fz'.format(brickname)),
             os.path.join(survey.output_dir, '{}-maskbits.fits.fz'.format(galaxy)) )
-        if not ok:
+        if not ok and not just_coadds:
             return ok
 
         ok = _copyfile(
             os.path.join(survey.output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
             os.path.join(survey.output_dir, '{}-blobs.fits.gz'.format(galaxy)) )
-        if not ok:
+        if not ok and not just_coadds:
             return ok
 
         ok = _copyfile(
             os.path.join(survey.output_dir, 'metrics', 'cus', 'outlier-mask-{}.fits.fz'.format(brickname)),
             os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy)) )
-        if not ok:
+        if not ok and not just_coadds:
             return ok
 
         for band in ('g', 'r', 'z'):
@@ -248,7 +250,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                     os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                                  'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
                     os.path.join(survey.output_dir, '{}-pipeline-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
-                if not ok:
+                if not ok and not just_coadds:
                     return ok
 
         for band in ('g', 'r', 'z'):
@@ -286,14 +288,14 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                 os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
                 os.path.join(survey.output_dir, '{}-pipeline-{}-grz.jpg'.format(galaxy, imtype)) )
-            if not ok:
+            if not ok and not just_coadds:
                 return ok
 
         if cleanup:
-            shutil.rmtree(os.path.join(survey.output_dir, 'coadd'))
-            shutil.rmtree(os.path.join(survey.output_dir, 'metrics'))
-            shutil.rmtree(os.path.join(survey.output_dir, 'tractor'))
-            shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'))
+            shutil.rmtree(os.path.join(survey.output_dir, 'coadd'), ignore_errors=True)
+            shutil.rmtree(os.path.join(survey.output_dir, 'metrics'), ignore_errors=True)
+            shutil.rmtree(os.path.join(survey.output_dir, 'tractor'), ignore_errors=True)
+            shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'), ignore_errors=True)
 
         return 1
 

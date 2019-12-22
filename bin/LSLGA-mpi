@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 """MPI wrapper for the tidal streams project.
 
-time LSLGA-mpi --coadds --first 17328 --last 17328 --nproc 32 --debug --clobber
+time LSLGA-mpi --coadds --first 12308 --last 12308 --nproc 32 --debug --clobber # UGC01446
+time LSLGA-mpi --coadds --first 17328 --last 17328 --nproc 32 --debug --clobber # UGC07774
 
 """
 import matplotlib
@@ -36,6 +37,7 @@ def main():
     if rank == 0:
         sample = legacyhalos.LSLGA.read_sample(first=args.first, last=args.last,
                                                verbose=args.verbose)
+        #print(np.where(['UGC07774' in gg for gg in sample['GALAXY']])[0])
         #print(np.where(['UGC01446' in gg for gg in sample['GALAXY']])[0])
         #import pdb ; pdb.set_trace()
     else:
@@ -110,7 +112,8 @@ def main():
                                  kdccds_north, kdccds_south, pixscale=args.pixscale,
                                  nproc=args.nproc, force=args.force, debug=args.debug,
                                  logfile=logfile, apodize=True, unwise=False,
-                                 no_large_galaxies=False, no_gaia=False, no_tycho=False)
+                                 no_large_galaxies=False, no_gaia=False, no_tycho=False,
+                                 just_coadds=args.just_coadds)
                     
         if args.custom_coadds and not legacyhalos.io.check_and_read_ccds(
                         galaxy, survey, debug=args.debug, logfile=logfile):

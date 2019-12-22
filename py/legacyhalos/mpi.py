@@ -10,7 +10,6 @@ import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 
 import legacyhalos.io
-import legacyhalos.hsc
 
 def _start(galaxy, log=None, seed=None):
     if seed:
@@ -28,7 +27,7 @@ def call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                          kdccds_south, pixscale=0.262, nproc=1, force=False,
                          debug=False, logfile=None, apodize=False, unwise=True,
                          no_large_galaxies=False, no_gaia=False, no_tycho=False,
-                         cleanup=True):
+                         just_coadds=False, cleanup=True):
     """Wrapper script to build the pipeline coadds.
 
     radius_mosaic in arcsec
@@ -42,7 +41,7 @@ def call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                                                  survey=survey, pixscale=pixscale, run=run,
                                                  nproc=nproc, force=force, cleanup=cleanup,
                                                  apodize=apodize, unwise=unwise, no_large_galaxies=no_large_galaxies,
-                                                 no_gaia=no_gaia, no_tycho=no_tycho)
+                                                 no_gaia=no_gaia, no_tycho=no_tycho, just_coadds=just_coadds)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -54,7 +53,8 @@ def call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                                                          nproc=nproc, force=force, log=log, cleanup=cleanup,
                                                          apodize=apodize, unwise=unwise,
                                                          no_large_galaxies=no_large_galaxies,
-                                                         no_gaia=no_gaia, no_tycho=no_tycho)
+                                                         no_gaia=no_gaia, no_tycho=no_tycho,
+                                                         just_coadds=just_coadds)
                 _done(galaxy, err, t0, log=log)
 
 def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale=0.262,
@@ -204,7 +204,9 @@ def mpi_args():
     parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
 
     parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
+    parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py.')
     parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
+
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
     parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
     parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')

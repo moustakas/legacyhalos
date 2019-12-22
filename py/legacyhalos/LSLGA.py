@@ -22,6 +22,7 @@ def mpi_args():
     parser.add_argument('--last', type=int, help='Index of last object to process.')
 
     parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
+    parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py.')
     parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     
