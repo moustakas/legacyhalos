@@ -543,7 +543,8 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     import copy
     import tractor
     
-    from legacypipe.runbrick import stage_tims
+    from legacypipe.runbrick import (stage_tims, stage_refs, stage_outliers, stage_halos,
+                                     stage_srcs, stage_fitblobs)
     from legacypipe.runbrick import _get_mod
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.survey import get_rgb, imsave_jpeg
@@ -602,6 +603,8 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             P = call_stage_tims()
     else:
         P = call_stage_tims()
+
+    pdb.set_trace()
 
     tims, brickwcs = P['tims'], P['targetwcs']
     bands, version_header = P['bands'], P['version_header']

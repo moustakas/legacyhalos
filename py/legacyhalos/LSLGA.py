@@ -34,6 +34,8 @@ def mpi_args():
     parser.add_argument('--debug', action='store_true', help='Log to STDOUT and build debugging plots.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
+
+    parser.add_argument('--build-LSLGA', action='store_true', help='Build the LSLGA reference catalog.')
     args = parser.parse_args()
 
     return args
