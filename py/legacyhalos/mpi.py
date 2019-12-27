@@ -190,6 +190,37 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                                   ccdqa=ccdqa, maketrends=False)
                 _done(galaxy, err, t0, log=log)
 
+def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
+                            kdccds_south, pixscale=0.262, nproc=1, radius_mask=None,
+                            debug=False, verbose=False, logfile=None, apodize=False,
+                            cleanup=True):
+    """Wrapper script to build the pipeline coadds for large galaxies.
+
+    radius_mosaic in arcsec
+
+    """
+    t0 = time.time()
+    if debug:
+        _start(galaxy)
+        run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
+        err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
+                                                    radius_mosaic=radius_mosaic, radius_mask=radius_mask,
+                                                    nproc=nproc, pixscale=pixscale,
+                                                    run=run, apodize=apodize, verbose=verbose,
+                                                    cleanup=cleanup)
+        _done(galaxy, err, t0)
+    else:
+        with open(logfile, 'a') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                _start(galaxy, log=log)
+                run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south, log=log)
+                err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
+                                                            radius_mosaic=radius_mosaic, radius_mask=radius_mask,
+                                                            nproc=nproc, pixscale=pixscale,
+                                                            run=run, apodize=apodize, verbose=verbose,
+                                                            cleanup=cleanup, log=log)
+                _done(galaxy, err, t0, log=log)
+
 def mpi_args():
     import argparse
 
@@ -211,9 +242,9 @@ def mpi_args():
     parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
     parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
     parser.add_argument('--sky', action='store_true', help='Estimate the sky variance.')
+
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
-
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')

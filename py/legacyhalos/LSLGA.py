@@ -5,7 +5,7 @@ legacyhalos.LSLGA
 Code to deal with the LSLGA sample and project.
 
 """
-import os, pdb
+import os, time, pdb
 import numpy as np
 import astropy
 
@@ -20,12 +20,15 @@ def mpi_args():
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
+    parser.add_argument('--galaxylist', type=str, nargs='*', default=None, help='List of galaxy names to process.')
 
     parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py.')
     parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     
+    parser.add_argument('--LSLGA', action='store_true', help='Special code for large galaxies.')
+
     parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
     parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
     parser.add_argument('--debug', action='store_true', help='Log to STDOUT and build debugging plots.')
@@ -42,6 +45,8 @@ def missing_files_groups(args, sample, size, htmldir=None):
     if args.coadds:
         suffix = 'coadds'
     elif args.custom_coadds:
+        suffix = 'custom-coadds'
+    elif args.LSLGA:
         suffix = 'custom-coadds'
     else:
         suffix = ''        
@@ -61,6 +66,8 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
     if filetype == 'coadds':
         filesuffix = '-pipeline-resid-grz.jpg'
     elif filetype == 'custom-coadds':
+        filesuffix = '-custom-resid-grz.jpg'
+    elif filetype == 'LSLGA':
         filesuffix = '-custom-resid-grz.jpg'
     else:
         print('Unrecognized file type!')
@@ -122,7 +129,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
-def read_sample(first=None, last=None, verbose=False):
+def read_sample(first=None, last=None, galaxylist=None, verbose=False):
     """Read/generate the parent LSLGA catalog.
 
     """
@@ -157,5 +164,10 @@ def read_sample(first=None, last=None, verbose=False):
         else:
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(sample), samplefile))
+
+    if galaxylist is not None:
+        if verbose:
+            print('Selecting specific galaxies.')
+        sample = sample[np.isin(sample['GALAXY'], galaxylist)]
             
     return sample

@@ -527,6 +527,125 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
     
     return out
 
+def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
+                       radius_mask=None, nproc=1, pixscale=0.262, run='decam',
+                       log=None, apodize=False, plots=False, verbose=False, cleanup=True,
+                       write_ccddata=False, sky_annulus=True, centrals=True,
+                       doforced_phot=True):
+    """Build a custom set of large-galaxy coadds
+
+    radius_mosaic and radius_mask in arcsec
+
+    centrals - if this is the centrals project (legacyhalos or HSC) then deal
+      with the central with dedicated code.
+
+    """
+    import copy
+    import tractor
+    
+    from legacypipe.runbrick import stage_tims
+    from legacypipe.runbrick import _get_mod
+    from legacypipe.coadds import make_coadds, write_coadd_images
+    from legacypipe.survey import get_rgb, imsave_jpeg
+    from legacypipe.image import DQ_BITS
+            
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+
+    if galaxy is None:
+        galaxy = 'galaxy'
+        
+    brickname = custom_brickname(onegal['RA'], onegal['DEC'])
+
+    if plots:
+        from astrometry.util.plotutils import PlotSequence
+        ps = PlotSequence('qa-{}'.format(brickname))
+    else:
+        ps = None
+
+    mp = multiproc(nthreads=nproc)
+
+    if radius_mask is None:
+        radius_mask = radius_mosaic
+        radius_search = 5.0 # [arcsec]
+    else:
+        radius_search = radius_mask
+        
+    width = _mosaic_width(radius_mosaic, pixscale)
+
+    unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)    
+
+    # [1] Initialize the "tims" stage of the pipeline, returning a
+    # dictionary with the following keys:
+    
+    #   ['brickid', 'target_extent', 'version_header', 'targetrd',
+    #    'brickname', 'pixscale', 'bands', 'survey', 'brick', 'ps',
+    #    'H', 'ccds', 'W', 'targetwcs', 'tims']
+
+    def call_stage_tims():
+        """Note that we return just the portion of the CCDs centered on the galaxy, and
+        that we turn off sky-subtraction.
+
+        """
+        print('Need to perform custom sky-subtraction!')
+        return stage_tims(ra=onegal['RA'], dec=onegal['DEC'], brickname=brickname,
+                          survey=survey, W=width, H=width, pixscale=pixscale,
+                          mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
+                          splinesky=True,
+                          subsky=True, # False note!
+                          depth_cut=False, apodize=apodize, do_calibs=False, rex=True, 
+                          unwise_dir=unwise_dir, plots=plots, ps=ps)
+
+    if log:
+        with redirect_stdout(log), redirect_stderr(log):
+            P = call_stage_tims()
+    else:
+        P = call_stage_tims()
+
+    tims, brickwcs = P['tims'], P['targetwcs']
+    bands, version_header = P['bands'], P['version_header']
+    del P
+
+    # Read and apply the outlier masks.
+    outliersfile = os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy))
+    if not os.path.isfile(outliersfile):
+        print('Missing outliers masks {}'.format(outliersfile), flush=True, file=log)
+        return 0
+
+    outliers = fitsio.FITS(outliersfile)
+    for tim in tims:
+        ext = '{}-{}-{}'.format(tim.imobj.camera, tim.imobj.expnum,
+                                tim.imobj.ccdname.lower().strip())
+        if ext in outliers:
+            mask = outliers[ext].read()
+            maskhdr = outliers[ext].read_header()
+            tim.dq |= (mask > 0) * DQ_BITS['outlier']
+            tim.inverr[mask > 0] = 0.0
+        else:
+            print('Warning: extension {} not found in image {}'.format(ext, outliersfile), flush=True, file=log)
+
+    # Build the custom coadds.
+    print('Producing coadds...', flush=True, file=log)
+    def call_make_coadds(usetims):
+        return make_coadds(usetims, bands, brickwcs, mods=None, mp=mp,
+                           callback=write_coadd_images,
+                           callback_args=(survey, brickname, version_header, 
+                                          usetims, brickwcs))
+
+    # Custom coadds--all galaxies. (Pipeline coadds already exist.)
+    if log:
+        with redirect_stdout(log), redirect_stderr(log):
+            C = call_make_coadds(tims)
+            #C = call_make_coadds(custom_tims)
+            #P = call_make_coadds(pipeline_mods, pipeline_tims)
+    else:
+        C = call_make_coadds(tims)
+        #C = call_make_coadds(custom_tims)
+        #P = call_make_coadds(pipeline_mods, pipeline_tims)
+
+    pdb.set_trace()
+
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,
                   apodize=False, plots=False, verbose=False, cleanup=True,
