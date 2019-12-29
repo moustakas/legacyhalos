@@ -165,7 +165,9 @@ def main():
             continue
 
         if args.custom_coadds:
-            if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 0 or args.clobber:
+            # need to figure this out -- I don't want to depend on the pipeline coadds for this project...
+            #if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 0 or args.clobber:
+            if True:
                 from legacyhalos.html import qa_ccdpos
                 qa_ccdpos(onegal, galaxy, galaxydir, galaxydir, pixscale=args.pixscale,
                           radius=radius_mosaic_arcsec/args.pixscale, survey=survey,
@@ -177,7 +179,7 @@ def main():
                                    doforced_phot=False, apodize=True)
 
         if args.LSLGA:
-            if len(legacyhalos.LSLGA.missing_files(onegal, filetype='custom-coadds')) == 0 or args.clobber:
+            if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 0 or args.clobber:
                 call_largegalaxy_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
                                         kdccds_north, kdccds_south,
                                         pixscale=args.pixscale, nproc=args.nproc,

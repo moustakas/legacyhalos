@@ -666,6 +666,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     import copy
     import tractor
     
+    import legacypipe.runbrick
     from legacypipe.runbrick import stage_tims
     from legacypipe.runbrick import _get_mod
     from legacypipe.coadds import make_coadds, write_coadd_images
@@ -680,6 +681,17 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         galaxy = 'galaxy'
         
     brickname = custom_brickname(onegal['RA'], onegal['DEC'])
+
+    # Parse the runbrick keyword arguments in order to get all the correct
+    # defaults.
+    opt, _ = legacypipe.runbrick.get_parser().parse_known_args()
+    _, kwargs = legacypipe.runbrick.get_runbrick_kwargs(**vars(opt))
+
+
+
+    pdb.set_trace()
+
+    run_brick(opt.brick, survey, **kwargs)
 
     if plots:
         from astrometry.util.plotutils import PlotSequence
