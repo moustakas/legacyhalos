@@ -667,7 +667,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     import tractor
     
     import legacypipe.runbrick
-    from legacypipe.runbrick import stage_tims
+    from legacypipe.runbrick import stage_tims, stage_refs, stage_outliers, stage_halos
     from legacypipe.runbrick import _get_mod
     from legacypipe.coadds import make_coadds, write_coadd_images
     from legacypipe.survey import get_rgb, imsave_jpeg
@@ -679,19 +679,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     if galaxy is None:
         galaxy = 'galaxy'
-        
-    brickname = custom_brickname(onegal['RA'], onegal['DEC'])
-
-    # Parse the runbrick keyword arguments in order to get all the correct
-    # defaults.
-    opt, _ = legacypipe.runbrick.get_parser().parse_known_args()
-    _, kwargs = legacypipe.runbrick.get_runbrick_kwargs(**vars(opt))
-
-
-
-    pdb.set_trace()
-
-    run_brick(opt.brick, survey, **kwargs)
 
     if plots:
         from astrometry.util.plotutils import PlotSequence
@@ -706,10 +693,51 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         radius_search = 5.0 # [arcsec]
     else:
         radius_search = radius_mask
-        
-    width = _mosaic_width(radius_mosaic, pixscale)
 
-    unwise_dir = os.environ.get('UNWISE_COADDS_DIR', None)    
+    # Parse the runbrick keyword arguments in order to get all the correct
+    # defaults, etc.
+    ra, dec = onegal['RA'], onegal['DEC']
+    brickname = custom_brickname(ra, dec)
+    width = _mosaic_width(radius_mosaic, pixscale)
+    opt, _ = legacypipe.runbrick.get_parser().parse_known_args()
+    opt.ra = ra
+    opt.dec = dec
+    opt.W = width
+    opt.H = width
+    opt.threads = nproc
+    opt.pixscale = pixscale
+    opt.brickname = brickname
+    opt.bands = ('g,r,z')
+    opt.mp = mp
+    opt.plots = plots
+    opt.ps = ps
+    opt.apodize = apodize
+    opt.do_calibs = False
+    opt.subsky = False
+    opt.tycho_stars = False
+    opt.gaia_stars = False
+    opt.large_galaxies = False
+    opt.outlier_mask_file = os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy))
+
+    _, kwargs = legacypipe.runbrick.get_runbrick_kwargs(**vars(opt))
+
+    # tims --> refs --> outliers --> halos
+    P = stage_tims(survey=survey, **kwargs)
+    P.update(kwargs)
+    
+    Q = stage_refs(**P)
+    Q.update(P)
+    Q.update(kwargs)
+
+    R = stage_outliers(**Q)
+    R.update(Q)
+    R.update(P)
+    R.update(kwargs)
+
+    S = stage_halos(**R)
+    S.update(kwargs)
+
+
 
     # [1] Initialize the "tims" stage of the pipeline, returning a
     # dictionary with the following keys:
@@ -727,7 +755,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                           survey=survey, W=width, H=width, pixscale=pixscale,
                           mp=mp, normalizePsf=True, pixPsf=True, hybridPsf=True,
                           splinesky=True, subsky=False, # note!
-                          depth_cut=False, apodize=apodize, do_calibs=False, rex=True, 
+                          #depth_cut=False, rex=True,  OBSOLETE!
+                          apodize=apodize, do_calibs=False, 
                           unwise_dir=unwise_dir, plots=plots, ps=ps)
 
     if log:
