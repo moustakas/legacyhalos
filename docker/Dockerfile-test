@@ -13,9 +13,9 @@
 # Finally, you can optionally enter this container with:
 #   docker run -it flagnarg/legacyhalos:latest
 
-FROM legacysurvey/legacypipe:preburn-lslga
+FROM ubuntu:18.04 as builder
 
-LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
+RUN apt-get update && apt-get install -y autoconf automake gcc g++ make gfortran wget && apt-get clean all
 
 # Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
 RUN mkdir /build/
@@ -30,6 +30,16 @@ RUN cd /build \
 
 RUN /sbin/ldconfig
 
+#### Stage 2 ####
+FROM legacysurvey/legacypipe:preburn-lslga
+
+# RUN mkdir -p /build/
+
+# COPY --from=builder /usr/bin /usr/bin
+COPY --from=builder /usr/local /usr/local
+
+LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
+
 RUN pip --no-cache-dir install mpi4py
 
 # Add the development version of photutils
@@ -39,7 +49,7 @@ RUN pip --no-cache-dir install mpi4py
 #     && cd photutils \
 #     && python3 setup.py install
 
-RUN rm -rf /build
+# RUN rm -rf /build
 
 # # Clone legacyhalos
 # RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
