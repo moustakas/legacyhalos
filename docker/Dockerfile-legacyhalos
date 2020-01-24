@@ -10,7 +10,11 @@
 #   docker tag flagnarg/legacyhalos:latest flagnarg/legacyhalos:v0.0.4
 #   docker push flagnarg/legacyhalos:v0.0.4
 
-FROM legacysurvey/legacypipe:dr9d as builder
+# FROM registry.services.nersc.gov/nersc/intel_cxx_fort_mpi_mkl_devel as builder
+
+FROM ubuntu:18.04 as builder
+
+RUN apt-get update && apt-get install -y autoconf automake gcc g++ make gfortran wget && apt-get clean all
 
 # Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
 RUN mkdir /build/
@@ -23,11 +27,11 @@ RUN cd /build \
     && make install \
     && make clean
 
-# Install imagemagick
-RUN apt -y update && apt install -y apt-utils && echo yes \
-    && apt-get install -y --no-install-recommends \
-    imagemagick \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# # Install imagemagick
+# RUN apt -y update && apt install -y apt-utils && echo yes \
+#     && apt-get install -y --no-install-recommends \
+#     imagemagick \
+#     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 #RUN cd /build \
 #    && wget https://www.imagemagick.org/download/ImageMagick-7.0.8-46.tar.gz \
@@ -41,27 +45,32 @@ RUN apt -y update && apt install -y apt-utils && echo yes \
 RUN /sbin/ldconfig
 
 #### Stage 2 ####
-FROM legacysurvey/legacypipe:dr9d
-RUN mkdir /build/
+FROM legacysurvey/legacypipe:preburn-lslga
+
+RUN mkdir -p /build/
 
 COPY --from=builder /usr/local /usr/local
 
 LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
 
-# pip-install some additional dependencies
-RUN for x in \
-    mpi4py \
-    healpy \
-    seaborn \
-    ; do pip3 --no-cache-dir install $x; done \
-    && rm -Rf /root/.cache/pip
+# # pip-install some additional dependencies
+# RUN for x in \
+#     mpi4py \
+#     # healpy \
+#     # seaborn \
+#     photutils \
+#     ; do pip3 --no-cache-dir install $x; done \
+#     && rm -Rf /root/.cache/pip
 
-# Add the development version of photutils.
-RUN pip3 uninstall -y photutils \
-    && cd /build \
-    && git clone https://github.com/astropy/photutils.git \
-    && cd photutils \
-    && python3 setup.py install
+RUN pip --no-cache-dir install mpi4py
+
+
+# Add the development version of photutils (but it requires python >3.6!)
+# RUN pip3 uninstall -y photutils \
+#     && cd /build \
+#     && git clone https://github.com/astropy/photutils.git \
+#     && cd photutils \
+#     && python3 setup.py install
 RUN rm -rf /build
 
 # # Clone legacyhalos
