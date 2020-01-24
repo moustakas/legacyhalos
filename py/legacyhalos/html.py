@@ -13,11 +13,6 @@ import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
 
-sns, _ = legacyhalos.misc.plot_style()
-
-#import seaborn as sns
-#sns.set(style='ticks', font_scale=1.4, palette='Set2')
-
 def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
            zcolumn='Z', survey=None, mp=None, clobber=False, verbose=True):
     """Build CCD-level QA.
@@ -84,7 +79,8 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         display_ccdpos(onegal, survey.ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
-                      barlabel=None, clobber=False, verbose=True):
+                      barlabel=None, clobber=False, verbose=True,
+                      pipeline_montage=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
@@ -127,10 +123,16 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
         return pngfile
 
     if not os.path.isfile(montagefile) or clobber:
+        if pipeline_montage:
+            prefix = 'pipeline'
+            coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-grz'.format(prefix), '{}-resid-grz'.format(prefix))
+        else:
+            prefix = 'custom'
+            coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-nocentral-grz'.format(prefix), '{}-image-central-grz'.format(prefix))
         # Make sure all the files exist.
         check = True
         jpgfile = []
-        for suffix in ('custom-image-grz', 'custom-model-nocentral-grz', 'custom-image-central-grz'):
+        for suffix in coaddfiles:
             _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
             jpgfile.append(_jpgfile)
             if not os.path.isfile(_jpgfile):
@@ -284,7 +286,8 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
 def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
-               nproc=1, maketrends=False, ccdqa=False, clobber=False, verbose=True):
+               nproc=1, maketrends=False, ccdqa=False, clobber=False, verbose=True,
+               pipeline_montage=False):
     """Make QA plots.
 
     """
@@ -292,15 +295,9 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
     from legacyhalos.coadds import _mosaic_width
     
     if datadir is None:
-        if hsc:
-            datadir = legacyhalos.io.hsc_data_dir()
-        else:
-            datadir = legacyhalos.hsc.legacyhalos_data_dir()
+        datadir = legacyhalos.io.legacyhalos_data_dir()
     if htmldir is None:
-        if hsc:
-            htmldir = legacyhalos.hsc.hsc_html_dir()
-        else:
-            htmldir = legacyhalos.io.legacyhalos_html_dir()
+        htmldir = legacyhalos.io.legacyhalos_html_dir()
 
     if survey is None:
         from legacypipe.survey import LegacySurveyData
@@ -314,19 +311,13 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         from astrometry.util.multiproc import multiproc
         mp = multiproc(nthreads=nproc)
 
-    if hsc:
-        from legacyhalos.misc import HSC_RADIUS_CLUSTER_KPC as radius_mosaic_kpc
-    else:
-        from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
+    from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
     # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
 
         if galaxylist is None:
-            if hsc:
-                galaxy, galaxydir, htmlgalaxydir = legacyhalos.hsc.get_galaxy_galaxydir(onegal, html=True)
-            else:
-                galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
+            galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
         else:
             galaxy = galaxylist[ii]
             galaxydir = os.path.join(datadir, galaxy)
@@ -353,7 +344,8 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
 
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
-                          barlabel=barlabel, clobber=clobber, verbose=verbose)
+                          barlabel=barlabel, clobber=clobber, verbose=verbose,
+                          pipeline_montage=pipeline_montage)
 
         # Sersic fiting results
         if False:

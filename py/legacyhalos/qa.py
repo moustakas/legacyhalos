@@ -21,7 +21,11 @@ import legacyhalos.misc
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
-sns, _ = legacyhalos.misc.plot_style()
+try:
+    sns, _ = legacyhalos.misc.plot_style()
+except:
+    print('Need to install seaborn!')
+    
 #snscolors = sns.color_palette()
 
 #import matplotlib as mpl 
@@ -37,7 +41,10 @@ def _sbprofile_colors():
     https://seaborn.pydata.org/generated/seaborn.color_palette.html#seaborn.color_palette
 
     """
-    _colors = sns.color_palette('Set1', n_colors=8, desat=0.75)
+    try:
+        _colors = sns.color_palette('Set1', n_colors=8, desat=0.75)
+    except:
+        _colors = ['red', 'green', 'blue', 'orange', 'purple']
     colors = iter([_colors[1], _colors[2], _colors[0], _colors[3], _colors[4]])
     return colors
 
@@ -693,7 +700,11 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
 
     from matplotlib.ticker import FormatStrFormatter, ScalarFormatter
 
-    colors = iter(sns.color_palette())
+    try:
+        colors = iter(sns.color_palette())
+    except:
+        print('Need seaborn!!!')
+        colors = _sbprofile_colors()
 
     if ellipsefit['success']:
         
@@ -979,7 +990,11 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 def display_mge_sbprofile(mgefit, indx=None, png=None, verbose=True):
     """Display the multi-band surface brightness profile."""
 
-    colors = iter(sns.color_palette())
+    try:
+        colors = iter(sns.color_palette())
+    except:
+        print('Need seaborn!!!')
+        colors = _sbprofile_colors()
 
     #if indx is None:
     #    indx = np.ones_like(mgefit[refband].radius, dtype='bool')

@@ -10,6 +10,7 @@ import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 
 import legacyhalos.io
+import legacyhalos.html
 
 def _start(galaxy, log=None, seed=None):
     if seed:
@@ -169,25 +170,28 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 _done(galaxy, err, t0, log=log)
                 
 def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
-                    verbose, ccdqa, logfile, htmldir, zcolumn):
+                   verbose, ccdqa, logfile, zcolumn, htmldir, datadir=None,
+                   galaxylist=None, pipeline_montage=False):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
     if debug:
         _start(galaxy)
-        err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+        err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir,
                                           pixscale=pixscale, survey=survey, clobber=clobber,
                                           verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                          ccdqa=ccdqa, maketrends=False)
+                                          ccdqa=ccdqa, maketrends=False, galaxylist=galaxylist,
+                                          pipeline_montage=pipeline_montage)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+                err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir,
                                                   pixscale=pixscale, survey=survey, clobber=clobber,
                                                   verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                                  ccdqa=ccdqa, maketrends=False)
+                                                  ccdqa=ccdqa, maketrends=False, galaxylist=galaxylist,
+                                                  pipeline_montage=pipeline_montage)
                 _done(galaxy, err, t0, log=log)
 
 def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,

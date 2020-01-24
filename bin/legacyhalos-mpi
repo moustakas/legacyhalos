@@ -161,7 +161,7 @@ def main():
         if args.htmlplots:
             call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
                            args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
-                           args.htmldir, ZCOLUMN)
+                           ZCOLUMN, args.htmldir)
 
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(

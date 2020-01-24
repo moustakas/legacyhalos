@@ -1,8 +1,7 @@
 #!/usr/bin/env python
-"""MPI wrapper for the tidal streams project.
+"""MPI wrapper for the Legacy Surveys large galaxies.
 
 time LSLGA-mpi --coadds --first 12308 --last 12308 --nproc 32 --debug --clobber # UGC01446
-time LSLGA-mpi --coadds --first 17328 --last 17328 --nproc 32 --debug --clobber # UGC07774
 
 """
 import matplotlib
@@ -21,7 +20,12 @@ def main():
     import legacyhalos.LSLGA
 
     from legacypipe.survey import LegacySurveyData
-    from legacyhalos.mpi import call_pipeline_coadds, call_custom_coadds, call_largegalaxy_coadds
+    from legacyhalos.mpi import (call_pipeline_coadds, call_custom_coadds, call_largegalaxy_coadds,
+                                 call_htmlplots)
+    from legacyhalos.LSLGA import ZCOLUMN
+
+    datadir = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'LSLGA')
+    htmldir = os.path.join(legacyhalos.io.legacyhalos_html_dir(), 'LSLGA')
 
     args = legacyhalos.LSLGA.mpi_args()
 
@@ -46,7 +50,7 @@ def main():
 
     # Gather all the results and build the final LSLGA catalog.
     if args.build_LSLGA:
-        outfile = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'LSLGA', 'LSLGA-model-v1.0.fits')
+        outfile = os.path.join(datadir, 'LSLGA-model-v1.0.fits')
         if not os.path.isfile(outfile) or args.clobber:
             import fitsio
             import astropy.table
@@ -94,6 +98,16 @@ def main():
     if args.coadds or args.LSLGA and not args.count:
         kdccds_north, kdccds_south = legacyhalos.io.read_all_ccds()
 
+    # Building the web-page and integrating the ellipse-fitting results work on
+    # the full sample, so do that here and then return.
+    if args.htmlindex:
+        if rank == 0:
+            legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
+                                        zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+                                        makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                        ccdqa=args.ccdqa)
+        return
+    
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
     groups, suffix = [], ''
@@ -145,12 +159,12 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        if args.coadds or args.custom_coadds or args.LSLGA:
-            radius_mask_arcsec = onegal['D25'] * 60       # [arcsec]
-            radius_mosaic_arcsec = onegal['D25'] * 60 * 2 # [arcsec]
+        #if args.coadds or args.custom_coadds or args.LSLGA:
+        radius_mask_arcsec = onegal['D25'] * 60       # [arcsec]
+        radius_mosaic_arcsec = onegal['D25'] * 60 * 2 # [arcsec]
 
-            survey = LegacySurveyData()
-            survey.output_dir = galaxydir
+        survey = LegacySurveyData()
+        survey.output_dir = galaxydir
 
         if args.coadds:
             call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
@@ -159,10 +173,13 @@ def main():
                                  logfile=logfile, apodize=True, unwise=False,
                                  no_large_galaxies=False, no_gaia=False, no_tycho=False,
                                  just_coadds=args.just_coadds)
-                    
-        if (args.custom_coadds or args.LSLGA) and not legacyhalos.io.check_and_read_ccds(
-                        galaxy, survey, debug=args.debug, logfile=logfile):
+                            
+        if (args.custom_coadds or args.htmlplots) and not legacyhalos.io.check_and_read_ccds(
+                galaxy, survey, debug=args.debug, logfile=logfile):
             continue
+        #if (args.custom_coadds or args.LSLGA or args.htmlplots) and not legacyhalos.io.check_and_read_ccds(
+        #        galaxy, survey, debug=args.debug, logfile=logfile):
+        #    continue
 
         if args.custom_coadds:
             # need to figure this out -- I don't want to depend on the pipeline coadds for this project...
@@ -186,6 +203,12 @@ def main():
                                         debug=args.debug, verbose=args.verbose, logfile=logfile,
                                         radius_mask=radius_mask_arcsec, apodize=True)
 
+        if args.htmlplots:
+            call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
+                           args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
+                           ZCOLUMN, htmldir, datadir, galaxylist=[onegal['GALAXY']],
+                           pipeline_montage=True)
+            
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)

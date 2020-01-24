@@ -93,31 +93,31 @@ def cosmology(WMAP=False, Planck=False):
 
     return cosmo
 
-def plot_style(font_scale=1.2, paper=False, talk=False):
-
-    import seaborn as sns
-    rc = {'font.family': 'serif'}#, 'text.usetex': True}
-    #rc = {'font.family': 'serif', 'text.usetex': True,
-    #       'text.latex.preamble': r'\boldmath'})
-    palette, context = 'Set2', 'talk'
-    
-    if paper:
-        context = 'paper'
-        palette = 'deep'
-        rc.update({'text.usetex': False})
-    
-    if talk:
-        context = 'talk'
-        palette = 'deep'
-        rc.update({'text.usetex': True})
-
-    sns.set(context=context, style='ticks', font_scale=font_scale, rc=rc)
-    sns.set_palette(palette, 12)
-
-    colors = sns.color_palette()
-    #sns.reset_orig()
-
-    return sns, colors
+#def plot_style(font_scale=1.2, paper=False, talk=False):
+#
+#    import seaborn as sns
+#    rc = {'font.family': 'serif'}#, 'text.usetex': True}
+#    #rc = {'font.family': 'serif', 'text.usetex': True,
+#    #       'text.latex.preamble': r'\boldmath'})
+#    palette, context = 'Set2', 'talk'
+#    
+#    if paper:
+#        context = 'paper'
+#        palette = 'deep'
+#        rc.update({'text.usetex': False})
+#    
+#    if talk:
+#        context = 'talk'
+#        palette = 'deep'
+#        rc.update({'text.usetex': True})
+#
+#    sns.set(context=context, style='ticks', font_scale=font_scale, rc=rc)
+#    sns.set_palette(palette, 12)
+#
+#    colors = sns.color_palette()
+#    #sns.reset_orig()
+#
+#    return sns, colors
 
 def get_logger(logfile):
     """Instantiate a simple logger.
