@@ -1,0 +1,46 @@
+Traceback (most recent call last):
+  File "/global/homes/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi", line 223, in <module>
+    main()
+  File "/global/homes/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi", line 33, in main
+    from mpi4py import MPI
+ModuleNotFoundError: No module named 'mpi4py'
+Traceback (most recent call last):
+  File "/global/homes/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi", line 223, in <module>
+    main()
+  File "/global/homes/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi", line 33, in main
+    from mpi4py import MPI
+ModuleNotFoundError: No module named 'mpi4py'
+Traceback (most recent call last):
+  File "/global/homes/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi", line 223, in <module>
+    main()
+  File "/global/homes/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi", line 33, in main
+    from mpi4py import MPI
+ModuleNotFoundError: No module named 'mpi4py'
+Traceback (most recent call last):
+  File "/global/homes/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi", line 223, in <module>
+    main()
+  File "/global/homes/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi", line 33, in main
+    from mpi4py import MPI
+ModuleNotFoundError: No module named 'mpi4py'
+
+real	0m3.429s
+user	0m0.524s
+sys	0m0.391s
+
+real	0m3.421s
+user	0m0.568s
+sys	0m0.284s
+
+real	0m3.440s
+user	0m0.548s
+sys	0m0.314s
+
+real	0m3.441s
+user	0m0.516s
+sys	0m0.356s
+srun: error: nid00675: tasks 0-3: Exited with exit code 1
+srun: Terminating job step 27618042.0
+
+real	0m9.743s
+user	0m0.091s
+sys	0m0.045s

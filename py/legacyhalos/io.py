@@ -173,7 +173,7 @@ def get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south, log=Non
             run = '90prime-mosaic'
         else:
             run = 'decam'
-        print('Cluster RA, Dec={:.6f}, {:.6f}: run={} ({} north CCDs, {} south CCDs).'.format(
+        print('RA, Dec={:.6f}, {:.6f}: run={} ({} north CCDs, {} south CCDs).'.format(
             ra, dec, run, len(inorth), len(isouth)), flush=True, file=log)
 
     return run

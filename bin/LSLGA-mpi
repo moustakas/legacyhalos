@@ -166,42 +166,46 @@ def main():
         survey = LegacySurveyData()
         survey.output_dir = galaxydir
 
-        if args.coadds:
-            call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                 kdccds_north, kdccds_south, pixscale=args.pixscale,
-                                 nproc=args.nproc, force=args.force, debug=args.debug,
-                                 logfile=logfile, apodize=True, unwise=False,
-                                 no_large_galaxies=False, no_gaia=False, no_tycho=False,
-                                 just_coadds=args.just_coadds)
-                            
-        if (args.custom_coadds or args.htmlplots) and not legacyhalos.io.check_and_read_ccds(
-                galaxy, survey, debug=args.debug, logfile=logfile):
-            continue
+        #if args.coadds:
+        #    call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
+        #                         kdccds_north, kdccds_south, pixscale=args.pixscale,
+        #                         nproc=args.nproc, force=args.force, debug=args.debug,
+        #                         logfile=logfile, apodize=True, unwise=False,
+        #                         no_large_galaxies=False, no_gaia=False, no_tycho=False,
+        #                         just_coadds=args.just_coadds)
+
+        if not args.coadds:
+            legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile)
+        
+        #if args.htmlplots and not legacyhalos.io.check_and_read_ccds(
+        #        galaxy, survey, debug=args.debug, logfile=logfile):
+        #    continue
+
         #if (args.custom_coadds or args.LSLGA or args.htmlplots) and not legacyhalos.io.check_and_read_ccds(
         #        galaxy, survey, debug=args.debug, logfile=logfile):
         #    continue
 
-        if args.custom_coadds:
-            # need to figure this out -- I don't want to depend on the pipeline coadds for this project...
-            #if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 0 or args.clobber:
-            if True:
-                from legacyhalos.html import qa_ccdpos
-                qa_ccdpos(onegal, galaxy, galaxydir, galaxydir, pixscale=args.pixscale,
-                          radius=radius_mosaic_arcsec/args.pixscale, survey=survey,
-                          clobber=args.clobber, verbose=args.verbose)
-                call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                   pixscale=args.pixscale, nproc=args.nproc,
-                                   debug=args.debug, logfile=logfile,
-                                   radius_mask=radius_mask_arcsec, write_ccddata=True,
-                                   doforced_phot=False, apodize=True)
+        #if args.custom_coadds:
+        #    # need to figure this out -- I don't want to depend on the pipeline coadds for this project...
+        #    #if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 0 or args.clobber:
+        #    if True:
+        #        from legacyhalos.html import qa_ccdpos
+        #        qa_ccdpos(onegal, galaxy, galaxydir, galaxydir, pixscale=args.pixscale,
+        #                  radius=radius_mosaic_arcsec/args.pixscale, survey=survey,
+        #                  clobber=args.clobber, verbose=args.verbose)
+        #        call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
+        #                           pixscale=args.pixscale, nproc=args.nproc,
+        #                           debug=args.debug, logfile=logfile,
+        #                           radius_mask=radius_mask_arcsec, write_ccddata=True,
+        #                           doforced_phot=False, apodize=True)
 
-        if args.LSLGA:
+        if args.coadds:
             if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 0 or args.clobber:
                 call_largegalaxy_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
                                         kdccds_north, kdccds_south,
                                         pixscale=args.pixscale, nproc=args.nproc,
                                         debug=args.debug, verbose=args.verbose, logfile=logfile,
-                                        radius_mask=radius_mask_arcsec, apodize=True)
+                                        radius_mask=radius_mask_arcsec, apodize=False)
 
         if args.htmlplots:
             call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,

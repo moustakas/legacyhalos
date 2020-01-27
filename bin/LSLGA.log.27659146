@@ -1,0 +1,121 @@
+Read galaxy indices 0 through 49 (N=50) from /global/projecta/projectdirs/desi/users/ioannis/LSLGA/sample/v3.0/LSLGA-v3.0.fits
+Read 128375 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+COADDS left to do: 49 / 50 divided across 8 group(s) and 8 rank(s).
+Starting 7 COADDS on rank 0 at Mon Jan 27 06:41:47 2020
+Read 128375 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 6 COADDS on rank 4 at Mon Jan 27 06:41:47 2020
+Read 128375 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 6 COADDS on rank 1 at Mon Jan 27 06:41:47 2020
+Read 128375 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 6 COADDS on rank 5 at Mon Jan 27 06:41:47 2020
+Read 128375 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 6 COADDS on rank 2 at Mon Jan 27 06:41:47 2020
+Read 128375 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 6 COADDS on rank 6 at Mon Jan 27 06:41:47 2020
+Read 128375 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 6 COADDS on rank 3 at Mon Jan 27 06:41:47 2020
+Read 128375 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/project/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 6 COADDS on rank 7 at Mon Jan 27 06:41:47 2020
+Rank 003 (1 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC04280 (index 20)
+Rank 004 (1 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC08317 (index 26)
+Rank 002 (1 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC11790 (index 14)
+Rank 007 (1 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/IC1069 (index 44)
+Rank 000 (1 / 7): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC06894 (index 1)
+Rank 005 (1 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC4284 (index 32)
+Rank 001 (1 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC00697 (index 8)
+Rank 006 (1 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC7241 (index 38)
+Rank 000 (2 / 7): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC05473 (index 2)
+Rank 002 (2 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC3286 (index 15)
+Rank 003 (2 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC04548 (index 21)
+Rank 001 (2 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC05260 (index 9)
+Rank 000 (3 / 7): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC4003 (index 3)
+Rank 003 (3 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC06303 (index 22)
+Rank 000 (4 / 7): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC06957 (index 4)
+Rank 003 (4 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC09121 (index 23)
+Rank 001 (3 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/ESO300-014 (index 10)
+Rank 002 (3 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC5370 (index 16)
+Rank 000 (5 / 7): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC09880 (index 5)
+Rank 003 (5 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/SDSSJ083131.00+192042.6 (index 24)
+Rank 002 (4 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC05049 (index 17)
+Rank 000 (6 / 7): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/SDSSJ140511.30+060559.4 (index 6)
+Rank 001 (4 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC04136 (index 11)
+Rank 003 (6 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC06424 (index 25)
+Rank 002 (5 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/PGC057607 (index 18)
+Rank 000 (7 / 7): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC4131 (index 7)
+Rank 002 (6 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC06248 (index 19)
+Rank 007 (2 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC3740 (index 45)
+Rank 001 (5 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC0447 (index 12)
+Finished 49 COADDS at Mon Jan 27 06:41:47 2020 after 0.004 minutes
+Rank 005 (2 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC04147 (index 33)
+Rank 001 (6 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC7108 (index 13)
+Rank 005 (3 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/IC0594 (index 34)
+Rank 007 (3 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC07690 (index 46)
+Rank 004 (2 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC04249 (index 27)
+Rank 006 (2 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/PGC050551 (index 39)
+Rank 005 (4 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC08994 (index 35)
+Rank 007 (4 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC06680 (index 47)
+Rank 006 (3 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/ESO437-054 (index 40)
+Rank 004 (3 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/PGC054723 (index 28)
+Rank 007 (5 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC08986 (index 48)
+Rank 005 (5 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/IC0896 (index 36)
+Rank 004 (4 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/PGC052897 (index 29)
+Rank 006 (4 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/IC3727 (index 41)
+Rank 007 (6 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC4995 (index 49)
+Rank 005 (6 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/NGC5313 (index 37)
+Rank 004 (5 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC06546 (index 30)
+Rank 006 (5 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/PGC033165 (index 42)
+Rank 004 (6 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC08887 (index 31)
+Rank 006 (6 / 6): /global/project/projectdirs/desi/users/ioannis/legacyhalos-data/LSLGA/UGC05496 (index 43)
+COADDS left to do: 49 / 49.
+
+real	0m5.899s
+user	0m1.039s
+sys	0m0.463s
+
+real	0m5.905s
+user	0m1.083s
+sys	0m0.440s
+
+real	0m5.901s
+user	0m1.118s
+sys	0m0.304s
+
+real	0m5.839s
+user	0m0.692s
+sys	0m0.319s
+
+real	0m5.651s
+user	0m0.885s
+sys	0m0.476s
+
+real	0m5.587s
+user	0m0.958s
+sys	0m0.313s
+
+real	0m5.745s
+user	0m0.895s
+sys	0m0.378s
+
+real	0m5.753s
+user	0m0.972s
+sys	0m0.419s
+
+real	0m8.280s
+user	0m0.100s
+sys	0m0.036s

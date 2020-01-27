@@ -1,0 +1,30 @@
+Mon Jan 27 04:27:52 2020: [unset]:_alpsutil_libs_dlopen:dlopen of libalpsutil.so.0 returned with error: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.25' not found (required by /opt/udiImage/modules/mpich/lib64/dep/libexpat.so.1)
+Mon Jan 27 04:27:52 2020: [unset]:_alpsutil_libs_dlopen:dlopen of libalpsutil.so.0 returned with error: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.25' not found (required by /opt/udiImage/modules/mpich/lib64/dep/libexpat.so.1)
+Mon Jan 27 04:27:52 2020: [unset]:_alpsutil_libs_dlopen:dlopen of libalpsutil.so.0 returned with error: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.25' not found (required by /opt/udiImage/modules/mpich/lib64/dep/libexpat.so.1)
+Mon Jan 27 04:27:52 2020: [unset]:_alpsutil_libs_dlopen:dlopen of libalpsutil.so.0 returned with error: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.25' not found (required by /opt/udiImage/modules/mpich/lib64/dep/libexpat.so.1)
+./LSLGA-mpi.sh: line 48: 57575 Aborted                 python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --LSLGA --nproc $ncores --mpi --verbose --first 30 --last 49
+
+real	0m2.717s
+user	0m0.447s
+sys	0m0.375s
+./LSLGA-mpi.sh: line 48: 57610 Aborted                 python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --LSLGA --nproc $ncores --mpi --verbose --first 30 --last 49
+
+real	0m2.678s
+user	0m0.472s
+sys	0m0.345s
+./LSLGA-mpi.sh: line 48: 57557 Aborted                 python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --LSLGA --nproc $ncores --mpi --verbose --first 30 --last 49
+
+real	0m2.727s
+user	0m0.492s
+sys	0m0.288s
+./LSLGA-mpi.sh: line 48: 57569 Aborted                 python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --LSLGA --nproc $ncores --mpi --verbose --first 30 --last 49
+
+real	0m2.723s
+user	0m0.441s
+sys	0m0.447s
+srun: error: nid00553: tasks 0-3: Exited with exit code 134
+srun: Terminating job step 27658030.0
+
+real	0m7.516s
+user	0m0.115s
+sys	0m0.029s

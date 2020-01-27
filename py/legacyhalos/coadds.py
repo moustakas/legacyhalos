@@ -529,7 +529,7 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
 
 def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                        radius_mask=None, nproc=1, pixscale=0.262, run='decam',
-                       log=None, apodize=True, unwise=True, force=False,
+                       log=None, apodize=False, unwise=True, force=False,
                        plots=False, verbose=False, cleanup=True,
                        write_ccddata=False, sky_annulus=True, centrals=True, splinesky=True,
                        doforced_phot=True, just_coadds=False):

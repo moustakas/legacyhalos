@@ -22,7 +22,7 @@ export LEGACYHALOS_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/l
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 export LSLGA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA
 
-export LEGACY_SURVEY_DIR=/global/project/projectdirs/cosmo/work/legacysurvey/dr8
+export LEGACY_SURVEY_DIR=/global/project/projectdirs/cosmo/work/legacysurvey/dr9
 
 # Use local check-outs
 export PATH=$LEGACYHALOS_CODE_DIR/bin:$PATH
@@ -45,4 +45,4 @@ let usemem=${maxmem}*${ncores}/32
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --htmlplots --mpi --verbose
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --ellipse --nproc $ncores --mpi --verbose
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --custom-coadds --nproc $ncores --mpi --verbose
-time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --LSLGA --nproc $ncores --mpi --verbose --first 30 --last 49
+time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose --first 0 --last 49

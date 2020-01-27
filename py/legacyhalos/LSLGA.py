@@ -27,15 +27,15 @@ def mpi_args():
 
     parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py.')
-    parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
-    parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
-    
-    parser.add_argument('--LSLGA', action='store_true', help='Special code for large galaxies.')
+    #parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
+    #parser.add_argument('--LSLGA', action='store_true', help='Special code for large galaxies.')
 
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
+    parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
+
     parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
     parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
 
@@ -56,10 +56,10 @@ def missing_files_groups(args, sample, size, htmldir=None):
     """
     if args.coadds:
         suffix = 'coadds'
-    elif args.custom_coadds:
-        suffix = 'custom-coadds'
-    elif args.LSLGA:
-        suffix = 'custom-coadds'
+    #elif args.custom_coadds:
+    #    suffix = 'custom-coadds'
+    #elif args.LSLGA:
+    #    suffix = 'pipeline-coadds'
     elif args.htmlplots:
         suffix = 'html'
     else:
@@ -79,10 +79,10 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
 
     if filetype == 'coadds':
         filesuffix = '-pipeline-resid-grz.jpg'
-    elif filetype == 'custom-coadds':
-        filesuffix = '-custom-resid-grz.jpg'
-    elif filetype == 'LSLGA':
-        filesuffix = '-custom-resid-grz.jpg'
+    #elif filetype == 'custom-coadds':
+    #    filesuffix = '-custom-resid-grz.jpg'
+    #elif filetype == 'LSLGA':
+    #    filesuffix = '-custom-resid-grz.jpg'
     elif filetype == 'html':
         filesuffix = '-ccdpos.png'
         #filesuffix = '-sersic-exponential-nowavepower.png'
