@@ -2,40 +2,44 @@ FROM ubuntu:18.04 as builder
 
 RUN apt-get update && apt-get install -y autoconf automake gcc g++ make gfortran wget && apt-get clean all
 
-# # Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
-# RUN mkdir /build/
-# RUN cd /build \
-#     && wget https://www.mpich.org/static/downloads/3.3/mpich-3.3.tar.gz \
-#     && tar xvzf mpich-3.3.tar.gz \
-#     && cd /build/mpich-3.3 \
-#     && ./configure \
-#     && make -j4 \
-#     && make install \
-#     && make clean
-# 
-# RUN /sbin/ldconfig
+# Install MPI following https://docs.nersc.gov/programming/shifter/how-to-use
+RUN mkdir /build/
+
+RUN cd /build \
+    && wget https://www.mpich.org/static/downloads/3.3/mpich-3.3.tar.gz \
+    && tar xvzf mpich-3.3.tar.gz \
+    && cd /build/mpich-3.3 \
+    && ./configure \
+    && make -j4 \
+    && make install \
+    && make clean
+
+RUN echo 'PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh
+ENV PATH=$PATH:/opt/conda/bin
+
+RUN wget -nv https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
+    bash miniconda.sh -b -p /opt/conda && \
+    conda config --add channels intel && \
+    conda config --set always_yes yes && \
+    conda update conda && \
+    conda install python=3.7 pip numpy && \
+    conda clean -a -y
+
+RUN cd /build \
+    && wget https://bitbucket.org/mpi4py/mpi4py/downloads/mpi4py-3.0.3.tar.gz \
+    && tar xvzf mpi4py-3.0.3.tar.gz \
+    && cd /build/mpi4py-3.0.3 \
+    && python setup.py build \
+    && python setup.py install
+
+RUN rm -rf /build
 
 #### Stage 2 ####
 FROM legacysurvey/legacypipe:preburn-lslga
  
-RUN mkdir -p /build/
- 
 COPY --from=builder /usr/local /usr/local
-COPY --from=builder /usr/bin /usr/bin
+COPY --from=builder /opt/conda /opt/conda
  
-# LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
-# 
-# RUN pip --no-cache-dir install mpi4py
-# 
-# # Add the development version of photutils
-# # RUN pip3 uninstall -y photutils \
-# #     && cd /build \
-# #     && git clone https://github.com/astropy/photutils.git \
-# #     && cd photutils \
-# #     && python3 setup.py install
-# 
-# RUN rm -rf /build
-# 
-# # # Clone legacyhalos
-# # RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos && echo 1
-# # ENV PYTHONPATH $PYTHONPATH:/src/legacyhalos/py
+RUN /sbin/ldconfig
+
+LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
