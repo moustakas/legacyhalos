@@ -16,13 +16,17 @@ export GALEX_DIR=/global/project/projectdirs/cosmo/data/galex/images
 # custom variables
 export PYTHONNOUSERSITE=1 # Don't add ~/.local/ to Python's sys.path
 export LEGACYPIPE_DIR=/global/homes/i/ioannis/repos/git/legacypipe
-export LEGACYHALOS_DIR=/global/project/projectdirs/desi/users/ioannis/legacyhalos
-export LEGACYHALOS_DATA_DIR=/global/project/projectdirs/desi/users/ioannis/legacyhalos-data
+
+export LEGACYHALOS_DIR=/global/projecta/projectdirs/desi/users/ioannis/legacyhalos
+export LEGACYHALOS_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/legacyhalos-data
 export LEGACYHALOS_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/legacyhalos-html
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
-export LSLGA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA
 
-export LEGACY_SURVEY_DIR=/global/project/projectdirs/cosmo/work/legacysurvey/dr9
+export LSLGA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA
+export LSLGA_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA-data
+export LSLGA_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/LSLGA-html
+
+export LEGACY_SURVEY_DIR=/global/cfs/projectdirs/cosmo/work/legacysurvey/dr9
 
 # Use local check-outs
 export PATH=$LEGACYHALOS_CODE_DIR/bin:$PATH
@@ -45,4 +49,4 @@ let usemem=${maxmem}*${ncores}/32
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --htmlplots --mpi --verbose
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --ellipse --nproc $ncores --mpi --verbose
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --custom-coadds --nproc $ncores --mpi --verbose
-time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose --first 0 --last 49
+time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose --first 0 --last 39 --clobber

@@ -286,8 +286,8 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
 def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
-               nproc=1, maketrends=False, ccdqa=False, clobber=False, verbose=True,
-               pipeline_montage=False):
+               nproc=1, barlen=None, barlabel=None, maketrends=False, ccdqa=False,
+               clobber=False, verbose=True, pipeline_montage=False):
     """Make QA plots.
 
     """
@@ -313,6 +313,10 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
 
     from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
+    barlen_kpc = 100
+    if barlabel is None:
+        barlabel = '100 kpc'
+
     # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
 
@@ -326,8 +330,8 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
 
-        barlen_kpc, barlabel = 100, '100 kpc'
-        barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int')
+        if barlen is None:
+            barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int') # [kpc]
 
         radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
             redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]

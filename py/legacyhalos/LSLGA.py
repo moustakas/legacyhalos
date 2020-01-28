@@ -114,15 +114,42 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         
     return np.array_split(indices, size)
 
+def LSLGA_dir():
+    if 'LSLGA_DIR' not in os.environ:
+        print('Required ${LSLGA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LSLGA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def LSLGA_data_dir():
+    if 'LSLGA_DATA_DIR' not in os.environ:
+        print('Required ${LSLGA_DATA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LSLGA_DATA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def LSLGA_html_dir():
+    if 'LSLGA_HTML_DIR' not in os.environ:
+        print('Required ${LSLGA_HTML_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LSLGA_HTML_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
 def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
                          candidates=False):
     """Retrieve the galaxy name and the (nested) directory.
 
     """
     if datadir is None:
-        datadir = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'LSLGA')
+        datadir = LSLGA_data_dir()
     if htmldir is None:
-        htmldir = os.path.join(legacyhalos.io.legacyhalos_html_dir(), 'LSLGA')
+        htmldir = LSLGA_html_dir()
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
@@ -151,9 +178,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False):
 
     """
     import fitsio
-    version = 'v3.0'
-    samplefile = os.path.join(os.path.abspath(os.getenv('LSLGA_DIR')), 'sample',
-                              version, 'LSLGA-{}.fits'.format(version))
+    version = 'v4.0'
+    samplefile = os.path.join(LSLGA_dir(), 'sample', version, 'LSLGA-{}.fits'.format(version))
 
     if first and last:
         if first > last:
@@ -161,7 +187,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False):
             raise ValueError()
     ext = 1
     info = fitsio.FITS(samplefile)
-    nrows = info[ext].get_nrows()
+    if True:
+        print('Hack to toss out galaxies outside the DESI footprint.')
+        indesi = fitsio.read(samplefile, columns='IN_DESI')
+        rows = np.where(indesi)[0]
+        nrows = len(rows)
+    else:
+        rows = None
+        nrows = info[ext].get_nrows()
 
     if first is None:
         first = 0
@@ -172,7 +205,10 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False):
         if last >= nrows:
             print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
             raise ValueError()
-        rows = np.arange(first, last + 1)
+        if rows is None:
+            rows = np.arange(first, last + 1)
+        else:
+            rows = rows[np.arange(first, last + 1)]
 
     sample = astropy.table.Table(info[ext].read(rows=rows, upper=True))
     if verbose:
@@ -182,6 +218,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False):
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(sample), samplefile))
 
+    # strip whitespace
+    sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
+    
     if galaxylist is not None:
         if verbose:
             print('Selecting specific galaxies.')
@@ -205,9 +244,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     #from legacyhalos.misc import cutout_radius_kpc
     #from legacyhalos.misc import HSC_RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
-    print('Hack!')
-    datadir = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'LSLGA')
-    htmldir = os.path.join(legacyhalos.io.legacyhalos_html_dir(), 'LSLGA')
+    datadir = LSLGA_data_dir()
+    htmldir = LSLGA_html_dir()
 
     if sample is None:
         sample = read_sample(first=first, last=last, galaxylist=galaxylist)
@@ -282,7 +320,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         html.write('<th>Galaxy</th>\n')
         html.write('<th>RA</th>\n')
         html.write('<th>Dec</th>\n')
-        html.write('<th>Redshift</th>\n')
+        html.write('<th>D(25) (arcmin)</th>\n')
         #html.write('<th>Richness</th>\n')
         #html.write('<th>Pcen</th>\n')
         html.write('<th>Viewer</th>\n')
@@ -298,7 +336,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
             html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
             html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
-            html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
+            html.write('<td>{:.5f}</td>\n'.format(gal['D25']))
+            #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
             #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
             #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
@@ -371,11 +410,11 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
             html.write('<h1>Galaxy {}</h1>\n'.format(galaxy1))
 
-            html.write('<a href="../../../{}">Home</a>\n'.format(homehtml))
+            html.write('<a href="../{}">Home</a>\n'.format(homehtml))
             html.write('<br />\n')
-            html.write('<a href="../../../{}">Next Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
+            html.write('<a href="../{}">Next Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
             html.write('<br />\n')
-            html.write('<a href="../../../{}">Previous Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
+            html.write('<a href="../{}">Previous Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
             html.write('<br />\n')
             html.write('<br />\n')
 
@@ -386,7 +425,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             html.write('<th>Galaxy</th>\n')
             html.write('<th>RA</th>\n')
             html.write('<th>Dec</th>\n')
-            html.write('<th>Redshift</th>\n')
+            html.write('<th>D(25) (arcsec)</th>\n')
             #html.write('<th>Richness</th>\n')
             #html.write('<th>Pcen</th>\n')
             html.write('<th>Viewer</th>\n')
@@ -398,7 +437,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             html.write('<td>{}</td>\n'.format(galaxy1))
             html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
             html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
-            html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
+            html.write('<td>{:.2f}</td>\n'.format(gal['D25']*60))
+            #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
             #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
             #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
             html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
@@ -623,11 +663,11 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     html.write('</table>\n')
                     html.write('<br />\n')
 
-            html.write('<a href="../../../{}">Home</a>\n'.format(homehtml))
+            html.write('<a href="../{}">Home</a>\n'.format(homehtml))
             html.write('<br />\n')
-            html.write('<a href="../../../{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
+            html.write('<a href="../{}">Next Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
             html.write('<br />\n')
-            html.write('<a href="../../../{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
+            html.write('<a href="../{}">Previous Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
             html.write('<br />\n')
 
             html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))

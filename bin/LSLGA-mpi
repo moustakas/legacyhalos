@@ -24,8 +24,8 @@ def main():
                                  call_htmlplots)
     from legacyhalos.LSLGA import ZCOLUMN
 
-    datadir = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'LSLGA')
-    htmldir = os.path.join(legacyhalos.io.legacyhalos_html_dir(), 'LSLGA')
+    datadir = legacyhalos.LSLGA.LSLGA_data_dir()
+    htmldir = legacyhalos.LSLGA.LSLGA_html_dir()
 
     args = legacyhalos.LSLGA.mpi_args()
 
@@ -95,7 +95,7 @@ def main():
             
         pdb.set_trace()
 
-    if args.coadds or args.LSLGA and not args.count:
+    if args.coadds and not args.count:
         kdccds_north, kdccds_south = legacyhalos.io.read_all_ccds()
 
     # Building the web-page and integrating the ellipse-fitting results work on
@@ -200,7 +200,7 @@ def main():
         #                           doforced_phot=False, apodize=True)
 
         if args.coadds:
-            if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 0 or args.clobber:
+            if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 1 or args.clobber:
                 call_largegalaxy_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
                                         kdccds_north, kdccds_south,
                                         pixscale=args.pixscale, nproc=args.nproc,
@@ -208,10 +208,11 @@ def main():
                                         radius_mask=radius_mask_arcsec, apodize=False)
 
         if args.htmlplots:
+            barlen = np.ceil(30 / args.pixscale).astype(int)
             call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
                            args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
                            ZCOLUMN, htmldir, datadir, galaxylist=[onegal['GALAXY']],
-                           pipeline_montage=True)
+                           pipeline_montage=True, barlen=barlen, barlabel='30 arcsec')
             
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(

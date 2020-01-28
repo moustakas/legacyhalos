@@ -89,15 +89,33 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
         
     return np.array_split(indices, size)
 
+def streams_dir():
+    ldir = os.path.join(legacyhalos.io.legacyhalos_dir(), 'streams')
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def streams_data_dir():
+    ldir = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'streams')
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def streams_html_dir():
+    ldir = os.path.join(legacyhalos.io.legacyhalos_html_dir(), 'streams')
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
 def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
                          candidates=False):
     """Retrieve the galaxy name and the (nested) directory.
 
     """
     if datadir is None:
-        datadir = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'streams')
+        datadir = streams_data_dir()
     if htmldir is None:
-        htmldir = os.path.join(legacyhalos.io.legacyhalos_html_dir(), 'streams')
+        htmldir = streams_html_dir()
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
@@ -126,7 +144,7 @@ def read_sample(first=None, last=None, verbose=False):
 
     """
     import fitsio
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'streams', 'dmd.fits')
+    samplefile = os.path.join(streams_dir(), 'dmd.fits')
 
     if first and last:
         if first > last:

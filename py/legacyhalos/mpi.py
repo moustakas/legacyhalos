@@ -171,7 +171,8 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 
 def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                    verbose, ccdqa, logfile, zcolumn, htmldir, datadir=None,
-                   galaxylist=None, pipeline_montage=False):
+                   galaxylist=None, pipeline_montage=False,
+                   barlen=None, barlabel=None):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
@@ -181,7 +182,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                           pixscale=pixscale, survey=survey, clobber=clobber,
                                           verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
                                           ccdqa=ccdqa, maketrends=False, galaxylist=galaxylist,
-                                          pipeline_montage=pipeline_montage)
+                                          pipeline_montage=pipeline_montage,
+                                          barlen=barlen, barlabel=barlabel)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -191,7 +193,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                                   pixscale=pixscale, survey=survey, clobber=clobber,
                                                   verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
                                                   ccdqa=ccdqa, maketrends=False, galaxylist=galaxylist,
-                                                  pipeline_montage=pipeline_montage)
+                                                  pipeline_montage=pipeline_montage,
+                                                  barlen=barlen, barlabel=barlabel)
                 _done(galaxy, err, t0, log=log)
 
 def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
