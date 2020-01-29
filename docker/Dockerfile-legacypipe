@@ -1,5 +1,0 @@
-# Starting from the legacypipe-nersc docker container, add healpy and ipython.
-
-FROM legacysurvey/legacypipe:latest
-RUN pip3 install healpy
-RUN pip3 install --no-cache-dir ipython
