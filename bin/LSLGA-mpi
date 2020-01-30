@@ -24,6 +24,7 @@ def main():
                                  call_htmlplots)
     from legacyhalos.LSLGA import ZCOLUMN
 
+    lslgadir = legacyhalos.LSLGA.LSLGA_dir()
     datadir = legacyhalos.LSLGA.LSLGA_data_dir()
     htmldir = legacyhalos.LSLGA.LSLGA_html_dir()
 
@@ -50,7 +51,12 @@ def main():
 
     # Gather all the results and build the final LSLGA catalog.
     if args.build_LSLGA:
-        outfile = os.path.join(datadir, 'LSLGA-model-v1.0.fits')
+        from astrometry.libkd.spherematch import match_radec
+    
+        # This is a little fragile.
+        ver = legacyhalos.LSLGA.LSLGA_version()
+        outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
+        outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(ver))
         if not os.path.isfile(outfile) or args.clobber:
             import fitsio
             import astropy.table
@@ -68,9 +74,17 @@ def main():
                 onegal = Table(onegal)
                 galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
                 catfile = os.path.join(galaxydir, '{}-pipeline-tractor.fits'.format(galaxy))
+                if not os.path.isfile(catfile):
+                    print('Skipping missing file {}'.format(catfile))
+                    continue
                 cat = fitsio.read(catfile)
-                # Need to be smarter here; maybe include all galaxies larger than 10ish arcsec??
-                this = cat['ref_cat'] == 'L4'
+                # Need to be smarter here; maybe include all galaxies larger than 10ish arcsec??              
+                #this = cat['ref_cat'] == 'L4'
+                this, m2, d12 = match_radec(cat['ra'], cat['dec'], onegal['RA'], onegal['DEC'],
+                                            1.0/3600.0, nearest=True)
+                if len(this) == 0:
+                    print('Fix me!')
+                    continue
                 out1 = astropy.table.Table(cat[this])
 
                 # Convert the Tractor results to LSLGA format.
@@ -85,6 +99,7 @@ def main():
                 onegal.rename_column('TYPE', 'MORPHTYPE')
                 out.append(astropy.table.hstack((out1, onegal)))
 
+            pdb.set_trace()
             out = astropy.table.vstack(out)
             [out.rename_column(col, col.upper()) for col in out.colnames]
 

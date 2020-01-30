@@ -49,4 +49,4 @@ let usemem=${maxmem}*${ncores}/32
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --htmlplots --mpi --verbose
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --ellipse --nproc $ncores --mpi --verbose
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --custom-coadds --nproc $ncores --mpi --verbose
-time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose --first 0 --last 39 --clobber
+time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose

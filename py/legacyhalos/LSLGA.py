@@ -175,12 +175,16 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
+def LSLGA_version():
+    version = 'v4.0'
+    return version
+
 def read_sample(first=None, last=None, galaxylist=None, verbose=False):
     """Read/generate the parent LSLGA catalog.
 
     """
     import fitsio
-    version = 'v4.0'
+    version = LSLGA_version()
     samplefile = os.path.join(LSLGA_dir(), 'sample', version, 'LSLGA-{}.fits'.format(version))
 
     if first and last:
@@ -222,6 +226,11 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False):
         else:
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(sample), samplefile))
+
+    print('Hack the sample!')
+    tt = astropy.table.Table.read('/global/projecta/projectdirs/desi/users/ioannis/dr9d-lslga/dr9d-lslga-south.fits')
+    tt = tt[tt['D25'] > 1]
+    galaxylist = tt['GALAXY'].data
 
     # strip whitespace
     sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
