@@ -160,9 +160,10 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
         galaxy = cat['GALAXY']
         ra = cat['RA']
 
-    galaxydir = np.array([os.path.join(datadir, gal) for gal in galaxy])
+    raslice = '{:06d}'.format(int(ra*1000))[:3]
+    galaxydir = np.array([os.path.join(datadir, raslice, gal) for gal in galaxy])
     if html:
-        htmlgalaxydir = np.array([os.path.join(htmldir, str(ra)[:3], gal) for gal, ra in zip(galaxy, ra)])
+        htmlgalaxydir = np.array([os.path.join(htmldir, raslice, gal) for gal, ra in zip(galaxy, ra)])
 
     if ngal == 1:
         galaxy = galaxy[0]
@@ -378,8 +379,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('<tr>\n')
                 #html.write('<td>{:g}</td>\n'.format(count))
                 #print(gal['INDEX'], gal['LSLGA_ID'], gal['GALAXY'])
-                html.write('<td>{:g}</td>\n'.format(gal['INDEX']))
-                html.write('<td>{:g}</td>\n'.format(gal['LSLGA_ID']))
+                html.write('<td>{}</td>\n'.format(gal['INDEX']))
+                html.write('<td>{}</td>\n'.format(gal['LSLGA_ID']))
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
                 html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
                 html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
@@ -425,6 +426,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         prevgalaxy = np.roll(np.atleast_1d(galaxy), 1)
         nexthtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), -1)
         prevhtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), 1)
+        pdb.set_trace()
 
         for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate( zip(
             sample[rasorted], np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir) ) ):

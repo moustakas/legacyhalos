@@ -99,7 +99,6 @@ def main():
                 onegal.rename_column('TYPE', 'MORPHTYPE')
                 out.append(astropy.table.hstack((out1, onegal)))
 
-            pdb.set_trace()
             out = astropy.table.vstack(out)
             [out.rename_column(col, col.upper()) for col in out.colnames]
 
@@ -181,7 +180,8 @@ def main():
         survey.output_dir = galaxydir
 
         if not args.coadds:
-            legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile)
+            if not legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile):
+                continue
         
         if args.coadds:
             if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 1 or args.clobber:
