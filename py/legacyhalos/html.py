@@ -14,7 +14,8 @@ import legacyhalos.misc
 import legacyhalos.hsc
 
 def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-           zcolumn='Z', survey=None, mp=None, clobber=False, verbose=True):
+           zcolumn='Z', radius_pixel=None, survey=None, mp=None, clobber=False,
+           verbose=True):
     """Build CCD-level QA.
 
     """
@@ -26,9 +27,10 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
 
-    radius_pixel = legacyhalos.misc.cutout_radius_kpc(
-        redshift=onegal[zcolumn], pixscale=pixscale,
-        radius_kpc=radius_mosaic_kpc) # [pixels]
+    if radius_pixel is None:
+        radius_pixel = legacyhalos.misc.cutout_radius_kpc(
+            redshift=onegal[zcolumn], pixscale=pixscale,
+            radius_kpc=radius_mosaic_kpc) # [pixels]
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
@@ -284,10 +286,11 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         if not os.path.isfile(serexpfile) or clobber:
             display_sersic(serexp, png=serexpfile, verbose=verbose)
 
-def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
+def make_plots(sample, datadir=None, htmldir=None, get_galaxy_galaxydir=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
-               nproc=1, barlen=None, barlabel=None, maketrends=False, ccdqa=False,
-               clobber=False, verbose=True, pipeline_montage=False):
+               nproc=1, barlen=None, barlabel=None, radius_mosaic_arcsec=None,
+               maketrends=False, ccdqa=False, clobber=False, verbose=True,
+               pipeline_montage=False):
     """Make QA plots.
 
     """
@@ -317,15 +320,19 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
     if barlabel is None:
         barlabel = '100 kpc'
 
+    if get_galaxy_galaxydir is None:
+        get_galaxy_galaxydir = legacyhalos.io.get_galaxy_galaxydir
+
     # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
 
-        if galaxylist is None:
-            galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
-        else:
-            galaxy = galaxylist[ii]
-            galaxydir = os.path.join(datadir, galaxy)
-            htmlgalaxydir = os.path.join(htmldir, galaxy)
+        galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(onegal, html=True)
+        #if galaxylist is None:
+        #    galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
+        #else:
+        #    galaxy = galaxylist[ii]
+        #    galaxydir = os.path.join(datadir, galaxy)
+        #    htmlgalaxydir = os.path.join(htmldir, galaxy)
             
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
@@ -333,8 +340,9 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         if barlen is None:
             barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int') # [kpc]
 
-        radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
-            redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
+        if radius_mosaic_arcsec is None:
+            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+                redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
         # Build the ellipse plots.

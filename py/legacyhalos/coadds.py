@@ -531,6 +531,7 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                        radius_mask=None, nproc=1, pixscale=0.262, run='decam',
                        log=None, apodize=False, unwise=True, force=False,
                        plots=False, verbose=False, cleanup=True,
+                       write_all_pickles=False,
                        write_ccddata=False, sky_annulus=True, centrals=True, splinesky=True,
                        doforced_phot=True, just_coadds=False):
     """Build a custom set of large-galaxy coadds
@@ -558,7 +559,10 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--survey-dir {survey_dir} --run {run} '
     cmd += '--largegalaxy-preburner '
     #cmd += '--write-stage tims '
-    cmd += '--write-stage srcs '
+    if write_all_pickles:
+        cmd += '--write-stage tims --write-stage srcs '
+    else:
+        cmd += '--write-stage srcs '
     #cmd += '--min-mjd 0 ' # obsolete
     cmd += '--skip-calibs '
     #cmd += '--no-wise-ceres '

@@ -171,8 +171,8 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 
 def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                    verbose, ccdqa, logfile, zcolumn, htmldir, datadir=None,
-                   galaxylist=None, pipeline_montage=False,
-                   barlen=None, barlabel=None):
+                   pipeline_montage=False, barlen=None, barlabel=None,
+                   radius_mosaic_arcsec=None, get_galaxy_galaxydir=None):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
@@ -181,9 +181,11 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
         err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir,
                                           pixscale=pixscale, survey=survey, clobber=clobber,
                                           verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                          ccdqa=ccdqa, maketrends=False, galaxylist=galaxylist,
+                                          ccdqa=ccdqa, maketrends=False, 
                                           pipeline_montage=pipeline_montage,
-                                          barlen=barlen, barlabel=barlabel)
+                                          barlen=barlen, barlabel=barlabel,
+                                          radius_mosaic_arcsec=radius_mosaic_arcsec,
+                                          get_galaxy_galaxydir=get_galaxy_galaxydir)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -192,15 +194,17 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                 err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir,
                                                   pixscale=pixscale, survey=survey, clobber=clobber,
                                                   verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                                  ccdqa=ccdqa, maketrends=False, galaxylist=galaxylist,
+                                                  ccdqa=ccdqa, maketrends=False, 
                                                   pipeline_montage=pipeline_montage,
-                                                  barlen=barlen, barlabel=barlabel)
+                                                  barlen=barlen, barlabel=barlabel,
+                                                  radius_mosaic_arcsec=radius_mosaic_arcsec,
+                                                  get_galaxy_galaxydir=get_galaxy_galaxydir)
                 _done(galaxy, err, t0, log=log)
 
 def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                             kdccds_south, pixscale=0.262, nproc=1, radius_mask=None,
                             debug=False, verbose=False, logfile=None, apodize=False,
-                            cleanup=True):
+                            cleanup=True, write_all_pickles=False):
     """Wrapper script to build the pipeline coadds for large galaxies.
 
     radius_mosaic in arcsec
@@ -214,7 +218,7 @@ def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                                                     radius_mosaic=radius_mosaic, radius_mask=radius_mask,
                                                     nproc=nproc, pixscale=pixscale,
                                                     run=run, apodize=apodize, verbose=verbose,
-                                                    cleanup=cleanup)
+                                                    cleanup=cleanup, write_all_pickles=write_all_pickles)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -224,7 +228,9 @@ def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                 err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
                                                             radius_mosaic=radius_mosaic, radius_mask=radius_mask,
                                                             nproc=nproc, pixscale=pixscale,
-                                                            run=run, apodize=apodize, verbose=verbose,
+                                                            run=run, apodize=apodize,
+                                                            write_all_pickles=write_all_pickles,
+                                                            verbose=verbose,
                                                             cleanup=cleanup, log=log)
                 _done(galaxy, err, t0, log=log)
 

@@ -159,60 +159,33 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        #if args.coadds or args.custom_coadds or args.LSLGA:
-        radius_mask_arcsec = onegal['D25'] * 60       # [arcsec]
+        radius_mask_arcsec = onegal['D25'] / 2 * 60       # [arcsec]
         radius_mosaic_arcsec = onegal['D25'] * 60 * 2 # [arcsec]
 
         survey = LegacySurveyData()
         survey.output_dir = galaxydir
 
-        #if args.coadds:
-        #    call_pipeline_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-        #                         kdccds_north, kdccds_south, pixscale=args.pixscale,
-        #                         nproc=args.nproc, force=args.force, debug=args.debug,
-        #                         logfile=logfile, apodize=True, unwise=False,
-        #                         no_large_galaxies=False, no_gaia=False, no_tycho=False,
-        #                         just_coadds=args.just_coadds)
-
         if not args.coadds:
             legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile)
         
-        #if args.htmlplots and not legacyhalos.io.check_and_read_ccds(
-        #        galaxy, survey, debug=args.debug, logfile=logfile):
-        #    continue
-
-        #if (args.custom_coadds or args.LSLGA or args.htmlplots) and not legacyhalos.io.check_and_read_ccds(
-        #        galaxy, survey, debug=args.debug, logfile=logfile):
-        #    continue
-
-        #if args.custom_coadds:
-        #    # need to figure this out -- I don't want to depend on the pipeline coadds for this project...
-        #    #if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 0 or args.clobber:
-        #    if True:
-        #        from legacyhalos.html import qa_ccdpos
-        #        qa_ccdpos(onegal, galaxy, galaxydir, galaxydir, pixscale=args.pixscale,
-        #                  radius=radius_mosaic_arcsec/args.pixscale, survey=survey,
-        #                  clobber=args.clobber, verbose=args.verbose)
-        #        call_custom_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-        #                           pixscale=args.pixscale, nproc=args.nproc,
-        #                           debug=args.debug, logfile=logfile,
-        #                           radius_mask=radius_mask_arcsec, write_ccddata=True,
-        #                           doforced_phot=False, apodize=True)
-
         if args.coadds:
             if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 1 or args.clobber:
                 call_largegalaxy_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
                                         kdccds_north, kdccds_south,
                                         pixscale=args.pixscale, nproc=args.nproc,
                                         debug=args.debug, verbose=args.verbose, logfile=logfile,
-                                        radius_mask=radius_mask_arcsec, apodize=False)
+                                        radius_mask=radius_mask_arcsec,
+                                        # Note!
+                                        apodize=False, cleanup=False, write_all_pickles=True)
 
         if args.htmlplots:
-            barlen = np.ceil(30 / args.pixscale).astype(int)
+            barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
             call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
                            args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
-                           ZCOLUMN, htmldir, datadir, galaxylist=[onegal['GALAXY']],
-                           pipeline_montage=True, barlen=barlen, barlabel='30 arcsec')
+                           ZCOLUMN, htmldir, datadir, pipeline_montage=True,
+                           barlen=barlen, barlabel='30 arcsec',
+                           radius_mosaic_arcsec=radius_mosaic_arcsec,
+                           get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)
             
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
