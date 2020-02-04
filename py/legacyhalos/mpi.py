@@ -202,8 +202,9 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                 _done(galaxy, err, t0, log=log)
 
 def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
-                            kdccds_south, pixscale=0.262, nproc=1, radius_mask=None,
-                            debug=False, verbose=False, logfile=None, apodize=False,
+                            kdccds_south, pixscale=0.262, nproc=1,
+                            racolumn='RA', deccolumn='DEC',
+                            radius_mask=None, debug=False, verbose=False, logfile=None, apodize=False,
                             cleanup=True, write_all_pickles=False):
     """Wrapper script to build the pipeline coadds for large galaxies.
 
@@ -217,6 +218,7 @@ def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
         err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
                                                     radius_mosaic=radius_mosaic, radius_mask=radius_mask,
                                                     nproc=nproc, pixscale=pixscale,
+                                                    racolumn=racolumn, deccolumn=deccolumn,
                                                     run=run, apodize=apodize, verbose=verbose,
                                                     cleanup=cleanup, write_all_pickles=write_all_pickles)
         _done(galaxy, err, t0)
@@ -228,6 +230,7 @@ def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                 err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
                                                             radius_mosaic=radius_mosaic, radius_mask=radius_mask,
                                                             nproc=nproc, pixscale=pixscale,
+                                                            racolumn=racolumn, deccolumn=deccolumn,
                                                             run=run, apodize=apodize,
                                                             write_all_pickles=write_all_pickles,
                                                             verbose=verbose,

@@ -529,6 +529,7 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
 
 def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                        radius_mask=None, nproc=1, pixscale=0.262, run='decam',
+                       racolumn='RA', deccolumn='DEC', 
                        log=None, apodize=False, unwise=True, force=False,
                        plots=False, verbose=False, cleanup=True,
                        write_all_pickles=False,
@@ -592,9 +593,8 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-splinesky '
 
     width = _mosaic_width(radius_mosaic, pixscale)
-
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
-                     ra=onegal['RA'], dec=onegal['DEC'], width=width,
+                     ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
                      galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run)
     print(cmd, flush=True, file=log)
@@ -604,7 +604,7 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         return 0
     else:
         # Move (rename) files into the desired output directory and clean up.
-        brickname = 'custom-{}'.format(custom_brickname(onegal['RA'], onegal['DEC']))
+        brickname = 'custom-{}'.format(custom_brickname(onegal[racolumn], onegal[deccolumn]))
 
         # tractor catalog
         ok = _copyfile(

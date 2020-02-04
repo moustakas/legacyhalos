@@ -45,69 +45,13 @@ def main():
                                                verbose=args.verbose)
     else:
         sample = None
-
+        
     if comm:
         sample = comm.bcast(sample, root=0)
-
-    # Gather all the results and build the final LSLGA catalog.
+        
     if args.build_LSLGA:
-        from astrometry.libkd.spherematch import match_radec
-    
-        # This is a little fragile.
-        ver = legacyhalos.LSLGA.LSLGA_version()
-        outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
-        outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(ver))
-        if not os.path.isfile(outfile) or args.clobber:
-            import fitsio
-            import astropy.table
-
-            def get_d25_ba_pa(r50, e1, e2):
-                d25 = 3.0 * r50 # hack!
-                ee = np.hypot(e1, e2)
-                ba = (1 - ee) / (1 + ee)
-                #pa = -np.rad2deg(np.arctan2(e2, e1) / 2)
-                pa = 180 - (-np.rad2deg(np.arctan2(e2, e1) / 2))
-                return d25, ba, pa
-
-            out = []
-            for onegal in sample:
-                onegal = Table(onegal)
-                galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
-                catfile = os.path.join(galaxydir, '{}-pipeline-tractor.fits'.format(galaxy))
-                if not os.path.isfile(catfile):
-                    print('Skipping missing file {}'.format(catfile))
-                    continue
-                cat = fitsio.read(catfile)
-                # Need to be smarter here; maybe include all galaxies larger than 10ish arcsec??              
-                #this = cat['ref_cat'] == 'L4'
-                this, m2, d12 = match_radec(cat['ra'], cat['dec'], onegal['RA'], onegal['DEC'],
-                                            1.0/3600.0, nearest=True)
-                if len(this) == 0:
-                    print('Fix me!')
-                    continue
-                out1 = astropy.table.Table(cat[this])
-
-                # Convert the Tractor results to LSLGA format.
-                d25, ba, pa = get_d25_ba_pa(out1['shape_r'], out1['shape_e1'], out1['shape_e2'])
-                out1['d25_model'] = d25.astype('f4')
-                out1['pa_model'] = pa.astype('f4')
-                out1['ba_model'] = ba.astype('f4')
-
-                # Merge the catalogs together.
-                onegal.rename_column('RA', 'RA_LSLGA')
-                onegal.rename_column('DEC', 'DEC_LSLGA')
-                onegal.rename_column('TYPE', 'MORPHTYPE')
-                out.append(astropy.table.hstack((out1, onegal)))
-
-            out = astropy.table.vstack(out)
-            [out.rename_column(col, col.upper()) for col in out.colnames]
-
-            print('Writing {} galaxies to {}'.format(len(out), outfile))
-            out.write(outfile, overwrite=True)
-        else:
-            print('Use --clobber to overwrite existing catalog {}'.format(outfile))
-            
-        pdb.set_trace()
+        legacyhalos.LSLGA.build_model_LSLGA(sample, clobber=args.clobber)
+        return
 
     if args.coadds and not args.count:
         kdccds_north, kdccds_south = legacyhalos.io.read_all_ccds()
@@ -173,8 +117,10 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        radius_mask_arcsec = onegal['D25'] / 2 * 60       # [arcsec]
-        radius_mosaic_arcsec = onegal['D25'] * 60 * 2 # [arcsec]
+        radius_mask_arcsec = onegal['GROUP_DIAMETER'] / 2 * 60     # [arcsec]
+        radius_mosaic_arcsec = onegal['GROUP_DIAMETER'] * 60 * 1.5 # [arcsec]
+        #radius_mask_arcsec = onegal['D25'] / 2 * 60       # [arcsec]
+        #radius_mosaic_arcsec = onegal['D25'] * 60 * 2 # [arcsec]
 
         survey = LegacySurveyData()
         survey.output_dir = galaxydir
@@ -190,6 +136,7 @@ def main():
                                         pixscale=args.pixscale, nproc=args.nproc,
                                         debug=args.debug, verbose=args.verbose, logfile=logfile,
                                         radius_mask=radius_mask_arcsec,
+                                        racolumn='GROUP_RA', deccolumn='GROUP_DEC',
                                         # Note!
                                         apodize=False, cleanup=False, write_all_pickles=True)
 
