@@ -23,8 +23,10 @@ export LEGACYHALOS_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/l
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 
 export LSLGA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA
-export LSLGA_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA-data
-export LSLGA_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/LSLGA-html
+#export LSLGA_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA-data
+#export LSLGA_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/LSLGA-html
+export LSLGA_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e
+export LSLGA_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/LSLGA-html-dr9e
 
 export LEGACY_SURVEY_DIR=/global/cfs/projectdirs/cosmo/work/legacysurvey/dr9
 

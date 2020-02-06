@@ -141,6 +141,9 @@ def LSLGA_html_dir():
         os.makedirs(ldir, exist_ok=True)
     return ldir
 
+def get_raslice(ra):
+    return '{:06d}'.format(int(ra*1000))[:3]
+
 def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
                          candidates=False):
     """Retrieve the galaxy name and the (nested) directory.
@@ -168,12 +171,9 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
         galaxy = cat[galcolumn]
         ra = cat[racolumn]
 
-    def raslice(ra):
-        return '{:06d}'.format(int(ra*1000))[:3]
-
-    galaxydir = np.array([os.path.join(datadir, raslice(ra), gal) for gal, ra in zip(galaxy, ra)])
+    galaxydir = np.array([os.path.join(datadir, get_raslice(ra), gal) for gal, ra in zip(galaxy, ra)])
     if html:
-        htmlgalaxydir = np.array([os.path.join(htmldir, raslice(ra), gal) for gal, ra in zip(galaxy, ra)])
+        htmlgalaxydir = np.array([os.path.join(htmldir, get_raslice(ra), gal) for gal, ra in zip(galaxy, ra)])
 
     if ngal == 1:
         galaxy = galaxy[0]
@@ -211,7 +211,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
         from legacyhalos.brick import brickname as get_brickname
 
         d25min = 1.0 # [arcmin]
-        sample = fitsio.read(samplefile, columns=['GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
         bigcut = np.where((sample['GROUP_DIAMETER'] > 1) * (sample['GROUP_PRIMARY'] == 1) * (sample['IN_DESI']))[0]
 
         brickname = get_brickname(sample['GROUP_RA'][bigcut], sample['GROUP_DEC'][bigcut])
@@ -223,6 +223,11 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
 
         rows = np.arange(len(sample))
         rows = rows[bigcut][brickcut]
+        # Add in specific galaxies for testing:
+        if True:
+            this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
+            rows = np.hstack((rows, this))
+            rows = np.sort(rows)
         nrows = len(rows)
         print('Selecting {} galaxies in the dr9e footprint.'.format(nrows))
     else:
@@ -274,16 +279,17 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
 
     return sample
 
-def build_model_LSLGA(sample, clobber=False):
-    """Gather all the fitting results and build the final model-based LSLGA catalog. 
+def build_model_LSLGA(sample, minsize=10.0, clobber=False):
+    """Gather all the fitting results and build the final model-based LSLGA catalog.
+
+    minsize in arcsec
 
     """
-    from astrometry.libkd.spherematch import match_radec
-
     # This is a little fragile.
-    ver = legacyhalos.LSLGA.LSLGA_version()
-    outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
-    outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(ver))
+    version = legacyhalos.LSLGA.LSLGA_version()
+    #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
+    outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
+    outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(version))
     if not os.path.isfile(outfile) or clobber:
         import fitsio
         import astropy.table
@@ -305,34 +311,50 @@ def build_model_LSLGA(sample, clobber=False):
                 print('Skipping missing file {}'.format(catfile))
                 continue
             cat = fitsio.read(catfile)
-            # Need to be smarter here; maybe include all galaxies larger than 10ish arcsec??              
-            #this = cat['ref_cat'] == 'L4'
-            pdb.set_trace()
-            this, m2, d12 = match_radec(cat['ra'], cat['dec'], onegal['RA'], onegal['DEC'],
-                                        1.0/3600.0, nearest=True)
-            if len(this) == 0:
-                print('Fix me!')
-                continue
-            out1 = astropy.table.Table(cat[this])
+            # Need to be smarter here; maybe include all galaxies larger than 10ish arcsec??
+            keep = np.where(cat['shape_r'] > 10)[0]
+            if len(keep) > 0:
+                out.append(astropy.table.Table(cat[keep]))
 
-            # Convert the Tractor results to LSLGA format.
-            d25, ba, pa = get_d25_ba_pa(out1['shape_r'], out1['shape_e1'], out1['shape_e2'])
-            out1['d25_model'] = d25.astype('f4')
-            out1['pa_model'] = pa.astype('f4')
-            out1['ba_model'] = ba.astype('f4')
+            if False:
+                from astrometry.libkd.spherematch import match_radec
+                this, m2, d12 = match_radec(cat['ra'], cat['dec'], onegal['RA'], onegal['DEC'],
+                                            1.0/3600.0, nearest=True)
+                if len(this) == 0:
+                    print('Fix me!')
+                    continue
+                out1 = astropy.table.Table(cat[this])
 
-            # Merge the catalogs together.
-            onegal.rename_column('RA', 'RA_LSLGA')
-            onegal.rename_column('DEC', 'DEC_LSLGA')
-            onegal.rename_column('TYPE', 'MORPHTYPE')
-            out.append(astropy.table.hstack((out1, onegal)))
+                # Convert the Tractor results to LSLGA format.
+                d25, ba, pa = get_d25_ba_pa(out1['shape_r'], out1['shape_e1'], out1['shape_e2'])
+                out1['d25_model'] = d25.astype('f4')
+                out1['pa_model'] = pa.astype('f4')
+                out1['ba_model'] = ba.astype('f4')
+
+                # Merge the catalogs together.
+                onegal.rename_column('RA', 'RA_LSLGA')
+                onegal.rename_column('DEC', 'DEC_LSLGA')
+                onegal.rename_column('TYPE', 'MORPHTYPE')
+                out.append(astropy.table.hstack((out1, onegal)))
 
         out = astropy.table.vstack(out)
         [out.rename_column(col, col.upper()) for col in out.colnames]
 
         print('Writing {} galaxies to {}'.format(len(out), outfile))
-        pdb.set_trace()
-        out.write(outfile, overwrite=True)
+        #out.write(outfile, overwrite=True)
+        hdr = fitsio.FITSHDR()
+        hdrversion = 'L{}'.format(version[1:2]) # fragile!
+        hdr['LSLGAVER'] = hdrversion
+        fitsio.write(outfile, out.as_array(), header=hdr, clobber=True)
+
+        # Write the KD-tree version
+        kdoutfile = outfile.replace('.fits', '.kd.fits') # fragile
+        cmd = 'startree -i {} -o {} -T -P -k -n largegals'.format(outfile, kdoutfile)
+        #print(cmd)
+        _ = os.system(cmd)
+    
+        cmd = 'modhead {} LSLGAVER {}'.format(outfile, hdrversion)
+        _ = os.system(cmd)
     else:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
 
@@ -364,8 +386,10 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
     #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
 
-    # group by RA slices
-    raslices = np.array([str(ra)[:3] for ra in sample[racolumn]])
+    ## group by RA slices
+    #raslices = np.array([str(ra)[:3] for ra in sample[racolumn]])
+    #rasorted = np.argsort(raslices)
+    raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
     rasorted = np.argsort(raslices)
 
     # Write the last-updated date to a webpage.
@@ -432,7 +456,6 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample[inslice], html=True)
 
             html.write('<h3>RA Slice {}</h3>\n'.format(raslice))
-
             html.write('<table>\n')
 
             #html.write('<tr>\n')
@@ -580,8 +603,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('<tr>\n')
                 #html.write('<td>{:g}</td>\n'.format(ii))
                 #print(gal['INDEX'], gal['LSLGA_ID'], gal['GALAXY'])
-                html.write('<td>{:g}</td>\n'.format(gal['INDEX']))
-                html.write('<td>{:g}</td>\n'.format(gal['LSLGA_ID']))
+                html.write('<td>{}</td>\n'.format(gal['INDEX']))
+                html.write('<td>{}</td>\n'.format(gal['LSLGA_ID']))
                 html.write('<td>{}</td>\n'.format(galaxy1))
                 html.write('<td>{:.7f}</td>\n'.format(gal[racolumn]))
                 html.write('<td>{:.7f}</td>\n'.format(gal[deccolumn]))

@@ -203,7 +203,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
 
 def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                             kdccds_south, pixscale=0.262, nproc=1,
-                            racolumn='RA', deccolumn='DEC',
+                            racolumn='RA', deccolumn='DEC', force=False,
                             radius_mask=None, debug=False, verbose=False, logfile=None, apodize=False,
                             cleanup=True, write_all_pickles=False):
     """Wrapper script to build the pipeline coadds for large galaxies.
@@ -217,7 +217,7 @@ def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
         run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
         err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
                                                     radius_mosaic=radius_mosaic, radius_mask=radius_mask,
-                                                    nproc=nproc, pixscale=pixscale,
+                                                    nproc=nproc, pixscale=pixscale, force=force, 
                                                     racolumn=racolumn, deccolumn=deccolumn,
                                                     run=run, apodize=apodize, verbose=verbose,
                                                     cleanup=cleanup, write_all_pickles=write_all_pickles)
@@ -229,7 +229,7 @@ def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
                 run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south, log=log)
                 err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
                                                             radius_mosaic=radius_mosaic, radius_mask=radius_mask,
-                                                            nproc=nproc, pixscale=pixscale,
+                                                            nproc=nproc, pixscale=pixscale, force=force, 
                                                             racolumn=racolumn, deccolumn=deccolumn,
                                                             run=run, apodize=apodize,
                                                             write_all_pickles=write_all_pickles,

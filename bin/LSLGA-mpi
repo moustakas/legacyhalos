@@ -135,7 +135,7 @@ def main():
                                         kdccds_north, kdccds_south,
                                         pixscale=args.pixscale, nproc=args.nproc,
                                         debug=args.debug, verbose=args.verbose, logfile=logfile,
-                                        radius_mask=radius_mask_arcsec,
+                                        radius_mask=radius_mask_arcsec, force=args.force,
                                         racolumn='GROUP_RA', deccolumn='GROUP_DEC',
                                         # Note!
                                         apodize=False, cleanup=False, write_all_pickles=True)
