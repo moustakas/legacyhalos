@@ -48,9 +48,9 @@ def main():
         
     if comm:
         sample = comm.bcast(sample, root=0)
-        
+
     if args.build_LSLGA:
-        legacyhalos.LSLGA.build_model_LSLGA(sample, clobber=args.clobber)
+        legacyhalos.LSLGA.build_model_LSLGA(sample, pixscale=args.pixscale, clobber=args.clobber)
         return
 
     if args.coadds and not args.count:

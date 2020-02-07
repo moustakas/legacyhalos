@@ -9,7 +9,7 @@ export UNWISE_COADDS_TIMERESOLVED_DIR=/global/project/projectdirs/cosmo/work/wis
 export GAIA_CAT_DIR=/global/project/projectdirs/cosmo/work/gaia/chunks-gaia-dr2-astrom-2
 export GAIA_CAT_VER=2
 export TYCHO2_KD_DIR=/global/project/projectdirs/cosmo/staging/tycho2
-export LARGEGALAXIES_CAT=/global/project/projectdirs/cosmo/staging/largegalaxies/v4.0/LSLGA-v4.0.kd.fits
+export LARGEGALAXIES_CAT=/global/project/projectdirs/cosmo/staging/largegalaxies/v5.0/LSLGA-v5.0.kd.fits
 export PS1CAT_DIR=/global/project/projectdirs/cosmo/work/ps1/cats/chunks-qz-star-v3
 export GALEX_DIR=/global/project/projectdirs/cosmo/data/galex/images
 
@@ -19,16 +19,16 @@ export LEGACYPIPE_DIR=/global/homes/i/ioannis/repos/git/legacypipe
 
 export LEGACYHALOS_DIR=/global/projecta/projectdirs/desi/users/ioannis/legacyhalos
 export LEGACYHALOS_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/legacyhalos-data
-export LEGACYHALOS_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/legacyhalos-html
+export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/legacyhalos-html
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 
 export LSLGA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA
 #export LSLGA_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA-data
-#export LSLGA_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/LSLGA-html
+#export LSLGA_HTML_DIR=/global/projecta/projectdirs/cosmo/www/temp/ioannis/LSLGA-html
 export LSLGA_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e
-export LSLGA_HTML_DIR=/global/project/projectdirs/cosmo/www/temp/ioannis/LSLGA-html-dr9e
+export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-dr9e
 
-export LEGACY_SURVEY_DIR=/global/cfs/projectdirs/cosmo/work/legacysurvey/dr9
+export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
 
 # Use local check-outs
 export PATH=$LEGACYHALOS_CODE_DIR/bin:$PATH

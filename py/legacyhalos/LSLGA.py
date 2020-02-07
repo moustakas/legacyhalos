@@ -190,8 +190,11 @@ def LSLGA_version():
     version = 'v5.0'
     return version
 
-def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect_sample=True):
+def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect_sample=True,
+                d25min=0.5):
     """Read/generate the parent LSLGA catalog.
+
+    d25min in arcmin
 
     """
     import fitsio
@@ -210,13 +213,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
     if preselect_sample:
         from legacyhalos.brick import brickname as get_brickname
 
-        d25min = 1.0 # [arcmin]
         sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
-        bigcut = np.where((sample['GROUP_DIAMETER'] > 1) * (sample['GROUP_PRIMARY'] == 1) * (sample['IN_DESI']))[0]
+        bigcut = np.where((sample['GROUP_DIAMETER'] > d25min) * (sample['GROUP_PRIMARY'] == 1) * (sample['IN_DESI']))[0]
 
         brickname = get_brickname(sample['GROUP_RA'][bigcut], sample['GROUP_DEC'][bigcut])
-        nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9e-north-bricklist.txt'), dtype='str')
-        sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9e-south-bricklist.txt'), dtype='str')
+        nbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_north.txt', dtype='str')
+        sbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_south.txt', dtype='str')
+        #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9e-north-bricklist.txt'), dtype='str')
+        #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9e-south-bricklist.txt'), dtype='str')
         bricklist = np.union1d(nbricklist, sbricklist)
         #rows = np.where([brick in bricklist for brick in brickname])[0]
         brickcut = np.where(np.isin(brickname, bricklist))[0]
@@ -224,7 +228,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
         rows = np.arange(len(sample))
         rows = rows[bigcut][brickcut]
         # Add in specific galaxies for testing:
-        if True:
+        if False:
             this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
             rows = np.hstack((rows, this))
             rows = np.sort(rows)
@@ -279,20 +283,39 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
 
     return sample
 
-def build_model_LSLGA(sample, minsize=10.0, clobber=False):
+# From TheTractor/code/optimize_mixture_profiles.py
+from scipy.special import gammaincinv
+def sernorm(n):
+	return gammaincinv(2.*n, 0.5)
+def sersic_profile(x, n):
+    return np.exp(-sernorm(n) * (x ** (1./n) - 1.))
+
+def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
+                      bands=('g', 'r', 'z'), clobber=False):
     """Gather all the fitting results and build the final model-based LSLGA catalog.
 
-    minsize in arcsec
+    minradius in arcsec
+    minsb [minimum surface brightness] in r-band AB mag/arcsec**2
 
     """
+    import fitsio
+    import astropy.table
+    from legacypipe.catalog import fits_reverse_typemap
+    from astrometry.util.fits import fits_table
+    from tractor.wcs import RaDecPos
+    from tractor import NanoMaggies
+    from tractor.ellipses import EllipseE
+    from tractor.galaxy import DevGalaxy, ExpGalaxy
+    from tractor.sersic import SersicGalaxy
+    from legacypipe.survey import LegacySersicIndex
+        
     # This is a little fragile.
     version = legacyhalos.LSLGA.LSLGA_version()
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
+    outdir = '/global/u2/i/ioannis'
     outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(version))
     if not os.path.isfile(outfile) or clobber:
-        import fitsio
-        import astropy.table
 
         def get_d25_ba_pa(r50, e1, e2):
             d25 = 3.0 * r50 # hack!
@@ -302,6 +325,10 @@ def build_model_LSLGA(sample, minsize=10.0, clobber=False):
             pa = 180 - (-np.rad2deg(np.arctan2(e2, e1) / 2))
             return d25, ba, pa
 
+        # Integration radius vector.
+        pixradii = np.arange(2000) # [pixels]
+        arcsec_radii = pixradii * pixscale # [arcsec]
+
         out = []
         for onegal in sample:
             onegal = astropy.table.Table(onegal)
@@ -310,11 +337,66 @@ def build_model_LSLGA(sample, minsize=10.0, clobber=False):
             if not os.path.isfile(catfile):
                 print('Skipping missing file {}'.format(catfile))
                 continue
-            cat = fitsio.read(catfile)
-            # Need to be smarter here; maybe include all galaxies larger than 10ish arcsec??
-            keep = np.where(cat['shape_r'] > 10)[0]
-            if len(keep) > 0:
-                out.append(astropy.table.Table(cat[keep]))
+            cat = fits_table(catfile)
+            #cat = fitsio.read(catfile)
+            
+            # Is 10 arcsec a good cut...?
+            cut = np.where(cat.shape_r > 2)[0]
+            #with np.errstate(invalid='ignore'):
+            #    cut = np.where((cat['shape_r'] > minradius) * (22.5-2.5*np.log10(cat['flux_r'] / (np.pi*cat['shape_r']**2)) < minsb))[0]
+            if len(cut) > 0:
+                # For each galaxy, compute the position angle and "size" based
+                # on the r-band surface brightness limit.
+                for g in cat[cut]:
+                    typ = fits_reverse_typemap[g.type.strip()]
+                    pos = RaDecPos(g.ra, g.dec)
+                    fluxes = dict([(band, g.get('flux_%s' % band)) for band in bands])
+                    bright = NanoMaggies(order=bands, **fluxes)
+                    shape = None
+                    if issubclass(typ, (DevGalaxy, ExpGalaxy, SersicGalaxy)):
+                        shape = EllipseE(g.shape_r, g.shape_e1, g.shape_e2)
+                        
+                    if issubclass(typ, (DevGalaxy, ExpGalaxy)):
+                        #src = typ(pos, bright, shape)
+                        #print('Created', src)
+                        if issubclass(typ, DevGalaxy):
+                            serindex = 4.
+                        else:
+                            serindex = 1.
+                    elif issubclass(typ, (SersicGalaxy)):
+                        serindex = g.sersic
+                        sersic = LegacySersicIndex(g.sersic)
+                        #src = typ(pos, bright, shape, sersic)
+                        #print('Created', src)
+                    else:
+                        print('Unknown type {}'.format(typ))
+
+                    # Masking radius based on surface brightness--
+                    eff_radii = arcsec_radii / g.shape_r        # effective radius for this galaxy
+                    pro = sersic_profile(eff_radii, serindex)   # 1D surface brightness profile
+                    total = np.sum(pro * 2. * np.pi * pixradii) # normalize by total flux to get surface brightness
+                    pro /= total
+                    # At this point, "pro" is fraction of total galaxy light
+                    pro *= g.flux_r # [nanomaggies per pixel]
+                    pro /= pixscale**2 # [nanomaggies / arcsec^2]
+                    # Take largest radius with surface brightness above thresh
+                    ## 0.1 nanomaggies = 25 mag/arcsec^2
+                    irad, = np.nonzero(pro > 0.1)
+                    if len(irad):
+                        irad = irad[-1]
+                    else:
+                        irad = 0
+                    d25 = 2 * arcsec_radii[irad] / 60.0 # d25 diameter [arcmin]
+                    
+                    if shape is not None:
+                        e = shape.e
+                        ba = (1. - e) / (1. + e)
+                        pa = 180-np.rad2deg(np.arctan2(shape.e2, shape.e1) / 2.)
+
+                    pdb.set_trace()
+
+                out1 = astropy.table.Table(cat[cut])
+                out.append(out1)
 
             if False:
                 from astrometry.libkd.spherematch import match_radec
@@ -339,6 +421,21 @@ def build_model_LSLGA(sample, minsize=10.0, clobber=False):
 
         out = astropy.table.vstack(out)
         [out.rename_column(col, col.upper()) for col in out.colnames]
+        print('Gathered {} pre-burned galaxies.'.format(len(out)))
+
+        # Now read the full parent LSLGA catalog and stack it, making sure to
+        # remove duplicates.
+        lslgafile = os.getenv('LARGEGALAXIES_CAT')
+        lslga = astropy.table.Table(fitsio.read(lslgafile))
+        lslga.rename_column('RA', 'LSLGA_RA')
+        lslga.rename_column('DEC', 'LSLGA_DEC')
+        lslga.rename_column('TYPE', 'MORPHTYPE')
+        print('Read {} galaxies from {}'.format(len(lslga), lslgafile))
+
+        keep = ~np.isin(lslga['LSLGA_ID'], out['REF_ID'])
+        if np.sum(keep) > 0:
+            lslga = lslga[keep]
+            out = astropy.table.vstack((out, lslga))
 
         print('Writing {} galaxies to {}'.format(len(out), outfile))
         #out.write(outfile, overwrite=True)

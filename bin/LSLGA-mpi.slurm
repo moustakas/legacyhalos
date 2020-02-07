@@ -12,8 +12,8 @@
 # #SBATCH --image=docker:flagnarg/legacyhalos:latest
 
 #SBATCH -p debug
-#SBATCH -N 10
-#SBATCH -n 40
+#SBATCH -N 40
+#SBATCH -n 160
 #SBATCH -t 00:30:00
 
 # sbatch LSLGA-mpi.slurm
@@ -26,4 +26,4 @@
 #time srun -N 8 -n 128 -c 4 shifter --image=docker:flagnarg/legacyhalos:latest ./hsc-mpi-shifter.sh
 
 # coadds, custom coadds
-time srun -N 10 -n 40 -c 8 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh
+time srun -N 40 -n 160 -c 8 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh
