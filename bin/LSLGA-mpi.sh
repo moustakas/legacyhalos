@@ -28,7 +28,8 @@ export LSLGA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA
 export LSLGA_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e
 export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-dr9e
 
-export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
+#export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
+export LEGACY_SURVEY_DIR=/global/cscratch1/sd/desimpp/dr9e
 
 # Use local check-outs
 export PATH=$LEGACYHALOS_CODE_DIR/bin:$PATH

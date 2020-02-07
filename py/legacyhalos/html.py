@@ -91,6 +91,7 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
     #from pkg_resources import resource_filename
     from PIL import Image, ImageDraw, ImageFont
     montagefile = os.path.join(htmlgalaxydir, '{}-grz-montage.png'.format(galaxy))
+    thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-grz-montage.png'.format(galaxy))
 
     fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
     #fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
@@ -160,6 +161,12 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
 
             if verbose:
                 print('Writing {}'.format(montagefile))
+            subprocess.call(cmd.split())
+
+            # Create a smaller thumbnail image
+            cmd = 'convert -thumbnail 800x800 {} {}'.format(montagefile, thumbfile)
+            if verbose:
+                print('Writing {}'.format(thumbfile))
             subprocess.call(cmd.split())
 
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
