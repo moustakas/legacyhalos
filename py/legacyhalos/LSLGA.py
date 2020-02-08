@@ -318,18 +318,13 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
         
     # This is a little fragile.
     version = legacyhalos.LSLGA.LSLGA_version()
-    refcat = get_large_galaxy_version(os.getenv('LARGEGALAXIES_CAT'))
+    refcat, _ = get_large_galaxy_version(os.getenv('LARGEGALAXIES_CAT'))
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    outdir = '/global/u2/i/ioannis'
+    #outdir = '/global/u2/i/ioannis'
     outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(version))
     if not os.path.isfile(outfile) or clobber:
-
-        ## Integration radius vector.
-        #pixradii = np.arange(2000) # [pixels]
-        #arcsec_radii = pixradii * pixscale # [arcsec]
-
         out = []
         for onegal in sample:
             onegal = astropy.table.Table(onegal)
@@ -476,20 +471,30 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
 
         # Deal with duplicates by keeping the entry closest to the center of its
         # group.
-        grp, mult, first, next = spheregroup(out_lslga['RA'], out_lslga['DEC'], 0.1/3600.0)
-        keep = np.where(mult == 1)[0]
-        for ii in np.where(mult > 1)[0]:
-            these = np.where(grp == grp[ii])[0]
-            keep = np.hstack((keep, these[np.argmin(out_lslga[these]['THETA_CENTER'])]))
-        #dup_refid, cnt = np.unique(out_lslga['REF_ID'], return_counts=True)
+        #grp, mult, first, next = spheregroup(out_lslga['RA'], out_lslga['DEC'], 0.1/3600.0)
+        #keep = np.where(mult == 1)[0]
+        #for ii in np.where(mult > 1)[0]:
+        #    these = np.where(grp == grp[ii])[0]
+        #    keep = np.hstack((keep, these[np.argmin(out_lslga[these]['THETA_CENTER'])]))
+
+        keep = []
+        for refid in set(out_lslga['REF_ID']):
+            these = np.where(out_lslga['REF_ID'] == refid)[0]
+            if len(these) == 1:
+                keep.append(these)
+            else:
+                print('Found {} occurrences of {}'.format(len(these), refid))
+                keep.append(these[np.argmin(out_lslga[these]['THETA_CENTER'])])
+        keep = np.hstack(keep)
+                
+        #refid, cnt = np.unique(out_lslga['REF_ID'], return_counts=True)
+        #keep = np.where(np.isin(out_lslga['REF_ID'], refid))[0]
         #keep = np.where(cnt == 1)[0]
         #for idup in np.where(cnt > 1)[0]:
-        #    these = np.where(out_lslga['REF_ID'] == dup_refid[idup])[0]
+        #    these = np.where(out_lslga['REF_ID'] == refid[idup])[0]
         #    keep = np.hstack((keep, these[np.argmin(out_lslga[these]['THETA_CENTER'])]))
         print('Removing {}/{} duplicate LSLGA Tractor sources.'.format(len(out_lslga)-len(keep), len(out_lslga)))
-        out_lslga = out_lslga[np.sort(keep)]
-
-        pdb.set_trace()
+        out_lslga = out_lslga[keep]
 
         # Finally, populate the Tractor columns.
         kindx = np.where(np.isin(lslga['LSLGA_ID'], out_lslga['REF_ID']))[0]
@@ -501,6 +506,12 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
             out = astropy.table.vstack((lslga, lslga_sup))
         else:
             out = lslga
+
+        # Add RA, Dec back in--
+        fix = np.where(~out['PREBURNED'])[0]
+        if len(fix) > 0:
+            out['RA'][fix] = out['LSLGA_RA'][fix]
+            out['DEC'][fix] = out['LSLGA_DEC'][fix]
             
         print('Writing {} galaxies to {}'.format(len(out), outfile))
         #out.write(outfile, overwrite=True)
@@ -516,7 +527,6 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
     
         cmd = 'modhead {} LSLGAVER {}'.format(outfile, hdrversion)
         _ = os.system(cmd)
-        pdb.set_trace()
     else:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
 
