@@ -1,0 +1,671 @@
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m2.835s
+user	0m0.621s
+sys	0m0.386s
+
+real	0m1.979s
+user	0m0.601s
+sys	0m0.271s
+
+real	0m0.807s
+user	0m0.616s
+sys	0m0.092s
+
+real	0m1.257s
+user	0m0.600s
+sys	0m0.154s
+
+real	0m1.835s
+user	0m0.566s
+sys	0m0.318s
+
+real	0m2.701s
+user	0m0.643s
+sys	0m0.262s
+
+real	0m2.552s
+user	0m0.629s
+sys	0m0.283s
+
+real	0m0.954s
+user	0m0.595s
+sys	0m0.117s
+
+real	0m1.404s
+user	0m0.628s
+sys	0m0.144s
+
+real	0m2.987s
+user	0m0.637s
+sys	0m0.352s
+
+real	0m2.404s
+user	0m0.652s
+sys	0m0.255s
+
+real	0m1.714s
+user	0m0.655s
+sys	0m0.204s
+
+real	0m2.137s
+user	0m0.675s
+sys	0m0.207s
+
+real	0m1.114s
+user	0m0.617s
+sys	0m0.142s
+
+real	0m2.283s
+user	0m0.659s
+sys	0m0.244s
+
+real	0m1.542s
+user	0m0.661s
+sys	0m0.157s
+
+real	0m3.004s
+user	0m0.690s
+sys	0m0.382s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.753s
+user	0m0.572s
+sys	0m0.114s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.759s
+user	0m0.592s
+sys	0m0.093s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.734s
+user	0m0.599s
+sys	0m0.060s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.679s
+user	0m0.531s
+sys	0m0.071s
+srun: error: nid00655: tasks 32-33,37-38,40,42,44-47,49-52,54-56,60-63: Exited with exit code 2
+srun: Terminating job step 27996272.0
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.702s
+user	0m0.540s
+sys	0m0.084s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.656s
+user	0m0.476s
+sys	0m0.107s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.656s
+user	0m0.518s
+sys	0m0.060s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+slurmstepd: error: *** STEP 27996272.0 ON nid00654 CANCELLED AT 2020-02-09T07:12:12 ***
+srun: error: nid00655: tasks 35-36,39,41,43,53: Terminated
+srun: error: nid00655: tasks 48,58-59: Exited with exit code 2
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.618s
+user	0m0.473s
+sys	0m0.059s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00655: task 34: Exited with exit code 2
+
+real	0m0.621s
+user	0m0.485s
+sys	0m0.055s
+srun: error: nid00655: task 57: Exited with exit code 2
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.722s
+user	0m0.497s
+sys	0m0.080s
+
+real	0m0.914s
+user	0m0.652s
+sys	0m0.096s
+
+real	0m1.347s
+user	0m0.649s
+sys	0m0.163s
+
+real	0m1.493s
+user	0m0.654s
+sys	0m0.167s
+
+real	0m1.637s
+user	0m0.670s
+sys	0m0.169s
+
+real	0m1.782s
+user	0m0.688s
+sys	0m0.170s
+
+real	0m2.359s
+user	0m0.703s
+sys	0m0.220s
+
+real	0m2.059s
+user	0m0.667s
+sys	0m0.233s
+
+real	0m2.669s
+user	0m0.698s
+sys	0m0.351s
+
+real	0m1.204s
+user	0m0.649s
+sys	0m0.139s
+
+real	0m2.526s
+user	0m0.681s
+sys	0m0.322s
+
+real	0m1.928s
+user	0m0.684s
+sys	0m0.241s
+
+real	0m1.057s
+user	0m0.636s
+sys	0m0.144s
+
+real	0m2.752s
+user	0m0.682s
+sys	0m0.322s
+
+real	0m2.219s
+user	0m0.669s
+sys	0m0.260s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.734s
+user	0m0.564s
+sys	0m0.098s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.683s
+user	0m0.531s
+sys	0m0.078s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.689s
+user	0m0.553s
+sys	0m0.062s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: tasks 1,3,5,7,9,11,13,15,17-23,27,29,31: Exited with exit code 2
+
+real	0m0.700s
+user	0m0.537s
+sys	0m0.091s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.648s
+user	0m0.501s
+sys	0m0.067s
+srun: error: nid00654: tasks 6,25: Exited with exit code 2
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+
+real	0m0.699s
+user	0m0.542s
+sys	0m0.084s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 16: Exited with exit code 2
+
+real	0m0.707s
+user	0m0.543s
+sys	0m0.091s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 10: Exited with exit code 2
+
+real	0m0.720s
+user	0m0.569s
+sys	0m0.080s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 4: Exited with exit code 2
+
+real	0m0.729s
+user	0m0.574s
+sys	0m0.089s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 24: Exited with exit code 2
+
+real	0m0.739s
+user	0m0.609s
+sys	0m0.057s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 26: Exited with exit code 2
+
+real	0m0.724s
+user	0m0.585s
+sys	0m0.063s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 12: Exited with exit code 2
+
+real	0m0.718s
+user	0m0.567s
+sys	0m0.076s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 8: Exited with exit code 2
+
+real	0m0.692s
+user	0m0.570s
+sys	0m0.061s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 14: Exited with exit code 2
+
+real	0m0.708s
+user	0m0.550s
+sys	0m0.084s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 2: Exited with exit code 2
+
+real	0m0.691s
+user	0m0.553s
+sys	0m0.069s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 28: Exited with exit code 2
+
+real	0m0.701s
+user	0m0.558s
+sys	0m0.073s
+usage: LSLGA-mpi [-h] [--nproc NPROC] [--mpi] [--first FIRST] [--last LAST]
+                 [--galaxylist [GALAXYLIST [GALAXYLIST ...]]] [--coadds]
+                 [--just-coadds] [--htmlplots] [--htmlindex]
+                 [--htmldir HTMLDIR] [--pixscale PIXSCALE] [--ccdqa]
+                 [--nomakeplots] [--force] [--count] [--debug] [--verbose]
+                 [--clobber] [--build-LSLGA]
+LSLGA-mpi: error: argument --nproc: expected one argument
+srun: error: nid00654: task 0: Exited with exit code 2
+
+real	0m0.651s
+user	0m0.510s
+sys	0m0.069s
+srun: error: nid00654: task 30: Exited with exit code 2
+srun: Force Terminated job step 27996272.0
+
+real	0m11.819s
+user	0m0.112s
+sys	0m0.036s

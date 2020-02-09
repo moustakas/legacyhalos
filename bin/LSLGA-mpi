@@ -93,8 +93,8 @@ def main():
     if len(groups[rank]) == 0 or args.count:
         if len(groups[rank]) > 0 and args.debug:
             galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[tuple(groups)])
-            for ii, dd in zip(groups[rank], galaxydir):
-                print('  {} {}'.format(ii, dd))
+            for ii, dd, diam in zip(groups[rank], galaxydir, sample[tuple(groups)]['GROUP_DIAMETER']):
+                print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
         return
 
     # Loop on the remaining objects.

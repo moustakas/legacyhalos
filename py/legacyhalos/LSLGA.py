@@ -84,7 +84,8 @@ def missing_files(sample, filetype='coadds', size=1, htmldir=None,
     #elif filetype == 'LSLGA':
     #    filesuffix = '-custom-resid-grz.jpg'
     elif filetype == 'html':
-        filesuffix = '-ccdpos.png'
+        filesuffix = '-maskbits.png'
+        #filesuffix = '-ccdpos.png'
         #filesuffix = '-sersic-exponential-nowavepower.png'
     else:
         print('Unrecognized file type!')
@@ -191,7 +192,7 @@ def LSLGA_version():
     return version
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect_sample=True,
-                d25min=0.5):
+                d25min=0.5, d25max=5.0):
     """Read/generate the parent LSLGA catalog.
 
     d25min in arcmin
@@ -214,7 +215,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
         from legacyhalos.brick import brickname as get_brickname
 
         sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
-        bigcut = np.where((sample['GROUP_DIAMETER'] > d25min) * (sample['GROUP_PRIMARY'] == 1) * (sample['IN_DESI']))[0]
+        bigcut = np.where((sample['GROUP_DIAMETER'] > d25min) * (sample['GROUP_DIAMETER'] < d25max) *
+                          (sample['GROUP_PRIMARY'] == 1) * (sample['IN_DESI']))[0]
 
         brickname = get_brickname(sample['GROUP_RA'][bigcut], sample['GROUP_DEC'][bigcut])
         nbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_north.txt', dtype='str')
@@ -281,6 +283,11 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
             print('Selecting specific galaxies.')
         sample = sample[np.isin(sample[galcolumn], galaxylist)]
 
+    #print(get_brickname(sample['GROUP_RA'], sample['GROUP_DEC']))
+
+    # Reverse sort by diameter
+    sample = sample[np.argsort(sample['GROUP_DIAMETER'])]
+    
     return sample
 
 # From TheTractor/code/optimize_mixture_profiles.py
@@ -290,7 +297,9 @@ def sernorm(n):
 def sersic_profile(x, n):
     return np.exp(-sernorm(n) * (x ** (1./n) - 1.))
 
-def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
+#def build_model_LSLGA_one():
+
+def build_model_LSLGA(sample, pixscale=0.262, minradius=5.0, minsb=25.0, sbcut=25.0,
                       bands=('g', 'r', 'z'), clobber=False):
     """Gather all the fitting results and build the final model-based LSLGA catalog.
 
@@ -302,11 +311,11 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
     import fitsio
     from astropy.table import Table, hstack, vstack
     from pydl.pydlutils.spheregroup import spheregroup
+    #from astrometry.libkd.spherematch import match_radec
+    from scipy.interpolate import interp1d
 
     from legacypipe.catalog import fits_reverse_typemap
-    #from astrometry.util.fits import fits_table
     from astrometry.util.starutil_numpy import arcsec_between
-    from astrometry.libkd.spherematch import match_radec
 
     from tractor.wcs import RaDecPos
     from tractor import NanoMaggies
@@ -340,13 +349,22 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
             with warnings.catch_warnings():
             #with np.errstate(divide='ignore'):
                 warnings.simplefilter('ignore')
-                #cut = np.where((cat['type'] != 'REX') * (cat['shape_r'] > minradius) * (22.5-2.5*np.log10(cat['flux_r'] / (np.pi*cat['shape_r']**2)) < minsb))[0]
-                cut = np.where(np.logical_or((cat['type'] != 'REX') * (cat['shape_r'] > minradius), cat['ref_cat'] == refcat))[0]
+                sb = 22.5-2.5*np.log10(cat['flux_r'] / (np.pi*cat['shape_r']**2))
+                #print(cat['shape_r'], sb)
+                cut = np.where(np.logical_or((cat['type'] != 'REX') * (cat['type'] != 'PSF') *
+                                             (cat['shape_r'] > minradius) * (sb < minsb), cat['ref_cat'] == refcat))[0]
+                #cut = np.where(np.logical_or((cat['ref_cat'] != 'G2') * (cat['type'] != 'REX') *
+                #                             (cat['shape_r'] > minradius), cat['ref_cat'] == refcat))[0]
             if len(cut) == 0:
-                print('This should not happen!')
-                pdb.set_trace()
-
+                print('No large, high surface-brightness sources in galaxy {} field!'.format(galaxy))
+                continue
+                
             I = np.where(cat['ref_cat'][cut] == refcat)[0]
+            if len(I) == 0:
+                print('Large galaxy {} was dropped!'.format(galaxy))
+                #print('This should not happen!')
+                #pdb.set_trace()
+                continue
             
             #print('Analyzing {}/{} galaxies (of which {} are LSLGA) in the {} footprint.'.format(
             #    len(cut), len(cat), len(I), galaxy))
@@ -366,6 +384,10 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
             # on the r-band surface brightness limit.
             if len(I) > 0:
                 for ii, g in zip(I, cat[I]):
+                    if g['type'].strip() == 'PSF':
+                        print('Large galaxy {} is PSF--skipping!'.format(galaxy))
+                        continue
+                    
                     typ = fits_reverse_typemap[g['type'].strip()]
                     pos = RaDecPos(g['ra'], g['dec'])
                     fluxes = dict([(band, g['flux_{}'.format(band)]) for band in bands])
@@ -386,26 +408,31 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
                         print('Unknown type {}'.format(typ))
 
                     # Masking radius based on surface brightness--
-                    radius = np.linspace(0.0, 10*g['shape_r'], 2000)      # radius [arcsec]
-                    pro = sersic_profile(radius / g['shape_r'], serindex) # 1D surface brightness profile
-                    pro /= np.sum(pro * 2. * np.pi * radius / pixscale)   # normalize by total flux to get surface brightness
-
-                    # At this point, "pro" is fraction of total galaxy light--
-                    pro *= g['flux_r'] # [nanomaggies per pixel]
-                    pro /= pixscale**2 # [nanomaggies / arcsec^2]
-
-                    # Take largest radius with surface brightness above the desired threshold.
-                    ## 0.1 nanomaggies = 25 mag/arcsec^2
-                    irad, = np.nonzero(pro > 0.1)
-                    if len(irad):
-                        irad = irad[-1]
-                    else:
-                        irad = 0
-                    cat['d25_model'][ii] = 2 * radius[irad] / 60.0 # d25 diameter [arcmin]
+                    # Normalize by total flux and then divide by the
+                    # pixelscale to get the surface brightness.
+                    radius_pixel = np.arange(20*g['shape_r'] / pixscale)   # [pixels]
+                    radius = pixscale * radius_pixel                       # [arcsec]
+                    pro = sersic_profile(radius / g['shape_r'], serindex) # 1D profile
+                    pro /= np.sum(pro * 2. * np.pi * radius_pixel)
+                    for band in ('r', 'z', 'g'):
+                        if g['flux_{}'.format(band)] > 0:
+                            pro *= (g['flux_{}'.format(band)] / pixscale**2) # [nanomaggies / arcsec^2]
+                            break
+                    
+                    # Interpolate to get the radius at which the surface
+                    # brightness profile crosses the desired threshold. Note:
+                    # 0.1 nanomaggies = 25 mag/arcsec^2
+                    try:
+                        r25 = interp1d(pro, radius)(10**(-0.4*(sbcut-22.5))) # [arcsec]
+                    except:
+                        print('Warning: extrapolating r25 for galaxy {}'.format(galaxy))
+                        r25 = interp1d(pro, radius)(10**(-0.4*(sbcut-22.5)), fill_value='extrapolate') # [arcsec]
+                        
+                    cat['d25_model'][ii] = 2 * r25 / 60.0                # [arcmin]
                     if cat['d25_model'][ii] == 0.0:
                         print('Warning: radius too small for galaxy {} ({}, r={:.3f})!'.format(
                             galaxy, g['type'], g['shape_r']))
-                        #pdb.set_trace()
+                        pdb.set_trace()
 
                     if shape is not None:
                         e = shape.e
@@ -415,6 +442,7 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=10.0, minsb=25.0,
                             cat['pa_model'][ii] = 180-pa
                     cat['freeze'][ii] = True
 
+            #pdb.set_trace()
             out.append(cat)
 
         if len(out) == 0:
@@ -583,7 +611,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             zoom = 14
         else:
             zoom = 15
-        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8'.format(
+        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8&lslga'.format(
             baseurl, gal[racolumn], gal[deccolumn], zoom)
         
         return viewer
@@ -825,6 +853,16 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     pngfile, thumbfile))
                 #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
                 html.write('</table>\n')
+
+                #html.write('<br />\n')
+                html.write('<p>Maskbits.</p>\n')
+                
+                html.write('<table width="30%">\n')
+                pngfile = '{}-maskbits.png'.format(galaxy1)
+                html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
+                    pngfile))
+                html.write('</table>\n')
+
                 #html.write('<br />\n')
                 html.write('<p>Spatial distribution of CCDs.</p>\n')
 

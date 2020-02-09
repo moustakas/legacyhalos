@@ -598,6 +598,15 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
                      galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run)
     print(cmd, flush=True, file=log)
+
+    #from astrometry.util.util import Tan
+    #from legacypipe.survey import ccds_touching_wcs
+    #wcs = Tan(onegal[racolumn], onegal[deccolumn], width/2+0.5, width/2+0.5,
+    #          -pixscale/3600.0, 0.0, 0.0, pixscale/3600.0,
+    #          float(width), float(width))
+    #ccds = ccds_touching_wcs(wcs, survey.ccds)
+    #pdb.set_trace()
+    
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
     if err != 0:
         print('Something went wrong; please check the logfile.')

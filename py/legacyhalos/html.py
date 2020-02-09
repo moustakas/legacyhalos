@@ -169,6 +169,31 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 print('Writing {}'.format(thumbfile))
             subprocess.call(cmd.split())
 
+def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
+    """Visualize the maskbits image.
+
+    """
+    import fitsio
+    import matplotlib.pyplot as plt
+    maskbitsfile = os.path.join(htmlgalaxydir, '{}-maskbits.png'.format(galaxy))
+
+    if not os.path.isfile(maskbitsfile) or clobber:
+        fitsfile = os.path.join(galaxydir, '{}-maskbits.fits.fz'.format(galaxy))
+        if not os.path.join(fitsfile):
+            print('File {} not found!'.format(fitsfile))
+        else:
+            img = fitsio.read(fitsfile)
+            fig, ax = plt.subplots(figsize=(3, 3))
+            ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            ax.axis('off')
+            ax.autoscale(False)
+            
+            if verbose:
+                print('Writing {}'.format(maskbitsfile))
+            fig.savefig(maskbitsfile)
+
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                        barlen=None, barlabel=None, clobber=False, verbose=True):
     """Generate QAplots from the ellipse-fitting.
@@ -366,6 +391,9 @@ def make_plots(sample, datadir=None, htmldir=None, get_galaxy_galaxydir=None, re
                           barlabel=barlabel, clobber=clobber, verbose=verbose,
                           pipeline_montage=pipeline_montage)
 
+        # Build the maskbits figure.
+        qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
+
         # Sersic fiting results
         if False:
             qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
@@ -456,7 +484,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             zoom = 14
         else:
             zoom = 15
-        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=ls-dr67'.format(
+        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8'.format(
             baseurl, gal['RA'], gal['DEC'], zoom)
         
         return viewer
