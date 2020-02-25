@@ -10,6 +10,7 @@ import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 
 import legacyhalos.io
+import legacyhalos.html
 
 def _start(galaxy, log=None, seed=None):
     if seed:
@@ -169,25 +170,71 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 _done(galaxy, err, t0, log=log)
                 
 def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
-                    verbose, ccdqa, logfile, htmldir, zcolumn):
+                   verbose, ccdqa, logfile, zcolumn, htmldir, datadir=None,
+                   pipeline_montage=False, barlen=None, barlabel=None,
+                   radius_mosaic_arcsec=None, get_galaxy_galaxydir=None):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
     if debug:
         _start(galaxy)
-        err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+        err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir,
                                           pixscale=pixscale, survey=survey, clobber=clobber,
                                           verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                          ccdqa=ccdqa, maketrends=False)
+                                          ccdqa=ccdqa, maketrends=False, 
+                                          pipeline_montage=pipeline_montage,
+                                          barlen=barlen, barlabel=barlabel,
+                                          radius_mosaic_arcsec=radius_mosaic_arcsec,
+                                          get_galaxy_galaxydir=get_galaxy_galaxydir)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.html.make_plots(onegal, datadir=None, htmldir=htmldir,
+                err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir,
                                                   pixscale=pixscale, survey=survey, clobber=clobber,
                                                   verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                                  ccdqa=ccdqa, maketrends=False)
+                                                  ccdqa=ccdqa, maketrends=False, 
+                                                  pipeline_montage=pipeline_montage,
+                                                  barlen=barlen, barlabel=barlabel,
+                                                  radius_mosaic_arcsec=radius_mosaic_arcsec,
+                                                  get_galaxy_galaxydir=get_galaxy_galaxydir)
+                _done(galaxy, err, t0, log=log)
+
+def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
+                            kdccds_south, pixscale=0.262, nproc=1,
+                            racolumn='RA', deccolumn='DEC', force=False,
+                            radius_mask=None, debug=False, verbose=False, logfile=None, apodize=False,
+                            cleanup=True, write_all_pickles=False):
+    """Wrapper script to build the pipeline coadds for large galaxies.
+
+    radius_mosaic in arcsec
+
+    """
+    t0 = time.time()
+    if debug:
+        _start(galaxy)
+        run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
+        err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
+                                                    radius_mosaic=radius_mosaic, radius_mask=radius_mask,
+                                                    nproc=nproc, pixscale=pixscale, force=force, 
+                                                    racolumn=racolumn, deccolumn=deccolumn,
+                                                    run=run, apodize=apodize, verbose=verbose,
+                                                    cleanup=cleanup, write_all_pickles=write_all_pickles)
+        _done(galaxy, err, t0)
+    else:
+        with open(logfile, 'a') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                _start(galaxy, log=log)
+                run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south, log=log)
+                err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
+                                                            radius_mosaic=radius_mosaic, radius_mask=radius_mask,
+                                                            nproc=nproc, pixscale=pixscale, force=force, 
+                                                            racolumn=racolumn, deccolumn=deccolumn,
+                                                            run=run, apodize=apodize,
+                                                            write_all_pickles=write_all_pickles,
+                                                            verbose=verbose,
+                                                            cleanup=cleanup, log=log)
                 _done(galaxy, err, t0, log=log)
 
 def mpi_args():
@@ -211,9 +258,9 @@ def mpi_args():
     parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
     parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
     parser.add_argument('--sky', action='store_true', help='Estimate the sky variance.')
+
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
-
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')

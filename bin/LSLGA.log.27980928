@@ -1,0 +1,226 @@
+Selecting 3685 galaxies in the dr9e footprint.
+Read galaxy indices 0 through 3685 (N=3685) from /global/projecta/projectdirs/desi/users/ioannis/LSLGA/sample/v5.0/LSLGA-v5.0.fits
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+COADDS left to do: 179 / 3685 divided across 40 group(s) and 40 rank(s).
+Starting 5 COADDS on rank 0 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 8 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 12 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 32 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 24 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 28 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 4 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 36 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 16 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 20 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 1 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 9 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 13 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 33 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 25 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 29 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 5 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 37 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 17 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 2 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 10 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 14 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 34 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 26 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 30 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 6 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 38 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 18 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 3 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 11 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 15 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 35 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 27 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 31 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 5 COADDS on rank 7 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 39 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 19 at Sat Feb  8 14:14:33 2020
+Rank 000 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/219/PGC052350 (index 52)
+Rank 001 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/216/UGC09253 (index 249)
+Rank 003 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/135/PGC025363 (index 493)
+Rank 007 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/216/PGC1911293 (index 942)
+Rank 008 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/217/IC4447 (index 1083)
+Rank 034 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/219/PGC1993543 (index 3284)
+Rank 004 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/219/PGC091374 (index 597)
+Rank 010 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/215/IC4408_GROUP (index 1178)
+Rank 035 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/219/UGC09438 (index 3368)
+Rank 027 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/146/NGC2959_GROUP (index 2936)
+Rank 029 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/145/NGC2964 (index 3036)
+Rank 005 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/219/PGC1922195 (index 665)
+Rank 011 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/217/PGC3089075 (index 1266)
+Rank 026 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/216/PGC2028578 (index 2694)
+Rank 030 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/216/PGC1952328 (index 3081)
+Rank 036 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/264/PGC1535461 (index 3391)
+Rank 025 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/215/IC4409 (index 2533)
+Rank 038 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/218/PGC1895214 (index 3467)
+Rank 017 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/217/PGC2015703 (index 1717)
+Rank 012 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/218/PGC051976 (index 1348)
+Rank 039 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/219/PGC1882324 (index 3570)
+Rank 016 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/219/PGC1929751 (index 1674)
+Rank 013 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/216/PGC1917906 (index 1398)
+Rank 037 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/142/PGC027061 (index 3421)
+Rank 009 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/136/UGC04754 (index 1092)
+Rank 002 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/037/PGC1042573 (index 362)
+Rank 014 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/218/PGC051962 (index 1536)
+Rank 028 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/036/PGC1056461 (index 3015)
+Rank 019 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/217/PGC051693 (index 1830)
+Rank 018 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/338/PGC1238330 (index 1811)
+Rank 015 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/208/PGC1320557 (index 1580)
+Rank 031 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/037/PGC009485 (index 3173)
+Rank 032 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/274/PGC2193451 (index 3177)
+Rank 006 (1 / 5): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/274/PGC061691 (index 859)
+Rank 033 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/262/PGC1485155 (index 3198)
+Rank 024 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/035/PGC1084864 (index 2332)
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 21 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 22 at Sat Feb  8 14:14:33 2020
+Read 128375 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-90prime-dr9.kd.fits
+Read 193739 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-mosaic-dr9.kd.fits
+Read 3261231 CCDs from /global/projecta/projectdirs/desi/users/ioannis/legacyhalos/sample/dr9/survey-ccds-decam-dr9.kd.fits
+Starting 4 COADDS on rank 23 at Sat Feb  8 14:14:33 2020
+Rank 021 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/215/PGC3097949_GROUP (index 2050)
+Rank 023 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/146/PGC2793669 (index 2244)
+Rank 022 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/218/PGC052077 (index 2114)
+Rank 020 (1 / 4): /global/projecta/projectdirs/desi/users/ioannis/LSLGA-data-dr9e/137/PGC153514 (index 1861)
+./LSLGA-mpi.sh: line 55: 59212 Killed                  python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose
+
+real	1m51.144s
+user	0m57.811s
+sys	0m45.728s
+srun: error: nid00654: task 32: Exited with exit code 137
+srun: Terminating job step 27980928.0
+slurmstepd: error: *** STEP 27980928.0 ON nid00637 CANCELLED AT 2020-02-08T14:14:39 ***
+srun: error: nid00639: tasks 8-11: Terminated
+srun: error: nid00647: tasks 20-23: Terminated
+srun: error: nid00646: tasks 16-19: Terminated
+srun: error: nid00645: tasks 12-15: Terminated
+srun: error: nid00652: tasks 24-27: Terminated
+srun: error: nid00637: tasks 0-3: Terminated
+srun: error: nid00653: tasks 28-31: Terminated
+srun: error: nid00655: tasks 36-39: Terminated
+srun: error: nid00638: tasks 4-7: Terminated
+srun: error: nid00654: tasks 33-35: Terminated
+srun: Force Terminated job step 27980928.0
+
+real	1m59.215s
+user	0m0.101s
+sys	0m0.042s

@@ -21,7 +21,11 @@ import legacyhalos.misc
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
-sns, _ = legacyhalos.misc.plot_style()
+try:
+    sns, _ = legacyhalos.misc.plot_style()
+except:
+    print('Need to install seaborn!')
+    
 #snscolors = sns.color_palette()
 
 #import matplotlib as mpl 
@@ -37,7 +41,10 @@ def _sbprofile_colors():
     https://seaborn.pydata.org/generated/seaborn.color_palette.html#seaborn.color_palette
 
     """
-    _colors = sns.color_palette('Set1', n_colors=8, desat=0.75)
+    try:
+        _colors = sns.color_palette('Set1', n_colors=8, desat=0.75)
+    except:
+        _colors = ['red', 'green', 'blue', 'orange', 'purple']
     colors = iter([_colors[1], _colors[2], _colors[0], _colors[3], _colors[4]])
     return colors
 
@@ -693,7 +700,11 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
 
     from matplotlib.ticker import FormatStrFormatter, ScalarFormatter
 
-    colors = iter(sns.color_palette())
+    try:
+        colors = iter(sns.color_palette())
+    except:
+        print('Need seaborn!!!')
+        colors = _sbprofile_colors()
 
     if ellipsefit['success']:
         
@@ -979,7 +990,11 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 def display_mge_sbprofile(mgefit, indx=None, png=None, verbose=True):
     """Display the multi-band surface brightness profile."""
 
-    colors = iter(sns.color_palette())
+    try:
+        colors = iter(sns.color_palette())
+    except:
+        print('Need seaborn!!!')
+        colors = _sbprofile_colors()
 
     #if indx is None:
     #    indx = np.ones_like(mgefit[refband].radius, dtype='bool')
@@ -1205,17 +1220,26 @@ def display_ccdpos(onegal, ccds, radius, pixscale=0.262, png=None, verbose=False
     radius in pixels
 
     """
-    wcs = legacyhalos.misc.simple_wcs(onegal, radius=radius, pixscale=pixscale)
+    wcs = legacyhalos.misc.simple_wcs(onegal, factor=15, radius=radius, pixscale=pixscale)
     width, height = wcs.get_width() * pixscale / 3600, wcs.get_height() * pixscale / 3600 # [degrees]
     bb, bbcc = wcs.radec_bounds(), wcs.radec_center() # [degrees]
-    pad = 0.2 # [degrees]
+    #if onegal['DEC'] > 33: 
+    #    pad = 0.05 # [degrees]
+    #else:
+    #    pad = 0.1 # [degrees, roughly the DECam CCD size]
+    
+    #pad = 0.2
+    pad = 2 * radius * pixscale / 3600 # [degrees]
+
+    delta = np.max( (np.diff(bb[0:2]), np.diff(bb[2:4])) ) / 2 + pad / 2
+    xlim = bbcc[0] - delta, bbcc[0] + delta
+    ylim = bbcc[1] - delta, bbcc[1] + delta
+    #print(xlim, ylim, pad)
+    #pdb.set_trace()
 
     fig, allax = plt.subplots(1, 3, figsize=(12, 5), sharey=True, sharex=True)
 
     for ax, band in zip(allax, ('g', 'r', 'z')):
-        ax.set_aspect('equal')
-        ax.set_xlim(bb[0]+width+pad, bb[0]-pad)
-        ax.set_ylim(bb[2]-pad, bb[2]+height+pad)
         ax.set_xlabel('RA (deg)')
         ax.text(0.9, 0.05, band, ha='center', va='bottom',
                 transform=ax.transAxes, fontsize=18)
@@ -1245,6 +1269,12 @@ def display_ccdpos(onegal, ccds, radius, pixscale=0.262, png=None, verbose=False
                                            label='ccd{:02d}'.format(these[ii])))
             ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=10)
 
+        ax.set_ylim(ylim)
+        ax.set_xlim(xlim)
+        ax.invert_xaxis()
+        ax.set_aspect('equal')
+        #print(ax.get_xlim(), ax.get_ylim())
+        
     plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.12, right=0.97, top=0.95)
 
     if png:

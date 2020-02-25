@@ -13,13 +13,9 @@ import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
 
-sns, _ = legacyhalos.misc.plot_style()
-
-#import seaborn as sns
-#sns.set(style='ticks', font_scale=1.4, palette='Set2')
-
 def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-           zcolumn='Z', survey=None, mp=None, clobber=False, verbose=True):
+           zcolumn='Z', radius_pixel=None, survey=None, mp=None, clobber=False,
+           verbose=True):
     """Build CCD-level QA.
 
     """
@@ -31,9 +27,10 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
 
-    radius_pixel = legacyhalos.misc.cutout_radius_kpc(
-        redshift=onegal[zcolumn], pixscale=pixscale,
-        radius_kpc=radius_mosaic_kpc) # [pixels]
+    if radius_pixel is None:
+        radius_pixel = legacyhalos.misc.cutout_radius_kpc(
+            redshift=onegal[zcolumn], pixscale=pixscale,
+            radius_kpc=radius_mosaic_kpc) # [pixels]
 
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
@@ -84,7 +81,8 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         display_ccdpos(onegal, survey.ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
-                      barlabel=None, clobber=False, verbose=True):
+                      barlabel=None, clobber=False, verbose=True,
+                      pipeline_montage=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
@@ -93,6 +91,7 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
     #from pkg_resources import resource_filename
     from PIL import Image, ImageDraw, ImageFont
     montagefile = os.path.join(htmlgalaxydir, '{}-grz-montage.png'.format(galaxy))
+    thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-grz-montage.png'.format(galaxy))
 
     fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
     #fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
@@ -127,10 +126,16 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
         return pngfile
 
     if not os.path.isfile(montagefile) or clobber:
+        if pipeline_montage:
+            prefix = 'pipeline'
+            coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-grz'.format(prefix), '{}-resid-grz'.format(prefix))
+        else:
+            prefix = 'custom'
+            coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-nocentral-grz'.format(prefix), '{}-image-central-grz'.format(prefix))
         # Make sure all the files exist.
         check = True
         jpgfile = []
-        for suffix in ('custom-image-grz', 'custom-model-nocentral-grz', 'custom-image-central-grz'):
+        for suffix in coaddfiles:
             _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
             jpgfile.append(_jpgfile)
             if not os.path.isfile(_jpgfile):
@@ -157,6 +162,37 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
             if verbose:
                 print('Writing {}'.format(montagefile))
             subprocess.call(cmd.split())
+
+            # Create a smaller thumbnail image
+            cmd = 'convert -thumbnail 800x800 {} {}'.format(montagefile, thumbfile)
+            if verbose:
+                print('Writing {}'.format(thumbfile))
+            subprocess.call(cmd.split())
+
+def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
+    """Visualize the maskbits image.
+
+    """
+    import fitsio
+    import matplotlib.pyplot as plt
+    maskbitsfile = os.path.join(htmlgalaxydir, '{}-maskbits.png'.format(galaxy))
+
+    if not os.path.isfile(maskbitsfile) or clobber:
+        fitsfile = os.path.join(galaxydir, '{}-maskbits.fits.fz'.format(galaxy))
+        if not os.path.join(fitsfile):
+            print('File {} not found!'.format(fitsfile))
+        else:
+            img = fitsio.read(fitsfile)
+            fig, ax = plt.subplots(figsize=(3, 3))
+            ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            ax.axis('off')
+            ax.autoscale(False)
+            
+            if verbose:
+                print('Writing {}'.format(maskbitsfile))
+            fig.savefig(maskbitsfile)
 
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                        barlen=None, barlabel=None, clobber=False, verbose=True):
@@ -282,9 +318,11 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         if not os.path.isfile(serexpfile) or clobber:
             display_sersic(serexp, png=serexpfile, verbose=verbose)
 
-def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
+def make_plots(sample, datadir=None, htmldir=None, get_galaxy_galaxydir=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
-               nproc=1, maketrends=False, ccdqa=False, clobber=False, verbose=True):
+               nproc=1, barlen=None, barlabel=None, radius_mosaic_arcsec=None,
+               maketrends=False, ccdqa=False, clobber=False, verbose=True,
+               pipeline_montage=False):
     """Make QA plots.
 
     """
@@ -292,15 +330,9 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
     from legacyhalos.coadds import _mosaic_width
     
     if datadir is None:
-        if hsc:
-            datadir = legacyhalos.io.hsc_data_dir()
-        else:
-            datadir = legacyhalos.hsc.legacyhalos_data_dir()
+        datadir = legacyhalos.io.legacyhalos_data_dir()
     if htmldir is None:
-        if hsc:
-            htmldir = legacyhalos.hsc.hsc_html_dir()
-        else:
-            htmldir = legacyhalos.io.legacyhalos_html_dir()
+        htmldir = legacyhalos.io.legacyhalos_html_dir()
 
     if survey is None:
         from legacypipe.survey import LegacySurveyData
@@ -314,32 +346,35 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
         from astrometry.util.multiproc import multiproc
         mp = multiproc(nthreads=nproc)
 
-    if hsc:
-        from legacyhalos.misc import HSC_RADIUS_CLUSTER_KPC as radius_mosaic_kpc
-    else:
-        from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
+    from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
+
+    barlen_kpc = 100
+    if barlabel is None:
+        barlabel = '100 kpc'
+
+    if get_galaxy_galaxydir is None:
+        get_galaxy_galaxydir = legacyhalos.io.get_galaxy_galaxydir
 
     # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
 
-        if galaxylist is None:
-            if hsc:
-                galaxy, galaxydir, htmlgalaxydir = legacyhalos.hsc.get_galaxy_galaxydir(onegal, html=True)
-            else:
-                galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
-        else:
-            galaxy = galaxylist[ii]
-            galaxydir = os.path.join(datadir, galaxy)
-            htmlgalaxydir = os.path.join(htmldir, galaxy)
+        galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(onegal, html=True)
+        #if galaxylist is None:
+        #    galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
+        #else:
+        #    galaxy = galaxylist[ii]
+        #    galaxydir = os.path.join(datadir, galaxy)
+        #    htmlgalaxydir = os.path.join(htmldir, galaxy)
             
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True)
 
-        barlen_kpc, barlabel = 100, '100 kpc'
-        barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int')
+        if barlen is None:
+            barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int') # [kpc]
 
-        radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
-            redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
+        if radius_mosaic_arcsec is None:
+            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+                redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
         # Build the ellipse plots.
@@ -353,7 +388,11 @@ def make_plots(sample, datadir=None, htmldir=None, galaxylist=None, refband='r',
 
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
-                          barlabel=barlabel, clobber=clobber, verbose=verbose)
+                          barlabel=barlabel, clobber=clobber, verbose=verbose,
+                          pipeline_montage=pipeline_montage)
+
+        # Build the maskbits figure.
+        qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Sersic fiting results
         if False:
@@ -445,7 +484,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             zoom = 14
         else:
             zoom = 15
-        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=ls-dr67'.format(
+        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8'.format(
             baseurl, gal['RA'], gal['DEC'], zoom)
         
         return viewer

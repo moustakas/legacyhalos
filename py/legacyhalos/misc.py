@@ -45,17 +45,20 @@ def ellipse_mask(xcen, ycen, semia, semib, phi, x, y):
     yp = -(x-xcen) * np.sin(phi) + (y-ycen) * np.cos(phi)
     return (xp / semia)**2 + (yp/semib)**2 <= 1
 
-def simple_wcs(onegal, radius=100, factor=1.0, pixscale=0.262, zcolumn='Z'):
+def simple_wcs(onegal, radius=None, factor=1.0, pixscale=0.262, zcolumn='Z'):
     '''Build a simple WCS object for a single galaxy.
 
     radius in pixels
     '''
     from astrometry.util.util import Tan
 
-    if zcolumn in onegal.colnames:
-        galdiam = 2 * cutout_radius_kpc(redshift=onegal[zcolumn], pixscale=pixscale)
+    if radius is None:
+        if zcolumn in onegal.colnames:
+            galdiam = 2 * cutout_radius_kpc(redshift=onegal[zcolumn], pixscale=pixscale)
+        else:
+            galdiam = 100 # hack! [pixels]
     else:
-        galdiam = radius # [pixels]
+        galdiam = radius
     
     diam = np.ceil(factor * galdiam).astype('int') # [pixels]
     simplewcs = Tan(onegal['RA'], onegal['DEC'], diam/2+0.5, diam/2+0.5,
@@ -93,31 +96,31 @@ def cosmology(WMAP=False, Planck=False):
 
     return cosmo
 
-def plot_style(font_scale=1.2, paper=False, talk=False):
-
-    import seaborn as sns
-    rc = {'font.family': 'serif'}#, 'text.usetex': True}
-    #rc = {'font.family': 'serif', 'text.usetex': True,
-    #       'text.latex.preamble': r'\boldmath'})
-    palette, context = 'Set2', 'talk'
-    
-    if paper:
-        context = 'paper'
-        palette = 'deep'
-        rc.update({'text.usetex': False})
-    
-    if talk:
-        context = 'talk'
-        palette = 'deep'
-        rc.update({'text.usetex': True})
-
-    sns.set(context=context, style='ticks', font_scale=font_scale, rc=rc)
-    sns.set_palette(palette, 12)
-
-    colors = sns.color_palette()
-    #sns.reset_orig()
-
-    return sns, colors
+#def plot_style(font_scale=1.2, paper=False, talk=False):
+#
+#    import seaborn as sns
+#    rc = {'font.family': 'serif'}#, 'text.usetex': True}
+#    #rc = {'font.family': 'serif', 'text.usetex': True,
+#    #       'text.latex.preamble': r'\boldmath'})
+#    palette, context = 'Set2', 'talk'
+#    
+#    if paper:
+#        context = 'paper'
+#        palette = 'deep'
+#        rc.update({'text.usetex': False})
+#    
+#    if talk:
+#        context = 'talk'
+#        palette = 'deep'
+#        rc.update({'text.usetex': True})
+#
+#    sns.set(context=context, style='ticks', font_scale=font_scale, rc=rc)
+#    sns.set_palette(palette, 12)
+#
+#    colors = sns.color_palette()
+#    #sns.reset_orig()
+#
+#    return sns, colors
 
 def get_logger(logfile):
     """Instantiate a simple logger.
