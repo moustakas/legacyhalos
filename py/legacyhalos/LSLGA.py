@@ -277,6 +277,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
     if 'GROUP_NAME' in sample.colnames:
         galcolumn = 'GROUP_NAME'
         sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
+
+    #print('Gigantic hack!!')
+    #galaxylist = np.loadtxt('/global/u2/i/ioannis/junk2', dtype=str)
     
     if galaxylist is not None:
         if verbose:
@@ -301,7 +304,7 @@ def _build_model_LSLGA_one(args):
     """Wrapper function for the multiprocessing."""
     return build_model_LSLGA_one(*args)
 
-def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=5.0, minsb=25.0, sbcut=25.0,
+def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=25.0,
                           bands=('g', 'r', 'z'), refcat='L5'):
     """Gather the fitting results build a single galaxy.
 
@@ -322,30 +325,33 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=5.0, minsb=25.0, sbc
     from tractor.galaxy import DevGalaxy, ExpGalaxy
     from tractor.sersic import SersicGalaxy
     from legacypipe.survey import LegacySersicIndex
+    from legacypipe.bits import IN_BLOB, MASKBITS
         
     onegal = Table(onegal)
     galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
     catfile = os.path.join(galaxydir, '{}-pipeline-tractor.fits'.format(galaxy))
     if not os.path.isfile(catfile):
-        print('Skipping missing file {}'.format(catfile))
+        if False:
+            print('Skipping missing file {}'.format(catfile))
         return Table()
     cat = Table(fitsio.read(catfile))
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
-        sb = 22.5-2.5*np.log10(cat['flux_r'] / (np.pi*cat['shape_r']**2))
-        #print(cat['shape_r'], sb)
-        cut = np.where(np.logical_or((cat['type'] != 'REX') * (cat['type'] != 'PSF') *
-                                     (cat['shape_r'] > minradius) * (sb < minsb), cat['ref_cat'] == refcat))[0]
-        #cut = np.where(np.logical_or((cat['ref_cat'] != 'G2') * (cat['type'] != 'REX') *
-        #                             (cat['shape_r'] > minradius), cat['ref_cat'] == refcat))[0]
+        #sb = 22.5-2.5*np.log10(cat['flux_r'] / (np.pi*cat['shape_r']**2))
+        #cut = np.where(np.logical_or((cat['type'] != 'REX') * (cat['type'] != 'PSF') *
+        #                             (cat['shape_r'] > minradius) * (sb < minsb), cat['ref_cat'] == refcat))[0]
+        #cut = np.where(np.logical_or((cat['type'] != 'REX') * (cat['type'] != 'PSF') * (cat['flux_r'] > 10**(-0.4*(23-22.5))), cat['ref_cat'] == refcat))[0]
+        cut = np.where(np.logical_or((cat['brightblob'] & IN_BLOB['GALAXY']) * (cat['ref_cat'] != 'G2'), cat['ref_cat'] == refcat))[0]
+
     if len(cut) == 0:
         print('No large, high surface-brightness sources in galaxy {} field!'.format(galaxy))
         return Table()
 
     I = np.where(cat['ref_cat'][cut] == refcat)[0]
     if len(I) == 0:
-        print('Large galaxy {} was dropped!'.format(galaxy))
+        print('Problem: {}'.format(galaxy))
+        #print('Large galaxy {} was dropped!'.format(galaxy))
         #print('This should not happen!')
         #pdb.set_trace()
         return Table()
@@ -357,7 +363,6 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=5.0, minsb=25.0, sbc
     # Include the (angular) distance of each source to the center of the
     # mosaic/group.
     cat['theta_center'] = arcsec_between(cat['ra'], cat['dec'], onegal['RA'], onegal['DEC']) # [arcsec]
-
     cat['d25_model'] = np.zeros(len(cat), np.float32)
     cat['pa_model'] = np.zeros(len(cat), np.float32)
     cat['ba_model'] = np.ones(len(cat), np.float32)
@@ -367,10 +372,12 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=5.0, minsb=25.0, sbc
     # For each galaxy, compute the position angle and "size" based
     # on the r-band surface brightness limit.
     for ii, g in zip(I, cat[I]):
-        if g['type'].strip() == 'PSF':
-            print('Large galaxy {} is PSF--skipping!'.format(galaxy))
-            continue
+        cat['freeze'][ii] = True
 
+        #if g['type'].strip() == 'PSF':
+        #    print('Problem: {}'.format(galaxy))
+        #    #print('Large galaxy {} is PSF--skipping!'.format(galaxy))
+        #    continue
         typ = fits_reverse_typemap[g['type'].strip()]
         pos = RaDecPos(g['ra'], g['dec'])
         fluxes = dict([(band, g['flux_{}'.format(band)]) for band in bands])
@@ -390,47 +397,43 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=5.0, minsb=25.0, sbc
         else:
             print('Unknown type {}'.format(typ))
 
-        # Masking radius based on surface brightness--
-        # Normalize by total flux and then divide by the
-        # pixelscale to get the surface brightness.
-        radius_pixel = np.arange(20*g['shape_r'] / pixscale)   # [pixels]
-        radius = pixscale * radius_pixel                       # [arcsec]
-        pro = sersic_profile(radius / g['shape_r'], serindex) # 1D profile
-        pro /= np.sum(pro * 2. * np.pi * radius_pixel)
-        for band in ('r', 'z', 'g'):
-            if g['flux_{}'.format(band)] > 0:
-                pro *= (g['flux_{}'.format(band)] / pixscale**2) # [nanomaggies / arcsec^2]
-                break
-
-        # Interpolate to get the radius at which the surface
-        # brightness profile crosses the desired threshold. Note:
-        # 0.1 nanomaggies = 25 mag/arcsec^2
-        try:
-            r25 = interp1d(pro, radius)(10**(-0.4*(sbcut-22.5))) # [arcsec]
-        except:
-            print('Warning: extrapolating r25 for galaxy {}'.format(galaxy))
-            r25 = interp1d(pro, radius, fill_value='extrapolate')(10**(-0.4*(sbcut-22.5))) # [arcsec]
-
-        cat['d25_model'][ii] = 2 * r25 / 60.0                # [arcmin]
-        if cat['d25_model'][ii] == 0.0:
-            print('Warning: radius too small for galaxy {} ({}, r={:.3f})!'.format(
-                galaxy, g['type'], g['shape_r']))
-            pdb.set_trace()
-
         if shape is not None:
+            # Masking radius based on surface brightness--
+            # Normalize by total flux and then divide by the
+            # pixelscale to get the surface brightness.
+            radius_pixel = np.arange(20*g['shape_r'] / pixscale)   # [pixels]
+            radius = pixscale * radius_pixel                       # [arcsec]
+            pro = sersic_profile(radius / g['shape_r'], serindex) # 1D profile
+            pro /= np.sum(pro * 2. * np.pi * radius_pixel)
+            for band in ('r', 'z', 'g'):
+                if g['flux_{}'.format(band)] > 0:
+                    pro *= (g['flux_{}'.format(band)] / pixscale**2) # [nanomaggies / arcsec2]
+                    break
+            pro = 22.5 - 2.5 * np.log10(pro) # [mag/arcsec2]
+
+            # Interpolate to get the radius at which the surface
+            # brightness profile crosses the desired threshold. Note:
+            # 0.1 nanomaggies = 25 mag/arcsec^2
+            try:
+                r25 = interp1d(pro, radius)(sbcut) # [arcsec]
+            except:
+                print('Warning: extrapolating r25 for galaxy {}'.format(galaxy))
+                r25 = interp1d(pro, radius, fill_value='extrapolate')(sbcut) # [arcsec]
+
+            cat['d25_model'][ii] = 2 * r25 / 60.0                # [arcmin]
+            if cat['d25_model'][ii] == 0.0:
+                print('Warning: radius={:.3f} for galaxy {} (type={})!'.format(g['shape_r'], galaxy, g['type']))
+
             e = shape.e
             cat['ba_model'][ii] = (1. - e) / (1. + e)
             pa = -np.rad2deg(np.arctan2(shape.e2, shape.e1) / 2.) # [degrees]
             if pa != 0.0:
                 cat['pa_model'][ii] = 180-pa
-        cat['freeze'][ii] = True
-
-        #pdb.set_trace()
+                
         return cat
-
     return Table()
 
-def build_model_LSLGA(sample, pixscale=0.262, minradius=5.0, minsb=25.0, sbcut=25.0,
+def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=25.0,
                       bands=('g', 'r', 'z'), clobber=False, nproc=1):
     """Gather all the fitting results and build the final model-based LSLGA catalog.
 
@@ -451,8 +454,8 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=5.0, minsb=25.0, sbcut=2
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    #print('Hack the path!')
-    #outdir = '/global/u2/i/ioannis/scratch'
+    print('Hack the path!')
+    outdir = '/global/u2/i/ioannis/scratch'
     
     outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
@@ -469,6 +472,9 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=5.0, minsb=25.0, sbcut=2
     out = vstack(out)
     [out.rename_column(col, col.upper()) for col in out.colnames]
     print('Gathered {} pre-burned galaxies.'.format(len(out)))
+
+    #out.write(outfile, overwrite=True)
+    #pdb.set_trace()
 
     # Now read the full parent LSLGA catalog and supplement it with the
     # pre-burned galaxies.
@@ -501,6 +507,7 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=5.0, minsb=25.0, sbcut=2
         print('Removing {}/{} duplicate non-LSLGA Tractor sources.'.format(len(out_sup)-len(keep), len(out_sup)))
         out_sup = out_sup[np.sort(keep)]
 
+        # Add in LSLGA columns.
         lslga_sup = Table()
         for col in lslga.colnames:
             if lslga[col].ndim > 1:
@@ -514,16 +521,11 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=5.0, minsb=25.0, sbcut=2
 
     # Now deal with LSLGA galaxies.
     iindx = np.where(out['FREEZE'])[0] # should all have REF_CAT == refcat
+    assert(np.sum(out['REF_CAT'][iindx] != refcat) == 0)
     out_lslga = out[iindx]
 
     # Deal with duplicates by keeping the entry closest to the center of its
     # group.
-    #grp, mult, first, next = spheregroup(out_lslga['RA'], out_lslga['DEC'], 0.1/3600.0)
-    #keep = np.where(mult == 1)[0]
-    #for ii in np.where(mult > 1)[0]:
-    #    these = np.where(grp == grp[ii])[0]
-    #    keep = np.hstack((keep, these[np.argmin(out_lslga[these]['THETA_CENTER'])]))
-
     keep = []
     for refid in set(out_lslga['REF_ID']):
         these = np.where(out_lslga['REF_ID'] == refid)[0]
@@ -533,14 +535,8 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=5.0, minsb=25.0, sbcut=2
             print('Found {} occurrences of {}'.format(len(these), refid))
             keep.append(these[np.argmin(out_lslga[these]['THETA_CENTER'])])
     keep = np.hstack(keep)
-
-    #refid, cnt = np.unique(out_lslga['REF_ID'], return_counts=True)
-    #keep = np.where(np.isin(out_lslga['REF_ID'], refid))[0]
-    #keep = np.where(cnt == 1)[0]
-    #for idup in np.where(cnt > 1)[0]:
-    #    these = np.where(out_lslga['REF_ID'] == refid[idup])[0]
-    #    keep = np.hstack((keep, these[np.argmin(out_lslga[these]['THETA_CENTER'])]))
-    print('Removing {}/{} duplicate LSLGA Tractor sources.'.format(len(out_lslga)-len(keep), len(out_lslga)))
+    print('Removing {}/{} duplicate LSLGA Tractor sources.'.format(
+        len(out_lslga)-len(keep), len(out_lslga)))
     out_lslga = out_lslga[keep]
 
     # Finally, populate the Tractor columns.
@@ -554,14 +550,19 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=5.0, minsb=25.0, sbcut=2
     else:
         out = lslga
 
+    #print(out[out['FREEZE']]['PA', 'PA_MODEL'])
+    #pdb.set_trace()
+
     # Add RA, Dec back in--
     fix = np.where(~out['PREBURNED'])[0]
     if len(fix) > 0:
         out['RA'][fix] = out['LSLGA_RA'][fix]
         out['DEC'][fix] = out['LSLGA_DEC'][fix]
 
-    #print(out[out['FREEZE']]['PA', 'PA_MODEL'])
-    #pdb.set_trace()
+    # For dr9e, freeze the parameters of *all* the pre-burned Tractor sources.
+    these = np.where(~out['FREEZE'] * out['PREBURNED'])[0]
+    print('Freezing the parameters of *all* {} preburned sources.'.format(len(these)))
+    out['FREEZE'][these] = True
 
     print('Writing {} galaxies to {}'.format(len(out), outfile))
     #out.write(outfile, overwrite=True)
