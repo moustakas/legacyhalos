@@ -3,6 +3,12 @@
 
 time LSLGA-mpi --coadds --first 12308 --last 12308 --nproc 32 --debug --clobber # UGC01446
 
+salloc -N 16 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive
+srun -n 128 -c 4 --module mpich-cle6 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh > LSLGA-mpi.log3 2>&1 &
+
+salloc -N 64 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive
+srun -n 512 -c 4 --module mpich-cle6 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh > LSLGA-mpi.log2 2>&1 &
+
 """
 import matplotlib
 matplotlib.use('Agg')
@@ -41,6 +47,7 @@ def main():
     # Read and broadcast the sample.
     if rank == 0:
         sample = legacyhalos.LSLGA.read_sample(first=args.first, last=args.last,
+                                               d25min=args.d25min, d25max=args.d25max, 
                                                galaxylist=args.galaxylist,
                                                verbose=args.verbose)
     else:
@@ -81,7 +88,7 @@ def main():
         ntodo = 0
     else:
         ntodo = len(np.hstack(np.atleast_1d(groups)))
-        
+
     if rank == 0:
         if ntodo == 0:
             print('{} for all {} galaxies are complete!'.format(

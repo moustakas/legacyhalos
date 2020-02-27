@@ -25,6 +25,9 @@ def mpi_args():
     parser.add_argument('--last', type=int, help='Index of last object to process.')
     parser.add_argument('--galaxylist', type=str, nargs='*', default=None, help='List of galaxy names to process.')
 
+    parser.add_argument('--d25min', default=0.5, type=float, help='Minimum diameter (arcmin).')
+    parser.add_argument('--d25max', default=5.0, type=float, help='Maximum diameter (arcmin).')
+
     parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py.')
     #parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
@@ -188,7 +191,8 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
         return galaxy, galaxydir
 
 def LSLGA_version():
-    version = 'v5.0'
+    #version = 'v5.0' # dr9e
+    version = 'v6.0'  # DR9
     return version
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect_sample=True,
@@ -219,11 +223,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
                           (sample['GROUP_PRIMARY'] == 1) * (sample['IN_DESI']))[0]
 
         brickname = get_brickname(sample['GROUP_RA'][bigcut], sample['GROUP_DEC'][bigcut])
-        nbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_north.txt', dtype='str')
-        sbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_south.txt', dtype='str')
-        #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9e-north-bricklist.txt'), dtype='str')
-        #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9e-south-bricklist.txt'), dtype='str')
-        bricklist = np.union1d(nbricklist, sbricklist)
+        #nbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_north.txt', dtype='str')
+        #sbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_south.txt', dtype='str')
+        nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr8-north.txt'), dtype='str')
+        sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr8-south.txt'), dtype='str')
+        if False:
+            bricklist = np.union1d(nbricklist, sbricklist)
+        else:
+            bricklist = nbricklist
         #rows = np.where([brick in bricklist for brick in brickname])[0]
         brickcut = np.where(np.isin(brickname, bricklist))[0]
 
@@ -235,7 +242,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
             rows = np.hstack((rows, this))
             rows = np.sort(rows)
         nrows = len(rows)
-        print('Selecting {} galaxies in the dr9e footprint.'.format(nrows))
+        print('Selecting {} galaxies in the DR9 footprint.'.format(nrows))
     else:
         rows = None
 
@@ -606,6 +613,9 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     if type(sample) is astropy.table.row.Row:
         sample = astropy.table.Table(sample)
 
+    # Only create pages for the set of galaxies with a montage.
+    keep = missing_files(sample, filetype='coadds', size=1)
+    pdb.set_trace()
     #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
 
     ## group by RA slices
