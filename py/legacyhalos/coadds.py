@@ -659,7 +659,7 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         
         # Data and model images
         for band in ('g', 'r', 'z'):
-            for imtype in ('image', 'model'):
+            for imtype in ('image', 'model', 'blobmodel'):
                 ok = _copyfile(
                     os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                                  'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
@@ -697,7 +697,7 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                 if not ok:
                     return ok
 
-        for imtype in ('image', 'model', 'resid'):
+        for imtype in ('image', 'model', 'resid', 'blobmodel'):
             ok = _copyfile(
                 os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
