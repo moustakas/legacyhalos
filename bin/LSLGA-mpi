@@ -4,10 +4,10 @@
 time LSLGA-mpi --coadds --first 12308 --last 12308 --nproc 32 --debug --clobber # UGC01446
 
 salloc -N 16 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive
-srun -n 128 -c 4 --module mpich-cle6 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh > LSLGA-mpi.log3 2>&1 &
+srun -n 128 -c 4 --module mpich-cle6 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
 
 salloc -N 64 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive
-srun -n 512 -c 4 --module mpich-cle6 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh > LSLGA-mpi.log2 2>&1 &
+srun -n 512 -c 4 --module mpich-cle6 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
 
 """
 import matplotlib
@@ -78,7 +78,7 @@ def main():
     # ranks.
     groups, suffix = [], ''
     if rank == 0:
-        suffix, groups = legacyhalos.LSLGA.missing_files_groups(args, sample, size)
+        suffix, groups = legacyhalos.LSLGA.new_missing_files(args, sample, size)
 
     if comm:
         groups = comm.bcast(groups, root=0)
@@ -138,7 +138,7 @@ def main():
                 continue
         
         if args.coadds:
-            if len(legacyhalos.LSLGA.missing_files(onegal, filetype='coadds')) == 1 or args.clobber:
+            if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
                 call_largegalaxy_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
                                         kdccds_north, kdccds_south,
                                         pixscale=args.pixscale, nproc=args.nproc,
@@ -150,17 +150,18 @@ def main():
 
         if args.htmlplots:
             barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
-            call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
-                           args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
-                           ZCOLUMN, htmldir, datadir, pipeline_montage=True,
-                           barlen=barlen, barlabel='30 arcsec',
-                           radius_mosaic_arcsec=radius_mosaic_arcsec,
-                           get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)
+            if len(legacyhalos.LSLGA.new_missing_files(onegal, filetype='coadds')) == 0:
+                call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
+                               args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
+                               ZCOLUMN, htmldir, datadir, pipeline_montage=True,
+                               barlen=barlen, barlabel='30 arcsec',
+                               radius_mosaic_arcsec=radius_mosaic_arcsec,
+                               get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)
             
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups = legacyhalos.LSLGA.missing_files_groups(args, sample, size)
+        _, groups = legacyhalos.LSLGA.new_missing_files(args, sample, size)
         if len(groups) > 0:
             stilltodo = len(np.hstack(np.atleast_1d(groups)))
         else:
