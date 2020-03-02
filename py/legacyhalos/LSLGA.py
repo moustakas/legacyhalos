@@ -53,6 +53,66 @@ def mpi_args():
 
     return args
 
+def _new_missing_files_one(args):
+    """Wrapper for the multiprocessing."""
+    return new_missing_files_one(*args)
+
+def new_missing_files_one(galaxy, galaxydir, filesuffix, clobber):
+    checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
+    #print(checkfile)
+    if os.path.exists(checkfile) and clobber is False:
+        return False
+    else:
+        return True
+    
+def new_missing_files(args, sample, size=1, indices_only=False):
+    from astrometry.util.multiproc import multiproc
+    
+    if args.coadds:
+        suffix = 'coadds'
+        filesuffix = '-pipeline-resid-grz.jpg'
+        galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+    elif args.htmlplots:
+        suffix = 'html'
+        filesuffix = '-maskbits.png'
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+    else:
+        print('Nothing to do.')
+        return
+
+    if type(sample) is astropy.table.row.Row:
+        ngal = 1
+    else:
+        ngal = len(sample)
+    indices = np.arange(ngal)
+
+    mp = multiproc(nthreads=args.nproc)
+    todo = mp.map(_new_missing_files_one, [(gal, gdir, filesuffix, args.clobber)
+                                           for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))])
+
+    if np.sum(todo) == 0:
+        if indices_only:
+            return list()
+        else:
+            return suffix, list()
+    else:
+        indices = indices[todo]
+
+        # Assign the sample to ranks to make the D25 distribution per rank ~flat.
+
+        # https://stackoverflow.com/questions/33555496/split-array-into-equally-weighted-chunks-based-on-order
+        weight = sample['D25'][indices]
+        cumuweight = weight.cumsum() / weight.sum()
+        idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
+        weighted_indices = np.array_split(indices, idx)
+        indices = np.array_split(indices, size)
+
+        #[print(np.sum(sample['D25'][ww]), np.sum(sample['D25'][vv])) for ww, vv in zip(weighted_indices, indices)]
+        if indices_only:
+            return weighted_indices
+        else:
+            return suffix, weighted_indices
+
 def missing_files_groups(args, sample, size, htmldir=None):
     """Simple task-specific wrapper on missing_files.
 
@@ -295,8 +355,10 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
 
     #print(get_brickname(sample['GROUP_RA'], sample['GROUP_DEC']))
 
-    # Reverse sort by diameter
-    sample = sample[np.argsort(sample['GROUP_DIAMETER'])]
+    # Reverse sort by diameter. Actually, don't do this, otherwise there's a
+    # significant imbalance between ranks.
+    if False:
+        sample = sample[np.argsort(sample['GROUP_DIAMETER'])]
     
     return sample
 
@@ -614,8 +676,12 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         sample = astropy.table.Table(sample)
 
     # Only create pages for the set of galaxies with a montage.
-    keep = missing_files(sample, filetype='coadds', size=1)
-    pdb.set_trace()
+    keep = np.arange(len(sample))
+    missing = missing_files(sample, filetype='coadds', size=1)[0]
+    if len(missing) > 0:
+        keep = np.delete(keep, missing)
+        print('Keeping {}/{} galaxies with complete montages.'.format(len(keep), len(sample)))
+        sample = sample[keep]
     #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
 
     ## group by RA slices
