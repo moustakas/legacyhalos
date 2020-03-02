@@ -4,6 +4,9 @@ Build a Docker container for the legacyhalos project.
 ```
 docker build . -t flagnarg/legacyhalos
 docker push flagnarg/legacyhalos:latest
+
+docker tag flagnarg/legacyhalos:latest flagnarg/legacyhalos:v0.0.5
+docker push flagnarg/legacyhalos:v0.0.5
 ```
 
 More details
