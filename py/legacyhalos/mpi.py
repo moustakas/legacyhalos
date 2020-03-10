@@ -201,9 +201,9 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                                   get_galaxy_galaxydir=get_galaxy_galaxydir)
                 _done(galaxy, err, t0, log=log)
 
-def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
-                            kdccds_south, pixscale=0.262, nproc=1,
-                            racolumn='RA', deccolumn='DEC', force=False,
+def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey,
+                            #kdccds_north, kdccds_south,
+                            pixscale=0.262, nproc=1, racolumn='RA', deccolumn='DEC', force=False,
                             radius_mask=None, debug=False, verbose=False, logfile=None, apodize=False,
                             cleanup=True, write_all_pickles=False):
     """Wrapper script to build the pipeline coadds for large galaxies.
@@ -211,27 +211,37 @@ def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
     radius_mosaic in arcsec
 
     """
+    if onegal['IN_DESI_SOUTH_GRZ']:
+        run = 'south'
+    elif onegal['IN_DESI_NORTH_GRZ']:
+        run = 'north'
+    else:
+        run = 'south' # shouldn't really happen
+        
     t0 = time.time()
     if debug:
         _start(galaxy)
-        run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
+        #run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale)#, kdccds_north, kdccds_south)
+        #run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
         err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
                                                     radius_mosaic=radius_mosaic, radius_mask=radius_mask,
                                                     nproc=nproc, pixscale=pixscale, force=force, 
                                                     racolumn=racolumn, deccolumn=deccolumn,
-                                                    run=run, apodize=apodize, verbose=verbose,
+                                                    run=run,
+                                                    apodize=apodize, verbose=verbose,
                                                     cleanup=cleanup, write_all_pickles=write_all_pickles)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south, log=log)
+                #run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale)#, kdccds_north, kdccds_south, log=log)
                 err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
                                                             radius_mosaic=radius_mosaic, radius_mask=radius_mask,
                                                             nproc=nproc, pixscale=pixscale, force=force, 
                                                             racolumn=racolumn, deccolumn=deccolumn,
-                                                            run=run, apodize=apodize,
+                                                            run=run,
+                                                            apodize=apodize,
                                                             write_all_pickles=write_all_pickles,
                                                             verbose=verbose,
                                                             cleanup=cleanup, log=log)

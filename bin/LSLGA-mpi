@@ -3,11 +3,17 @@
 
 time LSLGA-mpi --coadds --first 12308 --last 12308 --nproc 32 --debug --clobber # UGC01446
 
-salloc -N 16 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive
-srun -n 128 -c 4 --module mpich-cle6 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
+salloc -N 8 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.6
+srun -n 64 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
 
-salloc -N 64 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive
-srun -n 512 -c 4 --module mpich-cle6 shifter --image=docker:flagnarg/legacyhalos:latest ./LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
+salloc -N 16 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.6
+srun -n 128 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-003 2>&1 &
+
+salloc -N 24 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.6
+srun -n 192 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-003 2>&1 &
+
+salloc -N 64 -C haswell -A desi -L cfs,SCRATCH -t 00:10:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.6
+srun -n 512 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
 
 """
 import matplotlib
@@ -50,19 +56,25 @@ def main():
                                                d25min=args.d25min, d25max=args.d25max, 
                                                galaxylist=args.galaxylist,
                                                verbose=args.verbose)
+        #if args.coadds and not args.count:
+        #    kdccds_north, kdccds_south = legacyhalos.io.read_all_ccds()
     else:
+        #sample, kdccds_north, kdccds_south = None, None, None
         sample = None
         
     if comm:
         sample = comm.bcast(sample, root=0)
+        #if args.coadds and not args.count:
+        #    kdccds_north = comm.bcast(kdccds_north, root=0)
+        #    kdccds_south = comm.bcast(kdccds_south, root=0)
 
     if args.build_LSLGA:
         legacyhalos.LSLGA.build_model_LSLGA(sample, pixscale=args.pixscale, nproc=args.nproc,
                                             clobber=args.clobber)
         return
 
-    if args.coadds and not args.count:
-        kdccds_north, kdccds_south = legacyhalos.io.read_all_ccds()
+    #if args.coadds and not args.count:
+    #    kdccds_north, kdccds_south = legacyhalos.io.read_all_ccds()
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
@@ -140,17 +152,17 @@ def main():
         if args.coadds:
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
                 call_largegalaxy_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                        kdccds_north, kdccds_south,
+                                        #kdccds_north, kdccds_south,
                                         pixscale=args.pixscale, nproc=args.nproc,
                                         debug=args.debug, verbose=args.verbose, logfile=logfile,
                                         radius_mask=radius_mask_arcsec, force=args.force,
                                         racolumn='GROUP_RA', deccolumn='GROUP_DEC',
                                         # Note!
-                                        apodize=False, cleanup=False, write_all_pickles=True)
+                                        apodize=False, cleanup=True, write_all_pickles=True)
 
         if args.htmlplots:
             barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
-            if len(legacyhalos.LSLGA.new_missing_files(onegal, filetype='coadds')) == 0:
+            if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
                 call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
                                args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
                                ZCOLUMN, htmldir, datadir, pipeline_montage=True,

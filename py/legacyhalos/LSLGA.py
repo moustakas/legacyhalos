@@ -101,7 +101,7 @@ def new_missing_files(args, sample, size=1, indices_only=False):
         # Assign the sample to ranks to make the D25 distribution per rank ~flat.
 
         # https://stackoverflow.com/questions/33555496/split-array-into-equally-weighted-chunks-based-on-order
-        weight = sample['D25'][indices]
+        weight = np.atleast_1d(sample['D25'])[indices]
         cumuweight = weight.cumsum() / weight.sum()
         idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
         weighted_indices = np.array_split(indices, idx)
@@ -278,9 +278,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
     if preselect_sample:
         from legacyhalos.brick import brickname as get_brickname
 
-        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI_GRZ'])
         bigcut = np.where((sample['GROUP_DIAMETER'] > d25min) * (sample['GROUP_DIAMETER'] < d25max) *
-                          (sample['GROUP_PRIMARY'] == 1) * (sample['IN_DESI']))[0]
+                          (sample['GROUP_PRIMARY'] == 1) * (sample['IN_DESI_GRZ']))[0]
 
         brickname = get_brickname(sample['GROUP_RA'][bigcut], sample['GROUP_DEC'][bigcut])
         #nbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_north.txt', dtype='str')
@@ -291,6 +291,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, preselect
             bricklist = np.union1d(nbricklist, sbricklist)
         else:
             bricklist = nbricklist
+            #bricklist = sbricklist
         #rows = np.where([brick in bricklist for brick in brickname])[0]
         brickcut = np.where(np.isin(brickname, bricklist))[0]
 
