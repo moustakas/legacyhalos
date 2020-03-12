@@ -132,8 +132,7 @@ def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
     return keep
 
 def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                    nproc=1, pixscale=0.262, run='south',
-                    racolumn='RA', deccolumn='DEC', 
+                    nproc=1, pixscale=0.262, racolumn='RA', deccolumn='DEC', run='south', 
                     log=None, apodize=False, unwise=True, force=False,
                     plots=False, verbose=False, cleanup=True,
                     write_all_pickles=False, no_splinesky=False, just_coadds=False,
@@ -546,14 +545,14 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
     return out
 
 def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                       radius_mask=None, nproc=1, pixscale=0.262, run='south',
-                       racolumn='RA', deccolumn='DEC', 
+                       nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC', 
                        log=None, apodize=False, unwise=True, force=False,
                        plots=False, verbose=False, cleanup=True,
-                       write_all_pickles=False, no_splinesky=False, just_coadds=False):
+                       write_all_pickles=False, no_splinesky=False, just_coadds=False,
+                       no_gaia=False, no_tycho=False):
     """Build a custom set of large-galaxy coadds
 
-    radius_mosaic and radius_mask in arcsec
+    radius_mosaic in arcsec
 
     """
     if survey is None:

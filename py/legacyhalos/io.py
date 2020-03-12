@@ -127,7 +127,15 @@ def read_all_ccds(dr='dr9'):
 
     return kdccds_north, kdccds_south
 
-def get_run(onegal, radius_mosaic, pixscale, log=None): # kdccds_north, kdccds_south, log=None):
+def get_run(onegal):
+    """Get the run based on a simple declination cut."""
+    if onegal['DEC'] > 32.375:
+        run = 'north'
+    else:
+        run = 'south'
+    return run
+
+def get_run_ccds(onegal, radius_mosaic, pixscale, log=None): # kdccds_north, kdccds_south, log=None):
     """Determine the "run", i.e., determine whether we should use the BASS+MzLS CCDs
     or the DECaLS CCDs file when running the pipeline.
 

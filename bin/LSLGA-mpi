@@ -136,19 +136,28 @@ def main():
         survey = LegacySurveyData()
         survey.output_dir = galaxydir
 
-        if not args.largegalaxy_coadds:
+        if not args.pipeline_coadds or not not args.largegalaxy_coadds:
             if not legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile):
                 continue
         
         if args.largegalaxy_coadds:
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
-                call_largegalaxy_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                        pixscale=args.pixscale, nproc=args.nproc,
-                                        debug=args.debug, verbose=args.verbose, logfile=logfile,
-                                        radius_mask=radius_mask_arcsec, force=args.force,
-                                        racolumn='GROUP_RA', deccolumn='GROUP_DEC',
-                                        # Note!
-                                        apodize=False, cleanup=True, write_all_pickles=True)
+                call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic_arcsec, nproc=args.nproc,
+                                        pixscale=args.pixscale, racolumn='GROUP_RA', deccolumn='GROUP_DEC',
+                                        apodize=False, unwise=True, force=args.force, plots=False,
+                                        verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                                        no_splinesky=False, just_coadds=args.just_coadds,
+                                        no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
+
+        if args.pipeline_coadds:
+            if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
+                # No unwise here (we do it in largegalaxy_coadds)
+                call_pipeline_coadds(onegal, galaxy, survey, radius_mosaic_arcsec, nproc=args.nproc,
+                                     pixscale=args.pixscale, racolumn='GROUP_RA', deccolumn='GROUP_DEC',
+                                     apodize=False, unwise=False, force=args.force, plots=False,
+                                     verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                                     no_splinesky=False, just_coadds=args.just_coadds,
+                                     no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:

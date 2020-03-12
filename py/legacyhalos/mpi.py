@@ -24,38 +24,43 @@ def _done(galaxy, err, t0, log=None):
     print('Finished galaxy {} in {:.3f} minutes.'.format(
           galaxy, (time.time() - t0)/60), flush=True, file=log)
 
-def call_pipeline_coadds(onegal, galaxy, radius_mosaic, survey, kdccds_north,
-                         kdccds_south, pixscale=0.262, nproc=1, force=False,
-                         debug=False, logfile=None, apodize=False, unwise=True,
+def call_pipeline_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
+                         pixscale=0.262, racolumn='RA', deccolumn='DEC',
+                         apodize=False, unwise=True, force=False, plots=False,
+                         verbose=False, cleanup=True, write_all_pickles=False,
+                         no_splinesky=False, just_coadds=False,
                          no_large_galaxies=False, no_gaia=False, no_tycho=False,
-                         just_coadds=False, cleanup=True):
+                         debug=False, logfile=None):
     """Wrapper script to build the pipeline coadds.
 
     radius_mosaic in arcsec
 
     """
+    run = legacyhalos.io.get_run(onegal)
+    
     t0 = time.time()
     if debug:
         _start(galaxy)
-        run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
-        err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                 survey=survey, pixscale=pixscale, run=run,
-                                                 nproc=nproc, force=force, cleanup=cleanup,
-                                                 apodize=apodize, unwise=unwise, no_large_galaxies=no_large_galaxies,
-                                                 no_gaia=no_gaia, no_tycho=no_tycho, just_coadds=just_coadds)
+        err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, survey=survey, 
+                                                 radius_mosaic=radius_mosaic, nproc=nproc, 
+                                                 pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
+                                                 apodize=apodize, unwise=unwise, force=force, plots=plots,
+                                                 verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
+                                                 no_splinesky=no_splinesky, just_coadds=just_coadds,
+                                                 no_large_galaxies=no_large_galaxies, no_gaia=no_gaia, no_tycho=no_tycho)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south, log=log)
-                err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, radius_mosaic=radius_mosaic,
-                                                         survey=survey, pixscale=pixscale, run=run,
-                                                         nproc=nproc, force=force, log=log, cleanup=cleanup,
-                                                         apodize=apodize, unwise=unwise,
-                                                         no_large_galaxies=no_large_galaxies,
-                                                         no_gaia=no_gaia, no_tycho=no_tycho,
-                                                         just_coadds=just_coadds)
+                err = legacyhalos.coadds.pipeline_coadds(onegal, galaxy=galaxy, survey=survey, 
+                                                         radius_mosaic=radius_mosaic, nproc=nproc, 
+                                                         pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
+                                                         apodize=apodize, unwise=unwise, force=force, plots=plots,
+                                                         verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
+                                                         no_splinesky=no_splinesky, just_coadds=just_coadds,
+                                                         no_large_galaxies=no_large_galaxies, no_gaia=no_gaia, no_tycho=no_tycho,
+                                                         log=log)
                 _done(galaxy, err, t0, log=log)
 
 def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale=0.262,
@@ -204,54 +209,43 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                                   get_galaxy_galaxydir=get_galaxy_galaxydir)
                 _done(galaxy, err, t0, log=log)
 
-def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey,
-                            #kdccds_north, kdccds_south,
-                            pixscale=0.262, nproc=1, racolumn='RA', deccolumn='DEC', force=False,
-                            radius_mask=None, debug=False, verbose=False, logfile=None, apodize=False,
-                            cleanup=True, write_all_pickles=False):
+def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
+                            pixscale=0.262, racolumn='RA', deccolumn='DEC',
+                            apodize=False, unwise=True, force=False, plots=False,
+                            verbose=False, cleanup=True, write_all_pickles=False,
+                            no_splinesky=False, just_coadds=False,
+                            no_gaia=False, no_tycho=False,
+                            debug=False, logfile=None):
     """Wrapper script to build the pipeline coadds for large galaxies.
 
     radius_mosaic in arcsec
 
     """
-    #if onegal['IN_DESI_SOUTH_GRZ']:
-    #    run = 'south'
-    #elif onegal['IN_DESI_NORTH_GRZ']:
-    #    run = 'north'
-    #else:
-    #    run = 'south' # shouldn't really happen
-    if onegal['DEC'] > 32.375:
-        run = 'north'
-    else:
-        run = 'south'
+    run = legacyhalos.io.get_run(onegal)
     
     t0 = time.time()
     if debug:
         _start(galaxy)
-        #run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale)#, kdccds_north, kdccds_south)
-        #run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale, kdccds_north, kdccds_south)
         err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
-                                                    radius_mosaic=radius_mosaic, radius_mask=radius_mask,
-                                                    nproc=nproc, pixscale=pixscale, force=force, 
-                                                    racolumn=racolumn, deccolumn=deccolumn,
-                                                    run=run,
-                                                    apodize=apodize, verbose=verbose,
-                                                    cleanup=cleanup, write_all_pickles=write_all_pickles)
+                                                    radius_mosaic=radius_mosaic, nproc=nproc, 
+                                                    pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
+                                                    apodize=apodize, unwise=unwise, force=force, plots=plots,
+                                                    verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
+                                                    no_splinesky=no_splinesky, just_coadds=just_coadds,
+                                                    no_gaia=no_gaia, no_tycho=no_tycho)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                #run = legacyhalos.io.get_run(onegal, radius_mosaic, pixscale)#, kdccds_north, kdccds_south, log=log)
                 err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
-                                                            radius_mosaic=radius_mosaic, radius_mask=radius_mask,
-                                                            nproc=nproc, pixscale=pixscale, force=force, 
-                                                            racolumn=racolumn, deccolumn=deccolumn,
-                                                            run=run,
-                                                            apodize=apodize,
-                                                            write_all_pickles=write_all_pickles,
-                                                            verbose=verbose,
-                                                            cleanup=cleanup, log=log)
+                                                            radius_mosaic=radius_mosaic, nproc=nproc, 
+                                                            pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
+                                                            apodize=apodize, unwise=unwise, force=force, plots=plots,
+                                                            verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
+                                                            no_splinesky=no_splinesky, just_coadds=just_coadds,
+                                                            no_gaia=no_gaia, no_tycho=no_tycho,
+                                                            log=log)
                 _done(galaxy, err, t0, log=log)
 
 def mpi_args():

@@ -74,6 +74,10 @@ def new_missing_files(args, sample, size=1, indices_only=False):
         suffix = 'largegalaxy-coadds'
         filesuffix = '-largegalaxy-resid-grz.jpg'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+    elif args.pipeline_coadds:
+        suffix = 'pipeline-coadds'
+        filesuffix = '-pipeline-resid-grz.jpg'
+        galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.ellipse:
         suffix = 'ellipse'
         filesuffix = '-ellipsefit.p'
