@@ -8,7 +8,7 @@ python -u legacyanalysis/extract-calibs.py --drdir /project/projectdirs/cosmo/da
 
 """
 import os, sys, time, pdb
-import shutil
+import shutil, subprocess
 import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 import fitsio
@@ -132,17 +132,17 @@ def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
     return keep
 
 def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                    nproc=1, pixscale=0.262, run='decam', splinesky=True,
-                    log=None, force=False, no_large_galaxies=True, no_gaia=True,
-                    no_tycho=True, just_coadds=False, unwise=True, apodize=False,
-                    cleanup=True):
+                    nproc=1, pixscale=0.262, run='south',
+                    racolumn='RA', deccolumn='DEC', 
+                    log=None, apodize=False, unwise=True, force=False,
+                    plots=False, verbose=False, cleanup=True,
+                    write_all_pickles=False, no_splinesky=False, just_coadds=False,
+                    no_large_galaxies=False, no_gaia=False, no_tycho=False):
     """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
 
     radius_mosaic in arcsec
 
     """
-    import subprocess
-
     if survey is None:
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
@@ -152,17 +152,22 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     if galaxy is None:
         galaxy = 'galaxy'
 
+    stagesuffix = 'pipeline'
+    
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} --run {run} '
     #cmd += '--write-stage tims '
-    cmd += '--write-stage srcs '
+    if write_all_pickles:
+        cmd += '--write-stage tims --write-stage srcs '
+    else:
+        cmd += '--write-stage srcs '
     #cmd += '--min-mjd 0 ' # obsolete
     cmd += '--skip-calibs '
     #cmd += '--no-wise-ceres '
-    cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p '
-    cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
+    cmd += '--checkpoint {galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p '
+    cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
     if just_coadds:
         cmd += '--stage image_coadds --early-coadds '
     if unwise:
@@ -180,58 +185,60 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         
     if force:
         cmd += '--force-all '
-        checkpointfile = '{galaxydir}/{galaxy}-runbrick-checkpoint.p'.format(galaxydir=galaxydir, galaxy=galaxy)
+        checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(galaxydir=galaxydir, galaxy=galaxy)
         if os.path.isfile(checkpointfile):
             os.remove(checkpointfile)
-    if not splinesky:
+    if no_splinesky:
         cmd += '--no-splinesky '
 
     width = _mosaic_width(radius_mosaic, pixscale)
-
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
-                     ra=onegal['RA'], dec=onegal['DEC'], width=width,
+                     ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run)
+                     galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run,
+                     stagesuffix=stagesuffix)
     print(cmd, flush=True, file=log)
+
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
     if err != 0:
         print('Something went wrong; please check the logfile.')
         return 0
     else:
         # Move (rename) files into the desired output directory and clean up.
-        brickname = 'custom-{}'.format(custom_brickname(onegal['RA'], onegal['DEC']))
+        brickname = 'custom-{}'.format(custom_brickname(onegal[racolumn], onegal[deccolumn]))
 
         # tractor catalog
         ok = _copyfile(
             os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-pipeline-tractor.fits'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-{}-tractor.fits'.format(galaxy, stagesuffix)) )
         if not ok and not just_coadds:
             return ok
 
         # CCDs, maskbits, blob images, outlier masks, and depth images
-        ok = _copyfile(
-            os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                         'legacysurvey-{}-ccds.fits'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run)) )
-        if not ok:
-            return ok
+        outfile = os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run))
+        if not os.path.isfile(outfile):
+            ok = _copyfile(
+                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-ccds.fits'.format(brickname)), outfile)
+            if not ok:
+                return ok
 
         ok = _copyfile(
             os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                          'legacysurvey-{}-maskbits.fits.fz'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-maskbits.fits.fz'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-{}-maskbits.fits.fz'.format(galaxy, stagesuffix)) )
         if not ok and not just_coadds:
             return ok
 
         ok = _copyfile(
             os.path.join(survey.output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-blobs.fits.gz'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-{}-blobs.fits.gz'.format(galaxy, stagesuffix)) )
         if not ok and not just_coadds:
             return ok
 
         ok = _copyfile(
             os.path.join(survey.output_dir, 'metrics', 'cus', 'outlier-mask-{}.fits.fz'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-{}-outlier-mask.fits.fz'.format(galaxy, stagesuffix)) )
         if not ok and not just_coadds:
             return ok
 
@@ -239,27 +246,29 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             ok = _copyfile(
                 os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
-                os.path.join(survey.output_dir, '{}-depth-{}.fits.fz'.format(galaxy, band)) )
+                os.path.join(survey.output_dir, '{}-{}-depth-{}.fits.fz'.format(galaxy, stagesuffix, band)) )
             if not ok:
                 return ok
         
         # Data and model images
         for band in ('g', 'r', 'z'):
-            for imtype in ('image', 'model'):
+            for imtype in ('image', 'invvar'):
+                outfile = os.path.join(survey.output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, imtype, band))
+                if not os.path.isfile(outfile):
+                    ok = _copyfile(
+                        os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                                     'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)), outfile)
+                    if not ok and not just_coadds:
+                        return ok
+
+        for band in ('g', 'r', 'z'):
+            for imtype in ('model', 'blobmodel'):
                 ok = _copyfile(
                     os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                                  'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                    os.path.join(survey.output_dir, '{}-pipeline-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
+                    os.path.join(survey.output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, imtype, band)) )
                 if not ok and not just_coadds:
                     return ok
-
-        for band in ('g', 'r', 'z'):
-            ok = _copyfile(
-                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                             'legacysurvey-{}-invvar-{}.fits.fz'.format(brickname, band)),
-                os.path.join(survey.output_dir, '{}-invvar-{}.fits.fz'.format(galaxy, band)) )
-            if not ok:
-                return ok
 
         # JPG images
 
@@ -267,27 +276,32 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         if unwise:
             for band in ('W1', 'W2', 'W3', 'W4'):
                 for imtype in ('image', 'model', 'invvar'):
+                    outfile = os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band))
+                    if not os.path.isfile(outfile):
+                        ok = _copyfile(
+                            os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                                         'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)), outfile)
+                        if not ok:
+                            return ok
+
+            # These images can get generated by either pipeline_coadds() or
+            # largegalaxy_coadds(), but since they won't be different, use the
+            # -pipeline suffix to differentiate it from the output of
+            # custom_coadds().
+            for imtype, suffix in zip(('wise', 'wisemodel'), ('pipeline-image', 'pipeline-model')):
+                outfile = os.path.join(survey.output_dir, '{}-{}-W1W2.jpg'.format(galaxy, suffix))
+                if not os.path.isfile(outfile):
                     ok = _copyfile(
                         os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                                     'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                        os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
+                                     'legacysurvey-{}-{}.jpg'.format(brickname, imtype)), outfile)
                     if not ok:
                         return ok
-
-            for imtype, suffix in zip(('wise', 'wisemodel'),
-                                      ('pipeline-image', 'pipeline-model')):
-                ok = _copyfile(
-                    os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                                 'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-                    os.path.join(survey.output_dir, '{}-{}-W1W2.jpg'.format(galaxy, suffix)) )
-                if not ok:
-                    return ok
 
         for imtype in ('image', 'model', 'resid'):
             ok = _copyfile(
                 os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-                os.path.join(survey.output_dir, '{}-pipeline-{}-grz.jpg'.format(galaxy, imtype)) )
+                os.path.join(survey.output_dir, '{}-{}-{}-grz.jpg'.format(galaxy, stagesuffix, imtype)) )
             if not ok and not just_coadds:
                 return ok
 
@@ -296,6 +310,10 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             shutil.rmtree(os.path.join(survey.output_dir, 'metrics'), ignore_errors=True)
             shutil.rmtree(os.path.join(survey.output_dir, 'tractor'), ignore_errors=True)
             shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'), ignore_errors=True)
+            for stage in ('srcs', 'tims', 'checkpoint'):
+                picklefile = os.path.join(survey.output_dir, '{}-{}-{}.p'.format(galaxy, stagesuffix, stage))
+                if os.path.isfile(picklefile):
+                    os.remove(picklefile)
 
         return 1
 
@@ -528,23 +546,16 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
     return out
 
 def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                       radius_mask=None, nproc=1, pixscale=0.262, run='decam',
+                       radius_mask=None, nproc=1, pixscale=0.262, run='south',
                        racolumn='RA', deccolumn='DEC', 
                        log=None, apodize=False, unwise=True, force=False,
                        plots=False, verbose=False, cleanup=True,
-                       write_all_pickles=False,
-                       write_ccddata=False, sky_annulus=True, centrals=True, splinesky=True,
-                       doforced_phot=True, just_coadds=False):
+                       write_all_pickles=False, no_splinesky=False, just_coadds=False):
     """Build a custom set of large-galaxy coadds
 
     radius_mosaic and radius_mask in arcsec
 
-    centrals - if this is the centrals project (legacyhalos or HSC) then deal
-      with the central with dedicated code.
-
     """
-    import subprocess
-
     if survey is None:
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
@@ -554,21 +565,22 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     if galaxy is None:
         galaxy = 'galaxy'
 
+    stagesuffix = 'largegalaxy'
+
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} --run {run} '
-    cmd += '--largegalaxy-preburner --saddle_fraction 0.2 --saddle_min 4.0 '
+    cmd += '--largegalaxy-preburner --saddle-fraction 0.2 --saddle-min 4.0 '
+    #cmd += '--nsigma 10 '
     #cmd += '--write-stage tims '
     if write_all_pickles:
         cmd += '--write-stage tims --write-stage srcs '
     else:
         cmd += '--write-stage srcs '
-    #cmd += '--min-mjd 0 ' # obsolete
     cmd += '--skip-calibs '
-    #cmd += '--no-wise-ceres '
-    cmd += '--checkpoint {galaxydir}/{galaxy}-runbrick-checkpoint.p '
-    cmd += '--pickle {galaxydir}/{galaxy}-runbrick-%%(stage)s.p '
+    cmd += '--checkpoint {galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p '
+    cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
     if just_coadds:
         cmd += '--stage image_coadds --early-coadds '
     if unwise:
@@ -577,26 +589,27 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-wise '
     if apodize:
         cmd += '--apodize '
-    #if no_gaia:
-    #    cmd += '--no-gaia '
-    #if no_tycho:
-    #    cmd += '--no-tycho '
+    if no_gaia:
+        cmd += '--no-gaia '
+    if no_tycho:
+        cmd += '--no-tycho '
     #if no_large_galaxies:
     #    cmd += '--no-large-galaxies '
         
     if force:
         cmd += '--force-all '
-        checkpointfile = '{galaxydir}/{galaxy}-runbrick-checkpoint.p'.format(galaxydir=galaxydir, galaxy=galaxy)
+        checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(galaxydir=galaxydir, galaxy=galaxy)
         if os.path.isfile(checkpointfile):
             os.remove(checkpointfile)
-    if not splinesky:
+    if no_splinesky:
         cmd += '--no-splinesky '
 
     width = _mosaic_width(radius_mosaic, pixscale)
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run)
+                     galaxydir=galaxydir, survey_dir=survey.survey_dir, run=run,
+                     stagesuffix=stagesuffix)
     print(cmd, flush=True, file=log)
 
     #from astrometry.util.util import Tan
@@ -618,34 +631,36 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         # tractor catalog
         ok = _copyfile(
             os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-pipeline-tractor.fits'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-{}-tractor.fits'.format(galaxy, stagesuffix)) )
         if not ok and not just_coadds:
             return ok
 
         # CCDs, maskbits, blob images, outlier masks, and depth images
-        ok = _copyfile(
-            os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                         'legacysurvey-{}-ccds.fits'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run)) )
-        if not ok:
-            return ok
+        outfile = os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run))
+        if not os.path.isfile(outfile):
+            ok = _copyfile(
+                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-ccds.fits'.format(brickname)),
+                os.path.join(survey.output_dir, '{}-{}-ccds-{}.fits'.format(galaxy, stagesuffix, run)) )
+            if not ok:
+                return ok
 
         ok = _copyfile(
             os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                          'legacysurvey-{}-maskbits.fits.fz'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-maskbits.fits.fz'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-{}-maskbits.fits.fz'.format(galaxy, stagesuffix)) )
         if not ok and not just_coadds:
             return ok
 
         ok = _copyfile(
             os.path.join(survey.output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-blobs.fits.gz'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-{}-blobs.fits.gz'.format(galaxy, stagesuffix)) )
         if not ok and not just_coadds:
             return ok
 
         ok = _copyfile(
             os.path.join(survey.output_dir, 'metrics', 'cus', 'outlier-mask-{}.fits.fz'.format(brickname)),
-            os.path.join(survey.output_dir, '{}-outlier-mask.fits.fz'.format(galaxy)) )
+            os.path.join(survey.output_dir, '{}-{}-outlier-mask.fits.fz'.format(galaxy, stagesuffix)) )
         if not ok and not just_coadds:
             return ok
 
@@ -653,27 +668,29 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             ok = _copyfile(
                 os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
-                os.path.join(survey.output_dir, '{}-depth-{}.fits.fz'.format(galaxy, band)) )
+                os.path.join(survey.output_dir, '{}-{}-depth-{}.fits.fz'.format(galaxy, stagesuffix, band)) )
             if not ok:
                 return ok
         
         # Data and model images
         for band in ('g', 'r', 'z'):
-            for imtype in ('image', 'model', 'blobmodel'):
+            for imtype in ('image', 'invvar'):
+                outfile = os.path.join(survey.output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, imtype, band))
+                if not os.path.isfile(outfile):
+                    ok = _copyfile(
+                        os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                                     'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)), outfile)
+                    if not ok and not just_coadds:
+                        return ok
+
+        for band in ('g', 'r', 'z'):
+            for imtype in ('model', 'blobmodel'):
                 ok = _copyfile(
                     os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                                  'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                    os.path.join(survey.output_dir, '{}-pipeline-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
-                if not ok and not just_coadds:
+                    os.path.join(survey.output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, imtype, band)) )
+                if not ok:
                     return ok
-
-        for band in ('g', 'r', 'z'):
-            ok = _copyfile(
-                os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                             'legacysurvey-{}-invvar-{}.fits.fz'.format(brickname, band)),
-                os.path.join(survey.output_dir, '{}-invvar-{}.fits.fz'.format(galaxy, band)) )
-            if not ok:
-                return ok
 
         # JPG images
 
@@ -681,27 +698,32 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         if unwise:
             for band in ('W1', 'W2', 'W3', 'W4'):
                 for imtype in ('image', 'model', 'invvar'):
+                    outfile = os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band))
+                    if not os.path.isfile(outfile):
+                        ok = _copyfile(
+                            os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                                         'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)), outfile)
+                        if not ok:
+                            return ok
+
+            # These images can get generated by either pipeline_coadds() or
+            # largegalaxy_coadds(), but since they won't be different, use the
+            # -pipeline suffix to differentiate it from the output of
+            # custom_coadds().
+            for imtype, suffix in zip(('wise', 'wisemodel'), ('pipeline-image', 'pipeline-model')):
+                outfile = os.path.join(survey.output_dir, '{}-{}-W1W2.jpg'.format(galaxy, suffix))
+                if not os.path.isfile(outfile):
                     ok = _copyfile(
                         os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                                     'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                        os.path.join(survey.output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)) )
+                                     'legacysurvey-{}-{}.jpg'.format(brickname, imtype)), outfile)
                     if not ok:
                         return ok
-
-            for imtype, suffix in zip(('wise', 'wisemodel'),
-                                      ('pipeline-image', 'pipeline-model')):
-                ok = _copyfile(
-                    os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                                 'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-                    os.path.join(survey.output_dir, '{}-{}-W1W2.jpg'.format(galaxy, suffix)) )
-                if not ok:
-                    return ok
 
         for imtype in ('image', 'model', 'resid', 'blobmodel'):
             ok = _copyfile(
                 os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
-                os.path.join(survey.output_dir, '{}-pipeline-{}-grz.jpg'.format(galaxy, imtype)) )
+                os.path.join(survey.output_dir, '{}-{}-{}-grz.jpg'.format(galaxy, stagesuffix, imtype)) )
             if not ok and not just_coadds:
                 return ok
 
@@ -711,7 +733,7 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             shutil.rmtree(os.path.join(survey.output_dir, 'tractor'), ignore_errors=True)
             shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'), ignore_errors=True)
             for stage in ('srcs', 'tims', 'checkpoint'):
-                picklefile = os.path.join(survey.output_dir, '{}-runbrick-{}.p'.format(galaxy, stage))
+                picklefile = os.path.join(survey.output_dir, '{}-{}-{}.p'.format(galaxy, stagesuffix, stage))
                 if os.path.isfile(picklefile):
                     os.remove(picklefile)
 

@@ -56,25 +56,16 @@ def main():
                                                d25min=args.d25min, d25max=args.d25max, 
                                                galaxylist=args.galaxylist,
                                                verbose=args.verbose)
-        #if args.coadds and not args.count:
-        #    kdccds_north, kdccds_south = legacyhalos.io.read_all_ccds()
     else:
-        #sample, kdccds_north, kdccds_south = None, None, None
         sample = None
         
     if comm:
         sample = comm.bcast(sample, root=0)
-        #if args.coadds and not args.count:
-        #    kdccds_north = comm.bcast(kdccds_north, root=0)
-        #    kdccds_south = comm.bcast(kdccds_south, root=0)
 
     if args.build_LSLGA:
         legacyhalos.LSLGA.build_model_LSLGA(sample, pixscale=args.pixscale, nproc=args.nproc,
                                             clobber=args.clobber)
         return
-
-    #if args.coadds and not args.count:
-    #    kdccds_north, kdccds_south = legacyhalos.io.read_all_ccds()
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
@@ -145,14 +136,13 @@ def main():
         survey = LegacySurveyData()
         survey.output_dir = galaxydir
 
-        if not args.coadds:
+        if not args.largegalaxy_coadds:
             if not legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile):
                 continue
         
-        if args.coadds:
+        if args.largegalaxy_coadds:
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
                 call_largegalaxy_coadds(onegal, galaxy, radius_mosaic_arcsec, survey,
-                                        #kdccds_north, kdccds_south,
                                         pixscale=args.pixscale, nproc=args.nproc,
                                         debug=args.debug, verbose=args.verbose, logfile=logfile,
                                         radius_mask=radius_mask_arcsec, force=args.force,
@@ -171,7 +161,7 @@ def main():
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
                 call_htmlplots(Table(onegal), galaxy, survey, args.pixscale, args.nproc,
                                args.debug, args.clobber, args.verbose, args.ccdqa, logfile,
-                               ZCOLUMN, htmldir, datadir, pipeline_montage=True,
+                               ZCOLUMN, htmldir, datadir, largegalaxy_montage=True,
                                barlen=barlen, barlabel='30 arcsec',
                                radius_mosaic_arcsec=radius_mosaic_arcsec,
                                get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)

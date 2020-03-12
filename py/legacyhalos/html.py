@@ -82,7 +82,7 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                       barlabel=None, clobber=False, verbose=True,
-                      pipeline_montage=False):
+                      pipeline_montage=False, largegalaxy_montage=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
@@ -126,7 +126,10 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
         return pngfile
 
     if not os.path.isfile(montagefile) or clobber:
-        if pipeline_montage:
+        if largegalaxy_montage:
+            prefix = 'largegalaxy'
+            coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-grz'.format(prefix), '{}-resid-grz'.format(prefix))
+        elif pipeline_montage:
             prefix = 'pipeline'
             coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-grz'.format(prefix), '{}-resid-grz'.format(prefix))
         else:
@@ -192,7 +195,7 @@ def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
             
             if verbose:
                 print('Writing {}'.format(maskbitsfile))
-            fig.savefig(maskbitsfile)
+            fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
             plt.close(fig)
 
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
@@ -323,7 +326,7 @@ def make_plots(sample, datadir=None, htmldir=None, get_galaxy_galaxydir=None, re
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
                nproc=1, barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                maketrends=False, ccdqa=False, clobber=False, verbose=True,
-               pipeline_montage=False):
+               pipeline_montage=False, largegalaxy_montage=False):
     """Make QA plots.
 
     """
@@ -390,7 +393,8 @@ def make_plots(sample, datadir=None, htmldir=None, get_galaxy_galaxydir=None, re
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
                           barlabel=barlabel, clobber=clobber, verbose=verbose,
-                          pipeline_montage=pipeline_montage)
+                          pipeline_montage=pipeline_montage,
+                          largegalaxy_montage=largegalaxy_montage)
 
         # Build the maskbits figure.
         qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)

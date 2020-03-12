@@ -171,7 +171,8 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 
 def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                    verbose, ccdqa, logfile, zcolumn, htmldir, datadir=None,
-                   pipeline_montage=False, barlen=None, barlabel=None,
+                   largegalaxy_montage=False, pipeline_montage=False,
+                   barlen=None, barlabel=None,
                    radius_mosaic_arcsec=None, get_galaxy_galaxydir=None):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
@@ -183,6 +184,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                           verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
                                           ccdqa=ccdqa, maketrends=False, 
                                           pipeline_montage=pipeline_montage,
+                                          largegalaxy_montage=largegalaxy_montage,
                                           barlen=barlen, barlabel=barlabel,
                                           radius_mosaic_arcsec=radius_mosaic_arcsec,
                                           get_galaxy_galaxydir=get_galaxy_galaxydir)
@@ -196,6 +198,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
                                                   verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
                                                   ccdqa=ccdqa, maketrends=False, 
                                                   pipeline_montage=pipeline_montage,
+                                                  largegalaxy_montage=largegalaxy_montage,
                                                   barlen=barlen, barlabel=barlabel,
                                                   radius_mosaic_arcsec=radius_mosaic_arcsec,
                                                   get_galaxy_galaxydir=get_galaxy_galaxydir)

@@ -28,10 +28,10 @@ def mpi_args():
     parser.add_argument('--d25min', default=0.5, type=float, help='Minimum diameter (arcmin).')
     parser.add_argument('--d25max', default=5.0, type=float, help='Maximum diameter (arcmin).')
 
-    parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
-    parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py.')
+    parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipeline coadds.')
+    parser.add_argument('--largegalaxy-coadds', action='store_true', help='Build the large-galaxy coadds.')
+    parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
     #parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
-    #parser.add_argument('--LSLGA', action='store_true', help='Special code for large galaxies.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
 
@@ -70,11 +70,12 @@ def new_missing_files_one(galaxy, galaxydir, filesuffix, clobber):
 def new_missing_files(args, sample, size=1, indices_only=False):
     from astrometry.util.multiproc import multiproc
 
-    if args.coadds:
-        suffix = 'coadds'
-        filesuffix = '-pipeline-resid-grz.jpg'
+    if args.largegalaxy_coadds:
+        suffix = 'largegalaxy-coadds'
+        filesuffix = '-largegalaxy-resid-grz.jpg'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
-    elif args.ellipse == 'ellipse':
+    elif args.ellipse:
+        suffix = 'ellipse'
         filesuffix = '-ellipsefit.p'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.htmlplots or args.htmlindex:
@@ -876,7 +877,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             tractorfile = os.path.join(galaxydir1, '{}-pipeline-tractor.fits'.format(galaxy1))
             if os.path.isfile(tractorfile):
                 ref_cat = fitsio.read(tractorfile, columns='ref_cat')
-                irows = np.where(['L' in refcat for refcat in ref_cat])[0]
+                irows = np.where(['L' in refcat.decode('utf-8') for refcat in ref_cat])[0]
                 if len(irows) > 0:
                     tractor = astropy.table.Table(fitsio.read(tractorfile, rows=irows))
                 else:
