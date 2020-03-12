@@ -21,10 +21,7 @@ import legacyhalos.misc
 
 from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
-try:
-    sns, _ = legacyhalos.misc.plot_style()
-except:
-    print('Need to install seaborn!')
+sns, _ = legacyhalos.misc.plot_style()
     
 #snscolors = sns.color_palette()
 

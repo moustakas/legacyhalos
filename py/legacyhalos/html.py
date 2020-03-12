@@ -193,6 +193,7 @@ def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
             if verbose:
                 print('Writing {}'.format(maskbitsfile))
             fig.savefig(maskbitsfile)
+            plt.close(fig)
 
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                        barlen=None, barlabel=None, clobber=False, verbose=True):

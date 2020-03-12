@@ -211,13 +211,17 @@ def call_largegalaxy_coadds(onegal, galaxy, radius_mosaic, survey,
     radius_mosaic in arcsec
 
     """
-    if onegal['IN_DESI_SOUTH_GRZ']:
-        run = 'south'
-    elif onegal['IN_DESI_NORTH_GRZ']:
+    #if onegal['IN_DESI_SOUTH_GRZ']:
+    #    run = 'south'
+    #elif onegal['IN_DESI_NORTH_GRZ']:
+    #    run = 'north'
+    #else:
+    #    run = 'south' # shouldn't really happen
+    if onegal['DEC'] > 32.375:
         run = 'north'
     else:
-        run = 'south' # shouldn't really happen
-        
+        run = 'south'
+    
     t0 = time.time()
     if debug:
         _start(galaxy)

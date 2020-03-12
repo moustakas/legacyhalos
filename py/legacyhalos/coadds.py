@@ -558,7 +558,7 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} --run {run} '
-    cmd += '--largegalaxy-preburner '
+    cmd += '--largegalaxy-preburner --saddle_fraction 0.2 --saddle_min 4.0 '
     #cmd += '--write-stage tims '
     if write_all_pickles:
         cmd += '--write-stage tims --write-stage srcs '
@@ -710,6 +710,10 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             shutil.rmtree(os.path.join(survey.output_dir, 'metrics'), ignore_errors=True)
             shutil.rmtree(os.path.join(survey.output_dir, 'tractor'), ignore_errors=True)
             shutil.rmtree(os.path.join(survey.output_dir, 'tractor-i'), ignore_errors=True)
+            for stage in ('srcs', 'tims', 'checkpoint'):
+                picklefile = os.path.join(survey.output_dir, '{}-runbrick-{}.p'.format(galaxy, stage))
+                if os.path.isfile(picklefile):
+                    os.remove(picklefile)
 
         return 1
 

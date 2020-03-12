@@ -33,6 +33,8 @@ def mpi_args():
     #parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
     #parser.add_argument('--LSLGA', action='store_true', help='Special code for large galaxies.')
 
+    parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
+
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
@@ -67,12 +69,15 @@ def new_missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     
 def new_missing_files(args, sample, size=1, indices_only=False):
     from astrometry.util.multiproc import multiproc
-    
+
     if args.coadds:
         suffix = 'coadds'
         filesuffix = '-pipeline-resid-grz.jpg'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
-    elif args.htmlplots:
+    elif args.ellipse == 'ellipse':
+        filesuffix = '-ellipsefit.p'
+        galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+    elif args.htmlplots or args.htmlindex:
         suffix = 'html'
         filesuffix = '-maskbits.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
@@ -418,13 +423,16 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
         print('No large, high surface-brightness sources in galaxy {} field!'.format(galaxy))
         return Table()
 
-    I = np.where(cat['ref_cat'][cut] == refcat)[0]
+    #print('Keeping just sersic models!')
+    I = np.where((cat['ref_cat'][cut] == refcat) * (cat['type'][cut] == 'SER'))[0]
     if len(I) == 0:
-        print('Problem: {}'.format(galaxy))
-        #print('Large galaxy {} was dropped!'.format(galaxy))
-        #print('This should not happen!')
-        #pdb.set_trace()
         return Table()
+    
+    #I = np.where(cat['ref_cat'][cut] == refcat)[0]
+    #if len(I) == 0:
+    #    print('Problem: {}'.format(galaxy))
+    #    #print('Large galaxy {} was dropped!'.format(galaxy))
+    #    return Table()
 
     #print('Analyzing {}/{} galaxies (of which {} are LSLGA) in the {} footprint.'.format(
     #    len(cut), len(cat), len(I), galaxy))
@@ -655,7 +663,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
               first=None, last=None, galaxylist=None,
               nproc=1, survey=None, makeplots=True,
-              clobber=False, verbose=True, maketrends=False, ccdqa=False):
+              clobber=False, verbose=True, maketrends=False, ccdqa=False,
+              args=None):
     """Make the HTML pages.
 
     """
@@ -678,7 +687,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
     # Only create pages for the set of galaxies with a montage.
     keep = np.arange(len(sample))
-    missing = missing_files(sample, filetype='coadds', size=1)[0]
+    missing = new_missing_files(args, sample, indices_only=True)
+    #missing = missing_files(sample, filetype='coadds', size=1)[0]
     if len(missing) > 0:
         keep = np.delete(keep, missing)
         print('Keeping {}/{} galaxies with complete montages.'.format(len(keep), len(sample)))
@@ -863,6 +873,17 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             else:
                 nccds = None
 
+            tractorfile = os.path.join(galaxydir1, '{}-pipeline-tractor.fits'.format(galaxy1))
+            if os.path.isfile(tractorfile):
+                ref_cat = fitsio.read(tractorfile, columns='ref_cat')
+                irows = np.where(['L' in refcat for refcat in ref_cat])[0]
+                if len(irows) > 0:
+                    tractor = astropy.table.Table(fitsio.read(tractorfile, rows=irows))
+                else:
+                    tractor = None
+            else:
+                tractor = None
+
             nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
             prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
 
@@ -917,6 +938,16 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('</table>\n')
 
                 html.write('<h2>Image Mosaics</h2>\n')
+
+                if tractor is not None:
+                    html.write('<table>\n')
+                    html.write('<tr><th></th><th></th><th>r50</th><th>g</th><th>r</th><th>z</th></tr>\n')
+                    html.write('<tr><th>Type</th><th>n</th><th>(arcsec)</th><th>(AB mag)</th><th>(AB mag)</th><th>(AB mag)</th></tr>\n')
+                    for tt in tractor:
+                        html.write('<tr><td>{}</td><td>{:.2f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td></tr>\n'.format(
+                            tt['type'], tt['sersic'], tt['shape_r'], 22.5-2.5*np.log10(tt['flux_g']), 22.5-2.5*np.log10(tt['flux_r']),
+                            22.5-2.5*np.log10(tt['flux_z'])))
+                    html.write('</table>\n')
 
                 if False:
                     html.write('<table>\n')

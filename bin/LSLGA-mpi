@@ -33,7 +33,7 @@ def main():
 
     from legacypipe.survey import LegacySurveyData
     from legacyhalos.mpi import (call_pipeline_coadds, call_custom_coadds, call_largegalaxy_coadds,
-                                 call_htmlplots)
+                                 call_ellipse, call_htmlplots)
     from legacyhalos.LSLGA import ZCOLUMN
 
     lslgadir = legacyhalos.LSLGA.LSLGA_dir()
@@ -83,7 +83,7 @@ def main():
             legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
                                         zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
                                         makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                        ccdqa=args.ccdqa)
+                                        ccdqa=args.ccdqa, args=args)
         return
     
     # Determine how many more galaxies we need to analyze and divide them across
@@ -159,6 +159,12 @@ def main():
                                         racolumn='GROUP_RA', deccolumn='GROUP_DEC',
                                         # Note!
                                         apodize=False, cleanup=True, write_all_pickles=True)
+
+        if args.ellipse:
+            if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
+                call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
+                             nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                             logfile=logfile, zcolumn=ZCOLUMN)
 
         if args.htmlplots:
             barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
