@@ -9,8 +9,8 @@
 #SBATCH --image=docker:flagnarg/legacyhalos:v0.0.6
 
 #SBATCH -p debug
-#SBATCH -N 4
-#SBATCH -n 32
+#SBATCH -N 64
+#SBATCH -n 512
 #SBATCH -t 00:30:00
 
 # sbatch LSLGA-mpi.slurm
@@ -23,7 +23,7 @@
 #time srun -N 8 -n 128 -c 4 shifter ./hsc-mpi-shifter.sh
 
 # pipeline, largegalaxy coadds
-time srun -N 4 -n 32 -c 4 shifter /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh
+time srun -N 64 -n 512 -c 4 shifter /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh
 
 # htmlplots
 #time srun -N 1 -n 32 -c 1 shifter /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh

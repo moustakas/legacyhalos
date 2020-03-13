@@ -538,7 +538,8 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, maskfactor=2.0, fill_value=0.0,
-                   pipeline=False, sdss=False, verbose=False, custom_tractor=True):
+                   sdss=False, verbose=False,
+                   largegalaxy=False, pipeline=False): #custom_tractor=True):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
@@ -566,13 +567,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         filt2imfile = {
             'g': ['sdss-image', 'sdss-model-nocentral', 'sdss-model'],
             'r': ['sdss-image', 'sdss-model-nocentral', 'sdss-model'],
-            'i': ['sdss-image', 'sdss-model-nocentral', 'sdss-model']
-            }
-        filt2pixscale =  {
-            'g': sdss_pixscale,
-            'r': sdss_pixscale,
-            'i': sdss_pixscale
-            }
+            'i': ['sdss-image', 'sdss-model-nocentral', 'sdss-model'] }
+        filt2pixscale =  {'g': sdss_pixscale, 'r': sdss_pixscale, 'i': sdss_pixscale}
+    elif largegalaxy:
+        masksuffix = None
+
+        
     else:
         masksuffix = 'custom-mask-grz'
         if pipeline:
@@ -582,13 +582,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         filt2imfile = {
             'g': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar'],
             'r': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar'],
-            'z': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar']
-            }
-        filt2pixscale =  {
-            'g': pixscale,
-            'r': pixscale,
-            'z': pixscale
-            }
+            'z': ['{}-image'.format(prefix), '{}-model-nocentral'.format(prefix), '{}-model'.format(prefix), 'invvar'] }
+        filt2pixscale =  {'g': pixscale, 'r': pixscale, 'z': pixscale}
             
     filt2imfile.update({
         'FUV': ['image', 'model-nocentral', 'custom-model', 'invvar'],
