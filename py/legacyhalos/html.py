@@ -81,8 +81,8 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         display_ccdpos(onegal, survey.ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
-                      barlabel=None, clobber=False, verbose=True,
-                      pipeline_montage=False, largegalaxy_montage=False):
+                      barlabel=None, clobber=False, verbose=True):#
+                      #pipeline_montage=False, largegalaxy_montage=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
@@ -90,9 +90,6 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
     """
     #from pkg_resources import resource_filename
     from PIL import Image, ImageDraw, ImageFont
-    montagefile = os.path.join(htmlgalaxydir, '{}-grz-montage.png'.format(galaxy))
-    thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-grz-montage.png'.format(galaxy))
-
     fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
     #fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
 
@@ -125,52 +122,51 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
         im.save(pngfile)
         return pngfile
 
-    if not os.path.isfile(montagefile) or clobber:
-        if largegalaxy_montage:
-            prefix = 'largegalaxy'
-            coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-grz'.format(prefix), '{}-resid-grz'.format(prefix))
-        elif pipeline_montage:
-            prefix = 'pipeline'
-            coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-grz'.format(prefix), '{}-resid-grz'.format(prefix))
-        else:
-            prefix = 'custom'
-            coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-nocentral-grz'.format(prefix), '{}-image-central-grz'.format(prefix))
-        # Make sure all the files exist.
-        check = True
-        jpgfile = []
-        for suffix in coaddfiles:
-            _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
-            jpgfile.append(_jpgfile)
-            if not os.path.isfile(_jpgfile):
-                print('File {} not found!'.format(_jpgfile))
-                check = False
-                
-        if check:
-            # Add a bar and label
-            cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-            if barlen:
-                #pngfile = []
-                #for ff, blen, blab, imtype in zip(jpgfile, (barlen, None, None),
-                #                                  (barlabel, None, None),
-                #                                  ('Image stack', 'Tractor model', 'Central galaxy')):
-                #    pngfile.append(addbar(ff, blen, blab, imtype))
-                #cmd = cmd+' '.join(ff for ff in pngfile)
-                pngfile = [addbar(ff, barlen, barlabel, None) for ff in jpgfile]
-                cmd = cmd+' '+pngfile[0]+' '
-                cmd = cmd+' '.join(ff for ff in jpgfile[1:])
+    for prefix in ('largegalaxy', 'pipeline', 'custom'):
+        montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, prefix))
+        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-grz-montage.png'.format(galaxy, prefix))
+        if not os.path.isfile(montagefile) or clobber:
+            if prefix == 'custom':
+                coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-nocentral-grz'.format(prefix), '{}-image-central-grz'.format(prefix))
             else:
-                cmd = cmd+' '.join(ff for ff in jpgfile)
-            cmd = cmd+' {}'.format(montagefile)
+                coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-grz'.format(prefix), '{}-resid-grz'.format(prefix))
+                
+            # Make sure all the files exist.
+            check = True
+            jpgfile = []
+            for suffix in coaddfiles:
+                _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
+                jpgfile.append(_jpgfile)
+                if not os.path.isfile(_jpgfile):
+                    print('File {} not found!'.format(_jpgfile))
+                    check = False
 
-            if verbose:
-                print('Writing {}'.format(montagefile))
-            subprocess.call(cmd.split())
+            if check:
+                # Add a bar and label
+                cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
+                if barlen:
+                    #pngfile = []
+                    #for ff, blen, blab, imtype in zip(jpgfile, (barlen, None, None),
+                    #                                  (barlabel, None, None),
+                    #                                  ('Image stack', 'Tractor model', 'Central galaxy')):
+                    #    pngfile.append(addbar(ff, blen, blab, imtype))
+                    #cmd = cmd+' '.join(ff for ff in pngfile)
+                    pngfile = [addbar(ff, barlen, barlabel, None) for ff in jpgfile]
+                    cmd = cmd+' '+pngfile[0]+' '
+                    cmd = cmd+' '.join(ff for ff in jpgfile[1:])
+                else:
+                    cmd = cmd+' '.join(ff for ff in jpgfile)
+                cmd = cmd+' {}'.format(montagefile)
 
-            # Create a smaller thumbnail image
-            cmd = 'convert -thumbnail 800x800 {} {}'.format(montagefile, thumbfile)
-            if verbose:
-                print('Writing {}'.format(thumbfile))
-            subprocess.call(cmd.split())
+                if verbose:
+                    print('Writing {}'.format(montagefile))
+                subprocess.call(cmd.split())
+
+                # Create a smaller thumbnail image
+                cmd = 'convert -thumbnail 800x800 {} {}'.format(montagefile, thumbfile)
+                if verbose:
+                    print('Writing {}'.format(thumbfile))
+                subprocess.call(cmd.split())
 
 def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """Visualize the maskbits image.
@@ -178,25 +174,26 @@ def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     """
     import fitsio
     import matplotlib.pyplot as plt
-    maskbitsfile = os.path.join(htmlgalaxydir, '{}-maskbits.png'.format(galaxy))
 
-    if not os.path.isfile(maskbitsfile) or clobber:
-        fitsfile = os.path.join(galaxydir, '{}-maskbits.fits.fz'.format(galaxy))
-        if not os.path.join(fitsfile):
-            print('File {} not found!'.format(fitsfile))
-        else:
-            img = fitsio.read(fitsfile)
-            fig, ax = plt.subplots(figsize=(3, 3))
-            ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
-            ax.get_xaxis().set_visible(False)
-            ax.get_yaxis().set_visible(False)
-            ax.axis('off')
-            ax.autoscale(False)
-            
-            if verbose:
-                print('Writing {}'.format(maskbitsfile))
-            fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
-            plt.close(fig)
+    for prefix in ('largegalaxy', 'pipeline', 'custom'):
+        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, prefix))
+        if not os.path.isfile(maskbitsfile) or clobber:
+            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, prefix))
+            if not os.path.isfile(fitsfile):
+                print('File {} not found!'.format(fitsfile))
+            else:
+                img = fitsio.read(fitsfile)
+                fig, ax = plt.subplots(figsize=(3, 3))
+                ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
+                ax.get_xaxis().set_visible(False)
+                ax.get_yaxis().set_visible(False)
+                ax.axis('off')
+                ax.autoscale(False)
+
+                if verbose:
+                    print('Writing {}'.format(maskbitsfile))
+                fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
+                plt.close(fig)
 
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                        barlen=None, barlabel=None, clobber=False, verbose=True):
@@ -322,11 +319,12 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         if not os.path.isfile(serexpfile) or clobber:
             display_sersic(serexp, png=serexpfile, verbose=verbose)
 
-def make_plots(sample, datadir=None, htmldir=None, get_galaxy_galaxydir=None, refband='r',
-               bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', survey=None,
+def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
+               bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', 
                nproc=1, barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                maketrends=False, ccdqa=False, clobber=False, verbose=True,
-               pipeline_montage=False, largegalaxy_montage=False):
+               #pipeline_montage=False, largegalaxy_montage=False,
+               get_galaxy_galaxydir=None):
     """Make QA plots.
 
     """
@@ -350,7 +348,7 @@ def make_plots(sample, datadir=None, htmldir=None, get_galaxy_galaxydir=None, re
         from astrometry.util.multiproc import multiproc
         mp = multiproc(nthreads=nproc)
 
-    from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
+    #from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
     barlen_kpc = 100
     if barlabel is None:
@@ -392,9 +390,8 @@ def make_plots(sample, datadir=None, htmldir=None, get_galaxy_galaxydir=None, re
 
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
-                          barlabel=barlabel, clobber=clobber, verbose=verbose,
-                          pipeline_montage=pipeline_montage,
-                          largegalaxy_montage=largegalaxy_montage)
+                          barlabel=barlabel, clobber=clobber, verbose=verbose)
+                          #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage)
 
         # Build the maskbits figure.
         qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)

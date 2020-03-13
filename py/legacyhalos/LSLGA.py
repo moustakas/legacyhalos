@@ -84,7 +84,7 @@ def new_missing_files(args, sample, size=1, indices_only=False):
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.htmlplots or args.htmlindex:
         suffix = 'html'
-        filesuffix = '-maskbits.png'
+        filesuffix = '-largegalaxy-maskbits.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
         print('Nothing to do.')
@@ -881,7 +881,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             tractorfile = os.path.join(galaxydir1, '{}-pipeline-tractor.fits'.format(galaxy1))
             if os.path.isfile(tractorfile):
                 ref_cat = fitsio.read(tractorfile, columns='ref_cat')
-                irows = np.where(['L' in refcat.decode('utf-8') for refcat in ref_cat])[0]
+                #print(ref_cat)
+                irows = np.where(['L' in refcat for refcat in ref_cat])[0]
                 if len(irows) > 0:
                     tractor = astropy.table.Table(fitsio.read(tractorfile, rows=irows))
                 else:
@@ -972,24 +973,27 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     html.write('</table>\n')
                     #html.write('<br />\n')
 
-                html.write('<p>(Left) data, (middle) model, and (right) residual image mosaic.</p>\n')
-                #html.write('<br />\n')
-
+                pngfile, thumbfile = '{}-largegalaxy-grz-montage.png'.format(galaxy1), 'thumb-{}-largegalaxy-grz-montage.png'.format(galaxy1)
+                html.write('<p>Large-galaxy preburn (Left) data, (middle) model, and (right) residual image mosaic.</p>\n')
                 html.write('<table width="90%">\n')
-                pngfile = '{}-grz-montage.png'.format(galaxy1)
-                thumbfile = 'thumb-{}-grz-montage.png'.format(galaxy1)
                 html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
                     pngfile, thumbfile))
-                #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
                 html.write('</table>\n')
+
+                pngfile, thumbfile = '{}-pipeline-grz-montage.png'.format(galaxy1), 'thumb-{}-pipeline-grz-montage.png'.format(galaxy1)
+                if os.path.isfile(os.path.join(htmlgalaxydir1, pngfile)):
+                    html.write('<p>Pipeline (Left) data, (middle) model, and (right) residual image mosaic.</p>\n')
+                    html.write('<table width="90%">\n')
+                    html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
+                        pngfile, thumbfile))
+                    html.write('</table>\n')
 
                 #html.write('<br />\n')
                 html.write('<p>Maskbits.</p>\n')
                 
+                pngfile = '{}-largegalaxy-maskbits.png'.format(galaxy1)
                 html.write('<table width="30%">\n')
-                pngfile = '{}-maskbits.png'.format(galaxy1)
-                html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
-                    pngfile))
+                html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(pngfile))
                 html.write('</table>\n')
 
                 #html.write('<br />\n')

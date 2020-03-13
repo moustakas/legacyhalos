@@ -781,13 +781,13 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False,
     return sbprofile
 
 def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
-                        sdss_pixscale=0.396, pipeline=False, nproc=1,
-                        refband='r', bands=('g','r','z'), sdss_bands=('g','r','i'),
-                        maxsma=None, integrmode='median', nclip=2, sclip=3, zcolumn='Z',
-                        galex_pixscale=1.5, unwise_pixscale=2.75,
-                        input_ellipse=None, fitgeometry=False, verbose=False,
-                        debug=False, sdss=False, galex=False, unwise=False,
-                        custom_tractor=True):
+                        sdss_pixscale=0.396, galex_pixscale=1.5, unwise_pixscale=2.75,
+                        nproc=1, refband='r', bands=('g','r','z'), sdss_bands=('g','r','i'),
+                        integrmode='median', nclip=2, sclip=3, zcolumn='Z',
+                        maxsma=None, input_ellipse=None, fitgeometry=False, verbose=False,
+                        debug=False, sdss=False, galex=False, unwise=False):
+                        #custom_tractor=True, pipeline=False,
+                        
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
     fitgeometry - fit for the ellipse parameters (do not use the mean values
@@ -810,7 +810,9 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          refband=refband, pixscale=pixscale,
                                          galex_pixscale=galex_pixscale,
                                          unwise_pixscale=unwise_pixscale,
-                                         verbose=verbose, custom_tractor=custom_tractor)
+                                         verbose=verbose)#, custom_tractor=custom_tractor)
+
+    pdb.set_trace()
     if bool(data):
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, redshift, data, 
                                           nproc=nproc, integrmode=integrmode,

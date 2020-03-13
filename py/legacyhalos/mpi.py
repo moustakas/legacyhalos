@@ -97,8 +97,9 @@ def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale=0.262,
                 _done(galaxy, err, t0, log=log)
                 
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
-                 debug=False, logfile=None, input_ellipse=False, zcolumn=None,
-                 sdss=False, sdss_pixscale=0.396, custom_tractor=True):
+                 debug=False, logfile=None, input_ellipse=None, zcolumn=None,
+                 sdss=False, sdss_pixscale=0.396,
+                 unwise=False, unwise_pixscale=2.75): #, custom_tractor=True):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -115,8 +116,8 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                                                       zcolumn=zcolumn, input_ellipse=input_ellipse,
                                                       verbose=verbose, debug=debug,
                                                       sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                      pipeline=True, unwise=False,
-                                                      custom_tractor=custom_tractor)
+                                                      unwise=unwise, unwise_pixscale=unwise_pixscale)
+                                                      #pipeline=True, custom_tractor=custom_tractor)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -127,8 +128,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                                                               zcolumn=zcolumn, input_ellipse=input_ellipse,
                                                               verbose=verbose, debug=debug,
                                                               sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                              pipeline=True, unwise=False,
-                                                              custom_tractor=custom_tractor)
+                                                              unwise=unwise, unwise_pixscale=unwise_pixscale)
                 _done(galaxy, err, t0, log=log)
 
 def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile):
@@ -174,38 +174,37 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                                                       debug=debug, verbose=verbose, force=force)
                 _done(galaxy, err, t0, log=log)
                 
-def call_htmlplots(onegal, galaxy, survey, pixscale, nproc, debug, clobber,
-                   verbose, ccdqa, logfile, zcolumn, htmldir, datadir=None,
-                   largegalaxy_montage=False, pipeline_montage=False,
-                   barlen=None, barlabel=None,
-                   radius_mosaic_arcsec=None, get_galaxy_galaxydir=None):
+def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
+                   verbose=False, debug=False, clobber=False, ccdqa=False,
+                   logfile=None, zcolumn='Z', datadir=None, htmldir=None, 
+                   #largegalaxy_montage=False, pipeline_montage=False,
+                   barlen=None, barlabel=None, radius_mosaic_arcsec=None,
+                   get_galaxy_galaxydir=None):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
     if debug:
         _start(galaxy)
-        err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir,
-                                          pixscale=pixscale, survey=survey, clobber=clobber,
-                                          verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                          ccdqa=ccdqa, maketrends=False, 
-                                          pipeline_montage=pipeline_montage,
-                                          largegalaxy_montage=largegalaxy_montage,
+        err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
+                                          pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
                                           barlen=barlen, barlabel=barlabel,
                                           radius_mosaic_arcsec=radius_mosaic_arcsec,
+                                          maketrends=False, ccdqa=ccdqa,
+                                          clobber=clobber, verbose=verbose, 
+                                          #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage,
                                           get_galaxy_galaxydir=get_galaxy_galaxydir)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir,
-                                                  pixscale=pixscale, survey=survey, clobber=clobber,
-                                                  verbose=verbose, nproc=nproc, zcolumn=zcolumn, 
-                                                  ccdqa=ccdqa, maketrends=False, 
-                                                  pipeline_montage=pipeline_montage,
-                                                  largegalaxy_montage=largegalaxy_montage,
+                err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
+                                                  pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
                                                   barlen=barlen, barlabel=barlabel,
                                                   radius_mosaic_arcsec=radius_mosaic_arcsec,
+                                                  maketrends=False, ccdqa=ccdqa,
+                                                  clobber=clobber, verbose=verbose, 
+                                                  #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage,
                                                   get_galaxy_galaxydir=get_galaxy_galaxydir)
                 _done(galaxy, err, t0, log=log)
 
