@@ -12,7 +12,7 @@ srun -n 128 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/lega
 salloc -N 24 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.7
 srun -n 192 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-003 2>&1 &
 
-salloc -N 64 -C haswell -A desi -L cfs,SCRATCH -t 00:10:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.7
+salloc -N 64 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.7
 srun -n 512 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
 
 """
@@ -144,7 +144,8 @@ def main():
                                         apodize=False, unwise=True, force=args.force, plots=False,
                                         verbose=args.verbose, cleanup=True, write_all_pickles=True,
                                         no_splinesky=False, just_coadds=args.just_coadds,
-                                        no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
+                                        no_gaia=False, no_tycho=False, require_grz=False,
+                                        debug=args.debug, logfile=logfile)
 
         if args.pipeline_coadds:
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:

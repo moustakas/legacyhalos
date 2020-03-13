@@ -212,7 +212,7 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
                             pixscale=0.262, racolumn='RA', deccolumn='DEC',
                             apodize=False, unwise=True, force=False, plots=False,
                             verbose=False, cleanup=True, write_all_pickles=False,
-                            no_splinesky=False, just_coadds=False,
+                            no_splinesky=False, just_coadds=False, require_grz=True, 
                             no_gaia=False, no_tycho=False,
                             debug=False, logfile=None):
     """Wrapper script to build the pipeline coadds for large galaxies.
@@ -231,7 +231,7 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
                                                     apodize=apodize, unwise=unwise, force=force, plots=plots,
                                                     verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
                                                     no_splinesky=no_splinesky, just_coadds=just_coadds,
-                                                    no_gaia=no_gaia, no_tycho=no_tycho)
+                                                    require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -243,7 +243,7 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
                                                             apodize=apodize, unwise=unwise, force=force, plots=plots,
                                                             verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
                                                             no_splinesky=no_splinesky, just_coadds=just_coadds,
-                                                            no_gaia=no_gaia, no_tycho=no_tycho,
+                                                            require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,
                                                             log=log)
                 _done(galaxy, err, t0, log=log)
 
