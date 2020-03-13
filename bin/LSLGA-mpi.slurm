@@ -6,7 +6,7 @@
 #SBATCH -o LSLGA.log-debug-%j
 #SBATCH --mail-user=jmoustakas@siena.edu
 #SBATCH --mail-type=ALL
-#SBATCH --image=docker:flagnarg/legacyhalos:v0.0.6
+#SBATCH --image=docker:flagnarg/legacyhalos:v0.0.7
 
 #SBATCH -p debug
 #SBATCH -N 64
