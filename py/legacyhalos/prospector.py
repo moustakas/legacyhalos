@@ -1,3 +1,4 @@
+"""
 cool.  The dynesty sampling provides a lot less control over run-time, so you
 may have to fiddle with the dynesty parameters.  key ones to look at are
 replacing nested_sample:’unif’ with ‘slice’ or ‘rwalk’, changing ‘post_thresh’
@@ -10,5 +11,4 @@ https://dynesty.readthedocs.io/en/latest/quickstart.html
 https://dynesty.readthedocs.io/en/latest/dynamic.html
 
 For your case, where the dimensionality is not high, you can get a good starting position from optimization, and the posteriors aren’t super weirdly shaped, emcee may actually be better.  But dynesty runs should give you a good sense of what the posterior *should* look like, so you can tell if you are taking enough samples in emcee and actually converged.
-
-    
+"""

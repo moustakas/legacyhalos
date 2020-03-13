@@ -5,19 +5,15 @@ RUN for x in \
     pydl \
     ; do pip --no-cache-dir install $x; done
 
-# Legacypipe
+# legacyhalos
+WORKDIR /src
 RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos \
     && cd legacyhalos && git describe
 
-ENV PYTHONPATH PYTHONPATH:/src/legacyhalos/py
-ENV PATH PATH:/src/legacyhalos/bin
-
-RUN python -O -m compileall /src/legacyhalos/py/legacyhalos && \
-    python -m compileall /src/legacyhalos/py/legacyhalos
+RUN echo 'PYTHONPATH=/src/legacyhalos/py:$PYTHONPATH'
+RUN echo 'PATH=/src/legacyhalos/bin:$PATH'
 
 # update legacyhalos
-RUN cd /usr/legacyhalos && git pull && git describe && echo 0 && \
-    python    -m compileall /src/legacyhalos/py/legacyhalos && \
-    python -O -m compileall /src/legacyhalos/py/legacyhalos
+RUN cd /src/legacyhalos && git pull && git describe && echo 1
 
 LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
