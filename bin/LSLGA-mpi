@@ -133,10 +133,6 @@ def main():
         survey = LegacySurveyData()
         survey.output_dir = galaxydir
 
-        #if not args.pipeline_coadds and not args.largegalaxy_coadds:
-        #    if not legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile):
-        #        continue
-        
         if args.largegalaxy_coadds:
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
                 call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic_arcsec, nproc=args.nproc,

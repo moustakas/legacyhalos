@@ -570,9 +570,9 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         masksuffix = None
         tractorprefix = 'largegalaxy-tractor'
         filt2imfile = {
-            'g': ['largegalaxy-image', 'largegalaxy-model', 'largegalaxy-invvar'],
-            'r': ['largegalaxy-image', 'largegalaxy-model', 'largegalaxy-invvar'],
-            'z': ['largegalaxy-image', 'largegalaxy-model', 'largegalaxy-invvar'] }
+            'g': ['largegalaxy-image', 'largegalaxy-model', 'largegalaxy-model', 'largegalaxy-invvar'],
+            'r': ['largegalaxy-image', 'largegalaxy-model', 'largegalaxy-model', 'largegalaxy-invvar'],
+            'z': ['largegalaxy-image', 'largegalaxy-model', 'largegalaxy-model', 'largegalaxy-invvar'] }
         filt2pixscale =  {'g': pixscale, 'r': pixscale, 'z': pixscale}
     else:
         masksuffix = 'custom-mask-grz'
@@ -665,7 +665,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             data['psfdepth_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.median(tractor[psfdepthcol][these]))).astype('f4') # [AB mag, 5-sigma]
             data['psfdepth_min_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.min(tractor[psfdepthcol]))).astype('f4')
             data['psfdepth_max_{}'.format(filt)] = 22.5-2.5*np.log10(1/np.sqrt(np.max(tractor[psfdepthcol]))).astype('f4')
-        
+
+        pdb.set_trace()
         resid = gaussian_filter(image - allmodel, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
         

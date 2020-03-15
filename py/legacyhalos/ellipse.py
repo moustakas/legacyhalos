@@ -427,8 +427,8 @@ def ellipsefit_multiband(galaxy, galaxydir, redshift, data, maxsma=None, nproc=1
         print('Finding the galaxy in the reference {}-band image.'.format(refband))
 
     ellipsefit = dict()
-    img = data['{}'.format(refband)]
-    #img = data['{}_masked'.format(refband)]
+    #img = data['{}'.format(refband)]
+    img = data['{}_masked'.format(refband)]
 
     galprops = find_galaxy(img, nblob=1, fraction=0.05, binning=3, quiet=not verbose, plot=True)
     galprops.pa = galprops.pa % 180 # put into range [0-180]
