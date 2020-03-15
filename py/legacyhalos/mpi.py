@@ -98,8 +98,8 @@ def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale=0.262,
                 
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
                  debug=False, logfile=None, input_ellipse=None, zcolumn=None,
-                 sdss=False, sdss_pixscale=0.396,
-                 unwise=False, unwise_pixscale=2.75): #, custom_tractor=True):
+                 sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
+                 largegalaxy=False, pipeline=True): #, custom_tractor=True):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -116,8 +116,8 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                                                       zcolumn=zcolumn, input_ellipse=input_ellipse,
                                                       verbose=verbose, debug=debug,
                                                       sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                      unwise=unwise, unwise_pixscale=unwise_pixscale)
-                                                      #pipeline=True, custom_tractor=custom_tractor)
+                                                      unwise=unwise, unwise_pixscale=unwise_pixscale,
+                                                      largegalaxy=largegalaxy, pipeline=pipeline)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -128,7 +128,8 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                                                               zcolumn=zcolumn, input_ellipse=input_ellipse,
                                                               verbose=verbose, debug=debug,
                                                               sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                              unwise=unwise, unwise_pixscale=unwise_pixscale)
+                                                              unwise=unwise, unwise_pixscale=unwise_pixscale,
+                                                              largegalaxy=largegalaxy, pipeline=pipeline)
                 _done(galaxy, err, t0, log=log)
 
 def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile):

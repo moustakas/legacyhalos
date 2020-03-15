@@ -5,7 +5,7 @@ legacyhalos.html
 Code to generate HTML content.
 
 """
-import os, subprocess, pdb
+import os, subprocess, shutil, pdb
 import numpy as np
 import astropy.table
 
@@ -19,6 +19,7 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     """Build CCD-level QA.
 
     """
+    from glob import glob
     from astrometry.util.fits import fits_table
     from legacyhalos.qa import display_ccdpos, _display_ccdmask_and_sky
     from astrometry.util.multiproc import multiproc
@@ -35,11 +36,11 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
 
-    ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
+    ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
     if os.path.isfile(ccdsfile):
         ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
         print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
-
+    
     okfiles = True
     for iccd in range(len(ccds)):
         qafile = '{}-ccd{:02d}.png'.format(qarootfile, iccd)
@@ -64,6 +65,7 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     radius in pixels
 
     """
+    from glob import glob
     from astrometry.util.fits import fits_table
     from legacyhalos.qa import display_ccdpos
 
@@ -71,14 +73,18 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
 
-    #ccdsfile = os.path.join(galaxydir, '{}-ccds.fits'.format(galaxy))
-    #if os.path.isfile(ccdsfile):
-    #    ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
-    #    print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+    for stage in ('largegalaxy', 'pipeline'):
+        ccdsfile = glob(os.path.join(galaxydir, '{}-{}-ccds-*.fits'.format(galaxy, stage))) # north, south
+        if len(ccdsfile) == 0:
+            print('Missing CCDs file for stage {}'.format(stage))
+            return
+        ccdsfile = ccdsfile[0]
+        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
 
-    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
-    if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, survey.ccds, radius=radius, png=ccdposfile, verbose=verbose)
+        ccdposfile = os.path.join(htmlgalaxydir, '{}-{}-ccdpos.png'.format(galaxy, stage))
+        if not os.path.isfile(ccdposfile) or clobber:
+            display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                       barlabel=None, clobber=False, verbose=True):#
@@ -359,7 +365,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
 
     # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
-
         galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(onegal, html=True)
         #if galaxylist is None:
         #    galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
@@ -369,7 +374,8 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         #    htmlgalaxydir = os.path.join(htmldir, galaxy)
             
         if not os.path.isdir(htmlgalaxydir):
-            os.makedirs(htmlgalaxydir, exist_ok=True)
+            os.makedirs(htmlgalaxydir, exist_ok=True, mode=0o775)
+            #shutil.chown(htmlgalaxydir, group='cosmo')
 
         if barlen is None:
             barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int') # [kpc]
@@ -503,6 +509,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     # Build the home (index.html) page--
     if not os.path.exists(htmldir):
         os.makedirs(htmldir)
+        #shutil.chown(htmldir, group='cosmo')
     homehtmlfile = os.path.join(htmldir, homehtml)
 
     if verbose:
@@ -593,7 +600,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose)
         
         if not os.path.exists(htmlgalaxydir1):
-            os.makedirs(htmlgalaxydir1)
+            os.makedirs(htmlgalaxydir1, mode=0o775)
+            #shutil.chown(htmlgalaxydir1, group='cosmo')
 
         ccdsfile = os.path.join(galaxydir1, '{}-ccds.fits'.format(galaxy1))
         if os.path.isfile(ccdsfile):

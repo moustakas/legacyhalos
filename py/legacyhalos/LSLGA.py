@@ -5,7 +5,7 @@ legacyhalos.LSLGA
 Code to deal with the LSLGA sample and project.
 
 """
-import os, time, pdb
+import os, time, shutil, pdb
 import numpy as np
 import astropy
 
@@ -35,7 +35,7 @@ def mpi_args():
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
 
-    parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
+    parser.add_argument('--htmlplots', action='store_true', help='Build the pipeline figures.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
@@ -67,28 +67,44 @@ def new_missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     else:
         return True
     
-def new_missing_files(args, sample, size=1, indices_only=False):
+def new_missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
     from astrometry.util.multiproc import multiproc
 
     if args.largegalaxy_coadds:
         suffix = 'largegalaxy-coadds'
-        filesuffix = '-largegalaxy-resid-grz.jpg'
+        if filesuffix is None:
+            filesuffix = '-largegalaxy-resid-grz.jpg'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.pipeline_coadds:
         suffix = 'pipeline-coadds'
-        filesuffix = '-pipeline-resid-grz.jpg'
+        if filesuffix is None:
+            filesuffix = '-pipeline-resid-grz.jpg'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.ellipse:
         suffix = 'ellipse'
-        filesuffix = '-ellipsefit.p'
+        if filesuffix is None:
+            filesuffix = '-ellipsefit.p'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
-    elif args.htmlplots or args.htmlindex:
+    elif args.htmlplots:
         suffix = 'html'
-        filesuffix = '-largegalaxy-maskbits.png'
+        if filesuffix is None:
+            filesuffix = '-largegalaxy-maskbits.png'
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+    elif args.htmlindex:
+        suffix = 'htmlindex'
+        if filesuffix is None:
+            filesuffix = '-largegalaxy-grz-montage.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
         print('Nothing to do.')
         return
+
+    # Always set clobber False for htmlindex because we're not making the png
+    # files, we're just looking for them.
+    if args.htmlindex:
+        clobber = False
+    else:
+        clobber = args.clobber
 
     if type(sample) is astropy.table.row.Row:
         ngal = 1
@@ -97,7 +113,7 @@ def new_missing_files(args, sample, size=1, indices_only=False):
     indices = np.arange(ngal)
 
     mp = multiproc(nthreads=args.nproc)
-    todo = mp.map(_new_missing_files_one, [(gal, gdir, filesuffix, args.clobber)
+    todo = mp.map(_new_missing_files_one, [(gal, gdir, filesuffix, clobber)
                                            for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))])
 
     if np.sum(todo) == 0:
@@ -195,6 +211,7 @@ def LSLGA_dir():
     ldir = os.path.abspath(os.getenv('LSLGA_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
+        #shutil.chown(ldir, group='cosmo')
     return ldir
 
 def LSLGA_data_dir():
@@ -204,6 +221,7 @@ def LSLGA_data_dir():
     ldir = os.path.abspath(os.getenv('LSLGA_DATA_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
+        #shutil.chown(ldir, group='cosmo')
     return ldir
 
 def LSLGA_html_dir():
@@ -212,7 +230,8 @@ def LSLGA_html_dir():
         raise EnvironmentError
     ldir = os.path.abspath(os.getenv('LSLGA_HTML_DIR'))
     if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
+        os.makedirs(ldir, exist_ok=True, mode=0o775)
+        #shutil.chown(ldir, group='cosmo')
     return ldir
 
 def get_raslice(ra):
@@ -642,7 +661,7 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=2
         out['RA'][fix] = out['LSLGA_RA'][fix]
         out['DEC'][fix] = out['LSLGA_DEC'][fix]
 
-    # For dr9e, freeze the parameters of *all* the pre-burned Tractor sources.
+    # For DR9, freeze the parameters of *all* the pre-burned Tractor sources.
     these = np.where(~out['FREEZE'] * out['PREBURNED'])[0]
     print('Freezing the parameters of *all* {} preburned sources.'.format(len(these)))
     out['FREEZE'][these] = True
@@ -673,6 +692,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     """Make the HTML pages.
 
     """
+    from glob import glob
     import subprocess
     import fitsio
 
@@ -705,7 +725,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     #rasorted = np.argsort(raslices)
     raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
     rasorted = np.argsort(raslices)
-
+    
     # Write the last-updated date to a webpage.
     js = legacyhalos.html._javastring()       
 
@@ -749,10 +769,12 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
     # Build the home (index.html) page--
     if not os.path.exists(htmldir):
-        os.makedirs(htmldir)
+        os.makedirs(htmldir, mode=0o775)
+        #shutil.chown(htmldir, group='cosmo')
     homehtmlfile = os.path.join(htmldir, homehtml)
 
-    with open(homehtmlfile, 'w') as html:
+    # https://stackoverflow.com/questions/36745577/how-do-you-create-in-python-a-file-with-permissions-other-users-can-write
+    with open(os.open(homehtmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
@@ -830,7 +852,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         # Build the trends (trends.html) page--
         if maketrends:
             trendshtmlfile = os.path.join(htmldir, trendshtml)
-            with open(trendshtmlfile, 'w') as html:
+            with open(os.open(trendshtmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
                 html.write('<html><body>\n')
                 html.write('<style type="text/css">\n')
                 html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
@@ -870,21 +892,23 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             #                                                  filesuffix='pipeline')
 
             if not os.path.exists(htmlgalaxydir1):
-                os.makedirs(htmlgalaxydir1)
+                os.makedirs(htmlgalaxydir1, mode=0o775)
+                #shutil.chown(htmlgalaxydir1, group='cosmo')
 
-            ccdsfile = os.path.join(galaxydir1, '{}-ccds.fits'.format(galaxy1))
-            if os.path.isfile(ccdsfile):
-                nccds = fitsio.FITS(ccdsfile)[1].get_nrows()
+            ccdsfile = glob(os.path.join(galaxydir1, '{}-largegalaxy-ccds-*.fits'.format(galaxy1))) # north or south
+            if len(ccdsfile) > 0:
+                nccds = fitsio.FITS(ccdsfile[0])[1].get_nrows()
             else:
                 nccds = None
 
-            tractorfile = os.path.join(galaxydir1, '{}-pipeline-tractor.fits'.format(galaxy1))
+            tractorfile = os.path.join(galaxydir1, '{}-largegalaxy-tractor.fits'.format(galaxy1))
             if os.path.isfile(tractorfile):
                 ref_cat = fitsio.read(tractorfile, columns='ref_cat')
                 #print(ref_cat)
                 irows = np.where(['L' in refcat for refcat in ref_cat])[0]
                 if len(irows) > 0:
-                    tractor = astropy.table.Table(fitsio.read(tractorfile, rows=irows))
+                    cols = ['type', 'sersic', 'shape_r', 'flux_g', 'flux_r', 'flux_z']
+                    tractor = astropy.table.Table(fitsio.read(tractorfile, rows=irows, columns=cols))
                 else:
                     tractor = None
             else:
@@ -894,7 +918,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
 
             htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
-            with open(htmlfile, 'w') as html:
+            with open(os.open(htmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
                 html.write('<html><body>\n')
                 html.write('<style type="text/css">\n')
                 html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black}\n')
@@ -1000,7 +1024,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('<p>Spatial distribution of CCDs.</p>\n')
 
                 html.write('<table width="90%">\n')
-                pngfile = '{}-ccdpos.png'.format(galaxy1)
+                pngfile = '{}-largegalaxy-ccdpos.png'.format(galaxy1)
                 html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
                     pngfile))
                 html.write('</table>\n')
@@ -1203,21 +1227,28 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                                           verbose=verbose, nproc=nproc, ccdqa=ccdqa, maketrends=maketrends,
                                           zcolumn=zcolumn)
 
-    cmd = 'chgrp -R cosmo {}'.format(htmldir)
-    print(cmd)
-    err1 = subprocess.call(cmd.split())
-
-    cmd = 'find {} -type d -exec chmod 775 {{}} +'.format(htmldir)
-    print(cmd)
-    err2 = subprocess.call(cmd.split())
-
-    cmd = 'find {} -type f -exec chmod 664 {{}} +'.format(htmldir)
-    print(cmd)
-    err3 = subprocess.call(cmd.split())
-
-    if err1 != 0 or err2 != 0 or err3 != 0:
-        print('Something went wrong updating permissions; please check the logfile.')
-        return 0
+    fix_permissions = True
+    if fix_permissions:
+        print('Fixing group permissions.')
+        for topdir, dirs, files in os.walk(htmldir):
+            [shutil.chown(os.path.join(topdir, dd), group='cosmo') for dd in dirs]
+            [shutil.chown(os.path.join(topdir, ff), group='cosmo') for ff in files]
+        
+        #cmd = 'chgrp -R cosmo {}'.format(htmldir)
+        #print(cmd)
+        #err1 = subprocess.call(cmd.split())
+        #
+        #cmd = 'find {} -type d -exec chmod 775 {{}} +'.format(htmldir)
+        #print(cmd)
+        #err2 = subprocess.call(cmd.split())
+        #
+        #cmd = 'find {} -type f -exec chmod 664 {{}} +'.format(htmldir)
+        #print(cmd)
+        #err3 = subprocess.call(cmd.split())
+        #
+        #if err1 != 0 or err2 != 0 or err3 != 0:
+        #    print('Something went wrong updating permissions; please check the logfile.')
+        #    return 0
     
     return 1
 

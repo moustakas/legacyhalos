@@ -539,17 +539,13 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, maskfactor=2.0, fill_value=0.0,
                    sdss=False, verbose=False,
-                   largegalaxy=False, pipeline=False): #custom_tractor=True):
+                   largegalaxy=False, pipeline=False):
     """Read the multi-band images, construct the residual image, and then create a
     masked array from the corresponding inverse variances image.  Finally,
     convert to surface brightness by dividing by the pixel area.
 
     This script needs to be refactored to pull out the unWISE + GALEX stuff (see
     ellipse.legacyhalos_ellipse).
-
-    custom_tractor - read the custom Tractor catalog, otherwise read the
-      pipeline one (which should only be done if doforced_phot=False when building
-      the custom coadds!)
 
     """
     from scipy.ndimage.filters import gaussian_filter
@@ -564,6 +560,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     if sdss:
         masksuffix = 'sdss-mask-gri'
         bands = ('g', 'r', 'i')
+        tractorprefix = None
         filt2imfile = {
             'g': ['sdss-image', 'sdss-model-nocentral', 'sdss-model'],
             'r': ['sdss-image', 'sdss-model-nocentral', 'sdss-model'],
@@ -571,8 +568,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         filt2pixscale =  {'g': sdss_pixscale, 'r': sdss_pixscale, 'i': sdss_pixscale}
     elif largegalaxy:
         masksuffix = None
-
-        
+        tractorprefix = 'largegalaxy-tractor'
+        filt2imfile = {
+            'g': ['largegalaxy-image', 'largegalaxy-model', 'largegalaxy-invvar'],
+            'r': ['largegalaxy-image', 'largegalaxy-model', 'largegalaxy-invvar'],
+            'z': ['largegalaxy-image', 'largegalaxy-model', 'largegalaxy-invvar'] }
+        filt2pixscale =  {'g': pixscale, 'r': pixscale, 'z': pixscale}
     else:
         masksuffix = 'custom-mask-grz'
         if pipeline:
@@ -608,6 +609,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         for ii, imtype in enumerate(filt2imfile[filt]):
             for suffix in ('.fz', ''):
                 imfile = os.path.join(galaxydir, '{}-{}-{}.fits{}'.format(galaxy, imtype, filt, suffix))
+                print(imfile)
                 if os.path.isfile(imfile):
                     filt2imfile[filt][ii] = imfile
                     break
@@ -615,17 +617,16 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                 print('File {} not found.'.format(imfile))
                 found_data = False
 
-    if custom_tractor:
-        tractorfile = os.path.join(galaxydir, '{}-custom-tractor.fits'.format(galaxy))
+    if tractorprefix is not None:
+        tractorfile = os.path.join(galaxydir, '{}-{}.fits'.format(galaxy, tractorprefix))
+        if os.path.isfile(tractorfile):
+            tractor = Table(fitsio.read(tractorfile, upper=True))
+            print('Read {} sources from {}'.format(len(tractor), tractorfile))
+        else:
+            print('Missing Tractor catalog {}'.format(tractorfile))
+            found_data = False
     else:
-        tractorfile = os.path.join(galaxydir, '{}-pipeline-tractor.fits'.format(galaxy))
-        
-    if os.path.isfile(tractorfile):
-        tractor = Table(fitsio.read(tractorfile, upper=True))
-        print('Read {} sources from {}'.format(len(tractor), tractorfile))
-    else:
-        print('Missing Tractor catalog {}'.format(tractorfile))
-        found_data = False
+        tractor = None
 
     data = dict()
     if not found_data:

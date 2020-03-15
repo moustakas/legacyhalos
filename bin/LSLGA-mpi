@@ -133,9 +133,9 @@ def main():
         survey = LegacySurveyData()
         survey.output_dir = galaxydir
 
-        if not args.pipeline_coadds and not args.largegalaxy_coadds:
-            if not legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile):
-                continue
+        #if not args.pipeline_coadds and not args.largegalaxy_coadds:
+        #    if not legacyhalos.io.check_and_read_ccds(galaxy, survey, debug=args.debug, logfile=logfile):
+        #        continue
         
         if args.largegalaxy_coadds:
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
@@ -161,7 +161,7 @@ def main():
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
                 call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                              nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                             logfile=logfile, zcolumn=ZCOLUMN)
+                             logfile=logfile, zcolumn=ZCOLUMN, largegalaxy=True, pipeline=False)
 
         if args.htmlplots:
             barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
