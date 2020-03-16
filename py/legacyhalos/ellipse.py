@@ -430,6 +430,7 @@ def ellipsefit_multiband(galaxy, galaxydir, redshift, data, maxsma=None, nproc=1
     #img = data['{}'.format(refband)]
     img = data['{}_masked'.format(refband)]
 
+    debug=True
     galprops = find_galaxy(img, nblob=1, fraction=0.05, binning=3, quiet=not verbose, plot=True)
     galprops.pa = galprops.pa % 180 # put into range [0-180]
     if debug:
