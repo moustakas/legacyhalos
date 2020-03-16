@@ -299,7 +299,7 @@ def integrate_isophot_one(img, sma, pa, eps, x0, y0, pixscalefactor,
 
             sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
                                    sclip=sclip, nclip=nclip)
-            sample.update()
+            sample.update(fixed_parameters=True)
             #print(filt, g.sma, sample.mean)
 
             # Create an Isophote instance with the sample.
@@ -392,7 +392,7 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
     return ellipsefit
 
 def ellipsefit_multiband(galaxy, galaxydir, redshift, data, maxsma=None, nproc=1,
-                         integrmode='median', nclip=2, sclip=3, 
+                         filesuffix='', integrmode='median', nclip=2, sclip=3, 
                          input_ellipse=None, nowrite=False,
                          verbose=False, fitgeometry=False, debug=False):
     """Ellipse-fit the multiband data.
@@ -430,12 +430,10 @@ def ellipsefit_multiband(galaxy, galaxydir, redshift, data, maxsma=None, nproc=1
     #img = data['{}'.format(refband)]
     img = data['{}_masked'.format(refband)]
 
-    debug=True
-    galprops = find_galaxy(img, nblob=1, fraction=0.05, binning=3, quiet=not verbose, plot=True)
+    galprops = find_galaxy(img, nblob=1, fraction=0.05, binning=3, quiet=not verbose, plot=debug)
     galprops.pa = galprops.pa % 180 # put into range [0-180]
     if debug:
         plt.savefig('debug.png')
-    pdb.set_trace()
         
     galprops.centershift = False
     if np.abs(galprops.xpeak-xcen) > 5:
@@ -675,7 +673,7 @@ def ellipsefit_multiband(galaxy, galaxydir, redshift, data, maxsma=None, nproc=1
     # Write out
     if not nowrite:
         legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
-                                        verbose=True)
+                                        verbose=True, filesuffix=filesuffix)
 
     pool.close()
     
@@ -804,19 +802,25 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
     redshift = onegal[zcolumn]
 
+    if largegalaxy:
+        filesuffix = 'largegalaxy'
+    else:
+        filesuffix = 'custom'
+
     # Do ellipse-fitting on the custom images.
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
                                          refband=refband, pixscale=pixscale,
                                          galex_pixscale=galex_pixscale,
                                          unwise_pixscale=unwise_pixscale,
                                          verbose=verbose,
-                                         largegalaxy=largegalaxy, pipeline=pipeline)
+                                         largegalaxy=largegalaxy)
     if bool(data):
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, redshift, data, 
                                           nproc=nproc, integrmode=integrmode,
                                           nclip=nclip, sclip=sclip, verbose=verbose,
                                           fitgeometry=fitgeometry,
-                                          input_ellipse=input_ellipse, debug=True)
+                                          input_ellipse=input_ellipse,
+                                          filesuffix=filesuffix)
     else:
         return 0
 

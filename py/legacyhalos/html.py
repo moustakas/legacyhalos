@@ -128,14 +128,14 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
         im.save(pngfile)
         return pngfile
 
-    for prefix in ('largegalaxy', 'pipeline', 'custom'):
-        montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, prefix))
-        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-grz-montage.png'.format(galaxy, prefix))
+    for filesuffix in ('largegalaxy', 'pipeline', 'custom'):
+        montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, filesuffix))
+        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
         if not os.path.isfile(montagefile) or clobber:
-            if prefix == 'custom':
-                coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-nocentral-grz'.format(prefix), '{}-image-central-grz'.format(prefix))
+            if filesuffix == 'custom':
+                coaddfiles = ('{}-image-grz'.format(filesuffix), '{}-model-nocentral-grz'.format(filesuffix), '{}-image-central-grz'.format(filesuffix))
             else:
-                coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-grz'.format(prefix), '{}-resid-grz'.format(prefix))
+                coaddfiles = ('{}-image-grz'.format(filesuffix), '{}-model-grz'.format(filesuffix), '{}-resid-grz'.format(filesuffix))
                 
             # Make sure all the files exist.
             check = True
@@ -181,10 +181,10 @@ def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
     import fitsio
     import matplotlib.pyplot as plt
 
-    for prefix in ('largegalaxy', 'pipeline', 'custom'):
-        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, prefix))
+    for filesuffix in ('largegalaxy', 'pipeline', 'custom'):
+        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
         if not os.path.isfile(maskbitsfile) or clobber:
-            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, prefix))
+            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
             if not os.path.isfile(fitsfile):
                 print('File {} not found!'.format(fitsfile))
             else:
@@ -210,39 +210,44 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth)
 
-    ellipsefit = read_ellipsefit(galaxy, galaxydir)
-    sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
-    sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
-    pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
+    for filesuffix in ('largegalaxy', 'custom'):
+        ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix)
 
-    if len(ellipsefit) > 0:
-        # Toss out bad fits.
-        indx = None
-        #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
-        #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
+        #sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
+        #sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
+        #pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
+        sky_ellipsefit, sdss_ellipsefit, pipeline_ellipsefit = {}, {}, {}
 
-        cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
-        if not os.path.isfile(cogfile) or clobber:
-            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
-                             png=cogfile, verbose=verbose)
+        if len(ellipsefit) > 0:
+            # Toss out bad fits.
+            indx = None
+            #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
+            #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
 
-        sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
-        if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
-                                      pipeline_ellipsefit=pipeline_ellipsefit,
-                                      png=sbprofilefile, verbose=verbose, minerr=0.0,
-                                      sdss_ellipsefit=sdss_ellipsefit)
+            cogfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-cog.png'.format(galaxy, filesuffix))
+            if not os.path.isfile(cogfile) or clobber:
+                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
+                                 png=cogfile, verbose=verbose)
 
-        multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
-        if not os.path.isfile(multibandfile) or clobber:
-            data = read_multiband(galaxy, galaxydir, bands=bands)
-            display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
-                              barlabel=barlabel, png=multibandfile, verbose=verbose)
+            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix))
+            if not os.path.isfile(sbprofilefile) or clobber:
+                display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
+                                          pipeline_ellipsefit=pipeline_ellipsefit,
+                                          png=sbprofilefile, verbose=verbose, minerr=0.0,
+                                          sdss_ellipsefit=sdss_ellipsefit)
 
-        ellipsefitfile = os.path.join(htmlgalaxydir, '{}-ellipse-ellipsefit.png'.format(galaxy))
-        if not os.path.isfile(ellipsefitfile) or clobber:
-            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
-        
+            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix))
+            if not os.path.isfile(multibandfile) or clobber:
+                data = read_multiband(galaxy, galaxydir, bands=bands,
+                                      largegalaxy=filesuffix=='largegalaxy')
+                
+                display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
+                                  barlabel=barlabel, png=multibandfile, verbose=verbose)
+
+            ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
+            if not os.path.isfile(ellipsefitfile) or clobber:
+                display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
+
 def qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', bands=('g', 'r', 'z'),
                    pixscale=0.262, clobber=False, verbose=True):
     """Generate QAplots from the MGE fitting.

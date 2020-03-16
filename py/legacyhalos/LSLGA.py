@@ -885,9 +885,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             #    redshift=gal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
             #radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
             #
-            #ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose)
-            ##if 'psfdepth_g' not in ellipse.keys():
-            ##    pdb.set_trace()
+            ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose, filesuffix='largegalaxy')
+            pipeline_ellipse = {}
             #pipeline_ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose,
             #                                                  filesuffix='pipeline')
 
@@ -979,23 +978,23 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                             22.5-2.5*np.log10(tt['flux_z'])))
                     html.write('</table>\n')
 
+                html.write('<table>\n')
                 if False:
-                    html.write('<table>\n')
                     html.write('<tr><th colspan="3">Mosaic radius</th><th colspan="3">Point-source depth<br />(5-sigma, mag)</th><th colspan="3">Image quality<br />(FWHM, arcsec)</th></tr>\n')
                     html.write('<tr><th>kpc</th><th>arcsec</th><th>grz pixels</th><th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th></tr>\n')
                     html.write('<tr><td>{:.0f}</td><td>{:.3f}</td><td>{:.1f}</td>'.format(
                         radius_mosaic_kpc, radius_mosaic_arcsec, radius_mosaic_pixels))
-                    if bool(ellipse):
-                        html.write('<td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td>'.format(
-                            ellipse['psfdepth_g'], ellipse['psfdepth_min_g'], ellipse['psfdepth_max_g'],
-                            ellipse['psfdepth_r'], ellipse['psfdepth_min_r'], ellipse['psfdepth_max_r'],
-                            ellipse['psfdepth_z'], ellipse['psfdepth_min_z'], ellipse['psfdepth_max_z']))
-                        html.write('<td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td></tr>\n'.format(
-                            ellipse['psfsize_g'], ellipse['psfsize_min_g'], ellipse['psfsize_max_g'],
-                            ellipse['psfsize_r'], ellipse['psfsize_min_r'], ellipse['psfsize_max_r'],
-                            ellipse['psfsize_z'], ellipse['psfsize_min_z'], ellipse['psfsize_max_z']))
-                    html.write('</table>\n')
-                    #html.write('<br />\n')
+                if bool(ellipse):
+                    html.write('<td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td>'.format(
+                        ellipse['psfdepth_g'], ellipse['psfdepth_min_g'], ellipse['psfdepth_max_g'],
+                        ellipse['psfdepth_r'], ellipse['psfdepth_min_r'], ellipse['psfdepth_max_r'],
+                        ellipse['psfdepth_z'], ellipse['psfdepth_min_z'], ellipse['psfdepth_max_z']))
+                    html.write('<td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td></tr>\n'.format(
+                        ellipse['psfsize_g'], ellipse['psfsize_min_g'], ellipse['psfsize_max_g'],
+                        ellipse['psfsize_r'], ellipse['psfsize_min_r'], ellipse['psfsize_max_r'],
+                        ellipse['psfsize_z'], ellipse['psfsize_min_z'], ellipse['psfsize_max_z']))
+                html.write('</table>\n')
+                #html.write('<br />\n')
 
                 pngfile, thumbfile = '{}-largegalaxy-grz-montage.png'.format(galaxy1), 'thumb-{}-largegalaxy-grz-montage.png'.format(galaxy1)
                 html.write('<p>Large-galaxy preburn (Left) data, (middle) model, and (right) residual image mosaic.</p>\n')
@@ -1030,57 +1029,54 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('</table>\n')
                 #html.write('<br />\n')
 
-                if False:
-                    html.write('<h2>Elliptical Isophote Analysis</h2>\n')
-                    if bool(ellipse):
-                        html.write('<table>\n')
-                        html.write('<tr><th colspan="5">Mean Geometry</th>')
+                html.write('<h2>Elliptical Isophote Analysis</h2>\n')
+                if bool(ellipse):
+                    html.write('<table>\n')
+                    html.write('<tr><th colspan="5">Mean Geometry</th>')
 
-                        html.write('<th colspan="4">Ellipse-fitted Geometry</th>')
-                        if ellipse['input_ellipse']:
-                            html.write('<th colspan="2">Input Geometry</th></tr>\n')
-                        else:
-                            html.write('</tr>\n')
-
-                        html.write('<tr><th>Integer center<br />(x,y, grz pixels)</th><th>Flux-weighted center<br />(x,y grz pixels)</th><th>Flux-weighted size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>')
-                        html.write('<th>Semi-major axis<br />(fitting range, arcsec)</th><th>Center<br />(x,y grz pixels)</th><th>PA<br />(deg)</th><th>e</th>')
-                        if ellipse['input_ellipse']:
-                            html.write('<th>PA<br />(deg)</th><th>e</th></tr>\n')
-                        else:
-                            html.write('</tr>\n')
-
-                        html.write('<tr><td>({:.0f}, {:.0f})</td><td>({:.3f}, {:.3f})</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
-                            ellipse['x0'], ellipse['y0'], ellipse['mge_xmed'], ellipse['mge_ymed'], ellipse['mge_majoraxis']*pixscale,
-                            ellipse['mge_pa'], ellipse['mge_eps']))
-
-                        if 'init_smamin' in ellipse.keys():
-                            html.write('<td>{:.3f}-{:.3f}</td><td>({:.3f}, {:.3f})<br />+/-({:.3f}, {:.3f})</td><td>{:.1f}+/-{:.1f}</td><td>{:.3f}+/-{:.3f}</td>'.format(
-                                ellipse['init_smamin']*pixscale, ellipse['init_smamax']*pixscale, ellipse['x0_median'],
-                                ellipse['y0_median'], ellipse['x0_err'], ellipse['y0_err'], ellipse['pa'], ellipse['pa_err'],
-                                ellipse['eps'], ellipse['eps_err']))
-                        else:
-                            html.write('<td>...</td><td>...</td><td>...</td><td>...</td>')
-                        if ellipse['input_ellipse']:
-                            html.write('<td>{:.1f}</td><td>{:.3f}</td></tr>\n'.format(
-                                np.degrees(ellipse['geometry'].pa)+90, ellipse['geometry'].eps))
-                        else:
-                            html.write('</tr>\n')
-                        html.write('</table>\n')
-                        html.write('<br />\n')
-
-                        html.write('<table>\n')
-                        html.write('<tr><th>Fitting range<br />(arcsec)</th><th>Integration<br />mode</th><th>Clipping<br />iterations</th><th>Clipping<br />sigma</th></tr>')
-                        html.write('<tr><td>{:.3f}-{:.3f}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
-                            ellipse[refband]['sma'].min()*pixscale, ellipse[refband]['sma'].max()*pixscale,
-                            ellipse['integrmode'], ellipse['nclip'], ellipse['sclip']))
-                        html.write('</table>\n')
-                        html.write('<br />\n')
+                    html.write('<th colspan="4">Ellipse-fitted Geometry</th>')
+                    if ellipse['input_ellipse']:
+                        html.write('<th colspan="2">Input Geometry</th></tr>\n')
                     else:
-                        html.write('<p>Ellipse-fitting not done or failed.</p>\n')
+                        html.write('</tr>\n')
+
+                    html.write('<tr><th>Integer center<br />(x,y, grz pixels)</th><th>Flux-weighted center<br />(x,y grz pixels)</th><th>Flux-weighted size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>')
+                    html.write('<th>Semi-major axis<br />(fitting range, arcsec)</th><th>Center<br />(x,y grz pixels)</th><th>PA<br />(deg)</th><th>e</th>')
+                    if ellipse['input_ellipse']:
+                        html.write('<th>PA<br />(deg)</th><th>e</th></tr>\n')
+                    else:
+                        html.write('</tr>\n')
+
+                    html.write('<tr><td>({:.0f}, {:.0f})</td><td>({:.3f}, {:.3f})</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
+                        ellipse['x0'], ellipse['y0'], ellipse['mge_xmed'], ellipse['mge_ymed'], ellipse['mge_majoraxis']*pixscale,
+                        ellipse['mge_pa'], ellipse['mge_eps']))
+
+                    if 'init_smamin' in ellipse.keys():
+                        html.write('<td>{:.3f}-{:.3f}</td><td>({:.3f}, {:.3f})<br />+/-({:.3f}, {:.3f})</td><td>{:.1f}+/-{:.1f}</td><td>{:.3f}+/-{:.3f}</td>'.format(
+                            ellipse['init_smamin']*pixscale, ellipse['init_smamax']*pixscale, ellipse['x0_median'],
+                            ellipse['y0_median'], ellipse['x0_err'], ellipse['y0_err'], ellipse['pa'], ellipse['pa_err'],
+                            ellipse['eps'], ellipse['eps_err']))
+                    else:
+                        html.write('<td>...</td><td>...</td><td>...</td><td>...</td>')
+                    if ellipse['input_ellipse']:
+                        html.write('<td>{:.1f}</td><td>{:.3f}</td></tr>\n'.format(
+                            np.degrees(ellipse['geometry'].pa)+90, ellipse['geometry'].eps))
+                    else:
+                        html.write('</tr>\n')
+                    html.write('</table>\n')
+                    html.write('<br />\n')
+
+                    html.write('<table>\n')
+                    html.write('<tr><th>Fitting range<br />(arcsec)</th><th>Integration<br />mode</th><th>Clipping<br />iterations</th><th>Clipping<br />sigma</th></tr>')
+                    html.write('<tr><td>{:.3f}-{:.3f}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
+                        ellipse[refband]['sma'].min()*pixscale, ellipse[refband]['sma'].max()*pixscale,
+                        ellipse['integrmode'], ellipse['nclip'], ellipse['sclip']))
+                    html.write('</table>\n')
+                    html.write('<br />\n')
 
                     html.write('<table width="90%">\n')
                     html.write('<tr>\n')
-                    html.write('<td><a href="{}-ellipse-multiband.png"><img src="{}-ellipse-multiband.png" alt="Missing file {}-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                    html.write('<td><a href="{}-largegalaxy-ellipse-multiband.png"><img src="{}-largegalaxy-ellipse-multiband.png" alt="Missing file {}-largegalaxy-ellipse-multiband.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
                     html.write('</tr>\n')
                     html.write('</table>\n')
                     html.write('<br />\n')
@@ -1088,17 +1084,19 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     html.write('<table width="90%">\n')
                     html.write('<tr>\n')
                     #html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" alt="Missing file {}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                    pngfile = '{}-ellipse-sbprofile.png'.format(galaxy1)
+                    pngfile = '{}-largegalaxy-ellipse-sbprofile.png'.format(galaxy1)
                     html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-                    pngfile = '{}-ellipse-cog.png'.format(galaxy1)
+                    pngfile = '{}-largegalaxy-ellipse-cog.png'.format(galaxy1)
                     html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
                     #html.write('<td></td>\n')
                     html.write('</tr>\n')
                     html.write('</table>\n')
                     html.write('<br />\n')
+                else:
+                    html.write('<p>Ellipse-fitting not done or failed.</p>\n')
 
-                    html.write('<h2>Observed & rest-frame photometry</h2>\n')
-
+                html.write('<h2>Observed & rest-frame photometry</h2>\n')
+                if bool(ellipse):
                     html.write('<h4>Integrated photometry</h4>\n')
                     html.write('<table>\n')
                     html.write('<tr>')
@@ -1128,21 +1126,21 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     html.write('</table>\n')
                     html.write('<br />\n')
 
-                    html.write('<h4>Aperture photometry</h4>\n')
-                    html.write('<table>\n')
-                    html.write('<tr>')
-                    html.write('<th colspan="3"><10 kpc (mag)</th>')
-                    html.write('<th colspan="3"><30 kpc (mag)</th>')
-                    html.write('<th colspan="3"><100 kpc (mag)</th>')
-                    html.write('</tr>')
-
-                    html.write('<tr>')
-                    html.write('<th>g</th><th>r</th><th>z</th>')
-                    html.write('<th>g</th><th>r</th><th>z</th>')
-                    html.write('<th>g</th><th>r</th><th>z</th>')
-                    html.write('</tr>')
-
                     if intflux:
+                        html.write('<h4>Aperture photometry</h4>\n')
+                        html.write('<table>\n')
+                        html.write('<tr>')
+                        html.write('<th colspan="3"><10 kpc (mag)</th>')
+                        html.write('<th colspan="3"><30 kpc (mag)</th>')
+                        html.write('<th colspan="3"><100 kpc (mag)</th>')
+                        html.write('</tr>')
+
+                        html.write('<tr>')
+                        html.write('<th>g</th><th>r</th><th>z</th>')
+                        html.write('<th>g</th><th>r</th><th>z</th>')
+                        html.write('<th>g</th><th>r</th><th>z</th>')
+                        html.write('</tr>')
+
                         html.write('<tr>')
                         g, r, z = _get_mags(intflux[ii], rad='10')
                         html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
@@ -1155,40 +1153,40 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     html.write('</table>\n')
                     html.write('<br />\n')
 
-                    if False:
-                        html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
-                        html.write('<table width="90%">\n')
+                if False:
+                    html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
+                    html.write('<table width="90%">\n')
 
-                        # single-sersic
-                        html.write('<tr>\n')
-                        html.write('<th>Single Sersic (No Wavelength Dependence)</th><th>Single Sersic</th>\n')
-                        html.write('</tr>\n')
-                        html.write('<tr>\n')
-                        html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                        html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                        html.write('</tr>\n')
+                    # single-sersic
+                    html.write('<tr>\n')
+                    html.write('<th>Single Sersic (No Wavelength Dependence)</th><th>Single Sersic</th>\n')
+                    html.write('</tr>\n')
+                    html.write('<tr>\n')
+                    html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                    html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                    html.write('</tr>\n')
 
-                        # Sersic+exponential
-                        html.write('<tr>\n')
-                        html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
-                        html.write('</tr>\n')
-                        html.write('<tr>\n')
-                        html.write('<td><a href="{}-sersic-exponential-nowavepower.png"><img src="{}-sersic-exponential-nowavepower.png" alt="Missing file {}-sersic-exponential-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                        html.write('<td><a href="{}-sersic-exponential.png"><img src="{}-sersic-exponential.png" alt="Missing file {}-sersic-exponential.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                        html.write('</tr>\n')
+                    # Sersic+exponential
+                    html.write('<tr>\n')
+                    html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
+                    html.write('</tr>\n')
+                    html.write('<tr>\n')
+                    html.write('<td><a href="{}-sersic-exponential-nowavepower.png"><img src="{}-sersic-exponential-nowavepower.png" alt="Missing file {}-sersic-exponential-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                    html.write('<td><a href="{}-sersic-exponential.png"><img src="{}-sersic-exponential.png" alt="Missing file {}-sersic-exponential.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                    html.write('</tr>\n')
 
-                        # double-sersic
-                        html.write('<tr>\n')
-                        html.write('<th>Double Sersic (No Wavelength Dependence)</th><th>Double Sersic</th>\n')
-                        html.write('</tr>\n')
-                        html.write('<tr>\n')
-                        html.write('<td><a href="{}-sersic-double-nowavepower.png"><img src="{}-sersic-double-nowavepower.png" alt="Missing file {}-sersic-double-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                        html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                        html.write('</tr>\n')
+                    # double-sersic
+                    html.write('<tr>\n')
+                    html.write('<th>Double Sersic (No Wavelength Dependence)</th><th>Double Sersic</th>\n')
+                    html.write('</tr>\n')
+                    html.write('<tr>\n')
+                    html.write('<td><a href="{}-sersic-double-nowavepower.png"><img src="{}-sersic-double-nowavepower.png" alt="Missing file {}-sersic-double-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                    html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+                    html.write('</tr>\n')
 
-                        html.write('</table>\n')
+                    html.write('</table>\n')
 
-                        html.write('<br />\n')
+                    html.write('<br />\n')
 
                     if nccds and ccdqa:
                         html.write('<h2>CCD Diagnostics</h2>\n')
