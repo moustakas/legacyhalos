@@ -640,7 +640,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                         this = np.argmin(np.abs(ellipsefit[filt]['sma']-sma))
                         ax1.add_patch(mpatches.Ellipse((x0, y0), 2*ellipsefit[filt]['sma'][this],
                                                        2*ellipsefit[filt]['sma'][this]*(1-eps),
-                                                       pa-90, color='k', lw=1, alpha=0.9, fill=False))#, label='Fitted isophote')
+                                                       pa, color='k', lw=1, alpha=0.9, fill=False))#, label='Fitted isophote')
 
                     # Visualize the mean geometry
                     maxis = ellipsefit['mge_majoraxis']
@@ -651,7 +651,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                     
                     # Visualize the fitted geometry
                     maxis = ellipsefit['mge_majoraxis'] * 1.2
-                    ellaper = EllipticalAperture((x0, y0), maxis, maxis*(1 - eps), np.radians(pa-90))
+                    ellaper = EllipticalAperture((x0, y0), maxis, maxis*(1 - eps), np.radians(pa))
                     ellaper.plot(color='k', lw=2, ax=ax1, alpha=1.0, label='Fitted geometry')
 
                     # Visualize the input geometry

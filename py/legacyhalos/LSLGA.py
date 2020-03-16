@@ -1118,16 +1118,15 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 if tractor is not None:
                     html.write('<h4>Tractor</h2>\n')
                     html.write('<table>\n')
-                    html.write('<tr><th>Type</th><th>n</th><th>r50<br />(arcsec)</th><th>g</th><th>r</th><th>z</th><th>PA<br />(deg)</th><th>e</th></tr>\n')
+                    html.write('<tr><th>LSLGA ID</th><th>Type</th><th>n</th><th>r50<br />(arcsec)</th><th>g</th><th>r</th><th>z</th><th>PA<br />(deg)</th><th>e</th></tr>\n')
                     for tt in tractor:
                         ee = np.hypot(tt['shape_e1'], tt['shape_e2'])
                         ba = (1 - ee) / (1 + ee)
-                        pa = 180 - (-np.rad2deg(np.arctan2(tt['shape_e1'], tt['shape_e2']) / 2))
+                        pa = 180 - (-np.rad2deg(np.arctan2(tt['shape_e2'], tt['shape_e1']) / 2))
                         
-                        html.write('<tr><td>{}</td><td>{:.2f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td></tr>\n'.format(
-                            tt['type'], tt['sersic'], tt['shape_r'], 22.5-2.5*np.log10(tt['flux_g']), 22.5-2.5*np.log10(tt['flux_r']),
+                        html.write('<tr><td>{}</td><td>{}</td><td>{:.2f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td></tr>\n'.format(
+                            tt['ref_id'], tt['type'], tt['sersic'], tt['shape_r'], 22.5-2.5*np.log10(tt['flux_g']), 22.5-2.5*np.log10(tt['flux_r']),
                             22.5-2.5*np.log10(tt['flux_z']), pa, 1-ba))
-                            
                     html.write('</table>\n')
 
                 if bool(ellipse):
