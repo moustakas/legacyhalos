@@ -427,12 +427,14 @@ def ellipsefit_multiband(galaxy, galaxydir, redshift, data, maxsma=None, nproc=1
         print('Finding the galaxy in the reference {}-band image.'.format(refband))
 
     ellipsefit = dict()
+    #img = data['{}'.format(refband)]
     img = data['{}_masked'.format(refband)]
 
-    galprops = find_galaxy(img, nblob=1, fraction=0.05, binning=3, quiet=not verbose)#, plot=True)
+    galprops = find_galaxy(img, nblob=1, fraction=0.05, binning=3, quiet=not verbose, plot=True)
     galprops.pa = galprops.pa % 180 # put into range [0-180]
     if debug:
         plt.savefig('debug.png')
+    pdb.set_trace()
         
     galprops.centershift = False
     if np.abs(galprops.xpeak-xcen) > 5:
@@ -787,7 +789,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         largegalaxy=False, pipeline=False, 
                         maxsma=None, input_ellipse=None, fitgeometry=False, verbose=False,
                         debug=False, sdss=False, galex=False, unwise=False):
-                        #custom_tractor=True
                         
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
@@ -795,10 +796,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
       from MGE).
 
     pipeline - read the pipeline-built images (default is custom)
-
-    custom_tractor - read the custom Tractor catalog, otherwise read the
-      pipeline one (which should only be done if doforced_phot=False when
-      building the custom coadds!)
 
     """
     if galaxydir is None or galaxy is None:
@@ -813,14 +810,12 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          unwise_pixscale=unwise_pixscale,
                                          verbose=verbose,
                                          largegalaxy=largegalaxy, pipeline=pipeline)
-                                         #, custom_tractor=custom_tractor)
-
     if bool(data):
         ellipsefit = ellipsefit_multiband(galaxy, galaxydir, redshift, data, 
                                           nproc=nproc, integrmode=integrmode,
                                           nclip=nclip, sclip=sclip, verbose=verbose,
                                           fitgeometry=fitgeometry,
-                                          input_ellipse=input_ellipse)
+                                          input_ellipse=input_ellipse, debug=True)
     else:
         return 0
 
@@ -828,8 +823,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         print('Forced ellipse-fitting on the pipeline images.')
         pipeline_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
                                                       refband=refband, pixscale=pixscale,
-                                                      pipeline=True, verbose=verbose,
-                                                      custom_tractor=custom_tractor)
+                                                      pipeline=True, verbose=verbose)
         if bool(pipeline_data):
             pipeline_ellipsefit = forced_ellipsefit_multiband(galaxy, galaxydir, pipeline_data,
                                                               nproc=nproc, filesuffix='pipeline',

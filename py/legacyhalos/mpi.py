@@ -98,8 +98,8 @@ def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale=0.262,
                 
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
                  debug=False, logfile=None, input_ellipse=None, zcolumn=None,
-                 sdss=False, sdss_pixscale=0.396,
-                 unwise=False, unwise_pixscale=2.75): #, custom_tractor=True):
+                 sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
+                 largegalaxy=False, pipeline=True): #, custom_tractor=True):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -116,8 +116,8 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                                                       zcolumn=zcolumn, input_ellipse=input_ellipse,
                                                       verbose=verbose, debug=debug,
                                                       sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                      unwise=unwise, unwise_pixscale=unwise_pixscale)
-                                                      #pipeline=True, custom_tractor=custom_tractor)
+                                                      unwise=unwise, unwise_pixscale=unwise_pixscale,
+                                                      largegalaxy=largegalaxy, pipeline=pipeline)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -128,7 +128,8 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                                                               zcolumn=zcolumn, input_ellipse=input_ellipse,
                                                               verbose=verbose, debug=debug,
                                                               sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                              unwise=unwise, unwise_pixscale=unwise_pixscale)
+                                                              unwise=unwise, unwise_pixscale=unwise_pixscale,
+                                                              largegalaxy=largegalaxy, pipeline=pipeline)
                 _done(galaxy, err, t0, log=log)
 
 def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile):
@@ -212,7 +213,7 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
                             pixscale=0.262, racolumn='RA', deccolumn='DEC',
                             apodize=False, unwise=True, force=False, plots=False,
                             verbose=False, cleanup=True, write_all_pickles=False,
-                            no_splinesky=False, just_coadds=False,
+                            no_splinesky=False, just_coadds=False, require_grz=True, 
                             no_gaia=False, no_tycho=False,
                             debug=False, logfile=None):
     """Wrapper script to build the pipeline coadds for large galaxies.
@@ -231,7 +232,7 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
                                                     apodize=apodize, unwise=unwise, force=force, plots=plots,
                                                     verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
                                                     no_splinesky=no_splinesky, just_coadds=just_coadds,
-                                                    no_gaia=no_gaia, no_tycho=no_tycho)
+                                                    require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
         _done(galaxy, err, t0)
     else:
         with open(logfile, 'a') as log:
@@ -243,7 +244,7 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
                                                             apodize=apodize, unwise=unwise, force=force, plots=plots,
                                                             verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
                                                             no_splinesky=no_splinesky, just_coadds=just_coadds,
-                                                            no_gaia=no_gaia, no_tycho=no_tycho,
+                                                            require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,
                                                             log=log)
                 _done(galaxy, err, t0, log=log)
 
