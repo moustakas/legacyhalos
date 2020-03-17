@@ -391,7 +391,7 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, filesuffix='',
 
     return ellipsefit
 
-def ellipsefit_multiband(galaxy, galaxydir, redshift, data, maxsma=None, nproc=1,
+def ellipsefit_multiband(galaxy, galaxydir, data, redshift=None, maxsma=None, nproc=1,
                          filesuffix='', integrmode='median', nclip=2, sclip=3, 
                          input_ellipse=None, nowrite=False,
                          verbose=False, fitgeometry=False, debug=False):
@@ -447,8 +447,10 @@ def ellipsefit_multiband(galaxy, galaxydir, redshift, data, maxsma=None, nproc=1
                 'xmed', 'ymed', 'xpeak', 'ypeak'):
         ellipsefit['mge_{}'.format(key)] = float(getattr(galprops, key))
 
+    if redshift:
+        ellipsefit['redshift'] = redshift
+
     ellipsefit['success'] = False
-    ellipsefit['redshift'] = redshift
     ellipsefit['bands'] = bands
     ellipsefit['refband'] = refband
     ellipsefit['refpixscale'] = refpixscale
@@ -784,7 +786,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False,
 def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         sdss_pixscale=0.396, galex_pixscale=1.5, unwise_pixscale=2.75,
                         nproc=1, refband='r', bands=('g','r','z'), sdss_bands=('g','r','i'),
-                        integrmode='median', nclip=2, sclip=3, zcolumn='Z',
+                        integrmode='median', nclip=2, sclip=3, zcolumn=None,
                         largegalaxy=False, pipeline=False, 
                         maxsma=None, input_ellipse=None, fitgeometry=False, verbose=False,
                         debug=False, sdss=False, galex=False, unwise=False):
@@ -800,7 +802,10 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     if galaxydir is None or galaxy is None:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
 
-    redshift = onegal[zcolumn]
+    if zcolumn is not None and zcolumn in onegal.columns:
+        redshift = onegal[zcolumn]
+    else:
+        redshift = None
 
     if largegalaxy:
         filesuffix = 'largegalaxy'
@@ -815,7 +820,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                          verbose=verbose,
                                          largegalaxy=largegalaxy)
     if bool(data):
-        ellipsefit = ellipsefit_multiband(galaxy, galaxydir, redshift, data, 
+        ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, redshift=redshift,
                                           nproc=nproc, integrmode=integrmode,
                                           nclip=nclip, sclip=sclip, verbose=verbose,
                                           fitgeometry=fitgeometry,

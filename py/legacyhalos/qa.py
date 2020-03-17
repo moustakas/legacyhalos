@@ -55,9 +55,14 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     colors = _sbprofile_colors()
     
     fig, ax = plt.subplots(figsize=(9, 7))
-    bands, refband, redshift = ellipsefit['bands'], ellipsefit['refband'], ellipsefit['redshift']
+    bands, refband = ellipsefit['bands'], ellipsefit['refband']
 
-    smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+    if 'redshift' in ellipsefit.keys():
+        redshift = ellipsefit['redshift']
+        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+    else:
+        smascale = None
+        
     #maxsma = ellipsefit['cog_sma_{}'.format(refband)].max()
     maxsma = 0
 
@@ -115,8 +120,9 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     #ax.margins(x=0)
     xlim = ax.get_xlim()
     ax_twin = ax.twiny()
-    ax_twin.set_xlim(xlim[0]*smascale, xlim[1]*smascale)
-    ax_twin.set_xlabel('Semi-major axis (kpc)')
+    if smascale:
+        ax_twin.set_xlim(xlim[0]*smascale, xlim[1]*smascale)
+        ax_twin.set_xlabel('Semi-major axis (kpc)')
     #ax_twin.margins(x=0)
 
     yfaint += 0.5
@@ -640,7 +646,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                         this = np.argmin(np.abs(ellipsefit[filt]['sma']-sma))
                         ax1.add_patch(mpatches.Ellipse((x0, y0), 2*ellipsefit[filt]['sma'][this],
                                                        2*ellipsefit[filt]['sma'][this]*(1-eps),
-                                                       pa, color='k', lw=1, alpha=0.9, fill=False))#, label='Fitted isophote')
+                                                       np.degrees(pa), color='k', lw=1, alpha=0.9, fill=False))#, label='Fitted isophote')
 
                     # Visualize the mean geometry
                     maxis = ellipsefit['mge_majoraxis']
@@ -651,7 +657,7 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
                     
                     # Visualize the fitted geometry
                     maxis = ellipsefit['mge_majoraxis'] * 1.2
-                    ellaper = EllipticalAperture((x0, y0), maxis, maxis*(1 - eps), np.radians(pa))
+                    ellaper = EllipticalAperture((x0, y0), maxis, maxis*(1 - eps), pa)
                     ellaper.plot(color='k', lw=2, ax=ax1, alpha=1.0, label='Fitted geometry')
 
                     # Visualize the input geometry

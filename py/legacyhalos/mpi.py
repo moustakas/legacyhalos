@@ -105,8 +105,9 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
     """
     import legacyhalos.ellipse
 
-    if zcolumn is None:
-        zcolumn = 'Z_LAMBDA'
+    # Do not force zcolumn here; it's not always wanted or needed in ellipse.
+    #if zcolumn is None:
+    #    zcolumn = 'Z_LAMBDA'
 
     t0 = time.time()
     if debug:

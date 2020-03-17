@@ -3,6 +3,12 @@
 
 time LSLGA-mpi --coadds --first 12308 --last 12308 --nproc 32 --debug --clobber # UGC01446
 
+salloc -N 1 -C haswell -A desi -L cfs,SCRATCH -t 01:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.7
+srun -n 32 -c 1 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
+
+salloc -N 4 -C haswell -A desi -L cfs,SCRATCH -t 02:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.7
+srun -n 32 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
+
 salloc -N 8 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:v0.0.7
 srun -n 64 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
 
@@ -159,7 +165,7 @@ def main():
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
                 call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                              nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                             logfile=logfile, zcolumn=ZCOLUMN, largegalaxy=True, pipeline=False)
+                             logfile=logfile, largegalaxy=True, pipeline=False) # zcolumn=ZCOLUMN, 
 
         if args.htmlplots:
             barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]

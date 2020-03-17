@@ -725,7 +725,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     #rasorted = np.argsort(raslices)
     raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
     rasorted = np.argsort(raslices)
-    
+
     # Write the last-updated date to a webpage.
     js = legacyhalos.html._javastring()       
 
@@ -774,7 +774,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     homehtmlfile = os.path.join(htmldir, homehtml)
 
     # https://stackoverflow.com/questions/36745577/how-do-you-create-in-python-a-file-with-permissions-other-users-can-write
-    with open(os.open(homehtmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
+    with open(homehtmlfile, 'w') as html:
+    #with open(os.open(homehtmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
@@ -852,7 +853,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         # Build the trends (trends.html) page--
         if maketrends:
             trendshtmlfile = os.path.join(htmldir, trendshtml)
-            with open(os.open(trendshtmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
+            with open(trendshtmlfile, 'w') as html:
+            #with open(os.open(trendshtmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
                 html.write('<html><body>\n')
                 html.write('<style type="text/css">\n')
                 html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
@@ -917,7 +919,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
 
             htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
-            with open(os.open(htmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
+            with open(htmlfile, 'w') as html:
+            #with open(os.open(htmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
                 html.write('<html><body>\n')
                 html.write('<style type="text/css">\n')
                 html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black}\n')
@@ -984,14 +987,20 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     these = np.where(gal['GROUP_ID'] == fullsample['GROUP_ID'])[0]
                     if len(these) > 0:
                         for groupgal in fullsample[these]:
+                            #if '031705' in gal['GALAXY']:
+                            #    print(groupgal['GALAXY'])
                             html.write('<tr>\n')
                             html.write('<td>{}</td>\n'.format(groupgal['LSLGA_ID']))
-                            html.write('<td>{}</td>\n'.format(gal['GALAXY']))
-                            html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
-                            html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
-                            html.write('<td>{:.2f}</td>\n'.format(gal['D25']))
-                            html.write('<td>{:.2f}</td>\n'.format(gal['PA']))
-                            html.write('<td>{:.3f}</td>\n'.format(1-gal['BA']))
+                            html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
+                            html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
+                            html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
+                            html.write('<td>{:.2f}</td>\n'.format(groupgal['D25']))
+                            if np.isnan(groupgal['PA']):
+                                pa = 0.0
+                            else:
+                                pa = groupgal['PA']
+                            html.write('<td>{:.2f}</td>\n'.format(pa))
+                            html.write('<td>{:.3f}</td>\n'.format(1-groupgal['BA']))
                             html.write('</tr>\n')
                     html.write('</table>\n')
 
@@ -1122,7 +1131,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     for tt in tractor:
                         ee = np.hypot(tt['shape_e1'], tt['shape_e2'])
                         ba = (1 - ee) / (1 + ee)
-                        pa = 180 - (-np.rad2deg(np.arctan2(tt['shape_e2'], tt['shape_e1']) / 2))
+                        pa = (180 - (-np.rad2deg(np.arctan2(tt['shape_e2'], tt['shape_e1']) / 2))) % 180
                         
                         html.write('<tr><td>{}</td><td>{}</td><td>{:.2f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td></tr>\n'.format(
                             tt['ref_id'], tt['type'], tt['sersic'], tt['shape_r'], 22.5-2.5*np.log10(tt['flux_g']), 22.5-2.5*np.log10(tt['flux_r']),
