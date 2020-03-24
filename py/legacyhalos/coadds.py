@@ -367,6 +367,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-tycho '
     if no_large_galaxies:
         cmd += '--no-large-galaxies '
+    if no_large_galaxies:
+        cmd += '--no-large-galaxies '
         
     if force:
         cmd += '--force-all '
@@ -628,8 +630,8 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                        nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC', 
                        log=None, apodize=False, unwise=True, force=False,
                        plots=False, verbose=False, cleanup=True,
-                       write_all_pickles=False, no_splinesky=False, just_coadds=False,
-                       require_grz=True, no_gaia=False, no_tycho=False):
+                       write_all_pickles=False, no_splinesky=False, customsky=False,
+                       just_coadds=False, require_grz=True, no_gaia=False, no_tycho=False):
     """Build a custom set of large-galaxy coadds
 
     radius_mosaic in arcsec
@@ -667,7 +669,8 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--survey-dir {survey_dir} --run {run} '
     cmd += '--largegalaxy-preburner --saddle-fraction 0.2 --saddle-min 4.0 '
     #cmd += '--nsigma 10 '
-    #cmd += '--write-stage tims '
+    if customsky:
+        cmd += '--largegalaxy-skysub '
     if write_all_pickles:
         cmd += '--write-stage tims --write-stage srcs '
     else:
