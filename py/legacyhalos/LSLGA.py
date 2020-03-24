@@ -30,6 +30,7 @@ def mpi_args():
 
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipeline coadds.')
     parser.add_argument('--largegalaxy-coadds', action='store_true', help='Build the large-galaxy coadds.')
+    parser.add_argument('--largegalaxy-customsky', action='store_true', help='Build the largest large-galaxy coadds with custom sky-subtraction.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
     #parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
 
@@ -230,7 +231,7 @@ def LSLGA_html_dir():
         raise EnvironmentError
     ldir = os.path.abspath(os.getenv('LSLGA_HTML_DIR'))
     if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True, mode=0o775)
+        os.makedirs(ldir, exist_ok=True)
         #shutil.chown(ldir, group='cosmo')
     return ldir
 
@@ -285,7 +286,7 @@ def LSLGA_version():
     return version
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False,
-                preselect_sample=True, d25min=0.5, d25max=5.0):
+                customsky=False, preselect_sample=True, d25min=0.5, d25max=5.0):
     """Read/generate the parent LSLGA catalog.
 
     d25min in arcmin
@@ -303,20 +304,32 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False,
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
+    # Select the galaxies requiring custom sky-subtraction.
+    if customsky:
+        customgals = ['NGC4236']
+        sample = fitsio.read(samplefile, columns=['GROUP_NAME'])
+        bigcut = np.where((sample['GROUP_DIAMETER'] > d25min) * (sample['GROUP_DIAMETER'] < d25max) *
+                          (sample['GROUP_PRIMARY'] == True) * (sample['IN_DESI']))[0]
+        this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
+        rows = np.hstack((rows, this))
+        rows = np.sort(rows)
+        
+
     # Choose the parent sample here.
     if preselect_sample:
         from legacyhalos.brick import brickname as get_brickname
 
-        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI_GRZ'])
+        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+        pdb.set_trace()
         bigcut = np.where((sample['GROUP_DIAMETER'] > d25min) * (sample['GROUP_DIAMETER'] < d25max) *
-                          (sample['GROUP_PRIMARY'] == 1) * (sample['IN_DESI_GRZ']))[0]
+                          (sample['GROUP_PRIMARY'] == True) * (sample['IN_DESI']))[0]
 
         brickname = get_brickname(sample['GROUP_RA'][bigcut], sample['GROUP_DEC'][bigcut])
-        #nbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_north.txt', dtype='str')
-        #sbricklist = np.loadtxt('/global/cscratch1/sd/desimpp/dr9e/image_lists/dr9e_bricks_south.txt', dtype='str')
-        nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr8-north.txt'), dtype='str')
-        sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr8-south.txt'), dtype='str')
-        if False:
+        #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-north.txt'), dtype='str')
+        #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-south.txt'), dtype='str')
+        nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9-north.txt'), dtype='str')
+        sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9-south.txt'), dtype='str')
+        if True:
             bricklist = np.union1d(nbricklist, sbricklist)
         else:
             bricklist = nbricklist
@@ -326,11 +339,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False,
 
         rows = np.arange(len(sample))
         rows = rows[bigcut][brickcut]
-        # Add in specific galaxies for testing:
-        if False:
-            this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
-            rows = np.hstack((rows, this))
-            rows = np.sort(rows)
         nrows = len(rows)
         print('Selecting {} galaxies in the DR9 footprint.'.format(nrows))
     else:
@@ -769,7 +777,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
     # Build the home (index.html) page--
     if not os.path.exists(htmldir):
-        os.makedirs(htmldir, mode=0o775)
+        os.makedirs(htmldir)
         #shutil.chown(htmldir, group='cosmo')
     homehtmlfile = os.path.join(htmldir, homehtml)
 
@@ -893,7 +901,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             #                                                  filesuffix='pipeline')
 
             if not os.path.exists(htmlgalaxydir1):
-                os.makedirs(htmlgalaxydir1, mode=0o775)
+                os.makedirs(htmlgalaxydir1)
                 #shutil.chown(htmlgalaxydir1, group='cosmo')
 
             ccdsfile = glob(os.path.join(galaxydir1, '{}-largegalaxy-ccds-*.fits'.format(galaxy1))) # north or south
