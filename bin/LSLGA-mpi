@@ -62,6 +62,7 @@ def main():
                                                d25min=args.d25min, d25max=args.d25max, 
                                                galaxylist=args.galaxylist,
                                                verbose=args.verbose,
+                                               customsky=args.largegalaxy_customsky,
                                                preselect_sample=True)
     else:
         sample = None

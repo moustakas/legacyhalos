@@ -27,10 +27,12 @@ export LSLGA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA
 #export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html
 #export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-dr9e
 #export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-dr9e
-export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9
-export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9
+#export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9
+#export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9
 #export LSLGA_DATA_DIR=/global/cscratch1/sd/ioannis/LSLGA-data-dr9e
 #export LSLGA_HTML_DIR=/global/projecta/projectdirs/desi/www/users/ioannis/legacysurveyLSLGA-html-dr9e
+export LSLGA_DATA_DIR=/global/projecta/projectdirs/desi/users/ioannis/legacysurveys/LSLGA-data-DR9
+export LSLGA_HTML_DIR=/global/projecta/projectdirs/desi/www/users/ioannis/legacysurveys/LSLGA-html-DR9
 
 export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
 #export LEGACY_SURVEY_DIR=/global/cscratch1/sd/desimpp/dr9e

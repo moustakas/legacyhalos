@@ -306,21 +306,21 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False,
 
     # Select the galaxies requiring custom sky-subtraction.
     if customsky:
-        customgals = ['NGC4236']
-        sample = fitsio.read(samplefile, columns=['GROUP_NAME'])
-        bigcut = np.where((sample['GROUP_DIAMETER'] > d25min) * (sample['GROUP_DIAMETER'] < d25max) *
-                          (sample['GROUP_PRIMARY'] == True) * (sample['IN_DESI']))[0]
-        this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
-        rows = np.hstack((rows, this))
-        rows = np.sort(rows)
-        
+        preselect_sample = False
+        #customgals = ['NGC4236']
+        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+        bigcut = np.where((sample['GROUP_DIAMETER'] > 10) * (sample['GROUP_PRIMARY'] == True) * (sample['IN_DESI']))[0]
+        #this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
+        #rows = np.hstack((rows, this))
 
-    # Choose the parent sample here.
-    if preselect_sample:
+        rows = np.arange(len(sample))
+        rows = rows[bigcut]
+        nrows = len(rows)
+        print('Selecting {} custom sky galaxies.'.format(nrows))
+    elif preselect_sample:
         from legacyhalos.brick import brickname as get_brickname
 
         sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
-        pdb.set_trace()
         bigcut = np.where((sample['GROUP_DIAMETER'] > d25min) * (sample['GROUP_DIAMETER'] < d25max) *
                           (sample['GROUP_PRIMARY'] == True) * (sample['IN_DESI']))[0]
 
