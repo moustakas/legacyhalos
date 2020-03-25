@@ -49,6 +49,7 @@ export MKL_NUM_THREADS=1
 export KMP_AFFINITY=disabled
 export MPICH_GNI_FORK_MODE=FULLCOPY
 
+#ncores=8
 ncores=4
 #ncores=32
 
@@ -61,6 +62,7 @@ let usemem=${maxmem}*${ncores}/32
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --custom-coadds --nproc $ncores --mpi --verbose
 
 #time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --ellipse --nproc $ncores --mpi --verbose --d25max 3 --last 127
-time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --htmlplots --nproc 1 --mpi --verbose
-#time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --d25max 3 --last 127
+#time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --htmlplots --nproc 1 --mpi --verbose
 #time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose --d25max 2
+time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --largegalaxy-customsky --nproc $ncores --mpi --verbose
+#time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --d25max 3

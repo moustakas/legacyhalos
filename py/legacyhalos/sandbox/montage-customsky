@@ -1,0 +1,26 @@
+#!/usr/bin/env python
+
+import os, pdb
+import numpy as np
+from legacyhalos.misc import custom_brickname
+from legacyhalos.LSLGA import read_sample, get_galaxy_galaxydir
+
+sample = read_sample(customsky=True)
+galaxy, galaxydir = get_galaxy_galaxydir(sample)
+
+#galdir = '/global/projecta/projectdirs/desi/users/ioannis/legacysurveys/LSLGA-data-customskygals-20mar24/'
+outdir = '/global/projecta/projectdirs/desi/users/ioannis/legacysurveys/customsky-montage/'
+
+for ss, gal, galdir in zip(sample, galaxy, galaxydir):
+    galdir = galdir.replace('LSLGA-data-DR9', 'LSLGA-data-customskygals-20mar24')
+    brickname = 'custom-{}'.format(custom_brickname(ss['RA'], ss['DEC']))
+    pipe = galdir+'/metrics/cus/largegalaxy-{}-pipelinesky.jpg'.format(brickname)
+    cust = galdir+'/metrics/cus/largegalaxy-{}-customsky.jpg'.format(brickname)
+    if os.path.isfile(pipe) and os.path.isfile(cust):
+        #print(gal)
+        outfile = outdir+'{}-customsky.png'.format(gal)
+        cmd = 'montage -bordercolor white -borderwidth 1 -tile 2x1 -geometry +0+0 {} {} {}'.format(
+            pipe, cust, outfile)
+        print(cmd)
+        os.system(cmd)
+

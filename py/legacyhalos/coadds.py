@@ -117,7 +117,8 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
         return ok
 
     if just_coadds:
-        _do_cleanup()
+        if cleanup:
+            _do_cleanup()
         return 1
 
     # tractor catalog
@@ -367,9 +368,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-tycho '
     if no_large_galaxies:
         cmd += '--no-large-galaxies '
-    if no_large_galaxies:
-        cmd += '--no-large-galaxies '
-        
+
     if force:
         cmd += '--force-all '
         checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(
@@ -671,6 +670,8 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     #cmd += '--nsigma 10 '
     if customsky:
         cmd += '--largegalaxy-skysub '
+        print('HACK!!!!!!!!!!!!!!!!! doing just largegalaxies stage in legacyhalos.coadds')
+        cmd += '--stage largegalaxies '
     if write_all_pickles:
         cmd += '--write-stage tims --write-stage srcs '
     else:

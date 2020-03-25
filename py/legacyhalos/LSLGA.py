@@ -309,8 +309,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False,
         preselect_sample = False
         #customgals = ['NGC4236']
         sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+        #print('Hack! Excluding LG dwarfs for now')
         bigcut = np.where(
-            #(sample['GROUP_DIAMETER'] > 10) *
+            (sample['GROUP_DIAMETER'] > 10) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
         #this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
