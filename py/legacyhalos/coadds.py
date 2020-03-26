@@ -661,6 +661,12 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         print('Missing imaging in grz.')
         return 0
 
+    ## Useful bit of code for quickly getting the list of exposures in the
+    ## footprint.
+    #explist = sorted(set([ff.strip().replace('mosaic/CP/','').replace('90prime/CP/','') for ff in ccds.image_filename]))
+    #with open('M51-exposures.txt', 'w') as ff:
+    #    [ff.write('{}\n'.format(ee)) for ee in explist]
+
     # Run the pipeline!
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '

@@ -74,10 +74,11 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         survey = LegacySurveyData()
 
     for stage in ('largegalaxy', 'pipeline'):
-        ccdsfile = glob(os.path.join(galaxydir, '{}-{}-ccds-*.fits'.format(galaxy, stage))) # north, south
+        ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
+        #ccdsfile = glob(os.path.join(galaxydir, '{}-{}-ccds-*.fits'.format(galaxy, stage))) # north, south
         if len(ccdsfile) == 0:
             print('Missing CCDs file for stage {}'.format(stage))
-            return
+            continue
         ccdsfile = ccdsfile[0]
         ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
         print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))

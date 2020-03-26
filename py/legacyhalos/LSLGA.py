@@ -847,7 +847,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
                 html.write('<td>{:.7f}</td>\n'.format(gal[racolumn]))
                 html.write('<td>{:.7f}</td>\n'.format(gal[deccolumn]))
-                html.write('<td>{:.2f}</td>\n'.format(gal[diamcolumn]))
+                html.write('<td>{:.4f}</td>\n'.format(gal[diamcolumn]))
                 #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
                 #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
                 #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
