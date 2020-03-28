@@ -97,10 +97,11 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
     """
     #from pkg_resources import resource_filename
     from PIL import Image, ImageDraw, ImageFont
+    Image.MAX_IMAGE_PIXELS = None
     fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
     #fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
 
-    def addbar(jpgfile, barlen, barlabel, imtype):
+    def addbar(jpgfile, barlen, barlabel, imtype, scaledfont=False):
         pngfile = os.path.join(htmlgalaxydir, os.path.basename(jpgfile).replace('.jpg', '.png'))
         im = Image.open(jpgfile)
         draw = ImageDraw.Draw(im)
@@ -109,7 +110,10 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
 
         # Bar and label
         if barlen:
-            fntsize = 20 # np.round(sz[0]/20).astype('int')
+            if scaledfont:
+                fntsize = np.round(sz[0]/50).astype('int')
+            else:
+                fntsize = 20 # np.round(sz[0]/20).astype('int')
             font = ImageFont.truetype(fonttype, size=fntsize)
             # Add a scale bar and label--
             x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
@@ -139,7 +143,7 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 coaddfiles = ('{}-image-grz'.format(filesuffix), '{}-model-grz'.format(filesuffix), '{}-resid-grz'.format(filesuffix))
                 
             # Make sure all the files exist.
-            check = True
+            check, just_coadds = True, False
             jpgfile = []
             for suffix in coaddfiles:
                 _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
@@ -147,22 +151,30 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 if not os.path.isfile(_jpgfile):
                     print('File {} not found!'.format(_jpgfile))
                     check = False
-
-            if check:
+                    
+            # Check for just the image coadd..
+            if check is False:
+                jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, coaddfiles[0]))
+                if os.path.isfile(jpgfile):
+                    just_coadds = True
+                    
+            if check or just_coadds:
                 # Add a bar and label
-                cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-                if barlen:
-                    #pngfile = []
-                    #for ff, blen, blab, imtype in zip(jpgfile, (barlen, None, None),
-                    #                                  (barlabel, None, None),
-                    #                                  ('Image stack', 'Tractor model', 'Central galaxy')):
-                    #    pngfile.append(addbar(ff, blen, blab, imtype))
-                    #cmd = cmd+' '.join(ff for ff in pngfile)
-                    pngfile = [addbar(ff, barlen, barlabel, None) for ff in jpgfile]
-                    cmd = cmd+' '+pngfile[0]+' '
-                    cmd = cmd+' '.join(ff for ff in jpgfile[1:])
+                if just_coadds:
+                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 '
+                    if barlen:
+                        pngfile = addbar(jpgfile, barlen, barlabel, None, scaledfont=True)
+                        cmd = cmd+' '+pngfile
+                    else:
+                        cmd = cmd+' '+jpgfile
                 else:
-                    cmd = cmd+' '.join(ff for ff in jpgfile)
+                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
+                    if barlen:
+                        pngfile = [addbar(ff, barlen, barlabel, None) for ff in jpgfile]
+                        cmd = cmd+' '+pngfile[0]+' '
+                        cmd = cmd+' '.join(ff for ff in jpgfile[1:])
+                    else:
+                        cmd = cmd+' '.join(ff for ff in jpgfile)
                 cmd = cmd+' {}'.format(montagefile)
 
                 if verbose:

@@ -675,9 +675,10 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--largegalaxy-preburner --saddle-fraction 0.2 --saddle-min 4.0 '
     #cmd += '--nsigma 10 '
     if customsky:
-        cmd += '--largegalaxy-skysub '
-        print('HACK!!!!!!!!!!!!!!!!! doing just largegalaxies stage in legacyhalos.coadds')
-        cmd += '--stage largegalaxies '
+        print('Skipping custom sky')
+        #cmd += '--largegalaxy-skysub '
+        #print('HACK!!!!!!!!!!!!!!!!! doing just largegalaxies stage in legacyhalos.coadds')
+        #cmd += '--stage largegalaxies '
     if write_all_pickles:
         cmd += '--write-stage tims --write-stage srcs '
     else:

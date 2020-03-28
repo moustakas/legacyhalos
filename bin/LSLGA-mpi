@@ -140,7 +140,7 @@ def main():
         if args.largegalaxy_customsky:
             radius_mosaic_arcsec = onegal['GROUP_DIAMETER'] * 60 # [arcsec]
             print('HACK!! setting cleanup=False in LSLGA-mpi largegalaxies-customsky')
-            cleanup = False
+            cleanup = True
         else:
             radius_mosaic_arcsec = onegal['GROUP_DIAMETER'] * 60 * 1.5 # [arcsec]
             cleanup = True
@@ -175,13 +175,18 @@ def main():
                              logfile=logfile, largegalaxy=True, pipeline=False) # zcolumn=ZCOLUMN, 
 
         if args.htmlplots:
-            barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
+            if args.largegalaxy_customsky:
+                barlabel = '2 arcmin'
+                barlen = np.ceil(120 / args.pixscale).astype(int) # [pixels]
+            else:
+                barlabel = '30 arcsec'
+                barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
             if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
                 call_htmlplots(Table(onegal), galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
                                verbose=args.verbose, debug=args.debug, clobber=args.clobber,
                                ccdqa=args.ccdqa, logfile=logfile, zcolumn=ZCOLUMN,
                                htmldir=htmldir, datadir=datadir,
-                               barlen=barlen, barlabel='30 arcsec',
+                               barlen=barlen, barlabel=barlabel,
                                radius_mosaic_arcsec=radius_mosaic_arcsec,
                                #largegalaxy_montage=True,
                                get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)
