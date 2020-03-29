@@ -56,11 +56,11 @@ def mpi_args():
 
     return args
 
-def _new_missing_files_one(args):
+def _missing_files_one(args):
     """Wrapper for the multiprocessing."""
-    return new_missing_files_one(*args)
+    return missing_files_one(*args)
 
-def new_missing_files_one(galaxy, galaxydir, filesuffix, clobber):
+def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
     #print(checkfile)
     if os.path.exists(checkfile) and clobber is False:
@@ -68,7 +68,7 @@ def new_missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     else:
         return True
     
-def new_missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
+def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
     from astrometry.util.multiproc import multiproc
 
     if args.largegalaxy_coadds:
@@ -95,8 +95,11 @@ def new_missing_files(args, sample, size=1, indices_only=False, filesuffix=None)
     elif args.htmlplots:
         suffix = 'html'
         if filesuffix is None:
-            filesuffix = '-largegalaxy-maskbits.png'
-        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+            if args.just_coadds:
+                filesuffix = '-largegalaxy-grz-montage.png'
+            else:
+                filesuffix = '-largegalaxy-maskbits.png'
+            galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
         suffix = 'htmlindex'
         if filesuffix is None:
@@ -120,7 +123,7 @@ def new_missing_files(args, sample, size=1, indices_only=False, filesuffix=None)
     indices = np.arange(ngal)
 
     mp = multiproc(nthreads=args.nproc)
-    todo = mp.map(_new_missing_files_one, [(gal, gdir, filesuffix, clobber)
+    todo = mp.map(_missing_files_one, [(gal, gdir, filesuffix, clobber)
                                            for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))])
 
     if np.sum(todo) == 0:
@@ -145,71 +148,6 @@ def new_missing_files(args, sample, size=1, indices_only=False, filesuffix=None)
             return weighted_indices
         else:
             return suffix, weighted_indices
-
-def missing_files_groups(args, sample, size, htmldir=None):
-    """Simple task-specific wrapper on missing_files.
-
-    """
-    if args.coadds:
-        suffix = 'coadds'
-    #elif args.custom_coadds:
-    #    suffix = 'custom-coadds'
-    #elif args.LSLGA:
-    #    suffix = 'pipeline-coadds'
-    elif args.htmlplots:
-        suffix = 'html'
-    else:
-        suffix = ''        
-
-    if suffix != '':
-        groups = missing_files(sample, filetype=suffix, size=size,
-                               clobber=args.clobber, htmldir=htmldir)
-    else:
-        groups = []        
-
-    return suffix, groups
-
-def missing_files(sample, filetype='coadds', size=1, htmldir=None,
-                  clobber=False):
-    """Find missing data of a given filetype."""    
-
-    if filetype == 'coadds':
-        filesuffix = '-pipeline-resid-grz.jpg'
-    #elif filetype == 'custom-coadds':
-    #    filesuffix = '-custom-resid-grz.jpg'
-    #elif filetype == 'LSLGA':
-    #    filesuffix = '-custom-resid-grz.jpg'
-    elif filetype == 'html':
-        filesuffix = '-maskbits.png'
-        #filesuffix = '-ccdpos.png'
-        #filesuffix = '-sersic-exponential-nowavepower.png'
-    else:
-        print('Unrecognized file type!')
-        raise ValueError
-
-    if type(sample) is astropy.table.row.Row:
-        ngal = 1
-    else:
-        ngal = len(sample)
-    indices = np.arange(ngal)
-    todo = np.ones(ngal, dtype=bool)
-
-    if filetype == 'html':
-        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir, html=True)
-    else:
-        galaxy, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir)
-
-    for ii, (gal, gdir) in enumerate( zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)) ):
-        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
-        if os.path.exists(checkfile) and clobber is False:
-            todo[ii] = False
-
-    if np.sum(todo) == 0:
-        return list()
-    else:
-        indices = indices[todo]
-        
-    return np.array_split(indices, size)
 
 def LSLGA_dir():
     if 'LSLGA_DIR' not in os.environ:
@@ -738,7 +676,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
     # Only create pages for the set of galaxies with a montage.
     keep = np.arange(len(sample))
-    missing = new_missing_files(args, sample, indices_only=True)
+    missing = missing_files(args, sample, indices_only=True)
     #missing = missing_files(sample, filetype='coadds', size=1)[0]
     if len(missing) > 0:
         keep = np.delete(keep, missing)
@@ -840,6 +778,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
             html.write('<tr>\n')
             #html.write('<th>Number</th>\n')
+            html.write('<th> </th>\n')
             html.write('<th>Index</th>\n')
             html.write('<th>LSLGA ID</th>\n')
             html.write('<th>Galaxy</th>\n')
@@ -852,10 +791,13 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             for gal, galaxy1, htmlgalaxydir1 in zip(sample[inslice], np.atleast_1d(galaxy), np.atleast_1d(htmlgalaxydir)):
 
                 htmlfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}.html'.format(galaxy1))
+                pngfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}-largegalaxy-grz-montage.png'.format(galaxy1))
+                thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-largegalaxy-grz-montage.png'.format(galaxy1))
 
                 html.write('<tr>\n')
                 #html.write('<td>{:g}</td>\n'.format(count))
                 #print(gal['INDEX'], gal['LSLGA_ID'], gal['GALAXY'])
+                html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile1, thumbfile1))
                 html.write('<td>{}</td>\n'.format(gal['INDEX']))
                 html.write('<td>{}</td>\n'.format(gal['LSLGA_ID']))
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
@@ -1020,7 +962,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                             html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
                             html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
                             html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
-                            html.write('<td>{:.2f}</td>\n'.format(groupgal['D25']))
+                            html.write('<td>{:.4f}</td>\n'.format(groupgal['D25']))
                             if np.isnan(groupgal['PA']):
                                 pa = 0.0
                             else:
@@ -1077,7 +1019,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('<p>Spatial distribution of CCDs.</p>\n')
 
                 html.write('<table width="90%">\n')
-                pngfile = '{}-largegalaxy-ccdpos.png'.format(galaxy1)
+                pngfile = '{}-ccdpos.png'.format(galaxy1)
                 html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
                     pngfile))
                 html.write('</table>\n')

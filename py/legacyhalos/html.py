@@ -13,9 +13,9 @@ import legacyhalos.io
 import legacyhalos.misc
 import legacyhalos.hsc
 
-def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
+def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=None,
            zcolumn='Z', radius_pixel=None, survey=None, mp=None, clobber=False,
-           verbose=True):
+           verbose=False):
     """Build CCD-level QA.
 
     """
@@ -36,10 +36,11 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
 
-    ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
-    if os.path.isfile(ccdsfile):
-        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
-        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+    if ccds is None:
+        ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
+        if os.path.isfile(ccdsfile):
+            ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+            print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
     
     okfiles = True
     for iccd in range(len(ccds)):
@@ -53,13 +54,13 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         ccdargs = [(galaxy, galaxydir, qarootfile, radius_pixel, _ccd, iccd, survey)
                    for iccd, _ccd in enumerate(ccds)]
         mp.map(_display_ccdmask_and_sky, ccdargs)
-        
+
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
     if not os.path.isfile(ccdposfile) or clobber:
         display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
 
 def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-              radius=None, survey=None, clobber=False, verbose=True):
+              radius=None, survey=None, clobber=False, verbose=False):
     """Build CCD positions QA.
 
     radius in pixels
@@ -73,23 +74,36 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
 
-    for stage in ('largegalaxy', 'pipeline'):
-        ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
-        #ccdsfile = glob(os.path.join(galaxydir, '{}-{}-ccds-*.fits'.format(galaxy, stage))) # north, south
-        if len(ccdsfile) == 0:
-            print('Missing CCDs file for stage {}'.format(stage))
-            continue
-        ccdsfile = ccdsfile[0]
-        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
-        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+    #for stage in ('largegalaxy', 'pipeline'):
+    #    ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
+    #    #ccdsfile = glob(os.path.join(galaxydir, '{}-{}-ccds-*.fits'.format(galaxy, stage))) # north, south
+    #    if len(ccdsfile) == 0:
+    #        print('Missing CCDs file for stage {}'.format(stage))
+    #        continue
+    #    ccdsfile = ccdsfile[0]
+    #    ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+    #    print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+    #
+    #    ccdposfile = os.path.join(htmlgalaxydir, '{}-{}-ccdpos.png'.format(galaxy, stage))
+    #    if not os.path.isfile(ccdposfile) or clobber:
+    #        display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
-        ccdposfile = os.path.join(htmlgalaxydir, '{}-{}-ccdpos.png'.format(galaxy, stage))
-        if not os.path.isfile(ccdposfile) or clobber:
-            display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
+    ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
+    if len(ccdsfile) == 0:
+        print('CCDs file not found!')
+        return
+
+    ccdsfile = ccdsfile[0]
+    ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+    #if verbose:
+    print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+
+    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+    if not os.path.isfile(ccdposfile) or clobber:
+        display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
 def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
-                      barlabel=None, clobber=False, verbose=True):#
-                      #pipeline_montage=False, largegalaxy_montage=False):
+                      barlabel=None, clobber=False, verbose=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
@@ -136,6 +150,7 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
     for filesuffix in ('largegalaxy', 'pipeline', 'custom'):
         montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, filesuffix))
         thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
+        thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
         if not os.path.isfile(montagefile) or clobber:
             if filesuffix == 'custom':
                 coaddfiles = ('{}-image-grz'.format(filesuffix), '{}-model-nocentral-grz'.format(filesuffix), '{}-image-central-grz'.format(filesuffix))
@@ -149,7 +164,8 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
                 jpgfile.append(_jpgfile)
                 if not os.path.isfile(_jpgfile):
-                    print('File {} not found!'.format(_jpgfile))
+                    if verbose:
+                        print('File {} not found!'.format(_jpgfile))
                     check = False
                     
             # Check for just the image coadd..
@@ -177,17 +193,21 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                         cmd = cmd+' '.join(ff for ff in jpgfile)
                 cmd = cmd+' {}'.format(montagefile)
 
-                if verbose:
-                    print('Writing {}'.format(montagefile))
+                #if verbose:
+                print('Writing {}'.format(montagefile))
                 subprocess.call(cmd.split())
+                if not os.path.isfile(montagefile):
+                    print('There was a problem writing {}'.format(montagefile))
+                    continue
 
-                # Create a smaller thumbnail image
-                cmd = 'convert -thumbnail 800x800 {} {}'.format(montagefile, thumbfile)
-                if verbose:
-                    print('Writing {}'.format(thumbfile))
-                subprocess.call(cmd.split())
+                # Create a couple smaller thumbnail images
+                for tf, sz in zip((thumbfile, thumb2file), (512, 96)):
+                    cmd = 'convert -thumbnail {}x{} {} {}'.format(sz, sz, montagefile, tf)
+                    #if verbose:
+                    print('Writing {}'.format(tf))
+                    subprocess.call(cmd.split())
 
-def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
+def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
     """Visualize the maskbits image.
 
     """
@@ -199,23 +219,25 @@ def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
         if not os.path.isfile(maskbitsfile) or clobber:
             fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
             if not os.path.isfile(fitsfile):
-                print('File {} not found!'.format(fitsfile))
-            else:
-                img = fitsio.read(fitsfile)
-                fig, ax = plt.subplots(figsize=(3, 3))
-                ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
-                ax.get_xaxis().set_visible(False)
-                ax.get_yaxis().set_visible(False)
-                ax.axis('off')
-                ax.autoscale(False)
-
                 if verbose:
-                    print('Writing {}'.format(maskbitsfile))
-                fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
-                plt.close(fig)
+                    print('File {} not found!'.format(fitsfile))
+                continue
+
+            img = fitsio.read(fitsfile)
+            fig, ax = plt.subplots(figsize=(3, 3))
+            ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            ax.axis('off')
+            ax.autoscale(False)
+
+            #if verbose:
+            print('Writing {}'.format(maskbitsfile))
+            fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
+            plt.close(fig)
 
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                       barlen=None, barlabel=None, clobber=False, verbose=True):
+                       barlen=None, barlabel=None, clobber=False, verbose=False):
     """Generate QAplots from the ellipse-fitting.
 
     """
@@ -224,7 +246,7 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                 display_ellipse_sbprofile, qa_curveofgrowth)
 
     for filesuffix in ('largegalaxy', 'custom'):
-        ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix)
+        ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
 
         #sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
         #sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
@@ -262,7 +284,7 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                 display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
 
 def qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', bands=('g', 'r', 'z'),
-                   pixscale=0.262, clobber=False, verbose=True):
+                   pixscale=0.262, clobber=False, verbose=False):
     """Generate QAplots from the MGE fitting.
 
     """
@@ -294,7 +316,7 @@ def qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', bands=('g', 'r
                                   png=sbprofilefile, verbose=verbose)
         
 def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                      clobber=False, verbose=True):
+                      clobber=False, verbose=False):
     """Generate QAplots from the Sersic modeling.
 
     """
@@ -530,8 +552,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         #shutil.chown(htmldir, group='cosmo')
     homehtmlfile = os.path.join(htmldir, homehtml)
 
-    if verbose:
-        print('Writing {}'.format(homehtmlfile))
+    #if verbose:
+    print('Writing {}'.format(homehtmlfile))
     with open(homehtmlfile, 'w') as html:
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')

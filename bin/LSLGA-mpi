@@ -90,7 +90,7 @@ def main():
     # ranks.
     groups, suffix = [], ''
     if rank == 0:
-        suffix, groups = legacyhalos.LSLGA.new_missing_files(args, sample, size)
+        suffix, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
 
     if comm:
         groups = comm.bcast(groups, root=0)
@@ -137,19 +137,17 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
+        cleanup = True
         if args.largegalaxy_customsky:
             radius_mosaic_arcsec = onegal['GROUP_DIAMETER'] * 60 # [arcsec]
-            print('HACK!! setting cleanup=False in LSLGA-mpi largegalaxies-customsky')
-            cleanup = True
         else:
             radius_mosaic_arcsec = onegal['GROUP_DIAMETER'] * 60 * 1.5 # [arcsec]
-            cleanup = True
 
         survey = LegacySurveyData()
         survey.output_dir = galaxydir
 
         if args.largegalaxy_coadds:
-            if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
+            if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
                 call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic_arcsec, nproc=args.nproc,
                                         pixscale=args.pixscale, racolumn='GROUP_RA', deccolumn='GROUP_DEC',
                                         apodize=False, unwise=True, force=args.force, plots=False,
@@ -159,7 +157,7 @@ def main():
                                         require_grz=False, debug=args.debug, logfile=logfile)
 
         if args.pipeline_coadds:
-            if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
+            if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
                 # No unwise here (we do it in largegalaxy_coadds)
                 call_pipeline_coadds(onegal, galaxy, survey, radius_mosaic_arcsec, nproc=args.nproc,
                                      pixscale=args.pixscale, racolumn='GROUP_RA', deccolumn='GROUP_DEC',
@@ -169,7 +167,7 @@ def main():
                                      no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
-            if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
+            if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
                 call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                              nproc=args.nproc, verbose=args.verbose, debug=args.debug,
                              logfile=logfile, largegalaxy=True, pipeline=False) # zcolumn=ZCOLUMN, 
@@ -181,7 +179,7 @@ def main():
             else:
                 barlabel = '30 arcsec'
                 barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
-            if len(legacyhalos.LSLGA.new_missing_files(args, onegal, indices_only=True)) == 1:
+            if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
                 call_htmlplots(Table(onegal), galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
                                verbose=args.verbose, debug=args.debug, clobber=args.clobber,
                                ccdqa=args.ccdqa, logfile=logfile, zcolumn=ZCOLUMN,
@@ -194,7 +192,7 @@ def main():
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups = legacyhalos.LSLGA.new_missing_files(args, sample, size)
+        _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
         if len(groups) > 0:
             stilltodo = len(np.hstack(np.atleast_1d(groups)))
         else:

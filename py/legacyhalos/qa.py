@@ -521,8 +521,8 @@ def display_sersic(sersic, png=None, verbose=False):
     fig.subplots_adjust(bottom=0.15, top=0.85, right=0.95, left=0.17)
 
     if png:
-        if verbose:
-            print('Writing {}'.format(png))
+        #if verbose:
+        print('Writing {}'.format(png))
         fig.savefig(png)#, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
     else:
@@ -691,8 +691,8 @@ def display_multiband(data, geometry=None, mgefit=None, ellipsefit=None, indx=No
         fig.subplots_adjust(wspace=0.02, top=0.98, bottom=0.02, left=0.02, right=0.98)
         
     if png:
-        if verbose:
-            print('Writing {}'.format(png))
+        #if verbose:
+        print('Writing {}'.format(png))
         fig.savefig(png, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
     else:
@@ -811,8 +811,8 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         fig.subplots_adjust(hspace=0.03, wspace=0.03, bottom=0.15, right=0.85, left=0.15)
 
         if png:
-            if verbose:
-                print('Writing {}'.format(png))
+            #if verbose:
+            print('Writing {}'.format(png))
             fig.savefig(png)
             plt.close(fig)
         else:
@@ -983,8 +983,8 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.12, top=0.85)
 
         if png:
-            if verbose:
-                print('Writing {}'.format(png))
+            #if verbose:
+            print('Writing {}'.format(png))
             fig.savefig(png)
             plt.close(fig)
         else:
@@ -1068,8 +1068,8 @@ def display_mge_sbprofile(mgefit, indx=None, png=None, verbose=True):
     fig.subplots_adjust(hspace=0.0)
 
     if png:
-        if verbose:
-            print('Writing {}'.format(png))
+        #if verbose:
+        print('Writing {}'.format(png))
         fig.savefig(png)
         plt.close(fig)
     else:
@@ -1162,8 +1162,8 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
         fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
 
         if png:
-            if verbose:
-                print('Writing {}'.format(png))
+            #if verbose:
+            print('Writing {}'.format(png))
             fig.savefig(png)
             plt.close(fig)
         else:
@@ -1204,8 +1204,8 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
         fig.subplots_adjust(bottom=0.15, right=0.95, left=0.15, top=0.95)
 
         if png:
-            if verbose:
-                print('Writing {}'.format(png))
+            #if verbose:
+            print('Writing {}'.format(png))
             fig.savefig(png)
             plt.close(fig)
         else:
@@ -1281,8 +1281,8 @@ def display_ccdpos(onegal, ccds, radius, pixscale=0.262, png=None, verbose=False
     plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.12, right=0.97, top=0.95)
 
     if png:
-        if verbose:
-            print('Writing {}'.format(png))
+        #if verbose:
+        print('Writing {}'.format(png))
         fig.savefig(png)
         plt.close(fig)
     else:
@@ -1689,8 +1689,8 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
         fig.subplots_adjust(hspace=0.0)
 
         if png:
-            if verbose:
-                print('Writing {}'.format(png))
+            #if verbose:
+            print('Writing {}'.format(png))
             fig.savefig(png)
             plt.close(fig)
         else:
