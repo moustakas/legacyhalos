@@ -117,34 +117,34 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
 
     def addbar(jpgfile, barlen, barlabel, imtype, scaledfont=False):
         pngfile = os.path.join(htmlgalaxydir, os.path.basename(jpgfile).replace('.jpg', '.png'))
-        im = Image.open(jpgfile)
-        draw = ImageDraw.Draw(im)
-        sz = im.size
-        width = np.round(sz[0]/150).astype('int')
+        with Image.open(jpgfile) as im:
+            draw = ImageDraw.Draw(im)
+            sz = im.size
+            width = np.round(sz[0]/150).astype('int')
 
-        # Bar and label
-        if barlen:
-            if scaledfont:
-                fntsize = np.round(sz[0]/50).astype('int')
-            else:
+            # Bar and label
+            if barlen:
+                if scaledfont:
+                    fntsize = np.round(sz[0]/50).astype('int')
+                else:
+                    fntsize = 20 # np.round(sz[0]/20).astype('int')
+                font = ImageFont.truetype(fonttype, size=fntsize)
+                # Add a scale bar and label--
+                x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+                draw.line((x0, y1, x1, y1), fill='white', width=width)
+                ww, hh = draw.textsize(barlabel, font=font)
+                dx = ((x1-x0) - ww)//2
+                #print(x0, x1, y0, y1, ww, x0+dx, sz)
+                draw.text((x0+dx, y0), barlabel, font=font)
+                #print('Writing {}'.format(pngfile))
+            # Image type
+            if imtype:
                 fntsize = 20 # np.round(sz[0]/20).astype('int')
-            font = ImageFont.truetype(fonttype, size=fntsize)
-            # Add a scale bar and label--
-            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
-            draw.line((x0, y1, x1, y1), fill='white', width=width)
-            ww, hh = draw.textsize(barlabel, font=font)
-            dx = ((x1-x0) - ww)//2
-            #print(x0, x1, y0, y1, ww, x0+dx, sz)
-            draw.text((x0+dx, y0), barlabel, font=font)
-            #print('Writing {}'.format(pngfile))
-        # Image type
-        if imtype:
-            fntsize = 20 # np.round(sz[0]/20).astype('int')
-            font = ImageFont.truetype(fonttype, size=fntsize)
-            ww, hh = draw.textsize(imtype, font=font)
-            x0, y0, y1 = sz[0]-ww-fntsize*2, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
-            draw.text((x0, y1), imtype, font=font)
-        im.save(pngfile)
+                font = ImageFont.truetype(fonttype, size=fntsize)
+                ww, hh = draw.textsize(imtype, font=font)
+                x0, y0, y1 = sz[0]-ww-fntsize*2, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+                draw.text((x0, y1), imtype, font=font)
+            im.save(pngfile)
         return pngfile
 
     for filesuffix in ('largegalaxy', 'pipeline', 'custom'):
@@ -175,16 +175,23 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     just_coadds = True
                     
             if check or just_coadds:
+                with Image.open(np.atleast_1d(jpgfile)[0]) as im:
+                    sz = im.size
+                if sz[0] > 4096:
+                    resize = '-resize 4096x4096 '
+                else:
+                    resize = ''
                 # Add a bar and label
                 if just_coadds:
-                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 '
+                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
+                    #cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 -resize 4096x4096\> '
                     if barlen:
                         pngfile = addbar(jpgfile, barlen, barlabel, None, scaledfont=True)
                         cmd = cmd+' '+pngfile
                     else:
                         cmd = cmd+' '+jpgfile
                 else:
-                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
+                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
                     if barlen:
                         pngfile = [addbar(ff, barlen, barlabel, None) for ff in jpgfile]
                         cmd = cmd+' '+pngfile[0]+' '
