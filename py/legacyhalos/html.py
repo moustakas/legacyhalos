@@ -177,8 +177,11 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
             if check or just_coadds:
                 with Image.open(np.atleast_1d(jpgfile)[0]) as im:
                     sz = im.size
-                if sz[0] > 4096:
-                    resize = '-resize 4096x4096 '
+                if sz[0] > 4096 and sz[0] < 8192:
+                    resize = '-resize 2048x2048 '
+                elif sz[0] > 8192:
+                    resize = '-resize 1024x1024 '
+                    #resize = '-resize 4096x4096 '
                 else:
                     resize = ''
                 # Add a bar and label

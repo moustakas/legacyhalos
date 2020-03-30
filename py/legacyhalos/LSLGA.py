@@ -745,7 +745,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
         html.write('</style>\n')
 
-        html.write('<h1>Legacy Survey Large Galaxy Atlas (LSLGA)</h1>\n')
+        html.write('<h1>Legacy Surveys Large Galaxy Atlas (LSLGA)</h1>\n')
         if maketrends:
             html.write('<p>\n')
             html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
@@ -797,7 +797,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('<tr>\n')
                 #html.write('<td>{:g}</td>\n'.format(count))
                 #print(gal['INDEX'], gal['LSLGA_ID'], gal['GALAXY'])
-                html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile1, thumbfile1))
+                html.write('<td><a href="{0}"><img src="{1}" height="auto" width="100%"></a></td>\n'.format(pngfile1, thumbfile1))
                 html.write('<td>{}</td>\n'.format(gal['INDEX']))
                 html.write('<td>{}</td>\n'.format(gal['LSLGA_ID']))
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))

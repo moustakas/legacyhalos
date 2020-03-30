@@ -130,7 +130,10 @@ def read_all_ccds(dr='dr9'):
 def get_run(onegal):
     """Get the run based on a simple declination cut."""
     if onegal['DEC'] > 32.375:
-        run = 'north'
+        if onegal['RA'] < 45 or onegal['RA'] > 315:
+            run = 'south'
+        else:
+            run = 'north'
     else:
         run = 'south'
     return run
