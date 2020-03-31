@@ -812,7 +812,13 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     else:
         filesuffix = 'custom'
 
-    # Do ellipse-fitting on the custom images.
+    # Do ellipse-fitting on the custom images.  For the LSLGA sample, we need to
+    # iterate on each LSLGA object in the field / mosaic.
+    #if largegalaxy:
+    #    pdb.set_trace()
+    #
+    #else:
+    #    pass
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
                                          refband=refband, pixscale=pixscale,
                                          galex_pixscale=galex_pixscale,

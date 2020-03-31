@@ -257,8 +257,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False,
         sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
         rows = np.arange(len(sample))
 
-        #print('Hack! Excluding LG dwarfs for now')
-        bigcut = np.where(
+        samplecut = np.where(
             (sample['GROUP_DIAMETER'] > 5) * 
             #(sample['GROUP_DIAMETER'] > 5) * (sample['GROUP_DIAMETER'] < 25) *
             (sample['GROUP_PRIMARY'] == True) *
@@ -266,21 +265,24 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False,
         #this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
         #rows = np.hstack((rows, this))
 
-        rows = rows[bigcut]
+        rows = rows[samplecut]
         nrows = len(rows)
         print('Selecting {} custom sky galaxies.'.format(nrows))
     elif preselect_sample:
-        from legacyhalos.brick import brickname as get_brickname
-
-        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+        cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI']
+        sample = fitsio.read(samplefile, columns=cols)
         rows = np.arange(len(sample))
 
-        pdb.set_trace()
-
-        bigcut = np.where((sample['GROUP_DIAMETER'] > d25min) * (sample['GROUP_DIAMETER'] < d25max) * (sample['GROUP_PRIMARY'] == True) * (sample['IN_DESI']))[0]
+        samplecut = np.where(
+            (sample['GROUP_DIAMETER'] > d25min) *
+            (sample['GROUP_DIAMETER'] < d25max) *
+            (sample['GROUP_PRIMARY'] == True) *
+            (sample['IN_DESI']))[0]
+        rows = rows[samplecut]
 
         if False:
-            brickname = get_brickname(sample['GROUP_RA'][bigcut], sample['GROUP_DEC'][bigcut])
+            from legacyhalos.brick import brickname as get_brickname
+            brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
             #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-south.txt'), dtype='str')
             nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9-north.txt'), dtype='str')
@@ -292,9 +294,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False,
                 #bricklist = sbricklist
             #rows = np.where([brick in bricklist for brick in brickname])[0]
             brickcut = np.where(np.isin(brickname, bricklist))[0]
-            rows = rows[bigcut][brickcut]
+            rows = rows[brickcut]
 
-        rows = rows[bigcut]
         nrows = len(rows)
         print('Selecting {} galaxies in the DR9 footprint.'.format(nrows))
     else:
