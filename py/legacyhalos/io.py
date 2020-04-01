@@ -643,7 +643,6 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 
         # Grow the mask slightly and pack into a dictionary.
         mask = binary_dilation(mask, iterations=2)
-        
         data[filt] = ma.masked_array(image, mask) # [nanomaggies]
 
         #if invvar is not None:
@@ -680,12 +679,19 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         print('Building masked image for central {}/{}.'.format(ii+1, len(central_galaxy)))
         
         # Build the model image on-the-fly.
-        #model_nocentral = fitsio.read(filt2imfile[filt]['model-nocentral'])
         nocentral = np.delete(np.arange(len(tractor)), central)
         srcs = tractor.copy()
         srcs.cut(nocentral)
         model_nocentral = srcs2image(srcs, twcs, band=refband, pixelized_psf=psf)
-        mgegalaxy = find_galaxy(refimage-model_nocentral, nblob=1, binning=3, quiet=True)#, plot=True)
+
+        # Get the basic galaxy geometry and store it in the dictionary.
+        mgegalaxy = find_galaxy(refimage-model_nocentral, fraction=0.2,
+                                nblob=1, binning=3, quiet=False)#, plot=True)
+        for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
+            data['mge_{}'.format(key)] = np.float32(getattr(mgegalaxy, key))
+            # put into range [0-180]
+            if key == 'pa':
+                data['mge_{}'.format(key)] = data['mge_{}'.format(key)] % 180 
 
         #for filt in [refband]:
         for filt in bands:
@@ -715,11 +721,11 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             #img = model_nocentral
             #img[central_mask] = 0
             #img[mask] = 0
-            img = ma.masked_array(img, mask)
+            img = ma.masked_array(img.astype('f4'), mask)
 
             # Fill with zeros--
             ma.set_fill_value(img, fill_value)
-            img.filled(fill_value)
+            #img.filled(fill_value)
             data[imagekey].append(img)
 
             #img = np.log10(tst[0]) ; plt.imshow(img, origin='lower') ; plt.savefig('junk.png')
@@ -878,10 +884,10 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           starmask=starmask, verbose=verbose)
     #pdb.set_trace()
     #import matplotlib.pyplot as plt
-    #plt.clf() ; plt.imshow(np.log10(data['g_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
-    #plt.clf() ; plt.imshow(np.log10(data['g_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    #plt.clf() ; plt.imshow(np.log10(data['g_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
-    #pdb.set_trace()
+    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
+    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
+    ##plt.clf() ; plt.imshow(np.log10(data['g_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    ##pdb.set_trace()
 
     return data
 
