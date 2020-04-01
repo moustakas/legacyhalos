@@ -675,6 +675,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
     
     # Now, for each 'central_galaxy', "find" it in the reference band and then
     # unmask the pixels belonging to that galaxy in each of the input bands.
+    data['mge'] = []
     for ii, central in enumerate(central_galaxy):
         print('Building masked image for central {}/{}.'.format(ii+1, len(central_galaxy)))
         
@@ -684,14 +685,15 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         srcs.cut(nocentral)
         model_nocentral = srcs2image(srcs, twcs, band=refband, pixelized_psf=psf)
 
-        # Get the basic galaxy geometry and store it in the dictionary.
+        # Get the basic galaxy geometry and pack it into a dictionary.
         mgegalaxy = find_galaxy(refimage-model_nocentral, fraction=0.2,
                                 nblob=1, binning=3, quiet=False)#, plot=True)
+        mge = dict()
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
-            data['mge_{}'.format(key)] = np.float32(getattr(mgegalaxy, key))
-            # put into range [0-180]
-            if key == 'pa':
-                data['mge_{}'.format(key)] = data['mge_{}'.format(key)] % 180 
+            mge[key] = np.float32(getattr(mgegalaxy, key))
+            if key == 'pa': # put into range [0-180]
+                mge[key] = mge[key] % np.float32(180)
+        data['mge'].append(mge)
 
         #for filt in [refband]:
         for filt in bands:

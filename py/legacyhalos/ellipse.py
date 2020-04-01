@@ -833,6 +833,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     if bool(data):
         # The large-galaxy project can have more than one "central", in which
         # case the images in the "data" dictionary are stored in a list.
+        pdb.set_trace()
         if largegalaxy:
             imgcache = [np.atleast_1d(data.pop('{}_masked'.format(filt))) for filt in bands]
             filesuffix = ['largegalaxy-{}'.format(thisid) for thisid in data['central_galaxy_id']]

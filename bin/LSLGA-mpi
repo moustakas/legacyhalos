@@ -168,9 +168,28 @@ def main():
 
         if args.ellipse:
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-                call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
-                             nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                             logfile=logfile, largegalaxy=True, pipeline=False) # zcolumn=ZCOLUMN, 
+                #call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
+                #             nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                #             logfile=logfile, largegalaxy=True) # zcolumn=ZCOLUMN,
+                
+                import asdf
+                data = legacyhalos.io.read_multiband(galaxy, galaxydir, refband='r',
+                                                     pixscale=args.pixscale,
+                                                     verbose=args.verbose,
+                                                     largegalaxy=True)
+                [data.pop('{}_masked'.format(filt)) for filt in data['bands']] # remove the data
+                for igal in np.arange(len(data['central_galaxy_id'])):
+                    lslga_id = data['central_galaxy_id'][igal]
+                    
+                    tree = {'lslga_id': lslga_id, 'ra': onegal['RA'], 'dec': onegal['DEC'],
+                            'galaxy': str(onegal['GALAXY']),
+                            'pgc': onegal['PGC']}
+                    for key in data['mge'][igal].keys():
+                        tree.update({key: data['mge'][igal][key]})
+                    asdffile = os.path.join(galaxydir, '{}-largegalaxy-mge-{}.asdf'.format(galaxy, lslga_id))
+                    af = asdf.AsdfFile(tree)
+                    print('Writing {}'.format(asdffile))
+                    af.write_to(asdffile)
 
         if args.htmlplots:
             if args.largegalaxy_customsky:
