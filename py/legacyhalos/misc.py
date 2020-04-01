@@ -14,25 +14,38 @@ RADIUS_CLUSTER_KPC = 500.0     # default cluster radius
 #SURVEY_DIR = '/global/project/projectdirs/cosmo/data/legacysurvey/dr8'
 ZCOLUMN = 'Z_LAMBDA'    
 
-def srcs2image(srcs, wcs, psf_sigma=1.0):
-    """Build a model image from a Tractor catalog.
+def srcs2image(cat, wcs, band='r', pixelized_psf=None, psf_sigma=1.0):
+    """Build a model image from a Tractor catalog or a list of sources.
+
+    issrcs - if True, then cat is already a list of sources.
 
     """
-    import tractor
-    
-    if type(wcs) is tractor.wcs.ConstantFitsWcs:
+    import tractor, legacypipe, astrometry
+    from legacypipe.catalog import read_fits_catalog
+
+    if type(wcs) is tractor.wcs.ConstantFitsWcs or type(wcs) is legacypipe.survey.LegacySurveyWcs:
         shape = wcs.wcs.shape
     else:
         shape = wcs.shape
     model = np.zeros(shape)
     invvar = np.ones(shape)
-    
-    vv = psf_sigma**2
-    psf = tractor.GaussianMixturePSF(1.0, 0., 0., vv, vv, 0.0)
+
+    if pixelized_psf is None:
+        vv = psf_sigma**2
+        psf = tractor.GaussianMixturePSF(1.0, 0., 0., vv, vv, 0.0)
+    else:
+        psf = pixelized_psf
 
     tim = tractor.Image(model, invvar=invvar, wcs=wcs, psf=psf,
-                        photocal=tractor.basics.LinearPhotoCal(1.0, band='r'),
-                        sky=tractor.sky.ConstantSky(0.0))
+                        photocal=tractor.basics.LinearPhotoCal(1.0, band=band),
+                        sky=tractor.sky.ConstantSky(0.0),
+                        name='model-{}'.format(band))
+
+    # Do we have a tractor catalog or a list of sources?
+    if type(cat) is astrometry.util.fits.tabledata:
+        srcs = legacypipe.catalog.read_fits_catalog(cat, fluxPrefix='')
+    else:
+        srcs = cat
 
     tr = tractor.Tractor([tim], srcs)
     mod = tr.getModelImage(0)

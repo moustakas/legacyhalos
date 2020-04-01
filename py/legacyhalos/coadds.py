@@ -98,11 +98,11 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
 
     # image coadds (FITS + JPG)
     for band in bands:
-        for imtype in ('image', 'invvar'):
+        for imtype, outtype in zip(('image', 'invvar', 'copsf'), ('image', 'invvar', 'psf')):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                             os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, imtype, band)),
+                             os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, outtype, band)),
                 clobber=clobber)
             if not ok:
                 return ok
@@ -152,18 +152,19 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     if not ok:
         return ok
 
-    for band in bands:
-        ok = _copyfile(
-            os.path.join(output_dir, 'coadd', 'cus', brickname,
-                         'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
-            os.path.join(output_dir, '{}-{}-depth-{}.fits.fz'.format(galaxy, stagesuffix, band)),
-            clobber=clobber)
-        if not ok:
-            return ok
+    #for band in bands:
+    #    ok = _copyfile(
+    #        os.path.join(output_dir, 'coadd', 'cus', brickname,
+    #                     'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
+    #        os.path.join(output_dir, '{}-{}-depth-{}.fits.fz'.format(galaxy, stagesuffix, band)),
+    #        clobber=clobber)
+    #    if not ok:
+    #        return ok
 
     # model coadds
     for band in bands:
-        for imtype in ('model', 'blobmodel'):
+        for imtype in ['model']:
+        #for imtype in ('model', 'blobmodel'):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
