@@ -11,7 +11,7 @@ import numpy as np
 import numpy.ma as ma
 from glob import glob
 
-import fitsio
+import fitsio, asdf
 from astropy.table import Table, hstack
 from astropy.io import fits
 from astrometry.util.fits import fits_table, merge_tables
@@ -427,6 +427,40 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True):
 
     return ellipsefit
 
+def write_mge_ellipsefit(galaxy, galaxydir, mgefit, filesuffix='', verbose=False):
+    """Write out an ASDF file base on the output of
+    legacyhalos.io.read_multiband. See LSLGA-mpi --ellipse.
+
+    """
+    if filesuffix.strip() == '':
+        mgefitfile = os.path.join(galaxydir, '{}-mgefit.asdf'.format(galaxy))
+    else:
+        mgefitfile = os.path.join(galaxydir, '{}-{}-mgefit.asdf'.format(galaxy, filesuffix))
+        
+    if verbose:
+        print('Writing {}'.format(mgefitfile))
+    mgefit.write_to(mgefitfile)
+
+def read_mge_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True):
+    """Read the output of write_mge_ellipsefit.
+
+    """
+    if filesuffix.strip() == '':
+        mgefitfile = os.path.join(galaxydir, '{}-mgefit.asdf'.format(galaxy))
+    else:
+        mgefitfile = os.path.join(galaxydir, '{}-{}-mgefit.asdf'.format(galaxy, filesuffix))
+        
+    try:
+        with asdf.open(mgefitfile) as af:
+            mgefit = af.tree
+    except:
+        #raise IOError
+        if verbose:
+            print('File {} not found!'.format(mgefitfile))
+        mgefit = dict()
+
+    return mgefit
+
 def write_sersic(galaxy, galaxydir, sersic, modeltype='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
     e.g., ellipse.fit_multiband).
@@ -677,8 +711,9 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
     # unmask the pixels belonging to that galaxy in each of the input bands.
     data['mge'] = []
     for ii, central in enumerate(central_galaxy):
-        print('Building masked image for central {}/{}.'.format(ii+1, len(central_galaxy)))
-        
+        if verbose:
+            print('Building masked image for central {}/{}.'.format(ii+1, len(central_galaxy)))
+
         # Build the model image on-the-fly.
         nocentral = np.delete(np.arange(len(tractor)), central)
         srcs = tractor.copy()
@@ -687,8 +722,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 
         # Get the basic galaxy geometry and pack it into a dictionary.
         mgegalaxy = find_galaxy(refimage-model_nocentral, fraction=0.2,
-                                nblob=1, binning=3, quiet=False)#, plot=True)
-        mge = dict()
+                                nblob=1, binning=3, quiet=not verbose)
+        mge = {'bx': tractor[central].bx, 'by': tractor[central].by}
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
             mge[key] = np.float32(getattr(mgegalaxy, key))
             if key == 'pa': # put into range [0-180]

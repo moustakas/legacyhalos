@@ -153,9 +153,13 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
         thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
         if not os.path.isfile(montagefile) or clobber:
             if filesuffix == 'custom':
-                coaddfiles = ('{}-image-grz'.format(filesuffix), '{}-model-nocentral-grz'.format(filesuffix), '{}-image-central-grz'.format(filesuffix))
+                coaddfiles = ('{}-image-grz'.format(filesuffix),
+                              '{}-model-nocentral-grz'.format(filesuffix),
+                              '{}-image-central-grz'.format(filesuffix))
             else:
-                coaddfiles = ('{}-image-grz'.format(filesuffix), '{}-model-grz'.format(filesuffix), '{}-resid-grz'.format(filesuffix))
+                coaddfiles = ('{}-image-grz'.format(filesuffix),
+                              '{}-model-grz'.format(filesuffix),
+                              '{}-resid-grz'.format(filesuffix))
                 
             # Make sure all the files exist.
             check, just_coadds = True, False
@@ -167,11 +171,10 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     if verbose:
                         print('File {} not found!'.format(_jpgfile))
                     check = False
-                    
-            # Check for just the image coadd..
+
+            # Check for just the image coadd.
             if check is False:
-                jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, coaddfiles[0]))
-                if os.path.isfile(jpgfile):
+                if os.path.isfile(np.atleast_1d(jpgfile)[0]):
                     just_coadds = True
                     
             if check or just_coadds:
@@ -184,6 +187,12 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     #resize = '-resize 4096x4096 '
                 else:
                     resize = ''
+
+                # Make a quick thumbnail of just the data.
+                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(96, np.atleast_1d(jpgfile)[0], thumb2file)
+                print('Writing {}'.format(thumb2file))
+                subprocess.call(cmd.split())
+                    
                 # Add a bar and label
                 if just_coadds:
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
@@ -211,11 +220,16 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     continue
 
                 # Create a couple smaller thumbnail images
-                for tf, sz in zip((thumbfile, thumb2file), (512, 96)):
-                    cmd = 'convert -thumbnail {}x{} {} {}'.format(sz, sz, montagefile, tf)
-                    #if verbose:
-                    print('Writing {}'.format(tf))
-                    subprocess.call(cmd.split())
+                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(512, montagefile, thumbfile)
+                print('Writing {}'.format(thumbfile))
+                subprocess.call(cmd.split())
+                    
+                ## Create a couple smaller thumbnail images
+                #for tf, sz in zip((thumbfile, thumb2file), (512, 96)):
+                #    cmd = 'convert -thumbnail {}x{} {} {}'.format(sz, sz, montagefile, tf)
+                #    #if verbose:
+                #    print('Writing {}'.format(tf))
+                #    subprocess.call(cmd.split())
 
 def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
     """Visualize the maskbits image.
@@ -293,37 +307,57 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             if not os.path.isfile(ellipsefitfile) or clobber:
                 display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
 
-def qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', bands=('g', 'r', 'z'),
-                   pixscale=0.262, clobber=False, verbose=False):
-    """Generate QAplots from the MGE fitting.
+def qa_mge_ellipse_results(galaxy, galaxydir, galid, htmlgalaxydir, refband='r', 
+                           clobber=False, verbose=False):
+    """Generate QAplots from the MGE-based ellipse measurements (just for the
+    large-galaxy project).  This reads the ASDF files from write_mge_ellipsefit.
 
     """
-    from legacyhalos.io import read_mgefit, read_multiband
-    from legacyhalos.qa import display_mge_sbprofile, display_multiband
+    from legacyhalos.io import read_mge_ellipsefit
+    from PIL import Image, ImageDraw
     
-    mgefit = read_mgefit(galaxy, galaxydir)
+    af = read_mge_ellipsefit(galaxy, galaxydir, 'largegalaxy-{}'.format(galid),
+                             verbose=verbose)
 
-    if len(mgefit) > 0:
+    if bool(af):
+        pdb.set_trace()
 
-        ## Toss out bad fits.
-        #indx = (mgefit[refband].stop_code <= 4) * (mgefit[refband].intens > 0)
-        #
+        read the png and draw the ellipses
+
+        img = Image.open(tilefn)
+
+        major_axis_arcsec = RAD * 2
+        minor_axis_arcsec = major_axis_arcsec * AB
+
+        overlay_height = int(major_axis_arcsec / pixscale)
+        overlay_width = int(minor_axis_arcsec / pixscale)
+        overlay = Image.new('RGBA', (overlay_width, overlay_height))
+
+        draw = ImageDraw.ImageDraw(overlay)
+        box_corners = (0, 0, overlay_width, overlay_height)
+        ellipse_color = '#' + req.GET.get('lslgacolor', lslgacolor_default).lstrip('#')
+        ellipse_width = int(np.round(float(req.GET.get('lslgawidth', 3)), 0))
+        draw.ellipse(box_corners, fill=None, outline=ellipse_color, width=ellipse_width)
+
+        rotated = overlay.rotate(PA, expand=True)
+        rotated_width, rotated_height = rotated.size
+
+        ok, ellipse_x, ellipse_y = wcs.radec2pixelxy(RA, DEC)
+
+        paste_shift_x = int(ellipse_x - rotated_width / 2)
+        paste_shift_y = int(ellipse_y - rotated_height / 2)
+
+        img.paste(rotated, (paste_shift_x, paste_shift_y), rotated)
+
+        img.save(tilefn)
+
+        
         multibandfile = os.path.join(htmlgalaxydir, '{}-mge-multiband.png'.format(galaxy))
         if not os.path.isfile(multibandfile) or clobber:
             data = read_multiband(galaxy, galaxydir, band=band)
             display_multiband(data, mgefit=mgefit, bands=bands, refband=refband,
                               png=multibandfile, contours=True, verbose=verbose)
         
-        #isophotfile = os.path.join(htmlgalaxydir, '{}-mge-mgefit.png'.format(galaxy))
-        #if not os.path.isfile(isophotfile) or clobber:
-        #    # Just display the reference band.
-        #    display_mgefit(mgefit, band=refband, indx=indx, pixscale=pixscale,
-        #                   png=isophotfile, verbose=verbose)
-
-        sbprofilefile = os.path.join(htmlgalaxydir, '{}-mge-sbprofile.png'.format(galaxy))
-        if not os.path.isfile(sbprofilefile) or clobber:
-            display_mge_sbprofile(mgefit, band=band, refband=refband, pixscale=pixscale,
-                                  png=sbprofilefile, verbose=verbose)
         
 def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                       clobber=False, verbose=False):
@@ -379,8 +413,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', 
                nproc=1, barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                maketrends=False, ccdqa=False, clobber=False, verbose=True,
-               #pipeline_montage=False, largegalaxy_montage=False,
-               get_galaxy_galaxydir=None):
+               get_galaxy_galaxydir=None, largegalaxy=False):
     """Make QA plots.
 
     """
@@ -434,6 +467,13 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
             radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
                 redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
+
+        # Build the MGE ellipse plots (for the large-galaxy project).
+        if largegalaxy:
+            galid = onegal['LSLGA_ID']
+            qa_mge_ellipse_results(galaxy, galaxydir, galid, htmlgalaxydir,
+                                   refband=refband, clobber=clobber, verbose=verbose)
+        pdb.set_trace()
 
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,

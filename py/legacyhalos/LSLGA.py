@@ -62,7 +62,7 @@ def _missing_files_one(args):
 
 def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
-    #print(checkfile)
+    print(checkfile)
     if os.path.exists(checkfile) and clobber is False:
         return False
     else:
@@ -90,7 +90,8 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
     elif args.ellipse:
         suffix = 'ellipse'
         if filesuffix is None:
-            filesuffix = '-ellipsefit.p'
+            filesuffix = '-mgefit.asdf'
+            #filesuffix = '-ellipsefit.p'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.htmlplots:
         suffix = 'html'

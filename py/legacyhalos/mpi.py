@@ -179,7 +179,7 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
 def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                    verbose=False, debug=False, clobber=False, ccdqa=False,
                    logfile=None, zcolumn='Z', datadir=None, htmldir=None, 
-                   #largegalaxy_montage=False, pipeline_montage=False,
+                   largegalaxy=False, 
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                    get_galaxy_galaxydir=None):
     """Wrapper script to build the pipeline coadds."""
@@ -193,7 +193,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                                           radius_mosaic_arcsec=radius_mosaic_arcsec,
                                           maketrends=False, ccdqa=ccdqa,
                                           clobber=clobber, verbose=verbose, 
-                                          #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage,
+                                          largegalaxy=largegalaxy,
                                           get_galaxy_galaxydir=get_galaxy_galaxydir)
         _done(galaxy, err, t0)
     else:
@@ -205,8 +205,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                                                   barlen=barlen, barlabel=barlabel,
                                                   radius_mosaic_arcsec=radius_mosaic_arcsec,
                                                   maketrends=False, ccdqa=ccdqa,
-                                                  clobber=clobber, verbose=verbose, 
-                                                  #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage,
+                                                  clobber=clobber, verbose=verbose,
+                                                  largegalaxy=largegalaxy,
                                                   get_galaxy_galaxydir=get_galaxy_galaxydir)
                 _done(galaxy, err, t0, log=log)
 
