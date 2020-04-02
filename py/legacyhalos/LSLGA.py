@@ -62,7 +62,7 @@ def _missing_files_one(args):
 
 def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
-    print(checkfile)
+    #print('missing_files_one: ', checkfile)
     if os.path.exists(checkfile) and clobber is False:
         return False
     else:
@@ -230,7 +230,7 @@ def LSLGA_version():
     version = 'v6.0'  # DR9
     return version
 
-def read_sample(first=None, last=None, galaxylist=None, verbose=False,
+def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
                 customsky=False, preselect_sample=True, d25min=0.5, d25max=5.0):
     """Read/generate the parent LSLGA catalog.
 
@@ -319,7 +319,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False,
         else:
             rows = rows[np.arange(first, last+1)]
 
-    sample = astropy.table.Table(info[ext].read(rows=rows, upper=True))
+    sample = astropy.table.Table(info[ext].read(rows=rows, upper=True, columns=columns))
     if verbose:
         if len(rows) == 1:
             print('Read galaxy index {} from {}'.format(first, samplefile))
@@ -336,7 +336,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False,
     #galaxylist = tt['GALAXY'].data
 
     # strip whitespace
-    sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
+    if 'GALAXY' in sample.colnames:
+        sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
     if 'GROUP_NAME' in sample.colnames:
         galcolumn = 'GROUP_NAME'
         sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]

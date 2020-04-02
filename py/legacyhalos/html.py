@@ -307,27 +307,18 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             if not os.path.isfile(ellipsefitfile) or clobber:
                 display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
 
-def qa_mge_ellipse_results(galaxy, galaxydir, galid, htmlgalaxydir, refband='r', 
-                           clobber=False, verbose=False):
+def qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
     """Generate QAplots from the MGE-based ellipse measurements (just for the
     large-galaxy project).  This reads the ASDF files from write_mge_ellipsefit.
 
     """
-    from legacyhalos.io import read_mge_ellipsefit
+    from glob import glob
     from PIL import Image, ImageDraw
-    
-    af = read_mge_ellipsefit(galaxy, galaxydir, 'largegalaxy-{}'.format(galid),
-                             verbose=verbose)
+    import asdf
+    #from legacyhalos.io import read_mge_ellipsefit
 
-    if bool(af):
-        pdb.set_trace()
-
-        read the png and draw the ellipses
-
-        img = Image.open(tilefn)
-
-        major_axis_arcsec = RAD * 2
-        minor_axis_arcsec = major_axis_arcsec * AB
+    def _draw_ellipse(im, x0, y0, ba, pa, major_axis_arcsec, pixscale, color='#3388ff'):
+        minor_axis_arcsec = major_axis_arcsec * ba
 
         overlay_height = int(major_axis_arcsec / pixscale)
         overlay_width = int(minor_axis_arcsec / pixscale)
@@ -335,29 +326,47 @@ def qa_mge_ellipse_results(galaxy, galaxydir, galid, htmlgalaxydir, refband='r',
 
         draw = ImageDraw.ImageDraw(overlay)
         box_corners = (0, 0, overlay_width, overlay_height)
-        ellipse_color = '#' + req.GET.get('lslgacolor', lslgacolor_default).lstrip('#')
-        ellipse_width = int(np.round(float(req.GET.get('lslgawidth', 3)), 0))
-        draw.ellipse(box_corners, fill=None, outline=ellipse_color, width=ellipse_width)
+        draw.ellipse(box_corners, fill=None, outline=color, width=3)
 
-        rotated = overlay.rotate(PA, expand=True)
+        rotated = overlay.rotate(pa, expand=True)
         rotated_width, rotated_height = rotated.size
+        paste_shift_x = int(x0 - rotated_width / 2)
+        paste_shift_y = int(y0 - rotated_height / 2)
+        im.paste(rotated, (paste_shift_x, paste_shift_y), rotated)
 
-        ok, ellipse_x, ellipse_y = wcs.radec2pixelxy(RA, DEC)
+    # This will only work for the large-galaxy project, but maybe that's OK.
+    suffix = 'largegalaxy'
+    mgefile = os.path.join(htmlgalaxydir, '{}-{}-mge-ellipse.png'.format(galaxy, suffix))
+    if not os.path.isfile(mgefile) or clobber:
+        jpgfile = os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, suffix))
+        if not os.path.isfile(jpgfile):
+            if verbose:
+                print('File {} not found!'.format(_jpgfile))
+                return
 
-        paste_shift_x = int(ellipse_x - rotated_width / 2)
-        paste_shift_y = int(ellipse_y - rotated_height / 2)
+        # Find and iterate on all the MGE-based ellipse fits--
+        mgefitfiles = glob(os.path.join(galaxydir, '{}-{}-*-mgefit.asdf'.format(galaxy, suffix)))
+        if len(mgefitfiles) == 0:
+            print('No mgefit .asdf files found!')
+            return
 
-        img.paste(rotated, (paste_shift_x, paste_shift_y), rotated)
+        # Read the image and draw the ellipses--
+        with Image.open(jpgfile) as im:
+            sz = im.size
+            for mgefitfile in mgefitfiles:
+                with asdf.open(mgefitfile) as af:
+                    mgefit = af.tree
+                _draw_ellipse(im, mgefit['bx'], sz[1]-mgefit['by'], mgefit['ba'],
+                              mgefit['pa'], mgefit['d25'] * 60.0, mgefit['pixscale'],
+                              color='#3388ff')
+                _draw_ellipse(im, mgefit['mge_ymed'], sz[1]-mgefit['mge_xmed'], 1-mgefit['mge_eps'],
+                              mgefit['mge_pa'], mgefit['mge_majoraxis'] * mgefit['pixscale'],
+                              mgefit['pixscale'], color='#ffaa33')
 
-        img.save(tilefn)
+            print('Writing {}'.format(mgefile))
+            im.save(mgefile)
 
-        
-        multibandfile = os.path.join(htmlgalaxydir, '{}-mge-multiband.png'.format(galaxy))
-        if not os.path.isfile(multibandfile) or clobber:
-            data = read_multiband(galaxy, galaxydir, band=band)
-            display_multiband(data, mgefit=mgefit, bands=bands, refband=refband,
-                              png=multibandfile, contours=True, verbose=verbose)
-        
+        pdb.set_trace()
         
 def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                       clobber=False, verbose=False):
@@ -470,9 +479,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
 
         # Build the MGE ellipse plots (for the large-galaxy project).
         if largegalaxy:
-            galid = onegal['LSLGA_ID']
-            qa_mge_ellipse_results(galaxy, galaxydir, galid, htmlgalaxydir,
-                                   refband=refband, clobber=clobber, verbose=verbose)
+            qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
         pdb.set_trace()
 
         # Build the ellipse plots.

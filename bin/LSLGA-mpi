@@ -64,11 +64,18 @@ def main():
                                                verbose=args.verbose,
                                                customsky=args.largegalaxy_customsky,
                                                preselect_sample=True)
+        # For the ellipse-fitting we need the properties of the full sample.
+        if args.ellipse:
+            cols = ['LSLGA_ID', 'GALAXY', 'PGC', 'RA', 'DEC', 'PA', 'BA', 'D25', 'IN_DESI']
+            fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose, preselect_sample=False,
+                                                       customsky=False, columns=cols)
+            fullsample = fullsample[fullsample['IN_DESI']]
     else:
-        sample = None
+        sample, fullsample = None, None
         
     if comm:
         sample = comm.bcast(sample, root=0)
+        fullsample = comm.bcast(fullsample, root=0)
 
     if args.build_LSLGA:
         legacyhalos.LSLGA.build_model_LSLGA(sample, pixscale=args.pixscale, nproc=args.nproc,
@@ -176,15 +183,19 @@ def main():
                                                      pixscale=args.pixscale,
                                                      verbose=args.verbose,
                                                      largegalaxy=True)
-                [data.pop('{}_masked'.format(filt)) for filt in data['bands']] # remove the data
+                [data.pop('{}_masked'.format(filt)) for filt in data['bands']] # remove the images
                 for igal in np.arange(len(data['central_galaxy_id'])):
                     lslga_id = data['central_galaxy_id'][igal]
-                    
-                    tree = {'lslga_id': lslga_id, 'galaxy': str(onegal['GALAXY']),
+                    thisgal = fullsample[fullsample['LSLGA_ID'] == lslga_id]
+                    if len(thisgal) == 0:
+                        print('Well this is embarrassing: unable to find galaxy {} in full sample.'.format(
+                            lslga_id))
+                        continue
+                    tree = {'lslga_id': lslga_id, 'galaxy': str(thisgal['GALAXY'][0]), #str(onegal['GALAXY']),
                             'pixscale': np.float32(args.pixscale)}
-                    for key in ['ra', 'dec', 'pgc', 'pa', 'ba']:
-                        ukey = key.upper()
-                        tree[key] = onegal[ukey]
+                    for key in ['ra', 'dec', 'pgc', 'pa', 'ba', 'd25']:
+                        tree[key] = thisgal[key.upper()][0]
+                        
                     for key in data['mge'][igal].keys():
                         if key == 'bx' or key == 'by': # keep the Tractor columns
                             tree[key] = data['mge'][igal][key]
