@@ -284,15 +284,18 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         if False:
             from legacyhalos.brick import brickname as get_brickname
             brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
-            #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-south.txt'), dtype='str')
-            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9-south.txt'), dtype='str')
-            if True:
-                bricklist = np.union1d(nbricklist, sbricklist)
-            else:
-                bricklist = nbricklist
-                #bricklist = sbricklist
+            # Test sample-- 1 deg2 patch of sky
+            bricklist = ['0343p012']
+            #bricklist = ['0341p007', '0341p010', '0341p012', '0341p015', '0343p007', '0343p010',
+            #             '0343p012', '0343p015', '0346p007', '0346p010', '0346p012', '0346p015',
+            #             '0348p007', '0348p010', '0348p012', '0348p015']
+            ##nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-north.txt'), dtype='str')
+            ##sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-south.txt'), dtype='str')
+            #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9-north.txt'), dtype='str')
+            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9-south.txt'), dtype='str')
+            #bricklist = np.union1d(nbricklist, sbricklist)
+            #bricklist = nbricklist
+
             #rows = np.where([brick in bricklist for brick in brickname])[0]
             brickcut = np.where(np.isin(brickname, bricklist))[0]
             rows = rows[brickcut]
@@ -1011,15 +1014,21 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     html.write('</table>\n')
 
                 #html.write('<br />\n')
-                html.write('<p>Maskbits.</p>\n')
+                html.write('<h4>Galaxy Geometry</h4>\n')
+                html.write('<p>The ellipses are based on the geometry of the parent LSLGA catalog (blue) and the second moments of the light distribution (orange). </p>\n')
                 
-                pngfile = '{}-largegalaxy-maskbits.png'.format(galaxy1)
-                html.write('<table width="30%">\n')
-                html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(pngfile))
+                html.write('<table width="60%">\n')
+                html.write('<tr><th>Maskbits</th><th>Ellipse Moments</th></tr>\n')
+                html.write('<tr>\n')
+                html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
+                    '{}-largegalaxy-maskbits.png'.format(galaxy1)))
+                html.write('<td width="50%"><a href="{1}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
+                    'thumb-{}-largegalaxy-mge-ellipse.png'.format(galaxy1), '{}-largegalaxy-mge-ellipse.png'.format(galaxy1)))
+                html.write('</tr>\n')
                 html.write('</table>\n')
 
                 #html.write('<br />\n')
-                html.write('<p>Spatial distribution of CCDs.</p>\n')
+                html.write('<h4>Spatial distribution of CCDs.</h4>\n')
 
                 html.write('<table width="90%">\n')
                 pngfile = '{}-ccdpos.png'.format(galaxy1)

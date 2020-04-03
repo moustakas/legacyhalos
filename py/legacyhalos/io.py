@@ -392,33 +392,27 @@ def read_integrated_flux(first=None, last=None, integratedfile=None, verbose=Fal
             
     return results
 
-def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', verbose=False):
-    """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
-    e.g., ellipse.fit_multiband).
-
-    """
-    if filesuffix.strip() == '':
-        ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
-    else:
-        ellipsefitfile = os.path.join(galaxydir, '{}-{}-ellipsefit.p'.format(galaxy, filesuffix))
-        
-    if verbose:
-        print('Writing {}'.format(ellipsefitfile))
-    with open(ellipsefitfile, 'wb') as ell:
-        pickle.dump(ellipsefit, ell, protocol=2)
-
-def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True):
+def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True, pickle=False):
     """Read the output of write_ellipsefit.
 
     """
-    if filesuffix.strip() == '':
-        ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.p'.format(galaxy))
+    if pickle:
+        suff = '.p'
     else:
-        ellipsefitfile = os.path.join(galaxydir, '{}-{}-ellipsefit.p'.format(galaxy, filesuffix))
+        suff = '.asdf'
+    
+    if filesuffix.strip() == '':
+        ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.{}'.format(galaxy, suff))
+    else:
+        ellipsefitfile = os.path.join(galaxydir, '{}-{}-ellipsefit.{}'.format(galaxy, filesuffix, suff))
         
     try:
-        with open(ellipsefitfile, 'rb') as ell:
-            ellipsefit = pickle.load(ell)
+        if pickle:
+            with open(ellipsefitfile, 'rb') as ell:
+                ellipsefit = pickle.load(ell)
+        else:
+            with asdf.open(ellipsefitfile) as af:
+                ellipsefit = af.tree
     except:
         #raise IOError
         if verbose:
@@ -427,7 +421,8 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True):
 
     return ellipsefit
 
-def write_mge_ellipsefit(galaxy, galaxydir, mgefit, filesuffix='', verbose=False):
+def write_ellipsefit(galaxy, galaxydir, mgefit, filesuffix='',
+                     verbose=False, pickle=False):
     """Write out an ASDF file base on the output of
     legacyhalos.io.read_multiband. See LSLGA-mpi --ellipse.
 
@@ -440,26 +435,6 @@ def write_mge_ellipsefit(galaxy, galaxydir, mgefit, filesuffix='', verbose=False
     if verbose:
         print('Writing {}'.format(mgefitfile))
     mgefit.write_to(mgefitfile)
-
-def read_mge_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True):
-    """Read the output of write_mge_ellipsefit.
-
-    """
-    if filesuffix.strip() == '':
-        mgefitfile = os.path.join(galaxydir, '{}-mgefit.asdf'.format(galaxy))
-    else:
-        mgefitfile = os.path.join(galaxydir, '{}-{}-mgefit.asdf'.format(galaxy, filesuffix))
-        
-    try:
-        with asdf.open(mgefitfile) as af:
-            mgefit = af.tree
-    except:
-        #raise IOError
-        if verbose:
-            print('File {} not found!'.format(mgefitfile))
-        mgefit = dict()
-
-    return mgefit
 
 def write_sersic(galaxy, galaxydir, sersic, modeltype='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
@@ -572,7 +547,7 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     else:
         print('File {} exists.'.format(resultsfile))
 
-def _get_psfsize_and_depth(tractor, bands, incenter=False):
+def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
     """Helper function for read_multiband. Compute the average PSF size (in arcsec)
     and depth (in 5-sigma AB mags) in each bandpass based on the Tractor
     catalog.
@@ -599,14 +574,19 @@ def _get_psfsize_and_depth(tractor, bands, incenter=False):
             print('No sources at the center of the field, sonable to get PSF size!')
             continue
 
-        #out['npsfsize_{}'.format(filt)] = np.sum(these).astype(int)
-        out['psfsize_{}'.format(filt)] = np.median(tractor.get(psfsizecol)[these]).astype('f4') # [arcsec]
-        out['psfsize_min_{}'.format(filt)] = np.min(tractor.get(psfsizecol)[these]).astype('f4')
-        out['psfsize_max_{}'.format(filt)] = np.max(tractor.get(psfsizecol)[these]).astype('f4')
+        # Get the PSF size and image depth.
+        psfsize = tractor.get(psfsizecol)[these]   # [FWHM, arcsec]
+        psfdepth = tractor.get(psfdepthcol)[these] # [AB mag, 5-sigma]
+        psfsigma = psfsize / np.sqrt(8 * np.log(2)) / pixscale # [sigma, pixels]
 
-        out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(tractor.get(psfdepthcol)[these])))).astype('f4') # [AB mag, 5-sigma]
-        out['psfdepth_min_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.min(tractor.get(psfdepthcol)[these])))).astype('f4')
-        out['psfdepth_max_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.max(tractor.get(psfdepthcol)[these])))).astype('f4')
+        out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
+        out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
+        out['psfsize_min_{}'.format(filt)] = np.min(psfsize).astype('f4')
+        out['psfsize_max_{}'.format(filt)] = np.max(psfsize).astype('f4')
+
+        out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
+        out['psfdepth_min_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.min(psfdepth)))).astype('f4')
+        out['psfdepth_max_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.max(psfdepth)))).astype('f4')
 
     return out
 
@@ -652,9 +632,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             invvar = None
             mask = np.zeros_like(image).astype(bool)
 
-        # Cache the reference image for the next step.
+        # Cache the reference image header for the next step.
         if filt == refband:
-            refimage = image.copy()
+            HH, WW = image.shape
+            data['shape'] = (HH, WW)
             refhdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
@@ -671,13 +652,14 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         resid = gaussian_filter(image - model, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
         if residual_mask is None:
-            residual_mask = np.abs(resid) > 3*sig
+            residual_mask = np.abs(resid) > 5*sig
         else:
-            residual_mask = np.logical_or(residual_mask, np.abs(resid) > 3*sig)
+            residual_mask = np.logical_or(residual_mask, np.abs(resid) > 5*sig)
 
         # Grow the mask slightly and pack into a dictionary.
         mask = binary_dilation(mask, iterations=2)
         data[filt] = ma.masked_array(image, mask) # [nanomaggies]
+        ma.set_fill_value(data[filt], fill_value)
 
         #if invvar is not None:
         #    var = np.zeros_like(invvar)
@@ -689,8 +671,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         print('Reading {}'.format(filt2imfile[refband]['psf']))
     psfimg = fitsio.read(filt2imfile[refband]['psf'])
     psf = PixelizedPSF(psfimg)
-    H, W = refimage.shape
-    xobj, yobj = np.ogrid[0:H, 0:W]
+    xobj, yobj = np.ogrid[0:HH, 0:WW]
 
     wcs = Tan(filt2imfile[refband]['image'], 1)
     mjd_tai = refhdr['MJD_MEAN'] # [TAI]
@@ -700,42 +681,71 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
     # If the row-index of the central galaxy is not provided, use the source
     # nearest to the center of the field.
     if central_galaxy is None:
-        central_galaxy = np.array([np.argmin((tractor.bx - H/2)**2 + (tractor.by - W/2)**2)])
+        central_galaxy = np.array([np.argmin((tractor.bx - HH/2)**2 + (tractor.by - WW/2)**2)])
         central_galaxy_id = None
     data['central_galaxy_id'] = central_galaxy_id
 
     #print('Import hack!')
     #import matplotlib.pyplot as plt ; from astropy.visualization import simple_norm
     
-    # Now, for each 'central_galaxy', "find" it in the reference band and then
-    # unmask the pixels belonging to that galaxy in each of the input bands.
+    # Now, loop through each 'central_galaxy' from bright to faint.
     data['mge'] = []
     for ii, central in enumerate(central_galaxy):
         if verbose:
             print('Building masked image for central {}/{}.'.format(ii+1, len(central_galaxy)))
 
-        # Build the model image on-the-fly.
+        # Build the model image (of every object except the central)
+        # on-the-fly. Need to be smarter about Tractor sources of resolved
+        # structure (i.e., sources that "belong" to the central).
         nocentral = np.delete(np.arange(len(tractor)), central)
         srcs = tractor.copy()
         srcs.cut(nocentral)
         model_nocentral = srcs2image(srcs, twcs, band=refband, pixelized_psf=psf)
 
-        # Get the basic galaxy geometry and pack it into a dictionary.
-        mgegalaxy = find_galaxy(refimage-model_nocentral, fraction=0.2,
-                                nblob=1, binning=3, quiet=not verbose)
-        mge = {'bx': tractor[central].bx, 'by': tractor[central].by}
+        # Mask all previous (brighter) central galaxies, if any.  Need to be
+        # smarter if the new central gets masked!
+        img, mask = ma.getdata(data[refband]) - model_nocentral, ma.getmask(data[refband])
+        for jj in np.arange(ii):
+            geo = data['mge'][jj] # the previous galaxy
+            _mask = ellipse_mask(geo['xmed'], geo['ymed'], geo['majoraxis'],
+                                 geo['majoraxis'] * (1-geo['eps']),
+                                 np.radians(geo['theta']-90), xobj, yobj)
+            if _mask[int(tractor.by[central]), int(tractor.bx[central])]:
+                print('The previous central has been masked---this is bad!')
+                pdb.set_trace()
+            mask = ma.mask_or(_mask, mask)
+
+        # Next, get the basic galaxy geometry and pack it into a dictionary.
+        #minsb = 10**(-0.4*(22-22.5)) / filt2pixscale[refband]**2
+        mgegalaxy = find_galaxy(ma.masked_array(img, mask), nblob=1, fraction=0.3, #level=minsb,
+                                binning=3, quiet=not verbose, plot=True)
+        print(mgegalaxy.xmed, tractor.by[central], mgegalaxy.ymed, tractor.bx[central])
+        if (np.abs(mgegalaxy.xmed-tractor.by[central]) > 5 or # note [xpeak,ypeak]-->[by,bx]
+            np.abs(mgegalaxy.ymed-tractor.bx[central]) > 5):
+            print('Peak position of the central moved by more than 2 pixels---this is bad!')
+            pdb.set_trace()
+            
+        #import matplotlib.pyplot as plt
+        #plt.savefig('junk.png')
+        #pdb.set_trace()
+        
+        mge = {'bx': tractor.bx[central], 'by': tractor.by[central]}
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
             mge[key] = np.float32(getattr(mgegalaxy, key))
             if key == 'pa': # put into range [0-180]
                 mge[key] = mge[key] % np.float32(180)
         data['mge'].append(mge)
 
+        # Now, loop on each filter and build a custom image and mask for each
+        # central. Specifically, pack the model-subtracted images images
+        # corresponding to each (unique) central into a list. Note that there's
+        # a little bit of code to deal with different pixel scales but this case
+        # requires more work.
+        
         #for filt in [refband]:
         for filt in bands:
             thispixscale = filt2pixscale[filt]
             
-            # Pack the model-subtracted images images corresponding to each
-            # (unique) central into a list.
             imagekey = '{}_masked'.format(filt)
             if imagekey not in data.keys():
                 data[imagekey] = []
@@ -743,24 +753,30 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             factor = filt2pixscale[refband] / filt2pixscale[filt]
             majoraxis = 1.3 * mgegalaxy.majoraxis * factor # [pixels]
 
-            central_mask = ellipse_mask(tractor.by[central] * factor, tractor.bx[central] * factor,
+            # Grab the pixels belonging to this galaxy so we can unmask them below.
+            central_mask = ellipse_mask(mge['xmed'] * factor, mge['ymed'] * factor, 
                                         majoraxis, majoraxis * (1-mgegalaxy.eps), 
                                         np.radians(mgegalaxy.theta-90), xobj, yobj)
+            if np.sum(central_mask) == 0:
+                print('No pixels belong to the central galaxy---this is bad!')
+                pdb.set_trace()
 
-            # "Unmask" the central and pack it away.
+            # Build the mask from the (cumulative) residual-image mask and the
+            # inverse variance mask for this galaxy, but then "unmask" the
+            # pixels belonging to the central.
             mask = ma.mask_or(residual_mask, ma.getmask(data[filt]))
             mask[central_mask] = ma.nomask
 
+            # Need to be smarter about the srcs list...
             srcs = tractor.copy()
             srcs.cut(nocentral)
             model_nocentral = srcs2image(srcs, twcs, band=filt, pixelized_psf=psf)
+
+            # Convert to surface brightness and 32-bit precision.
             img = (ma.getdata(data[filt]) - model_nocentral) / thispixscale**2 # [nanomaggies/arcsec**2]
-            #img = model_nocentral
-            #img[central_mask] = 0
-            #img[mask] = 0
             img = ma.masked_array(img.astype('f4'), mask)
 
-            # Fill with zeros--
+            # Fill with zeros, for fun--
             ma.set_fill_value(img, fill_value)
             #img.filled(fill_value)
             data[imagekey].append(img)
@@ -772,7 +788,6 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             ###
             #plt.imshow(mask, origin='lower') ; plt.savefig('junk3.png')
             #plt.imshow(ma.mask_or(residual_mask, ma.getmask(data[filt])), origin='lower') ; plt.savefig('junk3.png')
-            ##
             ##
             ##img = ma.getdata(data[filt])-model_nocentral ; norm = simple_norm(img, 'log') ; plt.imshow(img, origin='lower', norm=norm) ; plt.savefig('junk.png')
             #img = np.log10(image) ; norm = simple_norm(img, 'log') ; plt.imshow(img, origin='lower', norm=norm) ; plt.savefig('junk.png')
@@ -889,7 +904,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         tractor = fits_table(tractorfile, columns=cols)
         if verbose:
             print('Read {} sources from {}'.format(len(tractor), tractorfile))
-        data.update(_get_psfsize_and_depth(tractor, bands, incenter=False))
+        data.update(_get_psfsize_and_depth(tractor, bands, pixscale, incenter=False))
     else:
         tractor = None
 
@@ -907,10 +922,15 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         starmask = None
 
     # Read the data. For the large-galaxy project, iterate on LSLGA galaxies in
-    # the field, otherwise, take the object closest to the center of the mosaic.
+    # the field, otherwise, take the object closest to the center of the mosaic
+    # (which we figure out in _read_and_mask, after we know the size of the
+    # mosaic).
     if largegalaxy:
         # Need to take into account the elliptical mask of each source--
         central_galaxy = np.where(['L' in refcat for refcat in tractor.ref_cat])[0]
+        srt = np.argsort(tractor.flux_r[central_galaxy])[::-1]
+        central_galaxy = central_galaxy[srt]
+        print('Flux! ', tractor.flux_r[central_galaxy])
         central_galaxy_id = tractor.ref_id[central_galaxy]
     else:
         central_galaxy, central_galaxy_id = None, None
@@ -919,11 +939,10 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           tractor, central_galaxy=central_galaxy,
                           central_galaxy_id=central_galaxy_id,
                           starmask=starmask, verbose=verbose)
-    #pdb.set_trace()
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    ##plt.clf() ; plt.imshow(np.log10(data['g_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    #plt.clf() ; plt.imshow(np.log10(data['g_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
     ##pdb.set_trace()
 
     return data

@@ -337,6 +337,7 @@ def qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=False, verb
     # This will only work for the large-galaxy project, but maybe that's OK.
     suffix = 'largegalaxy'
     mgefile = os.path.join(htmlgalaxydir, '{}-{}-mge-ellipse.png'.format(galaxy, suffix))
+    thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-mge-ellipse.png'.format(galaxy, suffix))
     if not os.path.isfile(mgefile) or clobber:
         jpgfile = os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, suffix))
         if not os.path.isfile(jpgfile):
@@ -366,8 +367,11 @@ def qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=False, verb
             print('Writing {}'.format(mgefile))
             im.save(mgefile)
 
-        pdb.set_trace()
-        
+        # Create a thumbnail.
+        cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(512, mgefile, thumbfile)
+        print('Writing {}'.format(thumbfile))
+        subprocess.call(cmd.split())
+
 def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                       clobber=False, verbose=False):
     """Generate QAplots from the Sersic modeling.
@@ -480,8 +484,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         # Build the MGE ellipse plots (for the large-galaxy project).
         if largegalaxy:
             qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
-        pdb.set_trace()
-
+            
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,
                            barlabel=barlabel, clobber=clobber, verbose=verbose)

@@ -175,9 +175,11 @@ def main():
 
         if args.ellipse:
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-                #call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
-                #             nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                #             logfile=logfile, largegalaxy=True) # zcolumn=ZCOLUMN,
+                call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
+                             nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                             logfile=logfile, largegalaxy=True) # zcolumn=ZCOLUMN,
+                pdb.set_trace()
+                
                 import asdf
                 data = legacyhalos.io.read_multiband(galaxy, galaxydir, refband='r',
                                                      pixscale=args.pixscale,
