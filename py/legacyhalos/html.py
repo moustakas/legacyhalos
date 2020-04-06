@@ -109,43 +109,11 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
     barlen - pixels
 
     """
+    from legacyhalos.qa import addbar_to_png, fonttype
     #from pkg_resources import resource_filename
     from PIL import Image, ImageDraw, ImageFont
+    
     Image.MAX_IMAGE_PIXELS = None
-    fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
-    #fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
-
-    def addbar(jpgfile, barlen, barlabel, imtype, scaledfont=False):
-        pngfile = os.path.join(htmlgalaxydir, os.path.basename(jpgfile).replace('.jpg', '.png'))
-        with Image.open(jpgfile) as im:
-            draw = ImageDraw.Draw(im)
-            sz = im.size
-            width = np.round(sz[0]/150).astype('int')
-
-            # Bar and label
-            if barlen:
-                if scaledfont:
-                    fntsize = np.round(sz[0]/50).astype('int')
-                else:
-                    fntsize = 20 # np.round(sz[0]/20).astype('int')
-                font = ImageFont.truetype(fonttype, size=fntsize)
-                # Add a scale bar and label--
-                x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
-                draw.line((x0, y1, x1, y1), fill='white', width=width)
-                ww, hh = draw.textsize(barlabel, font=font)
-                dx = ((x1-x0) - ww)//2
-                #print(x0, x1, y0, y1, ww, x0+dx, sz)
-                draw.text((x0+dx, y0), barlabel, font=font)
-                #print('Writing {}'.format(pngfile))
-            # Image type
-            if imtype:
-                fntsize = 20 # np.round(sz[0]/20).astype('int')
-                font = ImageFont.truetype(fonttype, size=fntsize)
-                ww, hh = draw.textsize(imtype, font=font)
-                x0, y0, y1 = sz[0]-ww-fntsize*2, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
-                draw.text((x0, y1), imtype, font=font)
-            im.save(pngfile)
-        return pngfile
 
     for filesuffix in ('largegalaxy', 'pipeline', 'custom'):
         montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, filesuffix))
@@ -198,14 +166,14 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
                     #cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 -resize 4096x4096\> '
                     if barlen:
-                        pngfile = addbar(jpgfile, barlen, barlabel, None, scaledfont=True)
+                        pngfile = addbar_to_png(jpgfile, barlen, barlabel, None, scaledfont=True)
                         cmd = cmd+' '+pngfile
                     else:
                         cmd = cmd+' '+jpgfile
                 else:
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
                     if barlen:
-                        pngfile = [addbar(ff, barlen, barlabel, None) for ff in jpgfile]
+                        pngfile = [addbar_to_png(ff, barlen, barlabel, None) for ff in jpgfile]
                         cmd = cmd+' '+pngfile[0]+' '
                         cmd = cmd+' '.join(ff for ff in jpgfile[1:])
                     else:
@@ -261,51 +229,105 @@ def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
             plt.close(fig)
 
 def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                       barlen=None, barlabel=None, clobber=False, verbose=False):
+                       refband='r', pixscale=0.262, barlen=None, barlabel=None,
+                       clobber=False, verbose=False, largegalaxy=False,
+                       scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
 
     """
+    from PIL import Image
     from legacyhalos.io import read_multiband, read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth)
 
-    for filesuffix in ('largegalaxy', 'custom'):
-        ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
+    # Read the data--
+    data = read_multiband(galaxy, galaxydir, bands=bands,
+                          refband=refband, pixscale=pixscale,
+                          verbose=verbose,
+                          largegalaxy=largegalaxy)
+        
+    # One set of QA plots per galaxy.
+    if largegalaxy:
+        for igal in np.arange(len(data['central_galaxy_id'])):
+            central_galaxy_id = data['central_galaxy_id'][igal]
+            galaxyid = str(central_galaxy_id)
+            filesuffix = 'largegalaxy'
 
-        #sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
-        #sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
-        #pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
-        sky_ellipsefit, sdss_ellipsefit, pipeline_ellipsefit = {}, {}, {}
+            af = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
+                                 galaxyid=galaxyid, verbose=verbose)
+            ellipsefit = af.tree
+            if bool(ellipsefit):
+                cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(cogfile) or clobber:
+                    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={},
+                                     png=cogfile, verbose=verbose)
+                    
+                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(multibandfile) or clobber:
 
-        if len(ellipsefit) > 0:
-            # Toss out bad fits.
-            indx = None
-            #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
-            #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
+                    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
+                        display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+                                          centralindx=igal, barlen=barlen, barlabel=barlabel,
+                                          png=multibandfile, verbose=verbose, scaledfont=scaledfont)
+                        
+                    # Create a thumbnail.
+                    cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(512, multibandfile, thumbfile)
+                    print('Writing {}'.format(thumbfile))
+                    subprocess.call(cmd.split())
+                    
+                sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(sbprofilefile) or clobber:
+                    display_ellipse_sbprofile(ellipsefit,
+                                              sky_ellipsefit={},
+                                              pipeline_ellipsefit={},
+                                              sdss_ellipsefit={},
+                                              png=sbprofilefile, verbose=verbose, minerr=0.0)
 
-            cogfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-cog.png'.format(galaxy, filesuffix))
-            if not os.path.isfile(cogfile) or clobber:
-                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
-                                 png=cogfile, verbose=verbose)
-
-            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix))
-            if not os.path.isfile(sbprofilefile) or clobber:
-                display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
-                                          pipeline_ellipsefit=pipeline_ellipsefit,
-                                          png=sbprofilefile, verbose=verbose, minerr=0.0,
-                                          sdss_ellipsefit=sdss_ellipsefit)
-
-            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix))
-            if not os.path.isfile(multibandfile) or clobber:
-                data = read_multiband(galaxy, galaxydir, bands=bands,
-                                      largegalaxy=filesuffix=='largegalaxy')
+                #ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
+                #if not os.path.isfile(ellipsefitfile) or clobber:
+                #    display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
                 
-                display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
-                                  barlabel=barlabel, png=multibandfile, verbose=verbose)
 
-            ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
-            if not os.path.isfile(ellipsefitfile) or clobber:
-                display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
+        af.close()
+
+    #for filesuffix in ('largegalaxy', 'custom'):
+    #    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
+    #
+    #    #sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
+    #    #sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
+    #    #pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
+    #    sky_ellipsefit, sdss_ellipsefit, pipeline_ellipsefit = {}, {}, {}
+    #
+    #    if len(ellipsefit) > 0:
+    #        # Toss out bad fits.
+    #        indx = None
+    #        #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
+    #        #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
+    #
+    #        cogfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-cog.png'.format(galaxy, filesuffix))
+    #        if not os.path.isfile(cogfile) or clobber:
+    #            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
+    #                             png=cogfile, verbose=verbose)
+    #
+    #        sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix))
+    #        if not os.path.isfile(sbprofilefile) or clobber:
+    #            display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
+    #                                      pipeline_ellipsefit=pipeline_ellipsefit,
+    #                                      png=sbprofilefile, verbose=verbose, minerr=0.0,
+    #                                      sdss_ellipsefit=sdss_ellipsefit)
+    #
+    #        multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix))
+    #        if not os.path.isfile(multibandfile) or clobber:
+    #            data = read_multiband(galaxy, galaxydir, bands=bands,
+    #                                  largegalaxy=filesuffix=='largegalaxy')
+    #            
+    #            display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
+    #                              barlabel=barlabel, png=multibandfile, verbose=verbose)
+    #
+    #        ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
+    #        if not os.path.isfile(ellipsefitfile) or clobber:
+    #            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
 
 def qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
     """Generate QAplots from the MGE-based ellipse measurements (just for the
@@ -315,24 +337,7 @@ def qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=False, verb
     from glob import glob
     from PIL import Image, ImageDraw
     import asdf
-    #from legacyhalos.io import read_mge_ellipsefit
-
-    def _draw_ellipse(im, x0, y0, ba, pa, major_axis_arcsec, pixscale, color='#3388ff'):
-        minor_axis_arcsec = major_axis_arcsec * ba
-
-        overlay_height = int(major_axis_arcsec / pixscale)
-        overlay_width = int(minor_axis_arcsec / pixscale)
-        overlay = Image.new('RGBA', (overlay_width, overlay_height))
-
-        draw = ImageDraw.ImageDraw(overlay)
-        box_corners = (0, 0, overlay_width, overlay_height)
-        draw.ellipse(box_corners, fill=None, outline=color, width=3)
-
-        rotated = overlay.rotate(pa, expand=True)
-        rotated_width, rotated_height = rotated.size
-        paste_shift_x = int(x0 - rotated_width / 2)
-        paste_shift_y = int(y0 - rotated_height / 2)
-        im.paste(rotated, (paste_shift_x, paste_shift_y), rotated)
+    from legacyhalos.qa import draw_ellipse_on_png
 
     # This will only work for the large-galaxy project, but maybe that's OK.
     suffix = 'largegalaxy'
@@ -357,12 +362,12 @@ def qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=False, verb
             for mgefitfile in mgefitfiles:
                 with asdf.open(mgefitfile) as af:
                     mgefit = af.tree
-                _draw_ellipse(im, mgefit['bx'], sz[1]-mgefit['by'], mgefit['ba'],
-                              mgefit['pa'], mgefit['d25'] * 60.0, mgefit['pixscale'],
-                              color='#3388ff')
-                _draw_ellipse(im, mgefit['mge_ymed'], sz[1]-mgefit['mge_xmed'], 1-mgefit['mge_eps'],
-                              mgefit['mge_pa'], mgefit['mge_majoraxis'] * mgefit['pixscale'],
-                              mgefit['pixscale'], color='#ffaa33')
+                draw_ellipse_on_png(im, mgefit['bx'], sz[1]-mgefit['by'], mgefit['ba'],
+                                    mgefit['pa'], mgefit['d25'] * 60.0, mgefit['pixscale'],
+                                    color='#3388ff')
+                draw_ellipse_on_png(im, mgefit['mge_ymed'], sz[1]-mgefit['mge_xmed'], 1-mgefit['mge_eps'],
+                                    mgefit['mge_pa'], mgefit['mge_majoraxis'] * mgefit['pixscale'],
+                                    mgefit['pixscale'], color='#ffaa33')
 
             print('Writing {}'.format(mgefile))
             im.save(mgefile)
@@ -424,9 +429,10 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
 def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', 
-               nproc=1, barlen=None, barlabel=None, radius_mosaic_arcsec=None,
-               maketrends=False, ccdqa=False, clobber=False, verbose=True,
-               get_galaxy_galaxydir=None, largegalaxy=False):
+               nproc=1, barlen=None, barlabel=None,
+               radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
+               clobber=False, verbose=True, get_galaxy_galaxydir=None,
+               largegalaxy=False, scaledfont=False):
     """Make QA plots.
 
     """
@@ -481,13 +487,14 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                 redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
-        # Build the MGE ellipse plots (for the large-galaxy project).
-        if largegalaxy:
-            qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
+        ## Build the MGE ellipse plots (for the large-galaxy project).
+        #if largegalaxy:
+        #    qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
             
         # Build the ellipse plots.
-        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,
-                           barlabel=barlabel, clobber=clobber, verbose=verbose)
+        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
+                           pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
+                           verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
 
         # CCD positions
         qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,

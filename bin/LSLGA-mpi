@@ -65,7 +65,7 @@ def main():
                                                customsky=args.largegalaxy_customsky,
                                                preselect_sample=True)
         # For the ellipse-fitting we need the properties of the full sample.
-        if args.ellipse:
+        if args.ellipse or args.htmlindex:
             cols = ['LSLGA_ID', 'GALAXY', 'PGC', 'RA', 'DEC', 'PA', 'BA', 'D25', 'GROUP_ID']
             fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose, preselect_sample=False,
                                                        customsky=False, columns=cols)
@@ -87,7 +87,6 @@ def main():
     # the full sample, so do that here and then return.
     if args.htmlindex:
         if rank == 0:
-            fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose, preselect_sample=False)
             legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
                                         zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
                                         makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
@@ -179,7 +178,8 @@ def main():
                 #central_galaxy_id = fullsample[fullsample['GROUP_ID'] == onegal['GROUP_ID']]['LSLGA_ID']
                 call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                              nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                             logfile=logfile, largegalaxy=True, fullsample=fullsample) # zcolumn=ZCOLUMN,
+                             logfile=logfile, largegalaxy=True, pipeline=False,
+                             fullsample=fullsample) # zcolumn=ZCOLUMN,
                              
                 #pdb.set_trace()
                 #import asdf
@@ -227,7 +227,7 @@ def main():
                                htmldir=htmldir, datadir=datadir,
                                barlen=barlen, barlabel=barlabel,
                                radius_mosaic_arcsec=radius_mosaic_arcsec,
-                               largegalaxy=True,
+                               largegalaxy=True, 
                                get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)
             
     if rank == 0:

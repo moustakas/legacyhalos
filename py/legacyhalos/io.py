@@ -450,8 +450,9 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True,
             with open(ellipsefitfile, 'rb') as ell:
                 ellipsefit = pickle.load(ell)
         else:
-            with asdf.open(ellipsefitfile) as af:
-                ellipsefit = af.tree
+            #with asdf.open(ellipsefitfile) as af:
+            #    ellipsefit = af.tree
+            ellipsefit = asdf.open(ellipsefitfile)
     except:
         #raise IOError
         if verbose:
@@ -742,11 +743,11 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         # Next, get the basic galaxy geometry and pack it into a dictionary.
         #minsb = 10**(-0.4*(22-22.5)) / filt2pixscale[refband]**2
         mgegalaxy = find_galaxy(ma.masked_array(img, mask), nblob=1, fraction=0.3, #level=minsb,
-                                binning=3, quiet=not verbose, plot=True)
+                                binning=3, quiet=not verbose, plot=False)
         print(mgegalaxy.xmed, tractor.by[central], mgegalaxy.ymed, tractor.bx[central])
         if (np.abs(mgegalaxy.xmed-tractor.by[central]) > 5 or # note [xpeak,ypeak]-->[by,bx]
             np.abs(mgegalaxy.ymed-tractor.bx[central]) > 5):
-            print('Peak position of the central moved by more than 2 pixels---this is bad!')
+            print('Peak position of the central moved by more than 5 pixels---this is bad!')
             pdb.set_trace()
             
         #import matplotlib.pyplot as plt
@@ -967,8 +968,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    #plt.clf() ; plt.imshow(np.log10(data['g_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
-    ##pdb.set_trace()
+    ##plt.clf() ; plt.imshow(np.log10(data['g_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    #pdb.set_trace()
 
     return data
 
