@@ -66,10 +66,11 @@ def main():
                                                preselect_sample=True)
         # For the ellipse-fitting we need the properties of the full sample.
         if args.ellipse:
-            cols = ['LSLGA_ID', 'GALAXY', 'PGC', 'RA', 'DEC', 'PA', 'BA', 'D25', 'IN_DESI']
+            cols = ['LSLGA_ID', 'GALAXY', 'PGC', 'RA', 'DEC', 'PA', 'BA', 'D25', 'GROUP_ID']
             fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose, preselect_sample=False,
                                                        customsky=False, columns=cols)
-            fullsample = fullsample[fullsample['IN_DESI']]
+            these = np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])
+            fullsample = fullsample[these]
     else:
         sample, fullsample = None, None
         
@@ -175,41 +176,42 @@ def main():
 
         if args.ellipse:
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
+                #central_galaxy_id = fullsample[fullsample['GROUP_ID'] == onegal['GROUP_ID']]['LSLGA_ID']
                 call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                              nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                             logfile=logfile, largegalaxy=True) # zcolumn=ZCOLUMN,
-                pdb.set_trace()
-                
-                import asdf
-                data = legacyhalos.io.read_multiband(galaxy, galaxydir, refband='r',
-                                                     pixscale=args.pixscale,
-                                                     verbose=args.verbose,
-                                                     largegalaxy=True)
-                [data.pop('{}_masked'.format(filt)) for filt in data['bands']] # remove the images
-                for igal in np.arange(len(data['central_galaxy_id'])):
-                    lslga_id = data['central_galaxy_id'][igal]
-                    thisgal = fullsample[fullsample['LSLGA_ID'] == lslga_id]
-                    if len(thisgal) == 0:
-                        print('Well this is embarrassing: unable to find galaxy {} in full sample.'.format(
-                            lslga_id))
-                        continue
-                    tree = {'lslga_id': lslga_id, 'galaxy': str(thisgal['GALAXY'][0]), #str(onegal['GALAXY']),
-                            'pixscale': np.float32(args.pixscale)}
-                    for key in ['ra', 'dec', 'pgc', 'pa', 'ba', 'd25']:
-                        tree[key] = thisgal[key.upper()][0]
-                        
-                    for key in data['mge'][igal].keys():
-                        if key == 'bx' or key == 'by': # keep the Tractor columns
-                            tree[key] = data['mge'][igal][key]
-                        else:
-                            tree['mge_{}'.format(key)] = data['mge'][igal][key]
-                        af = asdf.AsdfFile(tree)
-
-                    filesuffix = 'largegalaxy-{}'.format(lslga_id)
-                    legacyhalos.io.write_mge_ellipsefit(galaxy, galaxydir, af, filesuffix=filesuffix,
-                                                        verbose=args.verbose)
-                    #bb = legacyhalos.io.read_mge_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
-                    #                                        verbose=args.verbose)
+                             logfile=logfile, largegalaxy=True, fullsample=fullsample) # zcolumn=ZCOLUMN,
+                             
+                #pdb.set_trace()
+                #import asdf
+                #data = legacyhalos.io.read_multiband(galaxy, galaxydir, refband='r',
+                #                                     pixscale=args.pixscale,
+                #                                     verbose=args.verbose,
+                #                                     largegalaxy=True)
+                #[data.pop('{}_masked'.format(filt)) for filt in data['bands']] # remove the images
+                #for igal in np.arange(len(data['central_galaxy_id'])):
+                #    lslga_id = data['central_galaxy_id'][igal]
+                #    thisgal = fullsample[fullsample['LSLGA_ID'] == lslga_id]
+                #    if len(thisgal) == 0:
+                #        print('Well this is embarrassing: unable to find galaxy {} in full sample.'.format(
+                #            lslga_id))
+                #        continue
+                #    tree = {'lslga_id': lslga_id, 'galaxy': str(thisgal['GALAXY'][0]), #str(onegal['GALAXY']),
+                #            'pixscale': np.float32(args.pixscale)}
+                #    for key in ['ra', 'dec', 'pgc', 'pa', 'ba', 'd25']:
+                #        tree[key] = thisgal[key.upper()][0]
+                #        
+                #    for key in data['mge'][igal].keys():
+                #        if key == 'bx' or key == 'by': # keep the Tractor columns
+                #            tree[key] = data['mge'][igal][key]
+                #        else:
+                #            tree['mge_{}'.format(key)] = data['mge'][igal][key]
+                #        af = asdf.AsdfFile(tree)
+                #
+                #    filesuffix = 'largegalaxy-{}'.format(lslga_id)
+                #    legacyhalos.io.write_mge_ellipsefit(galaxy, galaxydir, af, filesuffix=filesuffix,
+                #                                        verbose=args.verbose)
+                #    #bb = legacyhalos.io.read_mge_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
+                #    #                                        verbose=args.verbose)
                     
         if args.htmlplots:
             if args.largegalaxy_customsky:

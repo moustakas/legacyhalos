@@ -90,7 +90,7 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
     elif args.ellipse:
         suffix = 'ellipse'
         if filesuffix is None:
-            filesuffix = '-mgefit.asdf'
+            filesuffix = '-ellipse.asdf'
             #filesuffix = '-ellipsefit.p'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.htmlplots:

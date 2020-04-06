@@ -392,7 +392,40 @@ def read_integrated_flux(first=None, last=None, integratedfile=None, verbose=Fal
             
     return results
 
-def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True, pickle=False):
+def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
+                     verbose=False, pickle=False):
+    """Write out an ASDF file based on the output of
+    legacyhalos.ellipse.ellipse_multiband..
+
+    pickle - write an old-style pickle file
+
+    """
+    if pickle:
+        suff = '.p'
+    else:
+        suff = '.asdf'
+
+    if galaxyid.strip() == '':
+        galid = ''
+    else:
+        galid = '-{}'.format(galaxyid)
+    if filesuffix.strip() == '':
+        fsuff = ''
+    else:
+        fsuff = '-{}'.format(filesuffix)
+        
+    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipsefit{}'.format(galaxy, fsuff, galid, suff))
+        
+    if verbose:
+        print('Writing {}'.format(ellipsefitfile))
+    if pickle:
+        with open(ellipsefitfile, 'wb') as ell:
+            pickle.dump(ellipsefit, ell, protocol=2)
+    else:
+        af = asdf.AsdfFile(ellipsefit)
+        af.write_to(ellipsefitfile)
+
+def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True, pickle=False):
     """Read the output of write_ellipsefit.
 
     """
@@ -401,10 +434,16 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True, pickle=False
     else:
         suff = '.asdf'
     
-    if filesuffix.strip() == '':
-        ellipsefitfile = os.path.join(galaxydir, '{}-ellipsefit.{}'.format(galaxy, suff))
+    if galaxyid.strip() == '':
+        galid = ''
     else:
-        ellipsefitfile = os.path.join(galaxydir, '{}-{}-ellipsefit.{}'.format(galaxy, filesuffix, suff))
+        galid = '-{}'.format(galaxyid)
+    if filesuffix.strip() == '':
+        fsuff = ''
+    else:
+        fsuff = '-{}'.format(filesuffix)
+        
+    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipsefit{}'.format(galaxy, fsuff, galid, suff))
         
     try:
         if pickle:
@@ -420,21 +459,6 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', verbose=True, pickle=False
         ellipsefit = dict()
 
     return ellipsefit
-
-def write_ellipsefit(galaxy, galaxydir, mgefit, filesuffix='',
-                     verbose=False, pickle=False):
-    """Write out an ASDF file base on the output of
-    legacyhalos.io.read_multiband. See LSLGA-mpi --ellipse.
-
-    """
-    if filesuffix.strip() == '':
-        mgefitfile = os.path.join(galaxydir, '{}-mgefit.asdf'.format(galaxy))
-    else:
-        mgefitfile = os.path.join(galaxydir, '{}-{}-mgefit.asdf'.format(galaxy, filesuffix))
-        
-    if verbose:
-        print('Writing {}'.format(mgefitfile))
-    mgefit.write_to(mgefitfile)
 
 def write_sersic(galaxy, galaxydir, sersic, modeltype='single', verbose=False):
     """Pickle a dictionary of photutils.isophote.isophote.IsophoteList objects (see,
@@ -808,8 +832,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
-                   sdss_pixscale=0.396, maskfactor=2.0, sdss=False,
-                   largegalaxy=False, pipeline=False, verbose=False):
+                   sdss_pixscale=0.396, central_galaxy_id=None,
+                   sdss=False, largegalaxy=False, pipeline=False, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
     masked array suitable for ellipse-fitting.
 
@@ -926,6 +950,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     # (which we figure out in _read_and_mask, after we know the size of the
     # mosaic).
     if largegalaxy:
+        print('Need to fix this to use central_galaxy_id but what if Tractor drops a galaxy!')
         # Need to take into account the elliptical mask of each source--
         central_galaxy = np.where(['L' in refcat for refcat in tractor.ref_cat])[0]
         srt = np.argsort(tractor.flux_r[central_galaxy])[::-1]
