@@ -703,6 +703,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
     mjd_tai = refhdr['MJD_MEAN'] # [TAI]
 
     twcs = LegacySurveyWcs(wcs, TAITime(None, mjd=mjd_tai))
+    data['wcs'] = twcs
 
     # If the row-index of the central galaxy is not provided, use the source
     # nearest to the center of the field.
@@ -762,8 +763,15 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         #plt.imshow(mask, origin='lower')
         #plt.savefig('junk.png')
         #pdb.set_trace()
-        
-        mge = {'bx': tractor.bx[central], 'by': tractor.by[central]}
+        radec_med = data['wcs'].pixelToPosition(mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
+        radec_peak = data['wcs'].pixelToPosition(mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
+        mge = {'ra': tractor.ra[central], 'dec': tractor.dec[central],
+               'bx': tractor.bx[central], 'by': tractor.by[central],
+               'mw_transmission_g': tractor.mw_transmission_g[central],
+               'mw_transmission_r': tractor.mw_transmission_r[central],
+               'mw_transmission_z': tractor.mw_transmission_z[central],
+               'ra_med': radec_med[0], 'dec_med': radec_med[1],
+               'ra_peak': radec_med[0], 'dec_peak': radec_med[1]}
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
             mge[key] = np.float32(getattr(mgegalaxy, key))
             if key == 'pa': # put into range [0-180]
@@ -785,7 +793,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
                 data[imagekey], data[varkey] = [], []
 
             factor = filt2pixscale[refband] / filt2pixscale[filt]
-            majoraxis = 1.3 * mgegalaxy.majoraxis * factor # [pixels]
+            majoraxis = 1.5 * factor * mgegalaxy.majoraxis # [pixels]
 
             # Grab the pixels belonging to this galaxy so we can unmask them below.
             central_mask = ellipse_mask(mge['xmed'] * factor, mge['ymed'] * factor, 
@@ -935,7 +943,9 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         #tractor = Table(fitsio.read(tractorfile, columns=cols, upper=True))
         cols = ['ra', 'dec', 'bx', 'by', 'type', 'ref_cat', 'ref_id',
                 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
-                'flux_g', 'flux_r', 'flux_z', 'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
+                'flux_g', 'flux_r', 'flux_z',
+                'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
+                'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
                 'psfsize_g', 'psfsize_r', 'psfsize_z']
         tractor = fits_table(tractorfile, columns=cols)
         if verbose:

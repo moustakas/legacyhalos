@@ -745,7 +745,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     res.append('{:.3f}'.format(mag))
                     #res.append('{:.3f}+/-{:.3f}'.format(mag, magerr))
                 else:
-                    res.append('&nbsp')
+                    res.append('...')
         return res
             
     trendshtml = 'trends.html'
@@ -1040,14 +1040,14 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     html.write('<th colspan="5">Tractor</th>\n')
                     html.write('<th colspan="3">LSLGA</th>\n')
                     html.write('<th colspan="3">Ellipse Moments</th>\n')
-                    html.write('<th colspan="3">Ellipse Fitting</th>\n')
+                    html.write('<th colspan="5">Ellipse Fitting</th>\n')
                     html.write('</tr>\n')
 
                     html.write('<tr><th>LSLGA ID</th>\n')
                     html.write('<th>Type</th><th>n</th><th>r(50)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
                     html.write('<th>R(25)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
                     html.write('<th>Size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
-                    html.write('<th>R(25)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
+                    html.write('<th>R(24)<br />(arcsec)</th><th>R(25)<br />(arcsec)</th><th>R(26)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
                     html.write('</tr>\n')
                     
                     for tt in tractor:
@@ -1069,10 +1069,17 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                                 ellipse['lslga_d25']*60/2, ellipse['lslga_pa'], 1-ellipse['lslga_ba']))
                             html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
                                 ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
-                            html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                                ellipse['ellipse_r25'], ellipse['pa'], ellipse['eps']))
+
+                            rr = []
+                            for rad in [ellipse['ellipse_r24'], ellipse['ellipse_r25'], ellipse['ellipse_r26']]:
+                                if rad < 0:
+                                    rr.append('...')
+                                else:
+                                    rr.append('{:.3f}'.format(rad))
+                            html.write('<td>{}</td><td>{}</td><td>{}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
+                                rr[0], rr[1], rr[2], ellipse['pa'], ellipse['eps']))
                         else:
-                            html.write('<td>&nbsp</td><td>&nbsp</td><td>&nbsp</td>\n')
+                            html.write('<td>...</td><td>...</td><td>...</td>\n')
                             
                         html.write('</tr>\n')
                         af.close()
@@ -1105,7 +1112,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                             g, r, z = _get_mags(ellipse, cog=True)
                             html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                         else:
-                            html.write('<td>&nbsp</td><td>&nbsp</td><td>&nbsp</td>\n')
+                            html.write('<td>...</td><td>...</td><td>...</td>\n')
                         html.write('</tr>\n')
                         af.close()
                     html.write('</table>\n')

@@ -143,8 +143,6 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         else:
             cogerr = np.zeros_like(cog)
 
-        pdb.set_trace()
-            
         #magtot = np.mean(mag[-5:])
         if pipeline_ellipsefit and False:
             pipeline_magtot = pipeline_ellipsefit['cog_params_{}'.format(filt)]['mtot']
@@ -156,6 +154,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         #ax.plot(sma, cog, label=label)
         ax.fill_between(sma, cog-cogerr, cog+cogerr, label=label, color=col)
                         #facecolor=col, edgecolor='k', lw=2)
+        #if np.any(np.iscomplex(sma)) or np.any(np.iscomplex(cog)) or np.any(np.iscomplex(cogerr)):
+        #    pdb.set_trace()
 
         if pipeline_ellipsefit and False:
             _sma = pipeline_ellipsefit['cog_sma_{}'.format(filt)]
@@ -168,7 +168,6 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         cogmodel = CogModel().evaluate(sma, magtot, cogparams['m0'],
                                        cogparams['alpha1'], cogparams['alpha2'])
         ax.plot(sma, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
-
         if sma.max() > maxsma:
             maxsma = sma.max()
         
@@ -180,6 +179,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             yfaint = cog.max()
         if cog.min() < ybright:
             ybright = cog.min()
+        #pdb.set_trace()
 
     ax.set_xlabel(r'Semi-major axis (arcsec)')
     ax.set_ylabel('Cumulative brightness (AB mag)')
@@ -212,8 +212,12 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
                        lw=2, color='red', ls='dotted')
         
     ax.legend(loc='lower right', fontsize=14)#, ncol=3)
+    #pdb.set_trace()
 
-    fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
+    if smascale:
+        fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
+    else:
+        fig.subplots_adjust(left=0.12, bottom=0.15, top=0.95, right=0.88)
 
     if png:
         #if verbose:
@@ -754,7 +758,15 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                              maxis, maxis*(1 - ellipsefit['eps']),
                                              np.radians(ellipsefit['pa']-90))
-                ellaper.plot(color='red', lw=2, axes=ax1, alpha=0.9, label='Mean geometry')
+                ellaper.plot(color='red', lw=3, axes=ax1, alpha=0.9, label='Mean geometry')
+
+                # Visualize the ellipse-fitted geometry
+                maxis = ellipsefit['ellipse_r26'] / ellipsefit['refpixscale'] # [pixels]
+                if maxis > 0:
+                    ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
+                                                 maxis, maxis*(1 - ellipsefit['eps']),
+                                                 np.radians(ellipsefit['pa']-90))
+                    ellaper.plot(color='k', lw=3, axes=ax1, alpha=0.9, label='Ellipse geometry')
 
                 # Visualize the LSLGA geometry, if present.
                 if ('lslga_pa' in ellipsefit.keys()) * ('lslga_ba' in ellipsefit.keys()) * ('lslga_d25' in ellipsefit.keys()):
@@ -762,7 +774,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                     ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                                  maxis, maxis * ellipsefit['lslga_ba'],
                                                  np.radians(ellipsefit['lslga_pa']-90))
-                    ellaper.plot(color='blue', lw=2, axes=ax1, alpha=1.0, label='LSLGA geometry')
+                    ellaper.plot(color='blue', lw=3, axes=ax1, alpha=1.0, label='LSLGA geometry')
                 #pdb.set_trace()
                 ## Visualize the fitted geometry
                 #maxis = mge['majoraxis'] * 1.2
@@ -1116,7 +1128,10 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         #ax2.text(0.03, 0.1, 'PSF\n(3$\sigma$)', ha='center', va='center',
         #    transform=ax2.transAxes, fontsize=10)
 
-        fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.12, top=0.85)
+        if redshift:
+            fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.12, top=0.85)
+        else:
+            fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.12, top=0.95)
 
         if png:
             #if verbose:
