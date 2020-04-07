@@ -66,7 +66,7 @@ def main():
                                                preselect_sample=True)
         # For the ellipse-fitting we need the properties of the full sample.
         if args.ellipse or args.htmlindex:
-            cols = ['LSLGA_ID', 'GALAXY', 'PGC', 'RA', 'DEC', 'PA', 'BA', 'D25', 'GROUP_ID']
+            cols = ['LSLGA_ID', 'GALAXY', 'PGC', 'RA', 'DEC', 'PA', 'BA', 'D25', 'GROUP_ID', 'TYPE']
             fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose, preselect_sample=False,
                                                        customsky=False, columns=cols)
             these = np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])

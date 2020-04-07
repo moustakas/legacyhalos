@@ -255,13 +255,25 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
             af = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
                                  galaxyid=galaxyid, verbose=verbose)
-            ellipsefit = af.tree
-            if bool(ellipsefit):
+            if bool(af):
+                ellipsefit = af.tree
                 cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
                 if not os.path.isfile(cogfile) or clobber:
-                    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={},
+                    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
                                      png=cogfile, verbose=verbose)
                     
+                sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(sbprofilefile) or clobber:
+                    display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
+                                              sky_ellipsefit={},
+                                              pipeline_ellipsefit={},
+                                              sdss_ellipsefit={},
+                                              png=sbprofilefile, verbose=verbose, minerr=0.0)
+
+                print('CONTINUING IN QA_ELLIPSE_RESULTS!')
+                #pdb.set_trace()
+                continue
+            
                 multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
                 thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
                 if not os.path.isfile(multibandfile) or clobber:
@@ -272,18 +284,10 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                           png=multibandfile, verbose=verbose, scaledfont=scaledfont)
                         
                     # Create a thumbnail.
-                    cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(512, multibandfile, thumbfile)
+                    cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(1024, multibandfile, thumbfile)
                     print('Writing {}'.format(thumbfile))
                     subprocess.call(cmd.split())
                     
-                sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
-                if not os.path.isfile(sbprofilefile) or clobber:
-                    display_ellipse_sbprofile(ellipsefit,
-                                              sky_ellipsefit={},
-                                              pipeline_ellipsefit={},
-                                              sdss_ellipsefit={},
-                                              png=sbprofilefile, verbose=verbose, minerr=0.0)
-
                 #ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
                 #if not os.path.isfile(ellipsefitfile) or clobber:
                 #    display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
@@ -495,6 +499,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                            pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
                            verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
+        pdb.set_trace()
 
         # CCD positions
         qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,

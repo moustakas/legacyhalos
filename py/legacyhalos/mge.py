@@ -175,6 +175,7 @@ class find_galaxy(object):
         sizes = ndimage.sum(mask, labels, np.arange(nb + 1))
         j = np.argsort(sizes)[-nblob]      # find the nblob-th largest blob
         ind = np.flatnonzero(labels == j)
+        revind = np.flatnonzero(labels != j)
 
         self.second_moments(img, ind)
         self.pa = np.mod(270 - self.theta, 180)  # astronomical PA
@@ -190,12 +191,16 @@ class find_galaxy(object):
 
         if plot:
             ax = plt.gca()
-            ax.imshow(np.log(img.clip(img[self.xpeak, self.ypeak]/1e4)),
+            im = ma.getdata(np.log(img.clip(img[self.xpeak, self.ypeak]/1e4)))
+            #im.flat[revind] = 0
+            if np.sum(mask) > 0:
+                im[mask] = 0
+            ax.imshow(im,
                       cmap='hot', origin='lower', interpolation='nearest')
-            mask[:] = False
-            mask.flat[ind] = True
-            ax.imshow(mask, cmap='binary', interpolation='nearest',
-                      origin='lower', alpha=0.3)
+            #mask[:] = False
+            #mask.flat[ind] = True
+            #ax.imshow(mask, cmap='binary', interpolation='nearest',
+            #          origin='lower', alpha=0.3)
             ax.autoscale(False)  # prevents further scaling after imshow()
             mjr = 1.1*self.majoraxis
             yc, xc = self.xmed, self.ymed

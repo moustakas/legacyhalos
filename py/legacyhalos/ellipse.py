@@ -81,17 +81,55 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     """
     import astropy.table
     from astropy.utils.exceptions import AstropyUserWarning
+    from scipy.interpolate import interp1d
 
+    rand = np.random.RandomState(seed)
+    
     deltaa = 0.5 # pixel spacing
 
     #theta, eps = refellipsefit['geometry'].pa, refellipsefit['geometry'].eps
-    theta, eps = np.radians(refellipsefit['theta']), refellipsefit['eps']
+    theta, eps = np.radians(refellipsefit['pa']-90), refellipsefit['eps']
     refband = refellipsefit['refband']
+    #maxsma = refellipsefit['maxsma']
 
     results = {}
 
+    # Build the SB profile and measure the radius (in arcsec) at which mu
+    # crosses a few different thresholds like 25 mag/arcsec, etc.
     sbprofile = ellipse_sbprofile(refellipsefit)
-    #maxsma = refellipsefit['maxsma']
+
+    print('We should measure these radii from the extinction-corrected photometry!')
+    sberr = sbprofile['muerr_r']
+    rr = (sbprofile['sma_r'] * pixscale)**0.25 # [arcsec]
+    for sbcut in (24, 25, 25.5, 26):
+        if sbprofile['mu_r'].max() < sbcut:
+            print('Profile too shallow to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
+            results['ellipse_r{:0g}'.format(sbcut)] = -1.0
+            continue
+
+        sb = sbprofile['mu_r'] - sbcut
+        keep = np.where((sb > -1) * (sb < 1))[0]
+        #coeff = np.polyfit(rr[keep], sb[keep], 1, w=1/sberr[keep])
+        # Monte Carlo to get the radius
+        rcut = []
+        for ii in np.arange(20):
+            sbfit = rand.normal(sb[keep], sberr[keep])
+            coeff = np.polyfit(sbfit, rr[keep], 1)
+            rcut.append((np.polyval(coeff, 0))**4)
+        meanrcut, sigrcut = np.mean(rcut), np.std(rcut)
+        print(rcut, meanrcut, sigrcut)
+
+        #plt.clf() ; plt.plot((rr[keep])**4, sb[keep]) ; plt.axvline(x=meanrcut) ; plt.savefig('junk.png')
+        #plt.clf() ; plt.plot(rr, sb+sbcut) ; plt.axvline(x=meanrcut**0.25) ; plt.axhline(y=sbcut) ; plt.xlim(2, 2.6) ; plt.savefig('junk.png')
+        #pdb.set_trace()
+            
+        #try:
+        #    rcut = interp1d()(sbcut) # [arcsec]
+        #except:
+        #    print('Warning: extrapolating r({:0g})!'.format(sbcut))
+        #    rcut = interp1d(sbprofile['mu_r'], sbprofile['sma_r'] * pixscale, fill_value='extrapolate')(sbcut) # [arcsec]
+        results['ellipse_r{:0g}'.format(sbcut)] = np.float32(meanrcut)
+        results['ellipse_r{:0g}_err'.format(sbcut)] = np.float32(sigrcut)
 
     for filt in bands:
         img = ma.getdata(data['{}_masked'.format(filt)][centralindx]) # [nanomaggies/arcsec2]
@@ -147,7 +185,6 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         def get_chi2(bestfit):
             sbmodel = bestfit(self.radius, self.wave)
             chi2 = np.sum( (self.sb - sbmodel)**2 / self.sberr**2 ) / dof
-            
         
         cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
         cogmodel = CogModel()
@@ -155,7 +192,6 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         nball = 10
 
         # perturb the parameter values
-        rand = np.random.RandomState(seed)
         nparams = len(cogmodel.parameters)
         dof = len(cogmag) - nparams
 
@@ -181,9 +217,16 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             chi2 = np.zeros(nball) + chi2fail
             for jj in range(nball):
                 cogmodel.parameters = params[:, jj]
-                ballfit = cogfitter(cogmodel, sma_arcsec, cogmag, maxiter=100,
-                                    weights=1/cogmagerr)
+                # Fit up until the curve of growth turns over, but no less than
+                # the second moment of the light distribution! Pretty fragile..
+                these = np.where(np.diff(cogmag) < 0)[0]
+                if sma_arcsec[these[0]] < (refellipsefit['majoraxis'] * pixscale * pixscalefactor):
+                    these = np.where(sma_arcsec < refellipsefit['majoraxis'] * pixscale * pixscalefactor)[0]
+                
+                ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
+                                    maxiter=100, weights=1/cogmagerr[these])
                 bestfit = ballfit(sma_arcsec)
+
                 chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
                 if cogfitter.fit_info['param_cov'] is None: # failed
                     if False:
@@ -368,7 +411,7 @@ def forced_ellipsefit_multiband(galaxy, galaxydir, data, refellipsefit=None,
         #isobandfit = pool.map(_integrate_isophot_one, [(iso, img, pixscalefactor, integrmode, sclip, nclip)
         isobandfit = pool.map(_integrate_isophot_one, [(
             img, _sma, _theta, _eps, _x0, _y0, pixscalefactor, integrmode, sclip, nclip)
-            for _sma, _theta, _eps, _x0, _y0 in zip(refisophot['sma'], np.radians(refisophot['theta']),
+            for _sma, _theta, _eps, _x0, _y0 in zip(refisophot['sma'], np.radians(refisophot['pa']-90),
                                                     refisophot['eps'], refisophot['x0'],
                                                     refisophot['y0'])])
 
@@ -706,13 +749,16 @@ def obsolete_ellipsefit_multiband(galaxy, galaxydir, data, redshift=None, maxsma
     
     return ellipsefit
 
-def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False,
-                      linear=False):
+def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
+                      sdss=False, linear=False):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
 
     linear - stay in linear (nanomaggies/arcsec2) units (i.e., don't convert to
       mag/arcsec2) and do not compute colors; used by legacyhalos.integrate
+
+    sma_not_radius - if True, then store the semi-major axis in the 'radius' key
+      (converted to arcsec) rather than the circularized radius
 
     """
     bands = ellipsefit['bands']
@@ -748,7 +794,10 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sdss=False,
         sb = ellipsefit[filt]['intens']             # [nanomaggies/arcsec2]
         sberr = np.sqrt(ellipsefit[filt]['intens_err']**2 + (0.4 * np.log(10) * sb * minerr)**2)
         sma = ellipsefit[filt]['sma']                               # semi-major axis [pixels]
-        radius = sma * np.sqrt(1 - eps) * pixscale # circularized radius [arcsec]
+        if sma_not_radius:
+            radius = sma * pixscale # [arcsec]
+        else:
+            radius = sma * np.sqrt(1 - eps) * pixscale # circularized radius [arcsec]
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
@@ -949,7 +998,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     # x-axis, while .pa in MGE measured counter-clockwise from the y-axis.
     geometry0 = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
                                 eps=ellipsefit['eps'], sma=0.5*majoraxis, 
-                                pa=np.radians(ellipsefit['theta']))
+                                pa=np.radians(ellipsefit['pa']-90))
     ellipse0 = Ellipse(img, geometry=geometry0)
     #import matplotlib.pyplot as plt
     #plt.imshow(img, origin='lower') ; plt.scatter(ellipsefit['y0'], ellipsefit['x0'], s=50, color='red') ; plt.savefig('junk.png')
@@ -974,7 +1023,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
         # reliable based on visual inspection.
         geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
                                    eps=ellipsefit['eps'], sma=majoraxis, 
-                                   pa=np.radians(ellipsefit['theta']))
+                                   pa=np.radians(ellipsefit['pa']-90))
     
     geometry_cen = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
                                    eps=0.0, sma=0.0, pa=0.0)
@@ -1076,9 +1125,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             
             # Try to do an initial round of ellipse-fitting in the reference image.
             if largegalaxy:
-                maxsma = data['mge'][igal]['majoraxis'] #* 2 # [pixels]
-                #print('HACK!! 15 pixels')
-                #maxsma = 15
+                maxsma = 1.5 * data['mge'][igal]['majoraxis'] # [pixels]
                 # Supplement the fit results dictionary with some additional info--
                 thisgal = fullsample[fullsample['LSLGA_ID'] == central_galaxy_id]
                 galaxyinfo = {'lslga_id': central_galaxy_id,

@@ -686,10 +686,11 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         data[filt] = ma.masked_array(image, mask) # [nanomaggies]
         ma.set_fill_value(data[filt], fill_value)
 
-        #if invvar is not None:
-        #    var = np.zeros_like(invvar)
-        #    var[~mask] = 1 / invvar[~mask]
-        #    data['{}_var'.format(filt)] = var / thispixscale**4 # [nanomaggies**2/arcsec**4]
+        if invvar is not None:
+            var = np.zeros_like(invvar)
+            var[~mask] = 1 / invvar[~mask]
+            data['{}_var'.format(filt)] = var # [nanomaggies**2]
+            #data['{}_var'.format(filt)] = var / thispixscale**4 # [nanomaggies**2/arcsec**4]
 
     # Now, build the model image in the reference band using the mean PSF.
     if verbose:
@@ -729,7 +730,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 
         # Mask all previous (brighter) central galaxies, if any.  Need to be
         # smarter if the new central gets masked!
-        img, mask = ma.getdata(data[refband]) - model_nocentral, ma.getmask(data[refband])
+        img, newmask = ma.getdata(data[refband]) - model_nocentral, ma.getmask(data[refband])
         for jj in np.arange(ii):
             geo = data['mge'][jj] # the previous galaxy
             _mask = ellipse_mask(geo['xmed'], geo['ymed'], geo['majoraxis'],
@@ -738,12 +739,19 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             if _mask[int(tractor.by[central]), int(tractor.bx[central])]:
                 print('The previous central has been masked---this is bad!')
                 pdb.set_trace()
-            mask = ma.mask_or(_mask, mask)
+            newmask = ma.mask_or(_mask, newmask)
 
         # Next, get the basic galaxy geometry and pack it into a dictionary.
-        #minsb = 10**(-0.4*(22-22.5)) / filt2pixscale[refband]**2
-        mgegalaxy = find_galaxy(ma.masked_array(img, mask), nblob=1, fraction=0.3, #level=minsb,
-                                binning=3, quiet=not verbose, plot=False)
+        minsb = 10**(-0.4*(27.5-22.5)) / filt2pixscale[refband]**2
+        #import matplotlib.pyplot as plt ; plt.clf()
+        #mgegalaxy = find_galaxy(img / filt2pixscale[refband]**2, nblob=1, binning=3, quiet=not verbose, plot=True, level=minsb)
+        #mgegalaxy = find_galaxy(img / filt2pixscale[refband]**2, nblob=1, fraction=0.1, binning=3, quiet=not verbose, plot=True)
+        mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
+                                nblob=1, binning=3, quiet=not verbose, plot=True,
+                                #fraction=0.3,
+                                level=minsb)
+        #plt.savefig('junk.png')
+        #pdb.set_trace()
         print(mgegalaxy.xmed, tractor.by[central], mgegalaxy.ymed, tractor.bx[central])
         if (np.abs(mgegalaxy.xmed-tractor.by[central]) > 5 or # note [xpeak,ypeak]-->[by,bx]
             np.abs(mgegalaxy.ymed-tractor.bx[central]) > 5):
@@ -751,6 +759,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             pdb.set_trace()
             
         #import matplotlib.pyplot as plt
+        #plt.imshow(mask, origin='lower')
         #plt.savefig('junk.png')
         #pdb.set_trace()
         
@@ -771,9 +780,9 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         for filt in bands:
             thispixscale = filt2pixscale[filt]
             
-            imagekey = '{}_masked'.format(filt)
+            imagekey, varkey = '{}_masked'.format(filt), '{}_var'.format(filt)
             if imagekey not in data.keys():
-                data[imagekey] = []
+                data[imagekey], data[varkey] = [], []
 
             factor = filt2pixscale[refband] / filt2pixscale[filt]
             majoraxis = 1.3 * mgegalaxy.majoraxis * factor # [pixels]
@@ -789,7 +798,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             # Build the mask from the (cumulative) residual-image mask and the
             # inverse variance mask for this galaxy, but then "unmask" the
             # pixels belonging to the central.
-            mask = ma.mask_or(residual_mask, ma.getmask(data[filt]))
+            mask = ma.mask_or(residual_mask, newmask)
             mask[central_mask] = ma.nomask
 
             # Need to be smarter about the srcs list...
@@ -800,11 +809,13 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             # Convert to surface brightness and 32-bit precision.
             img = (ma.getdata(data[filt]) - model_nocentral) / thispixscale**2 # [nanomaggies/arcsec**2]
             img = ma.masked_array(img.astype('f4'), mask)
+            var = data[filt] / thispixscale**4 # [nanomaggies/arcsec**4]
 
             # Fill with zeros, for fun--
             ma.set_fill_value(img, fill_value)
             #img.filled(fill_value)
             data[imagekey].append(img)
+            data[varkey].append(var)
 
             #img = np.log10(tst[0]) ; plt.imshow(img, origin='lower') ; plt.savefig('junk.png')
             #img = np.log10(tst[1]) ; plt.imshow(img, origin='lower') ; plt.savefig('junk4.png')
@@ -968,7 +979,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    ##plt.clf() ; plt.imshow(np.log10(data['g_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
     #pdb.set_trace()
 
     return data
