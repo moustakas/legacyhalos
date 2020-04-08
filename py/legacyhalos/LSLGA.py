@@ -62,7 +62,7 @@ def _missing_files_one(args):
 
 def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
-    #print('missing_files_one: ', checkfile)
+    print('missing_files_one: ', checkfile)
     if os.path.exists(checkfile) and clobber is False:
         return False
     else:
@@ -90,8 +90,7 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
     elif args.ellipse:
         suffix = 'ellipse'
         if filesuffix is None:
-            filesuffix = '-ellipse.asdf'
-            #filesuffix = '-ellipsefit.p'
+            filesuffix = '-largegalaxy-ellipse.isdone'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.htmlplots:
         suffix = 'html'
@@ -281,11 +280,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             (sample['IN_DESI']))[0]
         rows = rows[samplecut]
 
-        if False:
+        if True:
             from legacyhalos.brick import brickname as get_brickname
             brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
             # Test sample-- 1 deg2 patch of sky
-            bricklist = ['0343p012']
+            #bricklist = ['0343p012']
+            bricklist = ['1948p280', '1951p280']
             #bricklist = ['0341p007', '0341p010', '0341p012', '0341p015', '0343p007', '0343p010',
             #             '0343p012', '0343p015', '0346p007', '0346p010', '0346p012', '0346p015',
             #             '0348p007', '0348p010', '0348p012', '0348p015']
@@ -899,7 +899,13 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     cols = ['ref_id', 'type', 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
                             'flux_g', 'flux_r', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z']
                     tractor = astropy.table.Table(fitsio.read(tractorfile, rows=irows, columns=cols))
-                    tractor = tractor[np.argsort(tractor['ref_id'])]
+                    # In general, there can be LSLGA galaxies in the field that
+                    # *don't* belong to this particular group; filter those out
+                    # so we don't double-count them.
+                    these = np.where(gal['GROUP_ID'] == fullsample['GROUP_ID'])[0]
+                    tractor = tractor[np.isin(tractor['ref_id'], fullsample['LSLGA_ID'][these])]
+                    tractor = tractor[np.argsort(tractor['flux_r'])]
+                    #tractor = tractor[np.argsort(tractor['ref_id'])]
                 else:
                     tractor = None
             else:
@@ -1078,11 +1084,12 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                                     rr.append('{:.3f}'.format(rad))
                             html.write('<td>{}</td><td>{}</td><td>{}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
                                 rr[0], rr[1], rr[2], ellipse['pa'], ellipse['eps']))
+                            af.close()
                         else:
                             html.write('<td>...</td><td>...</td><td>...</td>\n')
-                            
+                            html.write('<td>...</td><td>...</td><td>...</td>\n')
+                            html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
                         html.write('</tr>\n')
-                        af.close()
                     html.write('</table>\n')
                     
                 html.write('<h3>Photometry</h3>\n')
@@ -1111,10 +1118,10 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                             ellipse = af.tree
                             g, r, z = _get_mags(ellipse, cog=True)
                             html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
+                            af.close()
                         else:
                             html.write('<td>...</td><td>...</td><td>...</td>\n')
                         html.write('</tr>\n')
-                        af.close()
                     html.write('</table>\n')
 
                 if bool(ellipse) and False:

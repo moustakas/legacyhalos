@@ -98,7 +98,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     # crosses a few different thresholds like 25 mag/arcsec, etc.
     sbprofile = ellipse_sbprofile(refellipsefit)
 
-    print('We should measure these radii from the extinction-corrected photometry!')
+    #print('We should measure these radii from the extinction-corrected photometry!')
     sberr = sbprofile['muerr_r']
     rr = (sbprofile['sma_r'] * pixscale)**0.25 # [arcsec]
     for sbcut in (24, 25, 25.5, 26):
@@ -117,7 +117,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             coeff = np.polyfit(sbfit, rr[keep], 1)
             rcut.append((np.polyval(coeff, 0))**4)
         meanrcut, sigrcut = np.mean(rcut), np.std(rcut)
-        print(rcut, meanrcut, sigrcut)
+        #print(rcut, meanrcut, sigrcut)
 
         #plt.clf() ; plt.plot((rr[keep])**4, sb[keep]) ; plt.axvline(x=meanrcut) ; plt.savefig('junk.png')
         #plt.clf() ; plt.plot(rr, sb+sbcut) ; plt.axvline(x=meanrcut**0.25) ; plt.axhline(y=sbcut) ; plt.xlim(2, 2.6) ; plt.savefig('junk.png')
@@ -1085,7 +1085,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         sdss_pixscale=0.396, galex_pixscale=1.5, unwise_pixscale=2.75,
                         nproc=1, refband='r', bands=('g','r','z'), sdss_bands=('g','r','i'),
-                        integrmode='median', nclip=2, sclip=3, zcolumn=None,
+                        integrmode='median', nclip=3, sclip=3, zcolumn=None,
                         fullsample=None, largegalaxy=False, pipeline=False, 
                         input_ellipse=None, fitgeometry=False,
                         verbose=False, debug=False, sdss=False, galex=False, unwise=False):
@@ -1098,6 +1098,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     pipeline - read the pipeline-built images (default is custom)
 
     """
+    import subprocess
+    
     if galaxydir is None or galaxy is None:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
 
@@ -1143,7 +1145,10 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                               nclip=nclip, sclip=sclip, verbose=verbose,
                                               input_ellipse=input_ellipse, maxsma=maxsma,
                                               fitgeometry=False, galaxyinfo=galaxyinfo)
-                
+        # Create an "isdone" file--
+        isdonefile = os.path.join(galaxydir, '{}-{}-ellipse.isdone'.format(galaxy, filesuffix))
+        cmd = 'touch {}'.format(isdonefile)
+        subprocess.call(cmd.split())
     else:
         return 0
 

@@ -414,7 +414,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     else:
         fsuff = '-{}'.format(filesuffix)
         
-    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipsefit{}'.format(galaxy, fsuff, galid, suff))
+    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse{}'.format(galaxy, fsuff, galid, suff))
         
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
@@ -443,7 +443,7 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True,
     else:
         fsuff = '-{}'.format(filesuffix)
         
-    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipsefit{}'.format(galaxy, fsuff, galid, suff))
+    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse{}'.format(galaxy, fsuff, galid, suff))
         
     try:
         if pickle:

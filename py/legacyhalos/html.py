@@ -292,7 +292,7 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                               sdss_ellipsefit={},
                                               png=sbprofilefile, verbose=verbose, minerr=0.0)
 
-        af.close()
+                af.close()
 
     #for filesuffix in ('largegalaxy', 'custom'):
     #    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
@@ -498,7 +498,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                            pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
                            verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
-        pdb.set_trace()
 
         # CCD positions
         qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
@@ -511,7 +510,8 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                           #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage)
 
         # Build the maskbits figure.
-        qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
+        if False:
+            qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Sersic fiting results
         if False:
