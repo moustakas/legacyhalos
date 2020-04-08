@@ -168,18 +168,24 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 else:
                     cogferr = None
 
-        cogmag = 22.5 - 2.5 * np.log10(cogflux) # [mag]
-        sma_arcsec = sma * pixscale             # [arcsec]
+        # Aperture fluxes can be negative (or nan?) sometimes--
+        with warnings.catch_warnings():
+            if cogferr is not None:
+                ok = (cogflux > 0) * (cogferr > 0) * np.isfinite(cogflux) * np.isfinite(cogferr)
+            else:
+                ok = (cogflux > 0) * np.isfinite(cogflux)
+                cogmagerr = np.ones(len(cogmag))
+        pdb.set_trace()
+            
+        sma_arcsec = sma[ok] * pixscale             # [arcsec]
+        cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
+        if cogferr is not None:
+            cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
 
         results['cog_smaunit'] = 'arcsec'
-        results['cog_mag_{}'.format(filt)] = cogmag
         results['cog_sma_{}'.format(filt)] = sma_arcsec
-
-        if cogferr is not None:
-            cogmagerr = 2.5 * cogferr / cogflux / np.log(10)
-            results['cog_magerr_{}'.format(filt)] = cogmagerr
-        else:
-            cogmagerr = np.ones(len(cogmag))
+        results['cog_mag_{}'.format(filt)] = cogmag
+        results['cog_magerr_{}'.format(filt)] = cogmagerr
 
         #print('Modeling the curve of growth.')
         def get_chi2(bestfit):
@@ -1110,11 +1116,18 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
     if largegalaxy:
         filesuffix = 'largegalaxy'
+        # In general, there can be LSLGA galaxies in the field that *don't*
+        # belong to this particular group; filter those out so we don't
+        # double-count them.
+        these = np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]
+        central_galaxy_id = fullsample['LSLGA_ID'][these]
     else:
         filesuffix = ''
+        central_galaxy_id = None
 
     # Read the data and then do ellipse-fitting.
     data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
+                                         central_galaxy_id=central_galaxy_id,
                                          refband=refband, pixscale=pixscale,
                                          galex_pixscale=galex_pixscale,
                                          unwise_pixscale=unwise_pixscale,

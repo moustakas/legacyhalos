@@ -61,9 +61,9 @@ def _missing_files_one(args):
     return missing_files_one(*args)
 
 def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
-    checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
-    print('missing_files_one: ', checkfile)
+    checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))    
     if os.path.exists(checkfile) and clobber is False:
+        print('missing_files_one: ', checkfile)
         return False
     else:
         return True
@@ -98,7 +98,8 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
             if args.just_coadds:
                 filesuffix = '-largegalaxy-grz-montage.png'
             else:
-                filesuffix = '-largegalaxy-maskbits.png'
+                filesuffix = '-ccdpos.png'
+                #filesuffix = '-largegalaxy-maskbits.png'
             galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
         suffix = 'htmlindex'
@@ -904,7 +905,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     # so we don't double-count them.
                     these = np.where(gal['GROUP_ID'] == fullsample['GROUP_ID'])[0]
                     tractor = tractor[np.isin(tractor['ref_id'], fullsample['LSLGA_ID'][these])]
-                    tractor = tractor[np.argsort(tractor['flux_r'])]
+                    tractor = tractor[np.argsort(tractor['flux_r'])[::-1]]
                     #tractor = tractor[np.argsort(tractor['ref_id'])]
                 else:
                     tractor = None
@@ -1067,7 +1068,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                             tt['type'], tt['sersic'], tt['shape_r'], pa, 1-ba))
 
                         galaxyid = str(tt['ref_id'])
-                        af = legacyhalos.io.read_ellipsefit(galaxy, galaxydir, filesuffix='largegalaxy',
+                        af = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
                                                             galaxyid=galaxyid, verbose=False)
                         if bool(af):
                             ellipse = af.tree
@@ -1112,7 +1113,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                         html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
 
                         galaxyid = str(tt['ref_id'])
-                        af = legacyhalos.io.read_ellipsefit(galaxy, galaxydir, filesuffix='largegalaxy',
+                        af = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
                                                             galaxyid=galaxyid, verbose=False)
                         if bool(af):
                             ellipse = af.tree
@@ -1171,7 +1172,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
                 for igal in np.arange(len(tractor['ref_id'])):
                     galaxyid = str(tractor['ref_id'][igal])
-                    af = legacyhalos.io.read_ellipsefit(galaxy, galaxydir, filesuffix='largegalaxy',
+                    af = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
                                                         galaxyid=galaxyid, verbose=verbose)
                     if bool(af):
                         ellipse = af.tree

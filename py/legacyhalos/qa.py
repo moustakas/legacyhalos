@@ -761,7 +761,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper.plot(color='red', lw=3, axes=ax1, alpha=0.9, label='Mean geometry')
 
                 # Visualize the ellipse-fitted geometry
-                maxis = ellipsefit['ellipse_r26'] / ellipsefit['refpixscale'] # [pixels]
+                maxis = ellipsefit['ellipse_r25'] / ellipsefit['refpixscale'] # [pixels]
                 if maxis > 0:
                     ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                                  maxis, maxis*(1 - ellipsefit['eps']),
