@@ -99,7 +99,7 @@ def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale=0.262,
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
                  debug=False, logfile=None, input_ellipse=None, zcolumn=None,
                  sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
-                 fullsample=None, largegalaxy=False, pipeline=True):
+                 largegalaxy=False, pipeline=True):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -118,7 +118,6 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                                                       verbose=verbose, debug=debug,
                                                       sdss=sdss, sdss_pixscale=sdss_pixscale,
                                                       unwise=unwise, unwise_pixscale=unwise_pixscale,
-                                                      fullsample=fullsample, 
                                                       largegalaxy=largegalaxy, pipeline=pipeline)
         _done(galaxy, err, t0)
     else:
@@ -131,7 +130,6 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                                                               verbose=verbose, debug=debug,
                                                               sdss=sdss, sdss_pixscale=sdss_pixscale,
                                                               unwise=unwise, unwise_pixscale=unwise_pixscale,
-                                                              fullsample=fullsample, 
                                                               largegalaxy=largegalaxy, pipeline=pipeline)
                 _done(galaxy, err, t0, log=log)
 

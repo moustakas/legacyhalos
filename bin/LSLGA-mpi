@@ -68,7 +68,7 @@ def main():
         if args.largegalaxy_coadds:
             fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose,
                                                        preselect_sample=False,
-                                                       customsky=False)#, columns=cols)
+                                                       customsky=False)
             these = np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])
             fullsample = fullsample[these]
     else:
@@ -181,11 +181,9 @@ def main():
 
         if args.ellipse:
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-                #central_galaxy_id = fullsample[fullsample['GROUP_ID'] == onegal['GROUP_ID']]['LSLGA_ID']
                 call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                              nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                             logfile=logfile, largegalaxy=True, pipeline=False,
-                             fullsample=fullsample) # zcolumn=ZCOLUMN,
+                             logfile=logfile, largegalaxy=True, pipeline=False)
                              
                 #pdb.set_trace()
                 #import asdf
