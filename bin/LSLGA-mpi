@@ -90,7 +90,7 @@ def main():
             legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
                                         zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
                                         makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                        ccdqa=args.ccdqa, args=args, fullsample=fullsample)
+                                        ccdqa=args.ccdqa, args=args)
         return
     
     # Determine how many more galaxies we need to analyze and divide them across

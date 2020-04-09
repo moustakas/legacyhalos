@@ -500,7 +500,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                            pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
                            verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
-        pdb.set_trace()
 
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,

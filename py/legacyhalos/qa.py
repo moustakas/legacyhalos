@@ -205,10 +205,10 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
     # Plot some threshold radii for the large-galaxy project--
     if plot_sbradii:
-        if ellipsefit['ellipse_r25'] < xlim[1]:            
-            ax.axvline(x=ellipsefit['ellipse_r25'], lw=2, color='k')
-        if ellipsefit['ellipse_r26'] < xlim[1]:            
-            ax.axvline(x=ellipsefit['ellipse_r26'], lw=2, color='k', ls='--')
+        if ellipsefit['radius_sb25'] < xlim[1]:            
+            ax.axvline(x=ellipsefit['radius_sb25'], lw=2, color='k')
+        if ellipsefit['radius_sb26'] < xlim[1]:            
+            ax.axvline(x=ellipsefit['radius_sb26'], lw=2, color='k', ls='--')
         if ellipsefit['majoraxis'] * ellipsefit['refpixscale'] < xlim[1]:            
             ax.axvline(x=ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
                        lw=2, color='red', ls='dotted')
@@ -763,7 +763,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper.plot(color='red', lw=3, axes=ax1, alpha=0.9, label='Mean geometry')
 
                 # Visualize the ellipse-fitted geometry
-                maxis = ellipsefit['ellipse_r25'] / ellipsefit['refpixscale'] # [pixels]
+                maxis = ellipsefit['radius_sb25'] / ellipsefit['refpixscale'] # [pixels]
                 if maxis > 0:
                     ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                                  maxis, maxis*(1 - ellipsefit['eps']),
@@ -793,7 +793,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                     ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
 
                 if ii == 2:
-                    ax1.legend(loc='lower right', fontsize=8, frameon=True)
+                    fntsize = np.round(0.03*img.shape[0]).astype('int')
+                    ax1.legend(loc='lower right', fontsize=fntsize, frameon=True)
                     
             else:
                 from photutils import EllipticalAperture
@@ -1078,12 +1079,12 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 
         # Plot some threshold radii for the large-galaxy project--
         if plot_sbradii:
-            rr = (ellipsefit['ellipse_r25'])**0.25
+            rr = (ellipsefit['radius_sb25'])**0.25
             if rr < xlim[1]:
                 ax1.plot([xlim[0], rr], [25, 25], lw=2, color='k', ls='-')
                 ax1.plot([rr, rr], [ylim[1], 25], lw=2, color='k', ls='-')
             
-            rr = (ellipsefit['ellipse_r26'])**0.25
+            rr = (ellipsefit['radius_sb26'])**0.25
             if rr < xlim[1]:
                 ax1.plot([xlim[0], rr], [26, 26], lw=2, color='k', ls='--')
                 ax1.plot([rr, rr], [ylim[1], 26], lw=2, color='k', ls='--')

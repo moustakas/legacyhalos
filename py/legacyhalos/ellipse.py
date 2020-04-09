@@ -32,10 +32,10 @@ class CogModel(astropy.modeling.Fittable1DModel):
 
     m(r) = mtot + mcen * (1-exp**(-alpha1*(radius/r0)**(-alpha2))
     """
-    mtot = astropy.modeling.Parameter(default=20.0, bounds=(5, 25)) # integrated magnitude (r-->infty)
-    m0 = astropy.modeling.Parameter(default=10.0, bounds=(0, 20)) # central magnitude (r=0)
-    alpha1 = astropy.modeling.Parameter(default=0.3, bounds=(0, 5)) # scale factor 1
-    alpha2 = astropy.modeling.Parameter(default=0.5, bounds=(0, 5)) # scale factor 2
+    mtot = astropy.modeling.Parameter(default=20.0, bounds=(1, 30)) # integrated magnitude (r-->infty)
+    m0 = astropy.modeling.Parameter(default=10.0, bounds=(1, 30)) # central magnitude (r=0)
+    alpha1 = astropy.modeling.Parameter(default=0.3, bounds=(1e-3, 5)) # scale factor 1
+    alpha2 = astropy.modeling.Parameter(default=0.5, bounds=(1e-3, 5)) # scale factor 2
 
     def __init__(self, mtot=mtot.default, m0=m0.default,
                  alpha1=alpha1.default, alpha2=alpha2.default):
@@ -81,6 +81,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     """
     import astropy.table
     from astropy.utils.exceptions import AstropyUserWarning
+    from scipy import integrate
     from scipy.interpolate import interp1d
 
     rand = np.random.RandomState(seed)
@@ -101,10 +102,11 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     #print('We should measure these radii from the extinction-corrected photometry!')
     sberr = sbprofile['muerr_r']
     rr = (sbprofile['sma_r'] * pixscale)**0.25 # [arcsec]
-    for sbcut in (24, 25, 25.5, 26):
+    sbcuts = [23, 24, 25, 25.5, 26]
+    for sbcut in sbcuts:
         if sbprofile['mu_r'].max() < sbcut:
             print('Profile too shallow to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
-            results['ellipse_r{:0g}'.format(sbcut)] = -1.0
+            results['radius_sb{:0g}'.format(sbcut)] = -1.0
             continue
 
         sb = sbprofile['mu_r'] - sbcut
@@ -128,8 +130,8 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         #except:
         #    print('Warning: extrapolating r({:0g})!'.format(sbcut))
         #    rcut = interp1d(sbprofile['mu_r'], sbprofile['sma_r'] * pixscale, fill_value='extrapolate')(sbcut) # [arcsec]
-        results['ellipse_r{:0g}'.format(sbcut)] = np.float32(meanrcut)
-        results['ellipse_r{:0g}_err'.format(sbcut)] = np.float32(sigrcut)
+        results['radius_sb{:0g}'.format(sbcut)] = np.float32(meanrcut)
+        results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(sigrcut)
 
     for filt in bands:
         img = ma.getdata(data['{}_masked'.format(filt)][centralindx]) # [nanomaggies/arcsec2]
@@ -257,8 +259,26 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                                                  'alpha1': P.alpha1.value, 'alpha2': P.alpha2.value,
                                                  'chi2': minchi2}
 
-        print('Also measure aperture magnitudes to different radii!')
-        #pdb.set_trace()
+        #print('Measuring integrated magnitudes to different radii.')
+        sb = ellipse_sbprofile(refellipsefit, linear=True)
+        for radkey in ['radius_sb{:0g}'.format(sbcut) for sbcut in sbcuts]:
+            smamax = results[radkey] # semi-major axis
+            if smamax > 0:
+                rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
+
+                rr = sb['radius_{}'.format(filt)] # [circularized radius, arcsec]
+                yy = sb['mu_{}'.format(filt)]     # [surface brightness, nanomaggies/arcsec**2]
+                yy_rmax = interp1d(rr, yy)(rmax)
+                
+                # append the maximum radius to the end of the array
+                keep = np.where(rr < rmax)[0]
+                _rr = np.hstack((rr[keep], rmax))
+                _yy = np.hstack((yy[keep], yy_rmax))
+
+                flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
+                results[radkey.replace('radius_', 'mag_{}_'.format(filt))] = 22.5 - 2.5 * np.log10(flux)
+        
+    #pdb.set_trace()
         
     #    print(filt, P)
     #    default_model = cogmodel.evaluate(radius, P.mtot.default, P.m0.default, P.alpha1.default, P.alpha2.default)
@@ -734,29 +754,27 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         #central_galaxy_id = None
 
     # Read the data and then do ellipse-fitting.
-    data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
-                                         #central_galaxy_id=central_galaxy_id,
-                                         refband=refband, pixscale=pixscale,
-                                         galex_pixscale=galex_pixscale,
-                                         unwise_pixscale=unwise_pixscale,
-                                         verbose=verbose,
-                                         largegalaxy=largegalaxy)
-    pdb.set_trace()
+    data, sample = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
+                                                 #central_galaxy_id=central_galaxy_id,
+                                                 refband=refband, pixscale=pixscale,
+                                                 galex_pixscale=galex_pixscale,
+                                                 unwise_pixscale=unwise_pixscale,
+                                                 verbose=verbose,
+                                                 largegalaxy=largegalaxy,
+                                                 return_sample=True)
     if bool(data):
         for igal in np.arange(len(data['central_galaxy_id'])):
             central_galaxy_id = data['central_galaxy_id'][igal]
             galaxyid = str(central_galaxy_id)
-            
-            # Try to do an initial round of ellipse-fitting in the reference image.
             if largegalaxy:
                 maxsma = 1.5 * data['mge'][igal]['majoraxis'] # [pixels]
                 # Supplement the fit results dictionary with some additional info--
-                thisgal = fullsample[fullsample['LSLGA_ID'] == central_galaxy_id]
+                samp = sample[sample['LSLGA_ID'] == central_galaxy_id]
                 galaxyinfo = {'lslga_id': central_galaxy_id,
-                              'galaxy': str(thisgal['GALAXY'][0])}
+                              'galaxy': str(np.atleast_1d(samp['GALAXY'])[0])}
                 for key, outkey in zip(['ra', 'dec', 'pgc', 'pa', 'ba', 'd25'],
                                        ['ra', 'dec', 'pgc', 'lslga_pa', 'lslga_ba', 'lslga_d25']):
-                    galaxyinfo[outkey] = thisgal[key.upper()][0]
+                    galaxyinfo[outkey] = np.atleast_1d(samp[key.upper()])[0]
             else:
                 maxsma, galaxyid = None, None
                 galaxyinfo = {'redshift': redshift}

@@ -672,7 +672,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               first=None, last=None, galaxylist=None,
               nproc=1, survey=None, makeplots=True,
               clobber=False, verbose=True, maketrends=False, ccdqa=False,
-              args=None, fullsample=None):
+              args=None):
     """Make the HTML pages.
 
     """
@@ -734,7 +734,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         else:
             return ''
 
-    def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False):
+    def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
         res = []
         for band in ('g', 'r', 'z'):
             mag = None
@@ -744,6 +744,12 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             elif pipeline:
                 iv = cat['flux_ivar_{}'.format(band)]
                 ff = cat['flux_{}'.format(band)]
+            elif R24:
+                mag = cat['mag_{}_sb24'.format(band)]
+            elif R25:
+                mag = cat['mag_{}_sb25'.format(band)]
+            elif R26:
+                mag = cat['mag_{}_sb26'.format(band)]
             elif cog:
                 mag = cat['cog_params_{}'.format(band)]['mtot']
             else:
@@ -904,26 +910,23 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             else:
                 nccds = None
 
+            samplefile = os.path.join(galaxydir1, '{}-largegalaxy-sample.fits'.format(galaxy1))
             tractorfile = os.path.join(galaxydir1, '{}-largegalaxy-tractor.fits'.format(galaxy1))
-            if os.path.isfile(tractorfile):
-                ref_cat = fitsio.read(tractorfile, columns='ref_cat')
-                #print(ref_cat)
-                irows = np.where(['L' in refcat for refcat in ref_cat])[0]
-                if len(irows) > 0:
-                    cols = ['ref_id', 'type', 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
-                            'flux_g', 'flux_r', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z']
-                    tractor = astropy.table.Table(fitsio.read(tractorfile, rows=irows, columns=cols))
-                    # In general, there can be LSLGA galaxies in the field that
-                    # *don't* belong to this particular group; filter those out
-                    # so we don't double-count them.
-                    these = np.where(gal['GROUP_ID'] == fullsample['GROUP_ID'])[0]
-                    tractor = tractor[np.isin(tractor['ref_id'], fullsample['LSLGA_ID'][these])]
-                    tractor = tractor[np.argsort(tractor['flux_r'])[::-1]]
-                    #tractor = tractor[np.argsort(tractor['ref_id'])]
-                else:
-                    tractor = None
-            else:
-                tractor = None
+            if os.path.isfile(tractorfile) and os.path.isfile(samplefile):
+                sample = astropy.table.Table(fitsio.read(samplefile, upper=True))
+                if verbose:
+                    print('Read {} galaxy(ies) from {}'.format(len(sample), samplefile))
+
+                cols = ['ref_id', 'type', 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
+                        'flux_g', 'flux_r', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z']
+                tractor = astropy.table.Table(fitsio.read(tractorfile, lower=True, columns=cols))#, rows=irows
+                # Deal with objects potentially dropped from Tractor fitting.
+                intractor = np.where(np.isin(tractor['ref_id'], sample['LSLGA_ID']))[0]
+                tractor = tractor[intractor]
+                tractor = tractor[np.argsort(tractor['flux_r'])[::-1]]
+
+                these = np.where(np.isin(sample['LSLGA_ID'], tractor['ref_id']))[0]
+                sample = sample[these]
 
             nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
             prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
@@ -982,39 +985,36 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('</table>\n')
 
                 # Add the properties of each galaxy.
-                if fullsample is not None:
-                    html.write('<h3>Group Members</h3>\n')
-                    html.write('<table>\n')
+                html.write('<h3>Group Members</h3>\n')
+                html.write('<table>\n')
+                html.write('<tr>\n')
+                html.write('<th>LSLGA ID</th>\n')
+                html.write('<th>Galaxy</th>\n')
+                html.write('<th>Morphology</th>\n')
+                html.write('<th>RA</th>\n')
+                html.write('<th>Dec</th>\n')
+                html.write('<th>D(25)<br />(arcmin)</th>\n')
+                #html.write('<th>PA<br />(deg)</th>\n')
+                #html.write('<th>e</th>\n')
+                html.write('</tr>\n')
+                for groupgal in sample:
+                    #if '031705' in gal['GALAXY']:
+                    #    print(groupgal['GALAXY'])
                     html.write('<tr>\n')
-                    html.write('<th>LSLGA ID</th>\n')
-                    html.write('<th>Galaxy</th>\n')
-                    html.write('<th>Morphology</th>\n')
-                    html.write('<th>RA</th>\n')
-                    html.write('<th>Dec</th>\n')
-                    html.write('<th>D(25)<br />(arcmin)</th>\n')
-                    #html.write('<th>PA<br />(deg)</th>\n')
-                    #html.write('<th>e</th>\n')
+                    html.write('<td>{}</td>\n'.format(groupgal['LSLGA_ID']))
+                    html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
+                    html.write('<td>{}</td>\n'.format(groupgal['TYPE']))
+                    html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
+                    html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
+                    html.write('<td>{:.4f}</td>\n'.format(groupgal['D25']))
+                    #if np.isnan(groupgal['PA']):
+                    #    pa = 0.0
+                    #else:
+                    #    pa = groupgal['PA']
+                    #html.write('<td>{:.2f}</td>\n'.format(pa))
+                    #html.write('<td>{:.3f}</td>\n'.format(1-groupgal['BA']))
                     html.write('</tr>\n')
-                    these = np.where(gal['GROUP_ID'] == fullsample['GROUP_ID'])[0]
-                    if len(these) > 0:
-                        for groupgal in fullsample[these]:
-                            #if '031705' in gal['GALAXY']:
-                            #    print(groupgal['GALAXY'])
-                            html.write('<tr>\n')
-                            html.write('<td>{}</td>\n'.format(groupgal['LSLGA_ID']))
-                            html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
-                            html.write('<td>{}</td>\n'.format(groupgal['TYPE']))
-                            html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
-                            html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
-                            html.write('<td>{:.4f}</td>\n'.format(groupgal['D25']))
-                            #if np.isnan(groupgal['PA']):
-                            #    pa = 0.0
-                            #else:
-                            #    pa = groupgal['PA']
-                            #html.write('<td>{:.2f}</td>\n'.format(pa))
-                            #html.write('<td>{:.3f}</td>\n'.format(1-groupgal['BA']))
-                            html.write('</tr>\n')
-                    html.write('</table>\n')
+                html.write('</table>\n')
 
                 html.write('<h2>Image Mosaics</h2>\n')
 
@@ -1091,7 +1091,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                                 ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
 
                             rr = []
-                            for rad in [ellipse['ellipse_r24'], ellipse['ellipse_r25'], ellipse['ellipse_r26']]:
+                            for rad in [ellipse['radius_sb24'], ellipse['radius_sb25'], ellipse['radius_sb26']]:
                                 if rad < 0:
                                     rr.append('...')
                                 else:
@@ -1110,19 +1110,28 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 if tractor is not None:
                     html.write('<table>\n')
                     html.write('<tr><th></th><th></th>\n')
+                    html.write('<th colspan="3"></th>\n')
+                    html.write('<th colspan="12">Curve of Growth</th>\n')
+                    html.write('</tr>\n')
+                    html.write('<tr><th></th><th></th>\n')
                     html.write('<th colspan="3">Tractor</th>\n')
-                    html.write('<th colspan="3">Curve of Growth</th>\n')
+                    html.write('<th colspan="3">&lt R(24)<br />arcsec</th>\n')
+                    html.write('<th colspan="3">&lt R(25)<br />arcsec</th>\n')
+                    html.write('<th colspan="3">&lt R(26)<br />arcsec</th>\n')
+                    html.write('<th colspan="3">Integrated</th>\n')
                     html.write('</tr>\n')
 
                     html.write('<tr><th>LSLGA ID</th><th>Galaxy</th>\n')
                     html.write('<th>g</th><th>r</th><th>z</th>\n')
                     html.write('<th>g</th><th>r</th><th>z</th>\n')
+                    html.write('<th>g</th><th>r</th><th>z</th>\n')
+                    html.write('<th>g</th><th>r</th><th>z</th>\n')
+                    html.write('<th>g</th><th>r</th><th>z</th>\n')
                     html.write('</tr>\n')
 
-                    for tt in tractor:
-                        thisgalaxy = fullsample[fullsample['LSLGA_ID'] == tt['ref_id']]['GALAXY'][0]
+                    for tt, ss in zip(tractor, sample):
                         g, r, z = _get_mags(tt, pipeline=True)
-                        html.write('<tr><td>{}</td><td>{}</td>\n'.format(tt['ref_id'], thisgalaxy))
+                        html.write('<tr><td>{}</td><td>{}</td>\n'.format(tt['ref_id'], ss['GALAXY']))
                         html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
 
                         galaxyid = str(tt['ref_id'])
@@ -1130,11 +1139,17 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                                                             galaxyid=galaxyid, verbose=False)
                         if bool(af):
                             ellipse = af.tree
+                            g, r, z = _get_mags(ellipse, R24=True)
+                            html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
+                            g, r, z = _get_mags(ellipse, R25=True)
+                            html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
+                            g, r, z = _get_mags(ellipse, R26=True)
+                            html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                             g, r, z = _get_mags(ellipse, cog=True)
                             html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                             af.close()
                         else:
-                            html.write('<td>...</td><td>...</td><td>...</td>\n')
+                            html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
                         html.write('</tr>\n')
                     html.write('</table>\n')
 
