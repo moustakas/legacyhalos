@@ -270,7 +270,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         nrows = len(rows)
         print('Selecting {} custom sky galaxies.'.format(nrows))
     elif preselect_sample:
-        cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI']
+        cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI', 'LSLGA_ID']
         sample = fitsio.read(samplefile, columns=cols)
         rows = np.arange(len(sample))
 
@@ -283,10 +283,23 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
         if True:
             from legacyhalos.brick import brickname as get_brickname
+            #bb = [692770, 232869, 51979, 405760, 1319700, 1387188, 519486, 145096]
+            #ww = np.where(np.isin(sample['LSLGA_ID'], bb))[0]
+            #ff = get_brickname(sample['GROUP_RA'][ww], sample['GROUP_DEC'][ww])
+            
             brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
             # Test sample-- 1 deg2 patch of sky
             #bricklist = ['0343p012']
-            bricklist = ['1948p280', '1951p280']
+            bricklist = ['1948p280', '1951p280', # Coma
+                         '1914p307', # NGC4676/Mice
+                         '2412p205', # NGC6052=PGC200329
+                         '1890p112', # NGC4568 - overlapping spirals in Virgo
+                         '0211p037', # NGC520 - train wreck
+                         # random galaxies around bright stars
+                         '0836m285', '3467p137',
+                         '0228m257', '1328m022',
+                         '3397m057', '0159m047',
+                         '3124m097', '3160p097']
             #bricklist = ['0341p007', '0341p010', '0341p012', '0341p015', '0343p007', '0343p010',
             #             '0343p012', '0343p015', '0346p007', '0346p010', '0346p012', '0346p015',
             #             '0348p007', '0348p010', '0348p012', '0348p015']

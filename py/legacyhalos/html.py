@@ -115,7 +115,8 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
     
     Image.MAX_IMAGE_PIXELS = None
 
-    for filesuffix in ('largegalaxy', 'pipeline', 'custom'):
+    for filesuffix in ['largegalaxy']:
+    #for filesuffix in ['largegalaxy', 'pipeline', 'custom']:
         montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, filesuffix))
         thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
         thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
@@ -128,6 +129,9 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 coaddfiles = ('{}-image-grz'.format(filesuffix),
                               '{}-model-grz'.format(filesuffix),
                               '{}-resid-grz'.format(filesuffix))
+
+            # Image coadd with the scale bar label--
+            barpngfile = os.path.join(htmlgalaxydir, '{}-{}.png'.format(galaxy, coaddfiles[0]))
                 
             # Make sure all the files exist.
             check, just_coadds = True, False
@@ -158,23 +162,25 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
 
                 # Make a quick thumbnail of just the data.
                 cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(96, np.atleast_1d(jpgfile)[0], thumb2file)
+                if os.path.isfile(thumb2file):
+                    os.remove(thumb2file)
                 print('Writing {}'.format(thumb2file))
                 subprocess.call(cmd.split())
                     
-                # Add a bar and label
+                # Add a bar and label to the first image.
                 if just_coadds:
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
                     #cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 -resize 4096x4096\> '
                     if barlen:
-                        pngfile = addbar_to_png(jpgfile, barlen, barlabel, None, scaledfont=True)
-                        cmd = cmd+' '+pngfile
+                        addbar_to_png(jpgfile, barlen, barlabel, None, barpngfile, scaledfont=True)
+                        cmd = cmd+' '+barpngfile
                     else:
                         cmd = cmd+' '+jpgfile
                 else:
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
                     if barlen:
-                        pngfile = [addbar_to_png(ff, barlen, barlabel, None) for ff in jpgfile]
-                        cmd = cmd+' '+pngfile[0]+' '
+                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
+                        cmd = cmd+' '+barpngfile+' '
                         cmd = cmd+' '.join(ff for ff in jpgfile[1:])
                     else:
                         cmd = cmd+' '.join(ff for ff in jpgfile)
@@ -188,7 +194,9 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     continue
 
                 # Create a couple smaller thumbnail images
-                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(512, montagefile, thumbfile)
+                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(1024, montagefile, thumbfile)
+                if os.path.isfile(thumbfile):
+                    os.remove(thumbfile)                
                 print('Writing {}'.format(thumbfile))
                 subprocess.call(cmd.split())
                     
@@ -258,6 +266,11 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             if bool(af):
                 ellipsefit = af.tree
                 
+                cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(cogfile) or clobber:
+                    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
+                                     png=cogfile, verbose=verbose)
+                    
                 multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
                 thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
                 if not os.path.isfile(multibandfile) or clobber:
@@ -267,7 +280,9 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                           png=multibandfile, verbose=verbose, scaledfont=scaledfont)
                         
                     # Create a thumbnail.
-                    cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(1024, multibandfile, thumbfile)
+                    cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
+                    if os.path.isfile(thumbfile):
+                        os.remove(thumbfile)
                     print('Writing {}'.format(thumbfile))
                     subprocess.call(cmd.split())
                     
@@ -279,11 +294,6 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                 #pdb.set_trace()
                 #continue
 
-                cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
-                if not os.path.isfile(cogfile) or clobber:
-                    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
-                                     png=cogfile, verbose=verbose)
-                    
                 sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
                 if not os.path.isfile(sbprofilefile) or clobber:
                     display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
@@ -376,7 +386,9 @@ def qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=False, verb
             im.save(mgefile)
 
         # Create a thumbnail.
-        cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(512, mgefile, thumbfile)
+        cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(1024, mgefile, thumbfile)
+        if os.path.isfile(thumbfile):
+            os.remove(thumbfile)        
         print('Writing {}'.format(thumbfile))
         subprocess.call(cmd.split())
 
@@ -471,18 +483,12 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
     # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
         galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(onegal, html=True)
-        #if galaxylist is None:
-        #    galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
-        #else:
-        #    galaxy = galaxylist[ii]
-        #    galaxydir = os.path.join(datadir, galaxy)
-        #    htmlgalaxydir = os.path.join(htmldir, galaxy)
             
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True, mode=0o775)
             #shutil.chown(htmlgalaxydir, group='cosmo')
 
-        if barlen is None:
+        if barlen is None and zcolumn in onegal.colnames:
             barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int') # [kpc]
 
         if radius_mosaic_arcsec is None:
@@ -490,24 +496,21 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                 redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
-        ## Build the MGE ellipse plots (for the large-galaxy project).
-        #if largegalaxy:
-        #    qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
-            
         # Build the ellipse plots.
         qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                            pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
                            verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
-
-        # CCD positions
-        qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
-                  radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
-                  verbose=verbose)
+        pdb.set_trace()
 
         # Build the montage coadds.
         qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
                           barlabel=barlabel, clobber=clobber, verbose=verbose)
                           #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage)
+
+        # CCD positions
+        qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                  radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
+                  verbose=verbose)
 
         # Build the maskbits figure.
         if False:

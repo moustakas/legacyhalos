@@ -64,11 +64,11 @@ def main():
                                                verbose=args.verbose,
                                                customsky=args.largegalaxy_customsky,
                                                preselect_sample=True)
-        # For the ellipse-fitting we need the properties of the full sample.
-        if args.ellipse or args.htmlindex:
-            cols = ['LSLGA_ID', 'GALAXY', 'PGC', 'RA', 'DEC', 'PA', 'BA', 'D25', 'GROUP_ID', 'TYPE']
-            fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose, preselect_sample=False,
-                                                       customsky=False, columns=cols)
+        # For the custom coadds step we write out the full sample in each mosaic.
+        if args.largegalaxy_coadds:
+            fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose,
+                                                       preselect_sample=False,
+                                                       customsky=False)#, columns=cols)
             these = np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])
             fullsample = fullsample[these]
     else:
@@ -155,6 +155,12 @@ def main():
 
         if args.largegalaxy_coadds:
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
+                # Write out the full sample for this object and then build the coadds.
+                thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
+                samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
+                print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+                thissample.write(samplefile, overwrite=True)
+                
                 call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic_arcsec, nproc=args.nproc,
                                         pixscale=args.pixscale, racolumn='GROUP_RA', deccolumn='GROUP_DEC',
                                         apodize=False, unwise=True, force=args.force, plots=False,
@@ -214,9 +220,12 @@ def main():
                 #    #                                        verbose=args.verbose)
                     
         if args.htmlplots:
-            if args.largegalaxy_customsky:
+            if radius_mosaic_arcsec > 6 * 60: # [>6] arcmin
                 barlabel = '2 arcmin'
                 barlen = np.ceil(120 / args.pixscale).astype(int) # [pixels]
+            elif (radius_mosaic_arcsec > 3 * 60) & (radius_mosaic_arcsec < 6 * 60): # [3-6] arcmin
+                barlabel = '1 arcmin'
+                barlen = np.ceil(60 / args.pixscale).astype(int) # [pixels]
             else:
                 barlabel = '30 arcsec'
                 barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]

@@ -700,6 +700,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
     psf = PixelizedPSF(psfimg)
     xobj, yobj = np.ogrid[0:HH, 0:WW]
 
+    nbox = 3
+    box = np.arange(nbox)-nbox // 2
+    #box = np.meshgrid(np.arange(nbox), np.arange(nbox))[0]-nbox//2
+
     wcs = Tan(filt2imfile[refband]['image'], 1)
     mjd_tai = refhdr['MJD_MEAN'] # [TAI]
 
@@ -738,12 +742,19 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             # Do this step iteratively to capture the possibility where the
             # previous galaxy has masked the central pixels of the *current*
             # galaxy, in each iteration reducing the size of the mask.
-            for shrink in np.arange(0.1, 1.1, 0.1)[::-1]:
+            for shrink in np.arange(0.1, 1.05, 0.05)[::-1]:
                 maxis = shrink * geo['majoraxis']
                 _mask = ellipse_mask(geo['xmed'], geo['ymed'], maxis, maxis * (1-geo['eps']),
                                      np.radians(geo['theta']-90), xobj, yobj)
-                if _mask[int(tractor.by[central]), int(tractor.bx[central])]:
-                    print('The previous central has masked the current central with shrink factor {:.1f}'.format(shrink))
+                notok = False
+                for xb in box:
+                    for yb in box:
+                        if _mask[int(yb+tractor.by[central]), int(xb+tractor.bx[central])]:
+                            notok = True
+                            break
+                if notok:
+                #if _mask[int(tractor.by[central]), int(tractor.bx[central])]:
+                    print('The previous central has masked the current central with shrink factor {:.2f}'.format(shrink))
                 else:
                     break
             newmask = ma.mask_or(_mask, newmask)
@@ -757,7 +768,13 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         #import matplotlib.pyplot as plt ; plt.clf()
         #mgegalaxy = find_galaxy(img / filt2pixscale[refband]**2, nblob=1, binning=3, quiet=not verbose, plot=True, level=minsb)
         #mgegalaxy = find_galaxy(img / filt2pixscale[refband]**2, nblob=1, fraction=0.1, binning=3, quiet=not verbose, plot=True)
-        if newmask[int(tractor.by[central]), int(tractor.bx[central])]:
+        notok = False
+        for xb in box:
+            for yb in box:
+                if newmask[int(yb+tractor.by[central]), int(xb+tractor.bx[central])]:
+                    notok = True
+                    break
+        if notok:
             print('Central position has been masked, most likely by a star.')
             xmed, ymed = tractor.by[central], tractor.bx[central]
             ee = np.hypot(tractor.shape_e1[central], tractor.shape_e2[central])
@@ -770,28 +787,42 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             newmask[fixmask] = ma.nomask
         
         mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
-                                nblob=1, binning=3, quiet=not verbose, plot=False, #True,
-                                #fraction=0.3,
-                                level=minsb)
+                                nblob=1, binning=3, quiet=not verbose, plot=False, level=minsb)
+        # If we fit the geometry by unmasking pixels using the Tractor fit then
+        # we're probably sitting inside the mask of a bright star, so call
+        # find_galaxy a couple more times to try to grow the "unmasking".
+        if notok:
+            print('Iteratively growing the mask:')
+            print('  r={:.2f} pixels'.format(maxis))
+            for _ in np.arange(2):
+                maxis = 1.5 * mgegalaxy.majoraxis # [pixels]
+                print('  r={:.2f} pixels'.format(maxis))
+                fixmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed,
+                                       maxis, maxis * (1-mgegalaxy.eps), 
+                                       np.radians(mgegalaxy.theta-90), xobj, yobj)
+                newmask[fixmask] = ma.nomask
+                mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
+                                        nblob=1, binning=3, quiet=True, plot=False, level=minsb)
+        
         #plt.savefig('junk.png') ; pdb.set_trace()
         print(mgegalaxy.xmed, tractor.by[central], mgegalaxy.ymed, tractor.bx[central])
-        maxshift = 5
+        maxshift = 10
         if (np.abs(mgegalaxy.xmed-tractor.by[central]) > maxshift or # note [xpeak,ypeak]-->[by,bx]
             np.abs(mgegalaxy.ymed-tractor.bx[central]) > maxshift):
             print('Peak position has moved by more than {} pixels---falling back on Tractor geometry!'.format(maxshift))
-            pdb.set_trace()
-            #ee = np.hypot(tractor.shape_e1[central], tractor.shape_e2[central])
-            #ba = (1 - ee) / (1 + ee)
-            #pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[central], tractor.shape_e1[central]) / 2))
-            #pa = pa % 180
-            #mgegalaxy.xmed = tractor.by[central]
-            #mgegalaxy.ymed = tractor.bx[central]
-            #mgegalaxy.xpeak = tractor.by[central]
-            #mgegalaxy.ypeak = tractor.bx[central]
-            #mgegalaxy.eps = 1 - ba
-            #mgegalaxy.pa = pa
-            #mgegalaxy.theta = 270 - pa
-            #mgegalaxy.majoraxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
+            #pdb.set_trace()
+            ee = np.hypot(tractor.shape_e1[central], tractor.shape_e2[central])
+            ba = (1 - ee) / (1 + ee)
+            pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[central], tractor.shape_e1[central]) / 2))
+            pa = pa % 180
+            mgegalaxy.xmed = tractor.by[central]
+            mgegalaxy.ymed = tractor.bx[central]
+            mgegalaxy.xpeak = tractor.by[central]
+            mgegalaxy.ypeak = tractor.bx[central]
+            mgegalaxy.eps = 1 - ba
+            mgegalaxy.pa = pa
+            mgegalaxy.theta = 270 - pa
+            mgegalaxy.majoraxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
             
         #import matplotlib.pyplot as plt
         #plt.imshow(mask, origin='lower')

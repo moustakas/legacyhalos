@@ -175,7 +175,6 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             else:
                 ok = (cogflux > 0) * np.isfinite(cogflux)
                 cogmagerr = np.ones(len(cogmag))
-        pdb.set_trace()
             
         sma_arcsec = sma[ok] * pixscale             # [arcsec]
         cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
@@ -257,6 +256,10 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         results['cog_params_{}'.format(filt)] = {'mtot': P.mtot.value, 'm0': P.m0.value,
                                                  'alpha1': P.alpha1.value, 'alpha2': P.alpha2.value,
                                                  'chi2': minchi2}
+
+        print('Also measure aperture magnitudes to different radii!')
+        #pdb.set_trace()
+        
     #    print(filt, P)
     #    default_model = cogmodel.evaluate(radius, P.mtot.default, P.m0.default, P.alpha1.default, P.alpha2.default)
     #    bestfit_model = cogmodel.evaluate(radius, P.mtot.value, P.m0.value, P.alpha1.value, P.alpha2.value)

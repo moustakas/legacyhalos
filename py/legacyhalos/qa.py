@@ -72,12 +72,11 @@ def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
     paste_shift_y = int(y0 - rotated_height / 2)
     im.paste(rotated, (paste_shift_x, paste_shift_y), rotated)
 
-def addbar_to_png(jpgfile, barlen, barlabel, imtype, scaledfont=False):
+def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True):
     """Support routine for routines in html.
 
     """
     from PIL import Image, ImageDraw, ImageFont
-    pngfile = os.path.join(os.path.dirname(jpgfile), os.path.basename(jpgfile).replace('.jpg', '.png'))
     with Image.open(jpgfile) as im:
         draw = ImageDraw.Draw(im)
         sz = im.size
@@ -85,7 +84,8 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, scaledfont=False):
         # Bar and label
         if barlen:
             if scaledfont:
-                fntsize = np.round(sz[0]/50).astype('int')
+                fntsize = np.round(0.05*sz[0]).astype('int')
+                #fntsize = np.round(sz[0]/50).astype('int')
             else:
                 fntsize = 20 # np.round(sz[0]/20).astype('int')
             font = ImageFont.truetype(fonttype, size=fntsize)
@@ -104,6 +104,7 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, scaledfont=False):
             ww, hh = draw.textsize(imtype, font=font)
             x0, y0, y1 = sz[0]-ww-fntsize*2, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
             draw.text((x0, y1), imtype, font=font)
+        print('Writing {}'.format(pngfile))
         im.save(pngfile)
     return pngfile
     
@@ -179,7 +180,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             yfaint = cog.max()
         if cog.min() < ybright:
             ybright = cog.min()
-        #pdb.set_trace()
+        #if filt == 'r':
+        #    pdb.set_trace()
 
     ax.set_xlabel(r'Semi-major axis (arcsec)')
     ax.set_ylabel('Cumulative brightness (AB mag)')

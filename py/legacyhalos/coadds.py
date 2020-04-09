@@ -206,7 +206,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if not ok:
                 return ok
 
-        for imtype, suffix in zip(('wise', 'wisemodel'), ('image', 'model-{}'.format(stagesuffix))):
+        for imtype, suffix in zip(('wise', 'wisemodel'), ('image', 'model')):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
