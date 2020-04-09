@@ -63,9 +63,9 @@ def _missing_files_one(args):
 def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))    
     if os.path.exists(checkfile) and clobber is False:
-        print('missing_files_one: ', checkfile)
         return False
     else:
+        print('missing_files_one: ', checkfile)
         return True
     
 def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
@@ -92,6 +92,11 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
         if filesuffix is None:
             filesuffix = '-largegalaxy-ellipse.isdone'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+    elif args.build_LSLGA:
+        suffix = 'build-LSLGA'
+        if filesuffix is None:
+            filesuffix = '-largegalaxy-ellipse.isdone'
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample)
     elif args.htmlplots:
         suffix = 'html'
         if filesuffix is None:
@@ -396,7 +401,7 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
     sbcut [minimum surface brightness] in r-band AB mag/arcsec**2
 
     """
-    import warnings
+    import warnings, glob
     import fitsio
     from astropy.table import Table, vstack
     from scipy.interpolate import interp1d
@@ -412,12 +417,14 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
         
     onegal = Table(onegal)
     galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
-    catfile = os.path.join(galaxydir, '{}-pipeline-tractor.fits'.format(galaxy))
-    if not os.path.isfile(catfile):
-        if False:
-            print('Skipping missing file {}'.format(catfile))
-        return Table()
-    cat = Table(fitsio.read(catfile))
+
+    tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
+    tractor = Table(fitsio.read(tractorfile))
+
+    # Gather up all the ellipse files, which *define* the sample.
+    ellipsefiles = glob(os.path.join(galaxydir, '{}-largegalaxy-*-ellipse.asdf'.format(galaxy)))
+
+    pdb.set_trace()
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -425,14 +432,14 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
         #cut = np.where(np.logical_or((cat['type'] != 'REX') * (cat['type'] != 'PSF') *
         #                             (cat['shape_r'] > minradius) * (sb < minsb), cat['ref_cat'] == refcat))[0]
         #cut = np.where(np.logical_or((cat['type'] != 'REX') * (cat['type'] != 'PSF') * (cat['flux_r'] > 10**(-0.4*(23-22.5))), cat['ref_cat'] == refcat))[0]
-        cut = np.where(np.logical_or((cat['brightblob'] & IN_BLOB['GALAXY']) * (cat['ref_cat'] != 'G2'), cat['ref_cat'] == refcat))[0]
+        cut = np.where(np.logical_or((tractor['brightblob'] & IN_BLOB['GALAXY']) * (tractor['ref_cat'] != 'G2'), tractor['ref_cat'] == refcat))[0]
 
     if len(cut) == 0:
         print('No large, high surface-brightness sources in galaxy {} field!'.format(galaxy))
         return Table()
 
     #print('Keeping just sersic models!')
-    I = np.where((cat['ref_cat'][cut] == refcat) * (cat['type'][cut] == 'SER'))[0]
+    I = np.where((tractor['ref_cat'][cut] == refcat) * (tractor['type'][cut] == 'SER'))[0]
     if len(I) == 0:
         return Table()
     
@@ -444,7 +451,7 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
 
     #print('Analyzing {}/{} galaxies (of which {} are LSLGA) in the {} footprint.'.format(
     #    len(cut), len(cat), len(I), galaxy))
-    cat = cat[cut]
+    tractor = tractor[cut]
 
     # Include the (angular) distance of each source to the center of the
     # mosaic/group.

@@ -793,9 +793,11 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                     ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
 
                 if ii == 2:
-                    fntsize = np.round(0.03*img.shape[0]).astype('int')
+                    fntsize = np.round(0.01*img.shape[0]).astype('int')
+                    if fntsize < 20:
+                        fntsize = 20
+                    print('Font size {}'.format(fntsize))
                     ax1.legend(loc='lower right', fontsize=fntsize, frameon=True)
-                    
             else:
                 from photutils import EllipticalAperture
                 geometry = ellipsefit['geometry']

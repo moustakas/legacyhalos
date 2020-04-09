@@ -255,15 +255,18 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
         
         #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)
-        results['cog_params_{}'.format(filt)] = {'mtot': P.mtot.value, 'm0': P.m0.value,
-                                                 'alpha1': P.alpha1.value, 'alpha2': P.alpha2.value,
-                                                 'chi2': minchi2}
+        results['cog_params_{}'.format(filt)] = {'mtot': np.float32(P.mtot.value),
+                                                 'm0': np.float32(P.m0.value),
+                                                 'alpha1': np.float32(P.alpha1.value),
+                                                 'alpha2': np.float32(P.alpha2.value),
+                                                 'chi2': np.float32(minchi2)}
 
         #print('Measuring integrated magnitudes to different radii.')
         sb = ellipse_sbprofile(refellipsefit, linear=True)
         for radkey in ['radius_sb{:0g}'.format(sbcut) for sbcut in sbcuts]:
+            magkey = radkey.replace('radius_', 'mag_{}_'.format(filt))
             smamax = results[radkey] # semi-major axis
-            if smamax > 0:
+            if smamax > 0 and smamax < np.max(sma_arcsec):
                 rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
 
                 rr = sb['radius_{}'.format(filt)] # [circularized radius, arcsec]
@@ -276,8 +279,10 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 _yy = np.hstack((yy[keep], yy_rmax))
 
                 flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
-                results[radkey.replace('radius_', 'mag_{}_'.format(filt))] = 22.5 - 2.5 * np.log10(flux)
-        
+                results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+            else:
+                results[magkey] = np.float32(-1.0)
+                
     #pdb.set_trace()
         
     #    print(filt, P)
@@ -766,6 +771,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         for igal in np.arange(len(data['central_galaxy_id'])):
             central_galaxy_id = data['central_galaxy_id'][igal]
             galaxyid = str(central_galaxy_id)
+            print('Starting ellipse-fitting for galaxy {}'.format(galaxyid))
             if largegalaxy:
                 maxsma = 1.5 * data['mge'][igal]['majoraxis'] # [pixels]
                 # Supplement the fit results dictionary with some additional info--

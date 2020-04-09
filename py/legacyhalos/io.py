@@ -817,21 +817,20 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         if (np.abs(mgegalaxy.xmed-tractor.by[central]) > maxshift or # note [xpeak,ypeak]-->[by,bx]
             np.abs(mgegalaxy.ymed-tractor.bx[central]) > maxshift):
             print('Peak position has moved by more than {} pixels---falling back on Tractor geometry!'.format(maxshift))
-            import matplotlib.pyplot as plt ; plt.clf()
-            mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), nblob=1, binning=3, quiet=False, plot=True, level=minsb)
-            plt.savefig('junk.png') ; pdb.set_trace()
-            pdb.set_trace()
+            #import matplotlib.pyplot as plt ; plt.clf()
+            #mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), nblob=1, binning=3, quiet=False, plot=True, level=minsb)
+            #plt.savefig('junk.png') ; pdb.set_trace()
+            #pdb.set_trace()
             ee = np.hypot(tractor.shape_e1[central], tractor.shape_e2[central])
             ba = (1 - ee) / (1 + ee)
             pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[central], tractor.shape_e1[central]) / 2))
-            pa = pa % 180
             mgegalaxy.xmed = tractor.by[central]
             mgegalaxy.ymed = tractor.bx[central]
             mgegalaxy.xpeak = tractor.by[central]
             mgegalaxy.ypeak = tractor.bx[central]
             mgegalaxy.eps = 1 - ba
-            mgegalaxy.pa = pa
-            mgegalaxy.theta = 270 - pa
+            mgegalaxy.pa = pa % 180
+            mgegalaxy.theta = (270 - pa) % 180
             mgegalaxy.majoraxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
             
         #import matplotlib.pyplot as plt
