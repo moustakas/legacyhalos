@@ -96,7 +96,7 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
         suffix = 'build-LSLGA'
         if filesuffix is None:
             filesuffix = '-largegalaxy-ellipse.isdone'
-        galaxy, _, galaxydir = get_galaxy_galaxydir(sample)
+        galaxy, galaxydir = get_galaxy_galaxydir(sample)
     elif args.htmlplots:
         suffix = 'html'
         if filesuffix is None:
@@ -401,7 +401,9 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
     sbcut [minimum surface brightness] in r-band AB mag/arcsec**2
 
     """
-    import warnings, glob
+    from glob import glob
+
+    import warnings
     import fitsio
     from astropy.table import Table, vstack
     from scipy.interpolate import interp1d
@@ -409,122 +411,77 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
     from astrometry.util.starutil_numpy import arcsec_between
     from tractor.wcs import RaDecPos
     from tractor import NanoMaggies
-    from tractor.ellipses import EllipseE
+    from tractor.ellipses import EllipseE, EllipseESoft
     from tractor.galaxy import DevGalaxy, ExpGalaxy
     from tractor.sersic import SersicGalaxy
     from legacypipe.survey import LegacySersicIndex
     from legacypipe.bits import IN_BLOB, MASKBITS
-        
+
+    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.misc import is_in_ellipse
+    
     onegal = Table(onegal)
     galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
 
     tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
     tractor = Table(fitsio.read(tractorfile))
 
+    tractor['d25_ellipse'] = np.zeros(len(tractor), np.float32)
+    tractor['pa_ellipse'] = np.zeros(len(tractor), np.float32)
+    tractor['ba_ellipse'] = np.ones(len(tractor), np.float32)
+    tractor['preburned'] = np.ones(len(tractor), bool) # Everything was preburned...
+    tractor['freeze'] = np.zeros(len(tractor), bool)   # ...but we only want to freeze the LSLGA galaxies.
+
+    islslga = np.array(['L' in refcat for refcat in tractor['ref_cat']])
+
     # Gather up all the ellipse files, which *define* the sample.
     ellipsefiles = glob(os.path.join(galaxydir, '{}-largegalaxy-*-ellipse.asdf'.format(galaxy)))
+    for ellipsefile in ellipsefiles:
+        lslga_id = os.path.basename(ellipsefile).split('-')[-2]
+        lslga_id = np.int(lslga_id)
+        this = np.where(islslga * (tractor['ref_id'] == lslga_id))[0]
+        if len(this) != 1:
+            print('Doom has befallen you.')
+            pdb.set_trace()
+            
+        af = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id), filesuffix='largegalaxy', verbose=True)
+        ellipse = af.tree
 
-    pdb.set_trace()
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        #sb = 22.5-2.5*np.log10(cat['flux_r'] / (np.pi*cat['shape_r']**2))
-        #cut = np.where(np.logical_or((cat['type'] != 'REX') * (cat['type'] != 'PSF') *
-        #                             (cat['shape_r'] > minradius) * (sb < minsb), cat['ref_cat'] == refcat))[0]
-        #cut = np.where(np.logical_or((cat['type'] != 'REX') * (cat['type'] != 'PSF') * (cat['flux_r'] > 10**(-0.4*(23-22.5))), cat['ref_cat'] == refcat))[0]
-        cut = np.where(np.logical_or((tractor['brightblob'] & IN_BLOB['GALAXY']) * (tractor['ref_cat'] != 'G2'), tractor['ref_cat'] == refcat))[0]
-
-    if len(cut) == 0:
-        print('No large, high surface-brightness sources in galaxy {} field!'.format(galaxy))
-        return Table()
-
-    #print('Keeping just sersic models!')
-    I = np.where((tractor['ref_cat'][cut] == refcat) * (tractor['type'][cut] == 'SER'))[0]
-    if len(I) == 0:
-        return Table()
-    
-    #I = np.where(cat['ref_cat'][cut] == refcat)[0]
-    #if len(I) == 0:
-    #    print('Problem: {}'.format(galaxy))
-    #    #print('Large galaxy {} was dropped!'.format(galaxy))
-    #    return Table()
-
-    #print('Analyzing {}/{} galaxies (of which {} are LSLGA) in the {} footprint.'.format(
-    #    len(cut), len(cat), len(I), galaxy))
-    tractor = tractor[cut]
-
-    # Include the (angular) distance of each source to the center of the
-    # mosaic/group.
-    cat['theta_center'] = arcsec_between(cat['ra'], cat['dec'], onegal['RA'], onegal['DEC']) # [arcsec]
-    cat['d25_model'] = np.zeros(len(cat), np.float32)
-    cat['pa_model'] = np.zeros(len(cat), np.float32)
-    cat['ba_model'] = np.ones(len(cat), np.float32)
-    cat['preburned'] = np.ones(len(cat), bool) # Everything was preburned...
-    cat['freeze'] = np.zeros(len(cat), bool)   # ...but we only want to freeze the LSLGA galaxies.
-
-    # For each galaxy, compute the position angle and "size" based
-    # on the r-band surface brightness limit.
-    for ii, g in zip(I, cat[I]):
-        cat['freeze'][ii] = True
-
-        #if g['type'].strip() == 'PSF':
-        #    print('Problem: {}'.format(galaxy))
-        #    #print('Large galaxy {} is PSF--skipping!'.format(galaxy))
-        #    continue
-        typ = fits_reverse_typemap[g['type'].strip()]
-        pos = RaDecPos(g['ra'], g['dec'])
-        fluxes = dict([(band, g['flux_{}'.format(band)]) for band in bands])
-        bright = NanoMaggies(order=bands, **fluxes)
-        shape = None
-        if issubclass(typ, (DevGalaxy, ExpGalaxy, SersicGalaxy)):
-            shape = EllipseE(g['shape_r'], g['shape_e1'], g['shape_e2'])
-
-        if issubclass(typ, (DevGalaxy, ExpGalaxy)):
-            if issubclass(typ, DevGalaxy):
-                serindex = 4.
-            else:
-                serindex = 1.
-        elif issubclass(typ, (SersicGalaxy)):
-            serindex = g['sersic']
-            sersic = LegacySersicIndex(g['sersic'])
+        # Add the basic ellipse geometry--
+        tractor['pa_ellipse'][this] = ellipse['pa']
+        tractor['ba_ellipse'][this] = 1 - ellipse['eps']
+        tractor['freeze'][this] = True
+        
+        # Now add the radius
+        if ellipse['radius_sb25'] > 0:
+            tractor['d25_ellipse'][this] = ellipse['radius_sb25'] * 2 / 60
+        elif ellipse['radius_sb24'] > 0:
+            tractor['d25_ellipse'][this] = ellipse['radius_sb24'] * 2 / 60
         else:
-            print('Unknown type {}'.format(typ))
+            tractor['d25_ellipse'][this] = ellipse['majoraxis'] * ellipse['refpixscale'] * 2 / 60
 
-        if shape is not None:
-            # Masking radius based on surface brightness--
-            # Normalize by total flux and then divide by the
-            # pixelscale to get the surface brightness.
-            radius_pixel = np.arange(20*g['shape_r'] / pixscale)   # [pixels]
-            radius = pixscale * radius_pixel                       # [arcsec]
-            pro = sersic_profile(radius / g['shape_r'], serindex) # 1D profile
-            pro /= np.sum(pro * 2. * np.pi * radius_pixel)
-            for band in ('r', 'z', 'g'):
-                if g['flux_{}'.format(band)] > 0:
-                    pro *= (g['flux_{}'.format(band)] / pixscale**2) # [nanomaggies / arcsec2]
-                    break
-            pro = 22.5 - 2.5 * np.log10(pro) # [mag/arcsec2]
+        if tractor['d25_ellipse'][this] == 0:
+            print('Doom has befallen you.')
+            pdb.set_trace()
 
-            # Interpolate to get the radius at which the surface
-            # brightness profile crosses the desired threshold. Note:
-            # 0.1 nanomaggies = 25 mag/arcsec^2
-            try:
-                r25 = interp1d(pro, radius)(sbcut) # [arcsec]
-            except:
-                print('Warning: extrapolating r25 for galaxy {}'.format(galaxy))
-                r25 = interp1d(pro, radius, fill_value='extrapolate')(sbcut) # [arcsec]
+        # Next find all the objects in the elliptical "sphere-of-influence" of
+        # this galaxy, and freeze those parameters as well.
+        logr, e1, e2 = EllipseESoft.rAbPhiToESoft(tractor['d25_ellipse'][this]*60/2,
+                                                  tractor['ba_ellipse'][this],
+                                                  180-tractor['pa_ellipse'][this]) # note the 180 rotation
+        these = np.where(~islslga * (is_in_ellipse(tractor['ra'], tractor['dec'], tractor['ra'][this],
+                                                   tractor['dec'][this], np.exp(logr), e1, e2)))[0]
+        #print('Freezing the Tractor parameters of {} non-LSLGA objects.'.format(len(these)))
+        tractor['freeze'][these] = True
 
-            cat['d25_model'][ii] = 2 * r25 / 60.0                # [arcmin]
-            if cat['d25_model'][ii] == 0.0:
-                print('Warning: radius={:.3f} for galaxy {} (type={})!'.format(g['shape_r'], galaxy, g['type']))
-
-            e = shape.e
-            cat['ba_model'][ii] = (1. - e) / (1. + e)
-            pa = -np.rad2deg(np.arctan2(shape.e2, shape.e1) / 2.) # [degrees]
-            if pa != 0.0:
-                cat['pa_model'][ii] = 180-pa
-                
-        return cat
-    return Table()
+        #if len(these) > 10:
+        #    import matplotlib.pyplot as plt
+        #    plt.scatter(tractor['ra'], tractor['dec'], s=5)
+        #    plt.scatter(tractor['ra'][these], tractor['dec'][these], s=5, color='red')
+        #    plt.savefig('junk.png')
+        #    pdb.set_trace()
+        
+    return tractor
 
 def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=25.0,
                       bands=('g', 'r', 'z'), clobber=False, nproc=1):
@@ -556,109 +513,58 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=2
         return
 
     mp = multiproc(nthreads=nproc)
-    out = mp.map(_build_model_LSLGA_one, [(onegal, pixscale, minradius, minsb, sbcut, bands, refcat) for onegal in sample])
-    if len(out) == 0:
+    cat = mp.map(_build_model_LSLGA_one, [(onegal, pixscale, minradius, minsb, sbcut, bands, refcat) for onegal in sample])
+    if len(cat) == 0:
         print('Something went wrong and no galaxies were fitted.')
         return
+    cat = vstack(cat)
+    [cat.rename_column(col, col.upper()) for col in cat.colnames]
+    print('Gathered {} pre-burned and frozen galaxies.'.format(len(cat)))
 
-    #[print(ii) for ii, oo in enumerate(out) if oo is None]
-    out = vstack(out)
-    [out.rename_column(col, col.upper()) for col in out.colnames]
-    print('Gathered {} pre-burned galaxies.'.format(len(out)))
+    # ToDo: deal with pre-burned, but not frozen Tractor sources.
+    ifreeze = np.where(cat['FREEZE'])[0]
+    ilslga = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
+    print('Keeping {} frozen galaxies, of which {} are LSLGA.'.format(len(ifreeze), len(ilslga)))
 
-    #out.write(outfile, overwrite=True)
-    #pdb.set_trace()
-
-    # Now read the full parent LSLGA catalog and supplement it with the
-    # pre-burned galaxies.
+    # Read the full parent LSLGA catalog and add all the Tractor columns.
     lslgafile = os.getenv('LARGEGALAXIES_CAT')
     lslga, hdr = fitsio.read(lslgafile, header=True)
     lslga = Table(lslga)
     print('Read {} galaxies from {}'.format(len(lslga), lslgafile))
 
-    # Add all the Tractor columns to the parent LSLGA.
     lslga.rename_column('RA', 'LSLGA_RA')
     lslga.rename_column('DEC', 'LSLGA_DEC')
     lslga.rename_column('TYPE', 'MORPHTYPE')
-    for col in out.colnames:
-        if out[col].ndim > 1:
-            lslga[col] = np.zeros((len(lslga), out[col].shape[1]), dtype=out[col].dtype)
+    lslgacols = lslga.colnames
+
+    for col in cat.colnames:
+        if cat[col].ndim > 1:
+            lslga[col] = np.zeros((len(lslga), cat[col].shape[1]), dtype=cat[col].dtype)
         else:
-            lslga[col] = np.zeros(len(lslga), dtype=out[col].dtype)
+            lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)
 
-    # First deal with pre-burned, but not frozen Tractor sources.  Remove
-    # duplicates by choosing the source closest to the center of the mosaic.
-    lslga_sup = []
-    jindx = np.where(~out['FREEZE'])[0]
-    if len(jindx) > 0:
-        out_sup = out[jindx]
-        grp, mult, first, next = spheregroup(out_sup['RA'], out_sup['DEC'], 0.1/3600.0)
-        keep = np.where(mult == 1)[0]
-        for ii in np.where(mult > 1)[0]:
-            these = np.where(grp == grp[ii])[0]
-            keep = np.hstack((keep, these[np.argmin(out_sup[these]['THETA_CENTER'])]))
-        print('Removing {}/{} duplicate non-LSLGA Tractor sources.'.format(len(out_sup)-len(keep), len(out_sup)))
-        out_sup = out_sup[np.sort(keep)]
-
-        # Add in LSLGA columns.
-        lslga_sup = Table()
-        for col in lslga.colnames:
-            if lslga[col].ndim > 1:
-                lslga_sup[col] = np.zeros((len(out_sup), lslga[col].shape[1]), dtype=lslga[col].dtype)
-            else:
-                lslga_sup[col] = np.zeros(len(out_sup), dtype=lslga[col].dtype)
-        for col in out.colnames:
-            lslga_sup[col] = out_sup[col]
-        lslga_sup['LSLGA_ID'] = -1
-        del out_sup
-
-    # Now deal with LSLGA galaxies.
-    iindx = np.where(out['FREEZE'])[0] # should all have REF_CAT == refcat
-    assert(np.sum(out['REF_CAT'][iindx] != refcat) == 0)
-    out_lslga = out[iindx]
-
-    # Deal with duplicates by keeping the entry closest to the center of its
-    # group.
-    keep = []
-    for refid in set(out_lslga['REF_ID']):
-        these = np.where(out_lslga['REF_ID'] == refid)[0]
-        if len(these) == 1:
-            keep.append(these)
+    for col in lslgacols:
+        if lslga[col].ndim > 1:
+            cat[col] = np.zeros((len(cat), lslga[col].shape[1]), dtype=lslga[col].dtype)
         else:
-            print('Found {} occurrences of {}'.format(len(these), refid))
-            keep.append(these[np.argmin(out_lslga[these]['THETA_CENTER'])])
-    keep = np.hstack(keep)
-    print('Removing {}/{} duplicate LSLGA Tractor sources.'.format(
-        len(out_lslga)-len(keep), len(out_lslga)))
-    out_lslga = out_lslga[keep]
+            cat[col] = np.zeros(len(cat), dtype=lslga[col].dtype)
 
-    # Finally, populate the Tractor columns.
-    kindx = np.where(np.isin(lslga['LSLGA_ID'], out_lslga['REF_ID']))[0]
-    for col in out.colnames:
-        lslga[col][kindx] = out_lslga[col]
-    del out_lslga
-
-    if len(lslga_sup) > 0:
-        out = vstack((lslga, lslga_sup))
-    else:
-        out = lslga
-
-    #print(out[out['FREEZE']]['PA', 'PA_MODEL'])
-    #pdb.set_trace()
-
+    # Stack the catalogs, removing duplicates.
+    keepindx = np.where(~np.isin(lslga['LSLGA_ID'], cat['REF_ID'][ilslga]))[0]
+    lslga = lslga[keepindx]
+    
+    out = vstack((lslga, cat))
+    del lslga, cat
+    
     # Add RA, Dec back in--
     fix = np.where(~out['PREBURNED'])[0]
     if len(fix) > 0:
         out['RA'][fix] = out['LSLGA_RA'][fix]
         out['DEC'][fix] = out['LSLGA_DEC'][fix]
 
-    # For DR9, freeze the parameters of *all* the pre-burned Tractor sources.
-    these = np.where(~out['FREEZE'] * out['PREBURNED'])[0]
-    print('Freezing the parameters of *all* {} preburned sources.'.format(len(these)))
-    out['FREEZE'][these] = True
+    #print('Selecting just the bricks of interest!')
 
     print('Writing {} galaxies to {}'.format(len(out), outfile))
-    #out.write(outfile, overwrite=True)
     hdrversion = 'L{}-MODEL'.format(version[1:2]) # fragile!
     hdr['LSLGAVER'] = hdrversion
     fitsio.write(outfile, out.as_array(), header=hdr, clobber=True)
