@@ -622,7 +622,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     # Fix the center to be the peak (pixel) values. Could also use bx,by here
     # from Tractor.  Also initialize the geometry with the moment-derived
     # values.  Note that (x,y) are switched between MGE and photutils!!
-    for key in ['eps', 'pa', 'theta', 'majoraxis', 'ra_med', 'dec_med',
+    for key in ['badcenter', 'eps', 'pa', 'theta', 'majoraxis', 'ra_med', 'dec_med',
                 'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z']:
         ellipsefit[key] = mge[key]
     for mgekey, ellkey in zip(['ymed', 'xmed'], ['x0', 'y0']):
@@ -773,7 +773,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             galaxyid = str(central_galaxy_id)
             print('Starting ellipse-fitting for galaxy {}'.format(galaxyid))
             if largegalaxy:
-                maxsma = 3 * data['mge'][igal]['majoraxis'] # [pixels]
+                maxsma = 2 * data['mge'][igal]['majoraxis'] # [pixels]
                 # Supplement the fit results dictionary with some additional info--
                 samp = sample[sample['LSLGA_ID'] == central_galaxy_id]
                 galaxyinfo = {'lslga_id': central_galaxy_id,

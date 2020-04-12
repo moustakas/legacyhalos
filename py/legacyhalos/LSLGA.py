@@ -434,7 +434,13 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
     galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
 
     tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
+    if not os.path.isfile(tractorfile):
+        print('Missing tractor file {}'.format(tractorfile))
+        return None
+    
     tractor = Table(fitsio.read(tractorfile))
+    print('Temporarily remove the wise light-curve columns!')
+    [tractor.remove_column(col) for col in tractor.colnames if 'lc_' in col]
 
     # See legacyhalos.ellipse.ellipse_cog--
     sbcuts = [23, 24, 25, 25.5, 26]
@@ -446,9 +452,10 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
     tractor['pa'] = np.zeros(len(tractor), np.float32)
     tractor['ba'] = np.ones(len(tractor), np.float32)
     for radkey in radkeys:
-        magkey = radkey.replace('radius_', 'mag_{}_'.format(filt))
         tractor[radkey] = np.zeros(len(tractor), np.float32) - 1
-        tractor[magkey] = np.zeros(len(tractor), np.float32) - 1
+        for filt in ['g', 'r', 'z']:
+            magkey = radkey.replace('radius_', 'mag_{}_'.format(filt))
+            tractor[magkey] = np.zeros(len(tractor), np.float32) - 1
 
     #islslga = np.array(['L' in refcat for refcat in tractor['ref_cat']])
 
@@ -505,7 +512,7 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
         #    plt.scatter(tractor['ra'][these], tractor['dec'][these], s=5, color='red')
         #    plt.savefig('junk.png')
         #    pdb.set_trace()
-        
+
     return tractor
 
 def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=25.0,
@@ -529,8 +536,8 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=2
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    print('Hack the path!')
-    outdir = '/global/u2/i/ioannis/scratch'
+    #print('Hack the path!')
+    #outdir = '/global/u2/i/ioannis/scratch'
     
     outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
@@ -542,7 +549,12 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=2
     if len(cat) == 0:
         print('Something went wrong and no galaxies were fitted.')
         return
-    cat = vstack(cat)
+    #cat2 = [cc for cc in cat if cc is not None]
+    cat = vstack(list(filter(None, cat)))
+    #cat = vstack(cat)
+    #for d1, d2 in zip(cat[0].dtype.descr, cat[1].dtype.descr):
+    #    if d1 != d2:
+    #        print(d1, d2)
     [cat.rename_column(col, col.upper()) for col in cat.colnames]
     print('Gathered {} pre-burned and frozen galaxies.'.format(len(cat)))
 

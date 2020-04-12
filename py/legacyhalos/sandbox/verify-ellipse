@@ -1,0 +1,108 @@
+#!/usr/bin/env python
+
+# Make sure the ellipses have been updated correctly.
+
+import os, pdb
+import fitsio
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from PIL import Image, ImageDraw
+from astropy.table import Table
+from astrometry.util.util import Tan
+from legacypipe.bits import MASKBITS
+from legacyhalos.qa import draw_ellipse_on_png
+from legacyhalos.brick import brickname as get_brickname
+
+lslga = Table(fitsio.read('/global/cfs/cdirs/cosmo/staging/largegalaxies/v6.0/LSLGA-model-v6.0.fits'))
+lbricks = get_brickname(lslga['RA'], lslga['DEC'])
+pbricks = get_brickname(lslga['GROUP_RA'], lslga['GROUP_DEC'])
+
+path = '/global/cscratch1/sd/dstn/dr9.3'
+for brick in ['0343p012']:
+    lthese = np.where(np.isin(lbricks, brick))[0]
+    pthese = np.where(np.isin(pbricks, brick))[0]
+    raslice = brick[:3]
+    
+    jpgfile = os.path.join(path, 'coadd', raslice, brick, 'legacysurvey-{}-model.jpg'.format(brick))
+    imfile = os.path.join(path, 'coadd', raslice, brick, 'legacysurvey-{}-image-r.fits.fz'.format(brick))
+    maskfile = os.path.join(path, 'coadd', raslice, brick, 'legacysurvey-{}-maskbits.fits.fz'.format(brick))
+    tractorfile = os.path.join(path, 'tractor', raslice, 'tractor-{}.fits'.format(brick))
+
+    mask = fitsio.read(maskfile)
+    tractor = Table(fitsio.read(tractorfile, upper=True))
+
+    wcs = Tan(imfile, 1)
+    pixscale = wcs.pixel_scale()
+
+    outfile = '{}-verify-ellipse.png'.format(brick)
+    fig, ax = plt.subplots(1, 3, figsize=(24, 8))#, sharey=True)
+
+    with Image.open(jpgfile) as colorimg:
+        sz = colorimg.size
+        for gal in lslga[pthese]:
+            _, x0, y0 = wcs.radec2pixelxy(gal['RA'], gal['DEC'])
+            draw_ellipse_on_png(colorimg, x0-1, sz[1]-(y0-1), gal['BA'], gal['PA'],
+                                gal['D25'] * 60.0, wcs.pixel_scale(), color='red')
+            draw_ellipse_on_png(colorimg, x0-1, sz[1]-(y0-1), gal['BA_ORIG'], gal['PA_ORIG'],
+                            gal['D25_ORIG'] * 60.0, wcs.pixel_scale(), color='blue')
+            draw = ImageDraw.Draw(colorimg)
+    ax[0].imshow(colorimg, interpolation='nearest')
+    ax[0].get_xaxis().set_visible(False)
+    ax[0].get_yaxis().set_visible(False)
+    #ax[0].axis('off')
+    ax[0].autoscale(False)
+    ax[0].set_aspect(adjustable='box', aspect=1)
+
+    ax[1].imshow(mask, origin='lower', cmap='Blues')#, interpolation='none')
+    for gal in lslga[pthese]:
+        _, x0, y0 = wcs.radec2pixelxy(gal['RA'], gal['DEC'])
+        ax[1].add_patch(mpatches.Ellipse((x0, y0), gal['D25']*60/pixscale,
+                                         gal['D25']*60/pixscale*gal['BA'],
+                                         gal['PA']-90, color='red', lw=2, alpha=0.6, fill=False))
+        ax[1].add_patch(mpatches.Ellipse((x0, y0), gal['D25_ORIG']*60/pixscale,
+                                         gal['D25_ORIG']*60/pixscale*gal['BA_ORIG'],
+                                         gal['PA_ORIG']-90, color='blue', lw=2, alpha=0.6, fill=False))
+    
+    ax[1].get_xaxis().set_visible(False)
+    ax[1].get_yaxis().set_visible(False)
+    #ax[1].axis('off')
+    ax[1].autoscale(False)
+    ax[1].set_aspect(adjustable='box', aspect=1)
+
+    rr = np.where(tractor['REF_CAT'] == 'L6')[0]
+    ww = np.where((tractor['MASKBITS'] & MASKBITS['GALAXY']) != 0)[0]
+    ax[2].scatter(tractor['BX'], tractor['BY'], color='grey', s=10,
+                  marker='o', alpha=0.3, label='All sources')
+    ax[2].scatter(tractor['BX'][ww], tractor['BY'][ww], color='k', s=15,
+                  marker='s', alpha=0.8, label="MASKBITS & 'GALAXY'")
+    ax[2].scatter(tractor['BX'][rr], tractor['BY'][rr], color='orange', s=40,
+                  marker='x', label='LSLGA')
+    for igal, gal in enumerate(lslga[lthese]):
+        _, x0, y0 = wcs.radec2pixelxy(gal['RA'], gal['DEC'])
+        if igal == 0:
+            ax[2].scatter(x0, y0, color='green', s=2, marker='o', label='Preburned, Frozen')
+        else:
+            ax[2].scatter(x0, y0, color='green', s=2, marker='o')
+        
+    for gal in lslga[pthese]:
+        _, x0, y0 = wcs.radec2pixelxy(gal['RA'], gal['DEC'])
+        ax[2].add_patch(mpatches.Ellipse((x0, y0), gal['D25']*60/pixscale,
+                                         gal['D25']*60/pixscale*gal['BA'],
+                                         gal['PA']-90, color='red', lw=2, alpha=0.6, fill=False))
+        ax[2].add_patch(mpatches.Ellipse((x0, y0), gal['D25_ORIG']*60/pixscale,
+                                         gal['D25_ORIG']*60/pixscale*gal['BA_ORIG'],
+                                         gal['PA_ORIG']-90, color='blue', lw=2, alpha=0.6, fill=False))
+    ax[2].legend(frameon=True, fontsize=10, loc='lower left')
+    ax[2].set_xlim(0, sz[0]-1)
+    ax[2].set_ylim(0, sz[0]-1)
+    ax[2].get_xaxis().set_visible(False)
+    ax[2].get_yaxis().set_visible(False)
+    #ax[2].axis('off')
+    ax[2].autoscale(False)
+    ax[2].set_aspect(adjustable='box', aspect=1)
+
+    #fig.subplots_adjust(wspace=0.0, top=0.96, bottom=0.01, left=0.01, right=0.99)
+
+    print('Writing {}'.format(outfile))
+    fig.savefig(outfile, bbox_inches='tight', pad_inches=0.15, dpi=150)

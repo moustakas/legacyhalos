@@ -829,6 +829,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             #mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), nblob=1, binning=3, quiet=False, plot=True, level=minsb)
             #plt.savefig('junk.png') ; pdb.set_trace()
             #pdb.set_trace()
+            badcenter = True
+            
             ee = np.hypot(tractor.shape_e1[central], tractor.shape_e2[central])
             ba = (1 - ee) / (1 + ee)
             pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[central], tractor.shape_e1[central]) / 2))
@@ -839,8 +841,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             mgegalaxy.eps = 1 - ba
             mgegalaxy.pa = pa % 180
             mgegalaxy.theta = (270 - pa) % 180
-            mgegalaxy.majoraxis = 1.5 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
+            mgegalaxy.majoraxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
             print('  r={:.2f} pixels'.format(mgegalaxy.majoraxis))
+        else:
+            badcenter = False
 
         #if tractor.ref_id[central] == 474614:
         #    import matplotlib.pyplot as plt
@@ -850,13 +854,14 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             
         radec_med = data['wcs'].pixelToPosition(mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
         radec_peak = data['wcs'].pixelToPosition(mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
-        mge = {'ra': tractor.ra[central], 'dec': tractor.dec[central],
-               'bx': tractor.bx[central], 'by': tractor.by[central],
-               'mw_transmission_g': tractor.mw_transmission_g[central],
-               'mw_transmission_r': tractor.mw_transmission_r[central],
-               'mw_transmission_z': tractor.mw_transmission_z[central],
-               'ra_med': radec_med[0], 'dec_med': radec_med[1],
-               'ra_peak': radec_med[0], 'dec_peak': radec_med[1]}
+        mge = {'badcenter': badcenter,
+            'ra': tractor.ra[central], 'dec': tractor.dec[central],
+            'bx': tractor.bx[central], 'by': tractor.by[central],
+            'mw_transmission_g': tractor.mw_transmission_g[central],
+            'mw_transmission_r': tractor.mw_transmission_r[central],
+            'mw_transmission_z': tractor.mw_transmission_z[central],
+            'ra_med': radec_med[0], 'dec_med': radec_med[1],
+            'ra_peak': radec_med[0], 'dec_peak': radec_med[1]}
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
             mge[key] = np.float32(getattr(mgegalaxy, key))
             if key == 'pa': # put into range [0-180]
@@ -1055,11 +1060,13 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     # (which we figure out in _read_and_mask, after we know the size of the
     # mosaic).
     if largegalaxy:
-        central_galaxy = np.where(np.isin(tractor.ref_id, sample['LSLGA_ID']))[0]
+        central_galaxy = np.where((tractor.type != 'PSF') * np.array([np.isin(rid, sample['LSLGA_ID']) for rid in tractor.ref_id]))[0]
+        # np.isin doens't preserve order--
+        #central_galaxy = np.where((tractor.type != 'PSF') * np.isin(tractor.ref_id, sample['LSLGA_ID']))[0]
         if len(central_galaxy) < len(sample):
             notmissing = np.where(np.isin(sample['LSLGA_ID'], tractor.ref_id))[0]
             missing = np.delete(np.arange(len(sample)), np.where(np.isin(sample['LSLGA_ID'], tractor.ref_id))[0])
-            print('Warning: The following seed galaxies have been dropped by Tractor!')
+            print('Warning: The following seed galaxies have been dropped by Tractor (or are PSF)!')
             print(sample[missing]['LSLGA_ID', 'GALAXY', 'RA', 'DEC'])
             sample = sample[notmissing]
         sample = sample[np.searchsorted(sample['LSLGA_ID'], tractor.ref_id[central_galaxy])]
