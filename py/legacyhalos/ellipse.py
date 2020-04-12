@@ -773,7 +773,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             galaxyid = str(central_galaxy_id)
             print('Starting ellipse-fitting for galaxy {}'.format(galaxyid))
             if largegalaxy:
-                maxsma = 1.5 * data['mge'][igal]['majoraxis'] # [pixels]
+                maxsma = 3 * data['mge'][igal]['majoraxis'] # [pixels]
                 # Supplement the fit results dictionary with some additional info--
                 samp = sample[sample['LSLGA_ID'] == central_galaxy_id]
                 galaxyinfo = {'lslga_id': central_galaxy_id,

@@ -253,6 +253,8 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                           refband=refband, pixscale=pixscale,
                           verbose=verbose,
                           largegalaxy=largegalaxy)
+    if not bool(data):
+        return
         
     # One set of QA plots per galaxy.
     if largegalaxy:

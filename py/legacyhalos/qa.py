@@ -797,7 +797,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                     #fntsize = np.round(0.01*img.shape[0]).astype('int')
                     #if fntsize < 20:
                     #    fntsize = 20
-                    print('Font size {}'.format(fntsize))
+                    #print('Font size {}'.format(fntsize))
                     ax1.legend(loc='lower right', fontsize=fntsize, frameon=True)
             else:
                 from photutils import EllipticalAperture

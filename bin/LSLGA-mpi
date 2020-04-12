@@ -171,7 +171,7 @@ def main():
                                         verbose=args.verbose, cleanup=cleanup, write_all_pickles=True,
                                         no_splinesky=False, customsky=args.largegalaxy_customsky,
                                         just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
-                                        require_grz=False, debug=args.debug, logfile=logfile)
+                                        require_grz=True, debug=args.debug, logfile=logfile)
 
         if args.pipeline_coadds:
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
