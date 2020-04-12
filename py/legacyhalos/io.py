@@ -617,7 +617,7 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
 
 def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
                    central_galaxy=None, central_galaxy_id=None, fill_value=0.0,
-                   starmask=None, verbose=False):
+                   starmask=None, verbose=False, largegalaxy=False):
     """Helper function for read_multiband. Read the multi-band imaging and build a
     mask.
 
@@ -784,17 +784,25 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         if notok:
             print('Central position has been masked, most likely by a star.')
             xmed, ymed = tractor.by[central], tractor.bx[central]
+            #if largegalaxy:
+            #    ba = tractor.lslga_ba[central]
+            #    pa = tractor.lslga_pa[central]
+            #    maxis = tractor.lslga_d25[central] * 60 / 2 / filt2pixscale[refband] # [pixels]
             ee = np.hypot(tractor.shape_e1[central], tractor.shape_e2[central])
             ba = (1 - ee) / (1 + ee)
             pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[central], tractor.shape_e1[central]) / 2))
             pa = pa % 180
+            maxis = 1.5 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
             theta = (270 - pa) % 180
-            maxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
+                
             fixmask = ellipse_mask(xmed, ymed, maxis, maxis*ba, np.radians(theta-90), xobj, yobj)
             newmask[fixmask] = ma.nomask
         
+        #import matplotlib.pyplot as plt ; plt.clf()
         mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
-                                nblob=1, binning=3, quiet=not verbose, plot=False, level=minsb)
+                                nblob=1, binning=3, level=minsb, quiet=not verbose)#, True, quiet=False)
+        #plt.savefig('junk.png') ; pdb.set_trace()
+
         # If we fit the geometry by unmasking pixels using the Tractor fit then
         # we're probably sitting inside the mask of a bright star, so call
         # find_galaxy a couple more times to try to grow the "unmasking".
@@ -831,12 +839,15 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             mgegalaxy.eps = 1 - ba
             mgegalaxy.pa = pa % 180
             mgegalaxy.theta = (270 - pa) % 180
-            mgegalaxy.majoraxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
+            mgegalaxy.majoraxis = 1.5 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
+            print('  r={:.2f} pixels'.format(mgegalaxy.majoraxis))
+
+        #if tractor.ref_id[central] == 474614:
+        #    import matplotlib.pyplot as plt
+        #    plt.imshow(mask, origin='lower')
+        #    plt.savefig('junk.png')
+        #    pdb.set_trace()
             
-        #import matplotlib.pyplot as plt
-        #plt.imshow(mask, origin='lower')
-        #plt.savefig('junk.png')
-        #pdb.set_trace()
         radec_med = data['wcs'].pixelToPosition(mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
         radec_peak = data['wcs'].pixelToPosition(mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
         mge = {'ra': tractor.ra[central], 'dec': tractor.dec[central],
@@ -900,24 +911,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             data[imagekey].append(img)
             data[varkey].append(var)
 
-            #img = np.log10(tst[0]) ; plt.imshow(img, origin='lower') ; plt.savefig('junk.png')
-            #img = np.log10(tst[1]) ; plt.imshow(img, origin='lower') ; plt.savefig('junk4.png')
-            #
-            #img = np.log10(image) ; plt.imshow(img, origin='lower') ; plt.savefig('junk.png')
-            ###
-            #plt.imshow(mask, origin='lower') ; plt.savefig('junk3.png')
-            #plt.imshow(ma.mask_or(residual_mask, ma.getmask(data[filt])), origin='lower') ; plt.savefig('junk3.png')
-            ##
-            ##img = ma.getdata(data[filt])-model_nocentral ; norm = simple_norm(img, 'log') ; plt.imshow(img, origin='lower', norm=norm) ; plt.savefig('junk.png')
-            #img = np.log10(image) ; norm = simple_norm(img, 'log') ; plt.imshow(img, origin='lower', norm=norm) ; plt.savefig('junk.png')
-            ##
-            #plt.imshow(mask, origin='lower') ; plt.savefig('junk{}.png'.format(ii))
-            #img = mask ; norm = simple_norm(img, 'log') ; plt.imshow(img, origin='lower', norm=norm) ; plt.savefig('junk{}.png'.format(ii))
-            #thisimg = np.log10(img) ; norm = simple_norm(thisimg, 'log') ; plt.imshow(thisimg, origin='lower', norm=norm) ; plt.savefig('junk{}.png'.format(ii+1))
-            #thisimg = np.log10(data[imagekey][ii]) ; norm = simple_norm(thisimg, 'log') ; plt.imshow(thisimg, origin='lower', norm=norm) ; plt.savefig('junk{}.png'.format(ii+1))
-            #
-            #pdb.set_trace()
-            #del image, mask, model_nocentral
+            #if tractor.ref_id[central] == 474614:
+            #    import matplotlib.pyplot as plt ; from astropy.visualization import simple_norm ; plt.clf()
+            #    thisimg = np.log10(data[imagekey][ii]) ; norm = simple_norm(thisimg, 'log') ; plt.imshow(thisimg, origin='lower', norm=norm) ; plt.savefig('junk{}.png'.format(ii+1))
+            #    pdb.set_trace()
             
     # Cleanup?
     for filt in bands:
@@ -1065,8 +1062,17 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             print('Warning: The following seed galaxies have been dropped by Tractor!')
             print(sample[missing]['LSLGA_ID', 'GALAXY', 'RA', 'DEC'])
             sample = sample[notmissing]
+        sample = sample[np.searchsorted(sample['LSLGA_ID'], tractor.ref_id[central_galaxy])]
+        assert(np.all(sample['LSLGA_ID'] == tractor.ref_id[central_galaxy]))
         
-         # Do we need to take into account the elliptical mask of each source??
+        tractor.lslga_d25 = np.zeros(len(tractor), dtype='f4')
+        tractor.lslga_pa = np.zeros(len(tractor), dtype='f4')
+        tractor.lslga_ba = np.zeros(len(tractor), dtype='f4')
+        tractor.lslga_d25[central_galaxy] = sample['D25']
+        tractor.lslga_pa[central_galaxy] = sample['PA']
+        tractor.lslga_ba[central_galaxy] = sample['BA']
+        
+        # Do we need to take into account the elliptical mask of each source??
         srt = np.argsort(tractor.flux_r[central_galaxy])[::-1]
         central_galaxy = central_galaxy[srt]
         print('Sort by flux! ', tractor.flux_r[central_galaxy])
@@ -1077,11 +1083,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     data = _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale,
                           tractor, central_galaxy=central_galaxy,
                           central_galaxy_id=central_galaxy_id,
-                          starmask=starmask, verbose=verbose)
+                          starmask=starmask, verbose=verbose,
+                          largegalaxy=largegalaxy)
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
-    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    ###plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    ##plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
+    ####plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
     #pdb.set_trace()
 
     if return_sample:

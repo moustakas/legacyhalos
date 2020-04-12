@@ -82,7 +82,7 @@ def main():
 
     if args.build_LSLGA:
         if rank == 0:
-            _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)        
+            _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
             legacyhalos.LSLGA.build_model_LSLGA(sample[tuple(groups)], pixscale=args.pixscale,
                                                 nproc=args.nproc, clobber=args.clobber)
         return
