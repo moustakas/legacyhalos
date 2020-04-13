@@ -250,6 +250,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     """
     import fitsio
+    from legacyhalos.brick import brickname as get_brickname
+            
     version = LSLGA_version()
     samplefile = os.path.join(LSLGA_dir(), 'sample', version, 'LSLGA-{}.fits'.format(version))
 
@@ -279,24 +281,36 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         nrows = len(rows)
         print('Selecting {} custom sky galaxies.'.format(nrows))
     elif preselect_sample:
-        cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI', 'LSLGA_ID']
+        cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_MULT',
+                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'LSLGA_ID', 'GALAXY']
         sample = fitsio.read(samplefile, columns=cols)
         rows = np.arange(len(sample))
 
         samplecut = np.where(
-            #(sample['GROUP_DIAMETER'] > d25min) *
+            (sample['GROUP_DIAMETER'] > d25min) *
             #(sample['GROUP_DIAMETER'] < d25max) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
         rows = rows[samplecut]
 
-        if True:
-            from legacyhalos.brick import brickname as get_brickname
+        brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
+
+        if False: # LSLGA-data-DR9-test3 sample
+            # Select galaxies containing DR8-supplemented sources
+            #ww = []
+            #w1 = np.where(sample['GROUP_MULT'] > 1)[0]
+            #for I, gid in zip(w1, sample['GROUP_ID'][w1[:50]]):
+            #    w2 = np.where(sample['GROUP_ID'] == gid)[0]
+            #    if np.any(['DR8-' in nn for nn in sample['GALAXY'][w2]]):
+            #        ww.append(I)
+            these = np.where(['DR8-' in nn for nn in sample['GROUP_NAME'][samplecut]])[0]
+            rows = rows[these]
+            
+        if False: # LSLGA-data-DR9-test2 sample
             #bb = [692770, 232869, 51979, 405760, 1319700, 1387188, 519486, 145096]
             #ww = np.where(np.isin(sample['LSLGA_ID'], bb))[0]
             #ff = get_brickname(sample['GROUP_RA'][ww], sample['GROUP_DEC'][ww])
             
-            brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
             # Test sample-- 1 deg2 patch of sky
             #bricklist = ['0343p012']
             bricklist = ['1948p280', '1951p280', # Coma
@@ -318,11 +332,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
                          # NGC2146 bricks
                          '0943p785', '0948p782'
                          ]
-            ##nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-north.txt'), dtype='str')
-            ##sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9e-south.txt'), dtype='str')
-            #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-dr9-south.txt'), dtype='str')
-            #bricklist = np.union1d(nbricklist, sbricklist)
+            #rows = np.where([brick in bricklist for brick in brickname])[0]
+            brickcut = np.where(np.isin(brickname, bricklist))[0]
+            rows = rows[brickcut]
+            
+        if True: # DR9-SV bricklist
+            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-DR9SV-north.txt'), dtype='str')
+            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-DR9SV-south.txt'), dtype='str')
+            bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
 
             #rows = np.where([brick in bricklist for brick in brickname])[0]
@@ -494,12 +511,15 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
             pdb.set_trace()
 
         # Next find all the objects in the elliptical "sphere-of-influence" of
-        # this galaxy, and freeze those parameters as well.
+        # this galaxy, and freeze those parameters as well.  **Important**: do
+        # not pass forward the Gaia sources so they're not double-counted.
         logr, e1, e2 = EllipseESoft.rAbPhiToESoft(tractor['d25'][this]*60/2,
                                                   tractor['ba'][this],
                                                   180-tractor['pa'][this]) # note the 180 rotation
-        these = np.where(is_in_ellipse(tractor['ra'], tractor['dec'], tractor['ra'][this],
-                                       tractor['dec'][this], np.exp(logr), e1, e2))[0]
+        cut1 = is_in_ellipse(tractor['ra'], tractor['dec'], tractor['ra'][this],
+                             tractor['dec'][this], np.exp(logr), e1, e2)
+        cut2 = tractor['ref_cat'] != 'G2'
+        these = np.where(cut1 * cut2)[0]
         #print('Freezing the Tractor parameters of {} non-LSLGA objects.'.format(len(these)))
         tractor['freeze'][these] = True
 
@@ -536,8 +556,8 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=2
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    #print('Hack the path!')
-    #outdir = '/global/u2/i/ioannis/scratch'
+    print('Hack the path!')
+    outdir = '/global/u2/i/ioannis/scratch'
     
     outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
@@ -1002,7 +1022,10 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                     html.write('<tr>\n')
                     html.write('<td>{}</td>\n'.format(groupgal['LSLGA_ID']))
                     html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
-                    html.write('<td>{}</td>\n'.format(groupgal['TYPE']))
+                    typ = groupgal['TYPE'].strip()
+                    if typ == '':
+                        typ = '...'
+                    html.write('<td>{}</td>\n'.format(typ))
                     html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
                     html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
                     html.write('<td>{:.4f}</td>\n'.format(groupgal['D25']))
@@ -1152,7 +1175,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                         html.write('</tr>\n')
                     html.write('</table>\n')
 
-                if bool(ellipse) and False:
+                if False:
                     html.write('<h4>Ellipse-fitting</h4>\n')
                     html.write('<table>\n')
                     html.write('<tr>')

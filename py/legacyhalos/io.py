@@ -1069,6 +1069,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             print('Warning: The following seed galaxies have been dropped by Tractor (or are PSF)!')
             print(sample[missing]['LSLGA_ID', 'GALAXY', 'RA', 'DEC'])
             sample = sample[notmissing]
+            if len(sample) == 0:
+                if return_sample:
+                    return dict(), Table()
+                else:
+                    return dict()
+                
         sample = sample[np.searchsorted(sample['LSLGA_ID'], tractor.ref_id[central_galaxy])]
         assert(np.all(sample['LSLGA_ID'] == tractor.ref_id[central_galaxy]))
         

@@ -35,7 +35,7 @@ for brick in ['0343p012']:
     wcs = Tan(imfile, 1)
     pixscale = wcs.pixel_scale()
 
-    outfile = '{}-verify-ellipse.png'.format(brick)
+    outfile = '{}-verify-preburn.png'.format(brick)
     fig, ax = plt.subplots(1, 3, figsize=(24, 8))#, sharey=True)
 
     with Image.open(jpgfile) as colorimg:
