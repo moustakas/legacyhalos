@@ -25,8 +25,8 @@ def mpi_args():
     parser.add_argument('--last', type=int, help='Index of last object to process.')
     parser.add_argument('--galaxylist', type=str, nargs='*', default=None, help='List of galaxy names to process.')
 
-    parser.add_argument('--d25min', default=0.5, type=float, help='Minimum diameter (arcmin).')
-    parser.add_argument('--d25max', default=5.0, type=float, help='Maximum diameter (arcmin).')
+    parser.add_argument('--d25min', default=0.1, type=float, help='Minimum diameter (arcmin).')
+    parser.add_argument('--d25max', default=100.0, type=float, help='Maximum diameter (arcmin).')
 
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipeline coadds.')
     parser.add_argument('--largegalaxy-coadds', action='store_true', help='Build the large-galaxy coadds.')
@@ -65,7 +65,7 @@ def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     if os.path.exists(checkfile) and clobber is False:
         return False
     else:
-        print('missing_files_one: ', checkfile)
+        #print('missing_files_one: ', checkfile)
         return True
     
 def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
@@ -240,7 +240,7 @@ def LSLGA_version():
     return version
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                customsky=False, preselect_sample=True, d25min=0.5, d25max=5.0):
+                customsky=False, preselect_sample=True, d25min=0.1, d25max=100.0):
     """Read/generate the parent LSLGA catalog.
 
     d25min in arcmin
@@ -270,7 +270,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         rows = np.arange(len(sample))
 
         samplecut = np.where(
-            (sample['GROUP_DIAMETER'] > 5) * 
+            #(sample['GROUP_DIAMETER'] > 5) * 
             #(sample['GROUP_DIAMETER'] > 5) * (sample['GROUP_DIAMETER'] < 25) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
@@ -288,7 +288,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
         samplecut = np.where(
             (sample['GROUP_DIAMETER'] > d25min) *
-            #(sample['GROUP_DIAMETER'] < d25max) *
+            (sample['GROUP_DIAMETER'] < d25max) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
         rows = rows[samplecut]

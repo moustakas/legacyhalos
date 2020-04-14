@@ -357,10 +357,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
     if just_coadds:
         cmd += '--stage image_coadds --early-coadds '
-    if unwise:
-        cmd += '--unwise-coadds '
-    else:
-        cmd += '--no-wise '
+    if not unwise:
+        cmd += '--no-unwise-coadds --no-wise '
     if apodize:
         cmd += '--apodize '
     if no_gaia:
@@ -689,18 +687,14 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
     if just_coadds:
         cmd += '--stage image_coadds --early-coadds '
-    if unwise:
-        cmd += '--unwise-coadds '
-    else:
-        cmd += '--no-wise '
+    if not unwise:
+        cmd += '--no-unwise-coadds --no-wise '
     if apodize:
         cmd += '--apodize '
     if no_gaia:
         cmd += '--no-gaia '
     if no_tycho:
         cmd += '--no-tycho '
-    #if no_large_galaxies:
-    #    cmd += '--no-large-galaxies '
         
     if force:
         cmd += '--force-all '
