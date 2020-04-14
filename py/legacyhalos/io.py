@@ -695,10 +695,13 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 
         if invvar is not None:
             var = np.zeros_like(invvar)
-            ok = invvar != 0
+            ok = invvar > 0
             var[ok] = 1 / invvar[ok]
             data['{}_var_'.format(filt)] = var # [nanomaggies**2]
             #data['{}_var'.format(filt)] = var / thispixscale**4 # [nanomaggies**2/arcsec**4]
+            if np.any(invvar < 0):
+                print('Warning! Negative pixels in the {}-band inverse variance map!'.format(filt))
+                #pdb.set_trace()
 
     # Now, build the model image in the reference band using the mean PSF.
     if verbose:
@@ -707,7 +710,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
     psf = PixelizedPSF(psfimg)
     xobj, yobj = np.ogrid[0:HH, 0:WW]
 
-    nbox = 7
+    nbox = 5
     box = np.arange(nbox)-nbox // 2
     #box = np.meshgrid(np.arange(nbox), np.arange(nbox))[0]-nbox//2
 
@@ -775,14 +778,23 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         #import matplotlib.pyplot as plt ; plt.clf()
         #mgegalaxy = find_galaxy(img / filt2pixscale[refband]**2, nblob=1, binning=3, quiet=not verbose, plot=True, level=minsb)
         #mgegalaxy = find_galaxy(img / filt2pixscale[refband]**2, nblob=1, fraction=0.1, binning=3, quiet=not verbose, plot=True)
-        notok = False
+        notok, val = False, []
         for xb in box:
             for yb in box:
-                if newmask[int(yb+tractor.by[central]), int(xb+tractor.bx[central])]:
-                    notok = True
-                    break
+                #print(xb, yb, val)
+                val.append(newmask[int(yb+tractor.by[central]), int(xb+tractor.bx[central])])
+                
+        # Use np.any() here to capture the case where a handful of the central
+        # pixels are masked due to, e.g., saturation, which if we don't do, will
+        # cause issues in the ellipse-fitting (specifically with
+        # CentralEllipseFitter(censamp).fit() if the very central pixel is
+        # masked).  For a source masked by a star, np.all() would have worked
+        # fine.
+        if np.any(val):
+            notok = True
+            
         if notok:
-            print('Central position has been masked, most likely by a star.')
+            print('Central position has been masked, possibly by a star (or saturated core).')
             xmed, ymed = tractor.by[central], tractor.bx[central]
             #if largegalaxy:
             #    ba = tractor.lslga_ba[central]
@@ -800,14 +812,14 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         
         #import matplotlib.pyplot as plt ; plt.clf()
         mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
-                                nblob=1, binning=3, level=minsb, quiet=not verbose)#, True, quiet=False)
+                                nblob=1, binning=3, level=minsb)#, quiet=not verbose, plot=True)
         #plt.savefig('junk.png') ; pdb.set_trace()
 
         # If we fit the geometry by unmasking pixels using the Tractor fit then
         # we're probably sitting inside the mask of a bright star, so call
         # find_galaxy a couple more times to try to grow the "unmasking".
         if notok:
-            print('Iteratively growing the mask:')
+            print('Iteratively unmasking pixels:')
             print('  r={:.2f} pixels'.format(maxis))
             for _ in np.arange(2):
                 maxis = 1.5 * mgegalaxy.majoraxis # [pixels]
@@ -1100,8 +1112,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           largegalaxy=largegalaxy)
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
-    ##plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    ####plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    ###plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
+    #####plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
     #pdb.set_trace()
 
     if return_sample:
