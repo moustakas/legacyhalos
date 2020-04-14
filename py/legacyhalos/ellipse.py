@@ -758,6 +758,12 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         filesuffix = ''
         #central_galaxy_id = None
 
+    def _isdone():
+        # Create an "isdone" file--
+        isdonefile = os.path.join(galaxydir, '{}-{}-ellipse.isdone'.format(galaxy, filesuffix))
+        cmd = 'touch {}'.format(isdonefile)
+        subprocess.call(cmd.split())
+
     # Read the data and then do ellipse-fitting.
     data, sample = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
                                                  #central_galaxy_id=central_galaxy_id,
@@ -769,6 +775,10 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                                  return_sample=True)
     
     if bool(data):
+        if data['failed']: # all galaxies dropped
+            _isdone()
+            return 1
+
         for igal in np.arange(len(data['central_galaxy_id'])):
             central_galaxy_id = data['central_galaxy_id'][igal]
             galaxyid = str(central_galaxy_id)
@@ -792,49 +802,48 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                               nclip=nclip, sclip=sclip, verbose=verbose,
                                               input_ellipse=input_ellipse, maxsma=maxsma,
                                               fitgeometry=False, galaxyinfo=galaxyinfo)
-        # Create an "isdone" file--
-        isdonefile = os.path.join(galaxydir, '{}-{}-ellipse.isdone'.format(galaxy, filesuffix))
-        cmd = 'touch {}'.format(isdonefile)
-        subprocess.call(cmd.split())
-    else:
-        return 0
-
-    if pipeline:
-        print('Forced ellipse-fitting on the pipeline images.')
-        pipeline_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
-                                                      refband=refband, pixscale=pixscale,
-                                                      pipeline=True, verbose=verbose)
-        if bool(pipeline_data):
-            pipeline_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, pipeline_data,
-                                                       nproc=nproc, filesuffix='pipeline',
-                                                       bands=bands, pixscale=pixscale,
-                                                       verbose=verbose)
-    if sdss:
-        print('Forced ellipse-fitting on the SDSS images.')
-        sdss_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=sdss_bands,
-                                                  refband='r', sdss_pixscale=sdss_pixscale,
-                                                  sdss=True)
-        
-        sdss_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, sdss_data,
-                                               nproc=nproc, filesuffix='sdss',
-                                               bands=sdss_bands, pixscale=sdss_pixscale,
-                                               verbose=verbose)
-
-    if unwise:
-        print('Forced ellipse-fitting on the unWISE images.')
-        unwise_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
-                                                 nproc=nproc, filesuffix='unwise',
-                                                 bands=('W1','W2','W3','W4'),
-                                                 pixscale=unwise_pixscale,
-                                                 verbose=verbose)
-    if galex:
-        print('Forced ellipse-fitting on the GALEX images.')
-        galex_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
-                                                nproc=nproc, filesuffix='galex',
-                                                bands=('FUV', 'NUV'),
-                                                pixscale=galex_pixscale,
-                                                verbose=verbose)
-    if ellipsefit['success']:
+        _isdone()
         return 1
     else:
         return 0
+
+    #if pipeline:
+    #    print('Forced ellipse-fitting on the pipeline images.')
+    #    pipeline_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
+    #                                                  refband=refband, pixscale=pixscale,
+    #                                                  pipeline=True, verbose=verbose)
+    #    if bool(pipeline_data):
+    #        pipeline_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, pipeline_data,
+    #                                                   nproc=nproc, filesuffix='pipeline',
+    #                                                   bands=bands, pixscale=pixscale,
+    #                                                   verbose=verbose)
+    #if sdss:
+    #    print('Forced ellipse-fitting on the SDSS images.')
+    #    sdss_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=sdss_bands,
+    #                                              refband='r', sdss_pixscale=sdss_pixscale,
+    #                                              sdss=True)
+    #    
+    #    sdss_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, sdss_data,
+    #                                           nproc=nproc, filesuffix='sdss',
+    #                                           bands=sdss_bands, pixscale=sdss_pixscale,
+    #                                           verbose=verbose)
+    #
+    #if unwise:
+    #    print('Forced ellipse-fitting on the unWISE images.')
+    #    unwise_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
+    #                                             nproc=nproc, filesuffix='unwise',
+    #                                             bands=('W1','W2','W3','W4'),
+    #                                             pixscale=unwise_pixscale,
+    #                                             verbose=verbose)
+    #if galex:
+    #    print('Forced ellipse-fitting on the GALEX images.')
+    #    galex_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
+    #                                            nproc=nproc, filesuffix='galex',
+    #                                            bands=('FUV', 'NUV'),
+    #                                            pixscale=galex_pixscale,
+    #                                            verbose=verbose)
+    #
+    #if ellipsefit['success']:
+    #    return 1
+    #else:
+    #    return 0

@@ -685,6 +685,63 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=2
         shutil.chown(outfile, group='cosmo')
         shutil.chown(kdoutfile, group='cosmo')
 
+# Get the viewer link
+def _viewer_link(gal):
+    baseurl = 'http://legacysurvey.org/viewer/'
+    width = gal['D25'] * 60 * 2 / pixscale
+    #width = 2 * cutout_radius_kpc(radius_kpc=radius_mosaic_kpc, redshift=gal[zcolumn],
+    #                              pixscale=pixscale) # [pixels]
+    if width > 400:
+        zoom = 14
+    else:
+        zoom = 15
+    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8&lslga'.format(
+        baseurl, gal[racolumn], gal[deccolumn], zoom)
+
+    return viewer
+
+def _skyserver_link(gal):
+    if 'SDSS_OBJID' in gal.colnames:
+        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
+    else:
+        return ''
+
+def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
+    res = []
+    for band in ('g', 'r', 'z'):
+        mag = None
+        if kpc:
+            iv = cat['FLUX{}_IVAR_{}'.format(rad, band.upper())][0]
+            ff = cat['FLUX{}_{}'.format(rad, band.upper())][0]
+        elif pipeline:
+            iv = cat['flux_ivar_{}'.format(band)]
+            ff = cat['flux_{}'.format(band)]
+        elif R24:
+            mag = cat['mag_{}_sb24'.format(band)]
+        elif R25:
+            mag = cat['mag_{}_sb25'.format(band)]
+        elif R26:
+            mag = cat['mag_{}_sb26'.format(band)]
+        elif cog:
+            mag = cat['cog_params_{}'.format(band)]['mtot']
+        else:
+            print('Thar be rocks ahead!')
+        if mag:
+            res.append('{:.3f}'.format(mag))
+        else:
+            if ff > 0:
+                mag = 22.5-2.5*np.log10(ff)
+                if iv > 0:
+                    ee = 1 / np.sqrt(iv)
+                    magerr = 2.5 * ee / ff / np.log(10)
+                res.append('{:.3f}'.format(mag))
+                #res.append('{:.3f}+/-{:.3f}'.format(mag, magerr))
+            else:
+                res.append('...')
+    return res
+
+
+
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
               racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
@@ -731,61 +788,6 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
     # Write the last-updated date to a webpage.
     js = legacyhalos.html._javastring()       
-
-    # Get the viewer link
-    def _viewer_link(gal):
-        baseurl = 'http://legacysurvey.org/viewer/'
-        width = gal['D25'] * 60 * 2 / pixscale
-        #width = 2 * cutout_radius_kpc(radius_kpc=radius_mosaic_kpc, redshift=gal[zcolumn],
-        #                              pixscale=pixscale) # [pixels]
-        if width > 400:
-            zoom = 14
-        else:
-            zoom = 15
-        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8&lslga'.format(
-            baseurl, gal[racolumn], gal[deccolumn], zoom)
-        
-        return viewer
-
-    def _skyserver_link(gal):
-        if 'SDSS_OBJID' in gal.colnames:
-            return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
-        else:
-            return ''
-
-    def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
-        res = []
-        for band in ('g', 'r', 'z'):
-            mag = None
-            if kpc:
-                iv = cat['FLUX{}_IVAR_{}'.format(rad, band.upper())][0]
-                ff = cat['FLUX{}_{}'.format(rad, band.upper())][0]
-            elif pipeline:
-                iv = cat['flux_ivar_{}'.format(band)]
-                ff = cat['flux_{}'.format(band)]
-            elif R24:
-                mag = cat['mag_{}_sb24'.format(band)]
-            elif R25:
-                mag = cat['mag_{}_sb25'.format(band)]
-            elif R26:
-                mag = cat['mag_{}_sb26'.format(band)]
-            elif cog:
-                mag = cat['cog_params_{}'.format(band)]['mtot']
-            else:
-                print('Thar be rocks ahead!')
-            if mag:
-                res.append('{:.3f}'.format(mag))
-            else:
-                if ff > 0:
-                    mag = 22.5-2.5*np.log10(ff)
-                    if iv > 0:
-                        ee = 1 / np.sqrt(iv)
-                        magerr = 2.5 * ee / ff / np.log(10)
-                    res.append('{:.3f}'.format(mag))
-                    #res.append('{:.3f}+/-{:.3f}'.format(mag, magerr))
-                else:
-                    res.append('...')
-        return res
             
     trendshtml = 'trends.html'
     homehtml = 'index.html'

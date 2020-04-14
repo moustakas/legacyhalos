@@ -1019,6 +1019,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             return data
 
     # Pack some preliminary info into the dictionary.
+    data['failed'] = False # be optimistic!
     data['bands'] = bands
     data['refband'] = refband
     data['refpixscale'] = pixscale
@@ -1072,22 +1073,38 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     # (which we figure out in _read_and_mask, after we know the size of the
     # mosaic).
     if largegalaxy:
-        central_galaxy = np.where((tractor.type != 'PSF') * np.array([np.isin(rid, sample['LSLGA_ID']) for rid in tractor.ref_id]))[0]
-        # np.isin doens't preserve order--
-        #central_galaxy = np.where((tractor.type != 'PSF') * np.isin(tractor.ref_id, sample['LSLGA_ID']))[0]
-        if len(central_galaxy) < len(sample):
-            notmissing = np.where(np.isin(sample['LSLGA_ID'], tractor.ref_id))[0]
-            missing = np.delete(np.arange(len(sample)), np.where(np.isin(sample['LSLGA_ID'], tractor.ref_id))[0])
-            print('Warning: The following seed galaxies have been dropped by Tractor (or are PSF)!')
-            print(sample[missing]['LSLGA_ID', 'GALAXY', 'RA', 'DEC'])
-            sample = sample[notmissing]
-            if len(sample) == 0:
-                if return_sample:
-                    return dict(), Table()
+        # I'm going to be pedantic here to be sure I get it right (np.isin
+        # doens't preserve order)--
+        islslga = ['L' in refcat for refcat in tractor.ref_cat] # e.g., L6
+        central_galaxy, reject_galaxy, keep_galaxy = [], [], []
+        for ii, sid in enumerate(sample['LSLGA_ID']):
+            I = np.where((sid == tractor.ref_id) * islslga)[0]
+            if len(I) == 0: # dropped by Tractor
+                reject_galaxy.append(ii)
+            else:
+                if (tractor.type[I] == 'PSF') or (tractor.type[I] == 'REX'):
+                    reject_galaxy.append(ii)
                 else:
-                    return dict()
-                
-        sample = sample[np.searchsorted(sample['LSLGA_ID'], tractor.ref_id[central_galaxy])]
+                    keep_galaxy.append(ii)
+                    central_galaxy.append(I)
+
+        if len(reject_galaxy) > 0:
+            reject_galaxy = np.hstack(reject_galaxy)
+            print('Warning: The following seed galaxies have been dropped by Tractor (or are PSF or REX)!')
+            print(sample[reject_galaxy]['LSLGA_ID', 'GALAXY', 'RA', 'DEC'])
+
+        if len(central_galaxy) > 0:
+            keep_galaxy = np.hstack(keep_galaxy)
+            central_galaxy = np.hstack(central_galaxy)
+            sample = sample[keep_galaxy]
+        else:
+            data['failed'] = True
+            if return_sample:
+                return data, Table()
+            else:
+                return data
+
+        #sample = sample[np.searchsorted(sample['LSLGA_ID'], tractor.ref_id[central_galaxy])]
         assert(np.all(sample['LSLGA_ID'] == tractor.ref_id[central_galaxy]))
         
         tractor.lslga_d25 = np.zeros(len(tractor), dtype='f4')
