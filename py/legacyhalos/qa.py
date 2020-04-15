@@ -649,6 +649,10 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     #cmap = {'g': 'winter_r', 'r': 'summer', 'z': 'autumn_r'}
     #cmap = {'g': 'Blues', 'r': 'Greens', 'z': 'Reds'}
 
+    # Remove ahead of time to play nice with Imagemagick thumbnail-making, later.
+    if png and os.path.isfile(png):
+        os.remove(png)
+            
     if vertical:
         fig, ax = plt.subplots(4, 1, figsize=(inchperband, inchperband*(nband+1)))
     else:

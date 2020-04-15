@@ -61,7 +61,8 @@ def _missing_files_one(args):
     return missing_files_one(*args)
 
 def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
-    checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))    
+    checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
+    #print('missing_files_one: ', checkfile)
     if os.path.exists(checkfile) and clobber is False:
         return False
     else:
@@ -456,8 +457,8 @@ def build_model_LSLGA_one(onegal, pixscale=0.262, minradius=2.0, minsb=25.0, sbc
         return None
     
     tractor = Table(fitsio.read(tractorfile))
-    print('Temporarily remove the wise light-curve columns!')
-    [tractor.remove_column(col) for col in tractor.colnames if 'lc_' in col]
+    #print('Temporarily remove the wise light-curve columns!')
+    #[tractor.remove_column(col) for col in tractor.colnames if 'lc_' in col]
 
     # See legacyhalos.ellipse.ellipse_cog--
     sbcuts = [23, 24, 25, 25.5, 26]
@@ -556,8 +557,8 @@ def build_model_LSLGA(sample, pixscale=0.262, minradius=2.0, minsb=25.0, sbcut=2
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    print('Hack the path!')
-    outdir = '/global/u2/i/ioannis/scratch'
+    #print('Hack the path!')
+    #outdir = '/global/u2/i/ioannis/scratch'
     
     outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
@@ -740,7 +741,7 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
                 res.append('...')
     return res
 
-
+#def _write_indexhtml():
 
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
@@ -797,6 +798,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         os.makedirs(htmldir)
         #shutil.chown(htmldir, group='cosmo')
     homehtmlfile = os.path.join(htmldir, homehtml)
+
+    _write_indexhtml(homehtmlfile)
 
     # https://stackoverflow.com/questions/36745577/how-do-you-create-in-python-a-file-with-permissions-other-users-can-write
     with open(homehtmlfile, 'w') as html:

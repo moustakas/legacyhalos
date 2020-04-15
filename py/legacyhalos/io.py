@@ -821,8 +821,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         if notok:
             print('Iteratively unmasking pixels:')
             print('  r={:.2f} pixels'.format(maxis))
-            for _ in np.arange(2):
-                maxis = 1.5 * mgegalaxy.majoraxis # [pixels]
+            maxis = 1.5 * mgegalaxy.majoraxis # [pixels]
+            prevmaxis, iiter, maxiter = 0.0, 0, 4
+            while (maxis > prevmaxis) and (iiter < maxiter):
+                #print(prevmaxis, maxis, iiter, maxiter)
                 print('  r={:.2f} pixels'.format(maxis))
                 fixmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed,
                                        maxis, maxis * (1-mgegalaxy.eps), 
@@ -830,7 +832,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
                 newmask[fixmask] = ma.nomask
                 mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
                                         nblob=1, binning=3, quiet=True, plot=False, level=minsb)
-        
+                prevmaxis = maxis.copy()
+                maxis = 1.5 * mgegalaxy.majoraxis # [pixels]
+                iiter += 1
+
         #plt.savefig('junk.png') ; pdb.set_trace()
         print(mgegalaxy.xmed, tractor.by[central], mgegalaxy.ymed, tractor.bx[central])
         maxshift = 10
@@ -1129,8 +1134,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           largegalaxy=largegalaxy)
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
-    ###plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    #####plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    ####plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
+    ######plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
     #pdb.set_trace()
 
     if return_sample:

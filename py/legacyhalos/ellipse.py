@@ -227,19 +227,20 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 # Fit up until the curve of growth turns over, but no less than
                 # the second moment of the light distribution! Pretty fragile..
                 these = np.where(np.diff(cogmag) < 0)[0]
-                if sma_arcsec[these[0]] < (refellipsefit['majoraxis'] * pixscale * pixscalefactor):
-                    these = np.where(sma_arcsec < refellipsefit['majoraxis'] * pixscale * pixscalefactor)[0]
-                
-                ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
-                                    maxiter=100, weights=1/cogmagerr[these])
-                bestfit = ballfit(sma_arcsec)
+                if len(these) > 5: # this is bad if we don't have at least 5 points!
+                    if sma_arcsec[these[0]] < (refellipsefit['majoraxis'] * pixscale * pixscalefactor):
+                        these = np.where(sma_arcsec < refellipsefit['majoraxis'] * pixscale * pixscalefactor)[0]
 
-                chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
-                if cogfitter.fit_info['param_cov'] is None: # failed
-                    if False:
-                        print(jj, cogfitter.fit_info['message'], chi2[jj])
-                else:
-                    params[:, jj] = ballfit.parameters # update
+                    ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
+                                        maxiter=100, weights=1/cogmagerr[these])
+                    bestfit = ballfit(sma_arcsec)
+
+                    chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
+                    if cogfitter.fit_info['param_cov'] is None: # failed
+                        if False:
+                            print(jj, cogfitter.fit_info['message'], chi2[jj])
+                    else:
+                        params[:, jj] = ballfit.parameters # update
 
         # if at least one fit succeeded, re-evaluate the model at the chi2
         # minimum.
@@ -251,7 +252,10 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         mindx = np.argmin(chi2)
         minchi2 = chi2[mindx]
         cogmodel.parameters = params[:, mindx]
-        P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr, maxiter=100)
+        try:
+            P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr, maxiter=100)
+        except:
+            pdb.set_trace()
         print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
         
         #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)
@@ -271,15 +275,19 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
                 rr = sb['radius_{}'.format(filt)] # [circularized radius, arcsec]
                 yy = sb['mu_{}'.format(filt)]     # [surface brightness, nanomaggies/arcsec**2]
-                yy_rmax = interp1d(rr, yy)(rmax)
-                
-                # append the maximum radius to the end of the array
-                keep = np.where(rr < rmax)[0]
-                _rr = np.hstack((rr[keep], rmax))
-                _yy = np.hstack((yy[keep], yy_rmax))
+                try:
+                    #print(filt, rr.max(), rmax)
+                    yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
 
-                flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
-                results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                    # append the maximum radius to the end of the array
+                    keep = np.where(rr < rmax)[0]
+                    _rr = np.hstack((rr[keep], rmax))
+                    _yy = np.hstack((yy[keep], yy_rmax))
+
+                    flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
+                    results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                except:
+                    results[magkey] = np.float32(-1.0)
             else:
                 results[magkey] = np.float32(-1.0)
                 
