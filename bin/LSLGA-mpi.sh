@@ -24,8 +24,8 @@ export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/legacyhalos
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 
 export LSLGA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA
-export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9
-export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9
+export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9fg
+export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9fg
 
 export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
 #export LEGACY_SURVEY_DIR=/global/cscratch1/sd/desimpp/dr9e

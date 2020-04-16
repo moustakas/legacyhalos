@@ -203,17 +203,26 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     ax_twin.set_ylim(yfaint, ybright)
     ax_twin.set_ylabel('Cumulative Flux (AB mag)')#, rotation=-90)
 
+    leg1 = ax.legend(loc='lower right', fontsize=14)#, ncol=3)
+    
     # Plot some threshold radii for the large-galaxy project--
     if plot_sbradii:
-        if ellipsefit['radius_sb25'] < xlim[1]:            
-            ax.axvline(x=ellipsefit['radius_sb25'], lw=2, color='k')
-        if ellipsefit['radius_sb26'] < xlim[1]:            
-            ax.axvline(x=ellipsefit['radius_sb26'], lw=2, color='k', ls='--')
-        if ellipsefit['majoraxis'] * ellipsefit['refpixscale'] < xlim[1]:            
-            ax.axvline(x=ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
-                       lw=2, color='red', ls='dotted')
+        lline, llabel = [], []
+        if ellipsefit['radius_sb25'] > 0: #< xlim[1]:
+            ll = ax.axvline(x=ellipsefit['radius_sb25'], lw=2, color='k', ls='-')
+            lline.append(ll), llabel.append('R(25)')
+            
+        if ellipsefit['radius_sb26'] > 0: #< xlim[1]:            
+            ll = ax.axvline(x=ellipsefit['radius_sb26'], lw=2, color='k', ls='--')
+            lline.append(ll), llabel.append('R(26)')
+            
+        ll = ax.axvline(x=ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
+                        lw=2, color='red', ls='dotted')
+        lline.append(ll), llabel.append('Moment Size')
         
-    ax.legend(loc='lower right', fontsize=14)#, ncol=3)
+        leg2 = ax.legend(lline, llabel, loc='lower left', fontsize=14, frameon=False)
+        ax.add_artist(leg1)
+        
     #pdb.set_trace()
 
     if smascale:
@@ -604,7 +613,7 @@ def display_sersic(sersic, png=None, verbose=False):
     if sersic['success']:
         ax.fill_between([0, 3*model.psfsigma_r*sersic['refpixscale']], [ylim[0], ylim[0]], # [arcsec]
                         [ylim[1], ylim[1]], facecolor='grey', alpha=0.1)
-        ax.text(0.03, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
+        ax.text(0.02, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10)
 
     fig.subplots_adjust(bottom=0.15, top=0.85, right=0.95, left=0.17)
@@ -712,8 +721,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         else:
             ax1.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
                        interpolation='nearest')
-        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
-                 ha='center', va='center', color='white', fontsize=14)
+        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
+                 ha='center', va='center', color='k', fontsize=32)
 
         # Add a scale bar and label
         if barlen and ii == 0 and False:
@@ -1084,24 +1093,32 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
             #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
             #ax1.set_ylim(31.99, 18)
 
+        leg1 = ax1.legend(loc='upper right')
+
         # Plot some threshold radii for the large-galaxy project--
         if plot_sbradii:
-            rr = (ellipsefit['radius_sb25'])**0.25
-            if rr < xlim[1]:
-                ax1.plot([xlim[0], rr], [25, 25], lw=2, color='k', ls='-')
-                ax1.plot([rr, rr], [ylim[1], 25], lw=2, color='k', ls='-')
-            
-            rr = (ellipsefit['radius_sb26'])**0.25
-            if rr < xlim[1]:
-                ax1.plot([xlim[0], rr], [26, 26], lw=2, color='k', ls='--')
-                ax1.plot([rr, rr], [ylim[1], 26], lw=2, color='k', ls='--')
+            lline, llabel = [], []
+            if ellipsefit['radius_sb25'] > 0:
+                rr = (ellipsefit['radius_sb25'])**0.25
+                #ax1.plot([xlim[0], rr], [25, 25], lw=2, color='k', ls='-')
+                ll, = ax1.plot([rr, rr], [ylim[1], 25], lw=2, color='k', ls='-')
+                lline.append(ll), llabel.append('R(25)')
+                
+            if ellipsefit['radius_sb26'] > 0:
+                rr = (ellipsefit['radius_sb26'])**0.25
+                #ax1.plot([xlim[0], rr], [26, 26], lw=2, color='k', ls='--')
+                ll, = ax1.plot([rr, rr], [ylim[1], 26], lw=2, color='k', ls='--')
+                lline.append(ll), llabel.append('R(26)')
 
             rr = (ellipsefit['majoraxis'] * ellipsefit['refpixscale'])**0.25
-            if rr < xlim[1]:
-                ax1.axvline(x=rr, lw=2, color='red', ls='dotted')
-        #pdb.set_trace()
+            ll, = ax1.plot([rr, rr], [ylim[1], sbprofile['mu_{}'.format(refband)][0]], lw=2, color='red', ls='dotted')
+            #ll = ax1.axvline(x=rr, lw=2, color='red', ls='dotted')
+            lline.append(ll), llabel.append('Moment Size')
 
-        ax1.legend(loc='upper right')
+            leg2 = ax1.legend(lline, llabel, loc='lower left', frameon=False, fontsize=14)
+            ax1.add_artist(leg1)
+            
+        # Now the color-radius plot
             
         ax2.fill_between(sbprofile['radius_gr']**0.25,
                          sbprofile['gr'] - sbprofile['gr_err'],

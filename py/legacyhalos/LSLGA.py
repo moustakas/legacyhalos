@@ -853,7 +853,7 @@ def _build_htmlpage_one(args):
 
 def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, htmldir,
                        racolumn, deccolumn, diamcolumn, pixscale, nextgalaxy, prevgalaxy,
-                       nexthtmlgalaxydir, prevhtmlgalaxydir, verbose):
+                       nexthtmlgalaxydir, prevhtmlgalaxydir, verbose, clobber):
     """Build the web page for a single galaxy.
 
     """
@@ -863,6 +863,11 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
     if not os.path.exists(htmlgalaxydir1):
         os.makedirs(htmlgalaxydir1)
 
+    htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
+    if os.path.isfile(htmlfile) and not clobber:
+        print('File {} exists and clobber=False'.format(htmlfile))
+        return
+    
     js = legacyhalos.html._javastring()
     
     ccdsfile = glob(os.path.join(galaxydir1, '{}-largegalaxy-ccds-*.fits'.format(galaxy1))) # north or south
@@ -892,7 +897,6 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
     nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
     prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
 
-    htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
     with open(htmlfile, 'w') as html:
     #with open(os.open(htmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
         html.write('<html><body>\n')
@@ -901,6 +905,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         html.write('</style>\n')
 
         html.write('<h1>{}</h1>\n'.format(galaxy1))
+        raslice = get_raslice(gal[racolumn])
+        html.write('<h4>RA Slice {}</h4>\n'.format(raslice))
 
         html.write('<a href="../../{}">Home</a>\n'.format(homehtml))
         html.write('<br />\n')
@@ -1381,7 +1387,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     trendshtml = 'trends.html'
     homehtml = 'index.html'
 
-    # Build the home (index.html) page--
+    # Build the home (index.html) page (always, irrespective of clobber)--
     build_homehtml(sample, htmldir, homehtml=homehtml, pixscale=pixscale,
                    racolumn=racolumn, deccolumn=deccolumn, diamcolumn=diamcolumn,
                    maketrends=maketrends)
@@ -1402,12 +1408,11 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         sample[rasorted], np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir))):
         args.append([ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, htmldir,
                      racolumn, deccolumn, diamcolumn, pixscale, nextgalaxy,
-                     prevgalaxy, nexthtmlgalaxydir, prevhtmlgalaxydir, verbose])
+                     prevgalaxy, nexthtmlgalaxydir, prevhtmlgalaxydir, verbose,
+                     clobber])
     ok = mp.map(_build_htmlpage_one, args)
     
-    pdb.set_trace()
-
-    # Make the plots.
+    # Make the plots?
     if makeplots:
         err = legacyhalos.html.make_plots(sample, datadir=datadir, htmldir=htmldir, refband=refband,
                                           bands=bands, pixscale=pixscale, survey=survey, clobber=clobber,
@@ -1418,8 +1423,10 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     if fix_permissions:
         print('Fixing group permissions.')
         for topdir, dirs, files in os.walk(htmldir):
-            [shutil.chown(os.path.join(topdir, dd), group='cosmo') for dd in dirs]
-            [shutil.chown(os.path.join(topdir, ff), group='cosmo') for ff in files]
+            for dd in dirs:
+                shutil.chown(os.path.join(topdir, dd), group='cosmo')
+            for ff in files:
+                shutil.chown(os.path.join(topdir, ff), group='cosmo')
         
     return 1
 
