@@ -98,11 +98,11 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
 
     # image coadds (FITS + JPG)
     for band in bands:
-        for imtype in ('image', 'invvar'):
+        for imtype, outtype in zip(('image', 'invvar', 'copsf'), ('image', 'invvar', 'psf')):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                             os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, imtype, band)),
+                             os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, outtype, band)),
                 clobber=clobber)
             if not ok:
                 return ok
@@ -117,7 +117,8 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
         return ok
 
     if just_coadds:
-        _do_cleanup()
+        if cleanup:
+            _do_cleanup()
         return 1
 
     # tractor catalog
@@ -151,18 +152,19 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     if not ok:
         return ok
 
-    for band in bands:
-        ok = _copyfile(
-            os.path.join(output_dir, 'coadd', 'cus', brickname,
-                         'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
-            os.path.join(output_dir, '{}-{}-depth-{}.fits.fz'.format(galaxy, stagesuffix, band)),
-            clobber=clobber)
-        if not ok:
-            return ok
+    #for band in bands:
+    #    ok = _copyfile(
+    #        os.path.join(output_dir, 'coadd', 'cus', brickname,
+    #                     'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
+    #        os.path.join(output_dir, '{}-{}-depth-{}.fits.fz'.format(galaxy, stagesuffix, band)),
+    #        clobber=clobber)
+    #    if not ok:
+    #        return ok
 
     # model coadds
     for band in bands:
-        for imtype in ('model', 'blobmodel'):
+        for imtype in ['model']:
+        #for imtype in ('model', 'blobmodel'):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
@@ -204,7 +206,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if not ok:
                 return ok
 
-        for imtype, suffix in zip(('wise', 'wisemodel'), ('image', 'model-{}'.format(stagesuffix))):
+        for imtype, suffix in zip(('wise', 'wisemodel'), ('image', 'model')):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
@@ -355,10 +357,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
     if just_coadds:
         cmd += '--stage image_coadds --early-coadds '
-    if unwise:
-        cmd += '--unwise-coadds '
-    else:
-        cmd += '--no-wise '
+    if not unwise:
+        cmd += '--no-unwise-coadds --no-wise '
     if apodize:
         cmd += '--apodize '
     if no_gaia:
@@ -367,7 +367,7 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-tycho '
     if no_large_galaxies:
         cmd += '--no-large-galaxies '
-        
+
     if force:
         cmd += '--force-all '
         checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(
@@ -628,8 +628,8 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                        nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC', 
                        log=None, apodize=False, unwise=True, force=False,
                        plots=False, verbose=False, cleanup=True,
-                       write_all_pickles=False, no_splinesky=False, just_coadds=False,
-                       require_grz=True, no_gaia=False, no_tycho=False):
+                       write_all_pickles=False, no_splinesky=False, customsky=False,
+                       just_coadds=False, require_grz=True, no_gaia=False, no_tycho=False):
     """Build a custom set of large-galaxy coadds
 
     radius_mosaic in arcsec
@@ -660,6 +660,12 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         print('Missing imaging in grz.')
         return 0
 
+    ## Useful bit of code for quickly getting the list of exposures in the
+    ## footprint.
+    #explist = sorted(set([ff.strip().replace('mosaic/CP/','').replace('90prime/CP/','') for ff in ccds.image_filename]))
+    #with open('M51-exposures.txt', 'w') as ff:
+    #    [ff.write('{}\n'.format(ee)) for ee in explist]
+
     # Run the pipeline!
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
@@ -667,7 +673,11 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--survey-dir {survey_dir} --run {run} '
     cmd += '--largegalaxy-preburner --saddle-fraction 0.2 --saddle-min 4.0 '
     #cmd += '--nsigma 10 '
-    #cmd += '--write-stage tims '
+    if customsky:
+        print('Skipping custom sky')
+        #cmd += '--largegalaxy-skysub '
+        #print('HACK!!!!!!!!!!!!!!!!! doing just largegalaxies stage in legacyhalos.coadds')
+        #cmd += '--stage largegalaxies '
     if write_all_pickles:
         cmd += '--write-stage tims --write-stage srcs '
     else:
@@ -677,18 +687,14 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
     if just_coadds:
         cmd += '--stage image_coadds --early-coadds '
-    if unwise:
-        cmd += '--unwise-coadds '
-    else:
-        cmd += '--no-wise '
+    if not unwise:
+        cmd += '--no-unwise-coadds --no-wise '
     if apodize:
         cmd += '--apodize '
     if no_gaia:
         cmd += '--no-gaia '
     if no_tycho:
         cmd += '--no-tycho '
-    #if no_large_galaxies:
-    #    cmd += '--no-large-galaxies '
         
     if force:
         cmd += '--force-all '

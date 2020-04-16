@@ -99,14 +99,15 @@ def call_custom_coadds(onegal, galaxy, radius_mosaic, survey, pixscale=0.262,
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
                  debug=False, logfile=None, input_ellipse=None, zcolumn=None,
                  sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
-                 largegalaxy=False, pipeline=True): #, custom_tractor=True):
+                 largegalaxy=False, pipeline=True):
     """Wrapper script to do ellipse-fitting.
 
     """
     import legacyhalos.ellipse
 
-    if zcolumn is None:
-        zcolumn = 'Z_LAMBDA'
+    # Do not force zcolumn here; it's not always wanted or needed in ellipse.
+    #if zcolumn is None:
+    #    zcolumn = 'Z_LAMBDA'
 
     t0 = time.time()
     if debug:
@@ -175,10 +176,10 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                                                       debug=debug, verbose=verbose, force=force)
                 _done(galaxy, err, t0, log=log)
                 
-def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
+def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1, 
                    verbose=False, debug=False, clobber=False, ccdqa=False,
                    logfile=None, zcolumn='Z', datadir=None, htmldir=None, 
-                   #largegalaxy_montage=False, pipeline_montage=False,
+                   largegalaxy=False, 
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                    get_galaxy_galaxydir=None):
     """Wrapper script to build the pipeline coadds."""
@@ -192,7 +193,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                                           radius_mosaic_arcsec=radius_mosaic_arcsec,
                                           maketrends=False, ccdqa=ccdqa,
                                           clobber=clobber, verbose=verbose, 
-                                          #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage,
+                                          largegalaxy=largegalaxy, 
                                           get_galaxy_galaxydir=get_galaxy_galaxydir)
         _done(galaxy, err, t0)
     else:
@@ -204,8 +205,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                                                   barlen=barlen, barlabel=barlabel,
                                                   radius_mosaic_arcsec=radius_mosaic_arcsec,
                                                   maketrends=False, ccdqa=ccdqa,
-                                                  clobber=clobber, verbose=verbose, 
-                                                  #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage,
+                                                  clobber=clobber, verbose=verbose,
+                                                  largegalaxy=largegalaxy, 
                                                   get_galaxy_galaxydir=get_galaxy_galaxydir)
                 _done(galaxy, err, t0, log=log)
 
@@ -213,7 +214,8 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
                             pixscale=0.262, racolumn='RA', deccolumn='DEC',
                             apodize=False, unwise=True, force=False, plots=False,
                             verbose=False, cleanup=True, write_all_pickles=False,
-                            no_splinesky=False, just_coadds=False, require_grz=True, 
+                            no_splinesky=False, customsky=False,
+                            just_coadds=False, require_grz=True, 
                             no_gaia=False, no_tycho=False,
                             debug=False, logfile=None):
     """Wrapper script to build the pipeline coadds for large galaxies.
@@ -231,7 +233,7 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
                                                     pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
                                                     apodize=apodize, unwise=unwise, force=force, plots=plots,
                                                     verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
-                                                    no_splinesky=no_splinesky, just_coadds=just_coadds,
+                                                    no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
                                                     require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
         _done(galaxy, err, t0)
     else:
@@ -243,7 +245,7 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
                                                             pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
                                                             apodize=apodize, unwise=unwise, force=force, plots=plots,
                                                             verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
-                                                            no_splinesky=no_splinesky, just_coadds=just_coadds,
+                                                            no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
                                                             require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,
                                                             log=log)
                 _done(galaxy, err, t0, log=log)

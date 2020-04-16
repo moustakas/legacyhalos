@@ -14,25 +14,38 @@ RADIUS_CLUSTER_KPC = 500.0     # default cluster radius
 #SURVEY_DIR = '/global/project/projectdirs/cosmo/data/legacysurvey/dr8'
 ZCOLUMN = 'Z_LAMBDA'    
 
-def srcs2image(srcs, wcs, psf_sigma=1.0):
-    """Build a model image from a Tractor catalog.
+def srcs2image(cat, wcs, band='r', pixelized_psf=None, psf_sigma=1.0):
+    """Build a model image from a Tractor catalog or a list of sources.
+
+    issrcs - if True, then cat is already a list of sources.
 
     """
-    import tractor
-    
-    if type(wcs) is tractor.wcs.ConstantFitsWcs:
+    import tractor, legacypipe, astrometry
+    from legacypipe.catalog import read_fits_catalog
+
+    if type(wcs) is tractor.wcs.ConstantFitsWcs or type(wcs) is legacypipe.survey.LegacySurveyWcs:
         shape = wcs.wcs.shape
     else:
         shape = wcs.shape
     model = np.zeros(shape)
     invvar = np.ones(shape)
-    
-    vv = psf_sigma**2
-    psf = tractor.GaussianMixturePSF(1.0, 0., 0., vv, vv, 0.0)
+
+    if pixelized_psf is None:
+        vv = psf_sigma**2
+        psf = tractor.GaussianMixturePSF(1.0, 0., 0., vv, vv, 0.0)
+    else:
+        psf = pixelized_psf
 
     tim = tractor.Image(model, invvar=invvar, wcs=wcs, psf=psf,
-                        photocal=tractor.basics.LinearPhotoCal(1.0, band='r'),
-                        sky=tractor.sky.ConstantSky(0.0))
+                        photocal=tractor.basics.LinearPhotoCal(1.0, band=band),
+                        sky=tractor.sky.ConstantSky(0.0),
+                        name='model-{}'.format(band))
+
+    # Do we have a tractor catalog or a list of sources?
+    if type(cat) is astrometry.util.fits.tabledata:
+        srcs = legacypipe.catalog.read_fits_catalog(cat, fluxPrefix='')
+    else:
+        srcs = cat
 
     tr = tractor.Tractor([tim], srcs)
     mod = tr.getModelImage(0)
@@ -678,3 +691,110 @@ def jackknife_samples(cen, pixmap, nside_pixmap=256, nside_jack=4):
 
     return out
 
+def ellipse_matrix(r, e1, e2):
+    """Calculate transformation matrix from half-light-radius to ellipse
+
+    Parameters
+    ----------
+    r : :class:`float` or `~numpy.ndarray`
+        Half-light radius of the ellipse (ARCSECONDS)
+    e1 : :class:`float` or `~numpy.ndarray`
+        First ellipticity component of the ellipse
+    e2 : :class:`float` or `~numpy.ndarray`
+        Second ellipticity component of the ellipse
+
+    Returns
+    -------
+    :class:`~numpy.ndarray`
+        A 2x2 matrix to transform points measured in coordinates of the
+        effective-half-light-radius to RA/Dec offset coordinates
+
+    Notes
+    -----
+        - If a float is passed then the output shape is (2,2,1)
+             otherwise it's (2,2,len(r))
+        - The parametrization is explained at
+             http://legacysurvey.org/dr4/catalogs/
+        - Much of the math is taken from:
+             https://github.com/dstndstn/tractor/blob/master/tractor/ellipses.py
+    """
+
+    # ADM derive the eccentricity from the ellipticity
+    # ADM guarding against the option that floats were passed
+    e = np.atleast_1d(np.hypot(e1, e2))
+
+    # ADM the position angle in radians and its cos/sin
+    theta = np.atleast_1d(np.arctan2(e2, e1) / 2.)
+    ct = np.cos(theta)
+    st = np.sin(theta)
+
+    # ADM ensure there's a maximum ratio of the semi-major
+    # ADM to semi-minor axis, and calculate that ratio
+    maxab = 1000.
+    ab = np.zeros(len(e))+maxab
+    w = np.where(e < 1)
+    ab[w] = (1.+e[w])/(1.-e[w])
+    w = np.where(ab > maxab)
+    ab[w] = maxab
+
+    # ADM convert the half-light radius to degrees
+    r_deg = r / 3600.
+
+    # ADM the 2x2 matrix to transform points measured in
+    # ADM effective-half-light-radius to RA/Dec offsets
+    T = r_deg * np.array([[ct / ab, st], [-st / ab, ct]])
+
+    return T
+
+def is_in_ellipse(ras, decs, RAcen, DECcen, r, e1, e2):
+    """Determine whether points lie within an elliptical mask on the sky
+
+    Parameters
+    ----------
+    ras : :class:`~numpy.ndarray`
+        Array of Right Ascensions to test
+    decs : :class:`~numpy.ndarray`
+        Array of Declinations to test
+    RAcen : :class:`float`
+        Right Ascension of the center of the ellipse (DEGREES)
+    DECcen : :class:`float`
+        Declination of the center of the ellipse (DEGREES)
+    r : :class:`float`
+        Half-light radius of the ellipse (ARCSECONDS)
+    e1 : :class:`float`
+        First ellipticity component of the ellipse
+    e2 : :class:`float`
+        Second ellipticity component of the ellipse
+
+    Returns
+    -------
+    :class:`boolean`
+        An array that is the same length as RA/Dec that is True
+        for points that are in the mask and False for points that
+        are not in the mask
+
+    Notes
+    -----
+        - The parametrization is explained at
+             http://legacysurvey.org/dr4/catalogs/
+        - Much of the math is taken from:
+             https://github.com/dstndstn/tractor/blob/master/tractor/ellipses.py
+    """
+
+    # ADM Retrieve the 2x2 matrix to transform points measured in
+    # ADM effective-half-light-radius to RA/Dec offsets...
+    G = ellipse_matrix(r, e1, e2)
+    # ADM ...and invert it
+    Ginv = np.linalg.inv(G[..., 0])
+
+    # ADM remember to correct for the spherical projection in Dec
+    # ADM note that this is only true for the small angle approximation
+    # ADM but that's OK to < 0.3" for a < 3o diameter galaxy at dec < 60o
+    dra = (ras - RAcen)*np.cos(np.radians(decs))
+    ddec = decs - DECcen
+
+    # ADM test whether points are larger than the effective
+    # ADM circle of radius 1 generated in half-light-radius coordinates
+    dx, dy = np.dot(Ginv, [dra, ddec])
+
+    return np.hypot(dx, dy) < 1

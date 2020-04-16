@@ -11,12 +11,45 @@ import astropy.table
 
 import legacyhalos.io
 import legacyhalos.misc
-import legacyhalos.hsc
 
-def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-           zcolumn='Z', radius_pixel=None, survey=None, mp=None, clobber=False,
-           verbose=True):
+def _javastring():
+    """Return a string that embeds a date in a webpage."""
+    import textwrap
+
+    js = textwrap.dedent("""
+    <SCRIPT LANGUAGE="JavaScript">
+    var months = new Array(13);
+    months[1] = "January";
+    months[2] = "February";
+    months[3] = "March";
+    months[4] = "April";
+    months[5] = "May";
+    months[6] = "June";
+    months[7] = "July";
+    months[8] = "August";
+    months[9] = "September";
+    months[10] = "October";
+    months[11] = "November";
+    months[12] = "December";
+    var dateObj = new Date(document.lastModified)
+    var lmonth = months[dateObj.getMonth() + 1]
+    var date = dateObj.getDate()
+    var fyear = dateObj.getYear()
+    if (fyear < 2000)
+    fyear = fyear + 1900
+    document.write(" " + fyear + " " + lmonth + " " + date)
+    </SCRIPT>
+    """)
+
+    return js
+        
+def make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=None,
+                zcolumn='Z', radius_pixel=None, survey=None, mp=None, clobber=False,
+                verbose=False):
     """Build CCD-level QA.
+
+    [This script may be obsolete, since we no longer write out the individual
+    CCDs.]
 
     """
     from glob import glob
@@ -36,10 +69,11 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     qarootfile = os.path.join(htmlgalaxydir, '{}-2d'.format(galaxy))
     #maskfile = os.path.join(galaxydir, '{}-custom-ccdmasks.fits.fz'.format(galaxy))
 
-    ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
-    if os.path.isfile(ccdsfile):
-        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
-        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+    if ccds is None:
+        ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
+        if os.path.isfile(ccdsfile):
+            ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+            print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
     
     okfiles = True
     for iccd in range(len(ccds)):
@@ -53,13 +87,13 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         ccdargs = [(galaxy, galaxydir, qarootfile, radius_pixel, _ccd, iccd, survey)
                    for iccd, _ccd in enumerate(ccds)]
         mp.map(_display_ccdmask_and_sky, ccdargs)
-        
+
     ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
     if not os.path.isfile(ccdposfile) or clobber:
         display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
 
-def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-              radius=None, survey=None, clobber=False, verbose=True):
+def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
+                   radius=None, survey=None, clobber=False, verbose=False):
     """Build CCD positions QA.
 
     radius in pixels
@@ -73,210 +107,280 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
 
-    for stage in ('largegalaxy', 'pipeline'):
-        ccdsfile = glob(os.path.join(galaxydir, '{}-{}-ccds-*.fits'.format(galaxy, stage))) # north, south
-        if len(ccdsfile) == 0:
-            print('Missing CCDs file for stage {}'.format(stage))
-            return
-        ccdsfile = ccdsfile[0]
-        ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
-        print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+    #for stage in ('largegalaxy', 'pipeline'):
+    #    ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
+    #    #ccdsfile = glob(os.path.join(galaxydir, '{}-{}-ccds-*.fits'.format(galaxy, stage))) # north, south
+    #    if len(ccdsfile) == 0:
+    #        print('Missing CCDs file for stage {}'.format(stage))
+    #        continue
+    #    ccdsfile = ccdsfile[0]
+    #    ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+    #    print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+    #
+    #    ccdposfile = os.path.join(htmlgalaxydir, '{}-{}-ccdpos.png'.format(galaxy, stage))
+    #    if not os.path.isfile(ccdposfile) or clobber:
+    #        display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
-        ccdposfile = os.path.join(htmlgalaxydir, '{}-{}-ccdpos.png'.format(galaxy, stage))
-        if not os.path.isfile(ccdposfile) or clobber:
-            display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
+    ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
+    if len(ccdsfile) == 0:
+        print('CCDs file not found!')
+        return
 
-def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
-                      barlabel=None, clobber=False, verbose=True):#
-                      #pipeline_montage=False, largegalaxy_montage=False):
+    ccdsfile = ccdsfile[0]
+    ccds = survey.cleanup_ccds_table(fits_table(ccdsfile))
+    #if verbose:
+    print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
+
+    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+    if not os.path.isfile(ccdposfile) or clobber:
+        display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
+
+def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
+                        barlabel=None, clobber=False, verbose=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
 
     """
-    #from pkg_resources import resource_filename
+    from legacyhalos.qa import addbar_to_png, fonttype
     from PIL import Image, ImageDraw, ImageFont
-    fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
-    #fonttype = resource_filename('legacyhalos', 'data/Georgia.ttf')
+    
+    Image.MAX_IMAGE_PIXELS = None
 
-    def addbar(jpgfile, barlen, barlabel, imtype):
-        pngfile = os.path.join(htmlgalaxydir, os.path.basename(jpgfile).replace('.jpg', '.png'))
-        im = Image.open(jpgfile)
-        draw = ImageDraw.Draw(im)
-        sz = im.size
-        width = np.round(sz[0]/150).astype('int')
-
-        # Bar and label
-        if barlen:
-            fntsize = 20 # np.round(sz[0]/20).astype('int')
-            font = ImageFont.truetype(fonttype, size=fntsize)
-            # Add a scale bar and label--
-            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
-            draw.line((x0, y1, x1, y1), fill='white', width=width)
-            ww, hh = draw.textsize(barlabel, font=font)
-            dx = ((x1-x0) - ww)//2
-            #print(x0, x1, y0, y1, ww, x0+dx, sz)
-            draw.text((x0+dx, y0), barlabel, font=font)
-            #print('Writing {}'.format(pngfile))
-        # Image type
-        if imtype:
-            fntsize = 20 # np.round(sz[0]/20).astype('int')
-            font = ImageFont.truetype(fonttype, size=fntsize)
-            ww, hh = draw.textsize(imtype, font=font)
-            x0, y0, y1 = sz[0]-ww-fntsize*2, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
-            draw.text((x0, y1), imtype, font=font)
-        im.save(pngfile)
-        return pngfile
-
-    for prefix in ('largegalaxy', 'pipeline', 'custom'):
-        montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, prefix))
-        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-grz-montage.png'.format(galaxy, prefix))
+    for filesuffix in ['largegalaxy']:
+    #for filesuffix in ['largegalaxy', 'pipeline', 'custom']:
+        montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, filesuffix))
+        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
+        thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
         if not os.path.isfile(montagefile) or clobber:
-            if prefix == 'custom':
-                coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-nocentral-grz'.format(prefix), '{}-image-central-grz'.format(prefix))
+            if filesuffix == 'custom':
+                coaddfiles = ('{}-image-grz'.format(filesuffix),
+                              '{}-model-nocentral-grz'.format(filesuffix),
+                              '{}-image-central-grz'.format(filesuffix))
             else:
-                coaddfiles = ('{}-image-grz'.format(prefix), '{}-model-grz'.format(prefix), '{}-resid-grz'.format(prefix))
+                coaddfiles = ('{}-image-grz'.format(filesuffix),
+                              '{}-model-grz'.format(filesuffix),
+                              '{}-resid-grz'.format(filesuffix))
+
+            # Image coadd with the scale bar label--
+            barpngfile = os.path.join(htmlgalaxydir, '{}-{}.png'.format(galaxy, coaddfiles[0]))
                 
             # Make sure all the files exist.
-            check = True
+            check, just_coadds = True, False
             jpgfile = []
             for suffix in coaddfiles:
                 _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
                 jpgfile.append(_jpgfile)
                 if not os.path.isfile(_jpgfile):
-                    print('File {} not found!'.format(_jpgfile))
+                    if verbose:
+                        print('File {} not found!'.format(_jpgfile))
                     check = False
 
-            if check:
-                # Add a bar and label
-                cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-                if barlen:
-                    #pngfile = []
-                    #for ff, blen, blab, imtype in zip(jpgfile, (barlen, None, None),
-                    #                                  (barlabel, None, None),
-                    #                                  ('Image stack', 'Tractor model', 'Central galaxy')):
-                    #    pngfile.append(addbar(ff, blen, blab, imtype))
-                    #cmd = cmd+' '.join(ff for ff in pngfile)
-                    pngfile = [addbar(ff, barlen, barlabel, None) for ff in jpgfile]
-                    cmd = cmd+' '+pngfile[0]+' '
-                    cmd = cmd+' '.join(ff for ff in jpgfile[1:])
+            # Check for just the image coadd.
+            if check is False:
+                if os.path.isfile(np.atleast_1d(jpgfile)[0]):
+                    just_coadds = True
+                    
+            if check or just_coadds:
+                with Image.open(np.atleast_1d(jpgfile)[0]) as im:
+                    sz = im.size
+                if sz[0] > 4096 and sz[0] < 8192:
+                    resize = '-resize 2048x2048 '
+                elif sz[0] > 8192:
+                    resize = '-resize 1024x1024 '
+                    #resize = '-resize 4096x4096 '
                 else:
-                    cmd = cmd+' '.join(ff for ff in jpgfile)
+                    resize = ''
+
+                # Make a quick thumbnail of just the data.
+                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(96, np.atleast_1d(jpgfile)[0], thumb2file)
+                if os.path.isfile(thumb2file):
+                    os.remove(thumb2file)
+                print('Writing {}'.format(thumb2file))
+                subprocess.call(cmd.split())
+                    
+                # Add a bar and label to the first image.
+                if just_coadds:
+                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
+                    #cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 -resize 4096x4096\> '
+                    if barlen:
+                        addbar_to_png(jpgfile, barlen, barlabel, None, barpngfile, scaledfont=True)
+                        cmd = cmd+' '+barpngfile
+                    else:
+                        cmd = cmd+' '+jpgfile
+                else:
+                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
+                    if barlen:
+                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
+                        cmd = cmd+' '+barpngfile+' '
+                        cmd = cmd+' '.join(ff for ff in jpgfile[1:])
+                    else:
+                        cmd = cmd+' '.join(ff for ff in jpgfile)
                 cmd = cmd+' {}'.format(montagefile)
 
-                if verbose:
-                    print('Writing {}'.format(montagefile))
+                #if verbose:
+                print('Writing {}'.format(montagefile))
                 subprocess.call(cmd.split())
+                if not os.path.isfile(montagefile):
+                    print('There was a problem writing {}'.format(montagefile))
+                    continue
 
-                # Create a smaller thumbnail image
-                cmd = 'convert -thumbnail 800x800 {} {}'.format(montagefile, thumbfile)
-                if verbose:
-                    print('Writing {}'.format(thumbfile))
+                # Create a couple smaller thumbnail images
+                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(1024, montagefile, thumbfile)
+                if os.path.isfile(thumbfile):
+                    os.remove(thumbfile)                
+                print('Writing {}'.format(thumbfile))
                 subprocess.call(cmd.split())
+                    
+                ## Create a couple smaller thumbnail images
+                #for tf, sz in zip((thumbfile, thumb2file), (512, 96)):
+                #    cmd = 'convert -thumbnail {}x{} {} {}'.format(sz, sz, montagefile, tf)
+                #    #if verbose:
+                #    print('Writing {}'.format(tf))
+                #    subprocess.call(cmd.split())
 
-def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=True):
+def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
     """Visualize the maskbits image.
 
     """
     import fitsio
     import matplotlib.pyplot as plt
 
-    for prefix in ('largegalaxy', 'pipeline', 'custom'):
-        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, prefix))
+    for filesuffix in ('largegalaxy', 'pipeline', 'custom'):
+        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
         if not os.path.isfile(maskbitsfile) or clobber:
-            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, prefix))
+            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
             if not os.path.isfile(fitsfile):
-                print('File {} not found!'.format(fitsfile))
-            else:
-                img = fitsio.read(fitsfile)
-                fig, ax = plt.subplots(figsize=(3, 3))
-                ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
-                ax.get_xaxis().set_visible(False)
-                ax.get_yaxis().set_visible(False)
-                ax.axis('off')
-                ax.autoscale(False)
-
                 if verbose:
-                    print('Writing {}'.format(maskbitsfile))
-                fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
-                plt.close(fig)
+                    print('File {} not found!'.format(fitsfile))
+                continue
 
-def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                       barlen=None, barlabel=None, clobber=False, verbose=True):
+            img = fitsio.read(fitsfile)
+            fig, ax = plt.subplots(figsize=(3, 3))
+            ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            ax.axis('off')
+            ax.autoscale(False)
+
+            #if verbose:
+            print('Writing {}'.format(maskbitsfile))
+            fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
+            plt.close(fig)
+
+def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
+                    refband='r', pixscale=0.262, barlen=None, barlabel=None,
+                    clobber=False, verbose=False, largegalaxy=False,
+                    scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
 
     """
+    from PIL import Image
     from legacyhalos.io import read_multiband, read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth)
 
-    ellipsefit = read_ellipsefit(galaxy, galaxydir)
-    sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
-    sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
-    pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
-
-    if len(ellipsefit) > 0:
-        # Toss out bad fits.
-        indx = None
-        #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
-        #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
-
-        cogfile = os.path.join(htmlgalaxydir, '{}-ellipse-cog.png'.format(galaxy))
-        if not os.path.isfile(cogfile) or clobber:
-            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
-                             png=cogfile, verbose=verbose)
-
-        sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
-        if not os.path.isfile(sbprofilefile) or clobber:
-            display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
-                                      pipeline_ellipsefit=pipeline_ellipsefit,
-                                      png=sbprofilefile, verbose=verbose, minerr=0.0,
-                                      sdss_ellipsefit=sdss_ellipsefit)
-
-        multibandfile = os.path.join(htmlgalaxydir, '{}-ellipse-multiband.png'.format(galaxy))
-        if not os.path.isfile(multibandfile) or clobber:
-            data = read_multiband(galaxy, galaxydir, bands=bands)
-            display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
-                              barlabel=barlabel, png=multibandfile, verbose=verbose)
-
-        ellipsefitfile = os.path.join(htmlgalaxydir, '{}-ellipse-ellipsefit.png'.format(galaxy))
-        if not os.path.isfile(ellipsefitfile) or clobber:
-            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
+    # Read the data--
+    data = read_multiband(galaxy, galaxydir, bands=bands,
+                          refband=refband, pixscale=pixscale,
+                          verbose=verbose,
+                          largegalaxy=largegalaxy)
+    if not bool(data):
+        return
         
-def qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', bands=('g', 'r', 'z'),
-                   pixscale=0.262, clobber=False, verbose=True):
-    """Generate QAplots from the MGE fitting.
-
-    """
-    from legacyhalos.io import read_mgefit, read_multiband
-    from legacyhalos.qa import display_mge_sbprofile, display_multiband
+    if data['failed']: # all galaxies dropped
+        return
     
-    mgefit = read_mgefit(galaxy, galaxydir)
+    # One set of QA plots per galaxy.
+    if largegalaxy:
+        for igal in np.arange(len(data['central_galaxy_id'])):
+            central_galaxy_id = data['central_galaxy_id'][igal]
+            galaxyid = str(central_galaxy_id)
+            filesuffix = 'largegalaxy'
 
-    if len(mgefit) > 0:
+            af = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
+                                 galaxyid=galaxyid, verbose=verbose)
+            if bool(af):
+                ellipsefit = af.tree
+                
+                sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(sbprofilefile) or clobber:
+                    display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
+                                              sky_ellipsefit={},
+                                              pipeline_ellipsefit={},
+                                              sdss_ellipsefit={},
+                                              png=sbprofilefile, verbose=verbose, minerr=0.0)
 
-        ## Toss out bad fits.
-        #indx = (mgefit[refband].stop_code <= 4) * (mgefit[refband].intens > 0)
-        #
-        multibandfile = os.path.join(htmlgalaxydir, '{}-mge-multiband.png'.format(galaxy))
-        if not os.path.isfile(multibandfile) or clobber:
-            data = read_multiband(galaxy, galaxydir, band=band)
-            display_multiband(data, mgefit=mgefit, bands=bands, refband=refband,
-                              png=multibandfile, contours=True, verbose=verbose)
-        
-        #isophotfile = os.path.join(htmlgalaxydir, '{}-mge-mgefit.png'.format(galaxy))
-        #if not os.path.isfile(isophotfile) or clobber:
-        #    # Just display the reference band.
-        #    display_mgefit(mgefit, band=refband, indx=indx, pixscale=pixscale,
-        #                   png=isophotfile, verbose=verbose)
+                cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(cogfile) or clobber:
+                    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
+                                     png=cogfile, verbose=verbose)
 
-        sbprofilefile = os.path.join(htmlgalaxydir, '{}-mge-sbprofile.png'.format(galaxy))
-        if not os.path.isfile(sbprofilefile) or clobber:
-            display_mge_sbprofile(mgefit, band=band, refband=refband, pixscale=pixscale,
-                                  png=sbprofilefile, verbose=verbose)
-        
-def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                      clobber=False, verbose=True):
+                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(multibandfile) or clobber:
+                    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
+                        display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+                                          centralindx=igal, barlen=barlen, barlabel=barlabel,
+                                          png=multibandfile, verbose=verbose, scaledfont=scaledfont)
+                        
+                    # Create a thumbnail.
+                    cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
+                    if os.path.isfile(thumbfile):
+                        os.remove(thumbfile)
+                    print('Writing {}'.format(thumbfile))
+                    subprocess.call(cmd.split())
+                    
+                #ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
+                #if not os.path.isfile(ellipsefitfile) or clobber:
+                #    display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
+
+                #print('CONTINUING IN QA_ELLIPSE_RESULTS!')
+                #pdb.set_trace()
+                #continue
+
+                af.close()
+
+    #for filesuffix in ('largegalaxy', 'custom'):
+    #    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
+    #
+    #    #sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
+    #    #sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
+    #    #pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
+    #    sky_ellipsefit, sdss_ellipsefit, pipeline_ellipsefit = {}, {}, {}
+    #
+    #    if len(ellipsefit) > 0:
+    #        # Toss out bad fits.
+    #        indx = None
+    #        #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
+    #        #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
+    #
+    #        cogfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-cog.png'.format(galaxy, filesuffix))
+    #        if not os.path.isfile(cogfile) or clobber:
+    #            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
+    #                             png=cogfile, verbose=verbose)
+    #
+    #        sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix))
+    #        if not os.path.isfile(sbprofilefile) or clobber:
+    #            display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
+    #                                      pipeline_ellipsefit=pipeline_ellipsefit,
+    #                                      png=sbprofilefile, verbose=verbose, minerr=0.0,
+    #                                      sdss_ellipsefit=sdss_ellipsefit)
+    #
+    #        multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix))
+    #        if not os.path.isfile(multibandfile) or clobber:
+    #            data = read_multiband(galaxy, galaxydir, bands=bands,
+    #                                  largegalaxy=filesuffix=='largegalaxy')
+    #            
+    #            display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
+    #                              barlabel=barlabel, png=multibandfile, verbose=verbose)
+    #
+    #        ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
+    #        if not os.path.isfile(ellipsefitfile) or clobber:
+    #            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
+
+def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
+                      clobber=False, verbose=False):
     """Generate QAplots from the Sersic modeling.
 
     """
@@ -327,10 +431,10 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
 def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', 
-               nproc=1, barlen=None, barlabel=None, radius_mosaic_arcsec=None,
-               maketrends=False, ccdqa=False, clobber=False, verbose=True,
-               #pipeline_montage=False, largegalaxy_montage=False,
-               get_galaxy_galaxydir=None):
+               nproc=1, barlen=None, barlabel=None,
+               radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
+               clobber=False, verbose=True, get_galaxy_galaxydir=None,
+               largegalaxy=False, scaledfont=False):
     """Make QA plots.
 
     """
@@ -350,10 +454,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         from legacyhalos.qa import sample_trends
         sample_trends(sample, htmldir, datadir=datadir, verbose=verbose)
 
-    if ccdqa:
-        from astrometry.util.multiproc import multiproc
-        mp = multiproc(nthreads=nproc)
-
     #from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
     barlen_kpc = 100
@@ -366,18 +466,12 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
     # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
         galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(onegal, html=True)
-        #if galaxylist is None:
-        #    galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal, html=True)
-        #else:
-        #    galaxy = galaxylist[ii]
-        #    galaxydir = os.path.join(datadir, galaxy)
-        #    htmlgalaxydir = os.path.join(htmldir, galaxy)
             
         if not os.path.isdir(htmlgalaxydir):
             os.makedirs(htmlgalaxydir, exist_ok=True, mode=0o775)
             #shutil.chown(htmlgalaxydir, group='cosmo')
 
-        if barlen is None:
+        if barlen is None and zcolumn in onegal.colnames:
             barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int') # [kpc]
 
         if radius_mosaic_arcsec is None:
@@ -386,34 +480,38 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
         # Build the ellipse plots.
-        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, barlen=barlen,
-                           barlabel=barlabel, clobber=clobber, verbose=verbose)
-
-        # CCD positions
-        qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
-                  radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
-                  verbose=verbose)
+        make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
+                        pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
+                        verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
 
         # Build the montage coadds.
-        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
-                          barlabel=barlabel, clobber=clobber, verbose=verbose)
-                          #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage)
+        make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
+                            barlabel=barlabel, clobber=clobber, verbose=verbose)
+                            #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage)
+
+        # CCD positions
+        make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                       radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
+                       verbose=verbose)
 
         # Build the maskbits figure.
-        qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
+        if False:
+            make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Sersic fiting results
         if False:
-            qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
-                              clobber=clobber, verbose=verbose)
+            make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands,
+                           clobber=clobber, verbose=verbose)
 
         # Build the CCD-level QA.  This QA script needs to be last, because we
         # check the completeness of the HTML portion of legacyhalos-mpi based on
         # the ccdpos file.
         if ccdqa:
-            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
-                   zcolumn=zcolumn, mp=mp, survey=survey, clobber=clobber,
-                   verbose=verbose)
+            from astrometry.util.multiproc import multiproc
+            mp = multiproc(nthreads=nproc)
+            make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                        zcolumn=zcolumn, mp=mp, survey=survey, clobber=clobber,
+                        verbose=verbose)
 
         # Build the MGE plots.
         #qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', band=band,
@@ -421,37 +519,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
 
     return 1
 
-def _javastring():
-    """Return a string that embeds a date in a webpage."""
-    import textwrap
-
-    js = textwrap.dedent("""
-    <SCRIPT LANGUAGE="JavaScript">
-    var months = new Array(13);
-    months[1] = "January";
-    months[2] = "February";
-    months[3] = "March";
-    months[4] = "April";
-    months[5] = "May";
-    months[6] = "June";
-    months[7] = "July";
-    months[8] = "August";
-    months[9] = "September";
-    months[10] = "October";
-    months[11] = "November";
-    months[12] = "December";
-    var dateObj = new Date(document.lastModified)
-    var lmonth = months[dateObj.getMonth() + 1]
-    var date = dateObj.getDate()
-    var fyear = dateObj.getYear()
-    if (fyear < 2000)
-    fyear = fyear + 1900
-    document.write(" " + fyear + " " + lmonth + " " + date)
-    </SCRIPT>
-    """)
-
-    return js
-        
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
               first=None, last=None, nproc=1, survey=None, makeplots=True,
@@ -512,8 +579,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         #shutil.chown(htmldir, group='cosmo')
     homehtmlfile = os.path.join(htmldir, homehtml)
 
-    if verbose:
-        print('Writing {}'.format(homehtmlfile))
+    #if verbose:
+    print('Writing {}'.format(homehtmlfile))
     with open(homehtmlfile, 'w') as html:
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')

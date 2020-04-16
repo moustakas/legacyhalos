@@ -6,6 +6,7 @@
 export DUST_DIR=/global/cfs/cdirs/cosmo/data/dust/v0_1
 export UNWISE_COADDS_DIR=/global/cfs/cdirs/cosmo/work/wise/outputs/merge/neo5/fulldepth:/global/cfs/cdirs/cosmo/data/unwise/allwise/unwise-coadds/fulldepth
 export UNWISE_COADDS_TIMERESOLVED_DIR=/global/cfs/cdirs/cosmo/work/wise/outputs/merge/neo5
+export UNWISE_MODEL_SKY_DIR=/global/cfs/cdirs/cosmo/work/wise/unwise_catalog/dr2/mod
 export GAIA_CAT_DIR=/global/cfs/cdirs/cosmo/work/gaia/chunks-gaia-dr2-astrom-2
 export GAIA_CAT_VER=2
 export TYCHO2_KD_DIR=/global/cfs/cdirs/cosmo/staging/tycho2
@@ -23,13 +24,8 @@ export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/legacyhalos
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 
 export LSLGA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA
-#export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data
-#export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html
-#export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-dr9e
-#export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-dr9e
-#export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9
-export LSLGA_DATA_DIR=/global/cscratch1/sd/ioannis/LSLGA-data-DR9
-export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9
+export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9fg
+export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9fg
 
 export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
 #export LEGACY_SURVEY_DIR=/global/cscratch1/sd/desimpp/dr9e
@@ -46,7 +42,10 @@ export MKL_NUM_THREADS=1
 export KMP_AFFINITY=disabled
 export MPICH_GNI_FORK_MODE=FULLCOPY
 
-ncores=4
+ncores=1
+#ncores=4
+#ncores=8
+#ncores=16
 #ncores=32
 
 maxmem=134217728 # Cori/Haswell = 128 GB
@@ -57,6 +56,8 @@ let usemem=${maxmem}*${ncores}/32
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --ellipse --nproc $ncores --mpi --verbose
 #time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc-mpi --custom-coadds --nproc $ncores --mpi --verbose
 
-time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --htmlplots --nproc 1 --mpi --verbose --clobber
-#time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose #--d25min 3
+time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --htmlplots --nproc 1 --mpi --verbose
+#time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --ellipse --nproc $ncores --mpi --verbose
 #time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose --d25max 2
+#time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --largegalaxy-customsky --nproc $ncores --mpi --verbose
+#time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --d25min 3
