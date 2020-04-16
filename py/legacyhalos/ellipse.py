@@ -177,6 +177,9 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             else:
                 ok = (cogflux > 0) * np.isfinite(cogflux)
                 cogmagerr = np.ones(len(cogmag))
+
+        if len(ok) == 0:
+            print('No good pixels--fix me!')
             
         sma_arcsec = sma[ok] * pixscale             # [arcsec]
         cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
@@ -252,10 +255,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         mindx = np.argmin(chi2)
         minchi2 = chi2[mindx]
         cogmodel.parameters = params[:, mindx]
-        try:
-            P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr, maxiter=100)
-        except:
-            pdb.set_trace()
+        P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr, maxiter=100)
         print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
         
         #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)

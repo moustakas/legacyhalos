@@ -74,12 +74,11 @@ def main():
                                                customsky=args.largegalaxy_customsky,
                                                preselect_sample=True)
         # For the custom coadds step we write out the full sample in each mosaic.
-        if args.largegalaxy_coadds:
+        if args.largegalaxy_coadds or args.build_LSLGA:
             fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose,
                                                        preselect_sample=False,
                                                        customsky=False)
-            these = np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])
-            fullsample = fullsample[these]
+            fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
         else:
             fullsample = None
     else:
@@ -92,7 +91,7 @@ def main():
     if args.build_LSLGA:
         if rank == 0:
             _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
-            legacyhalos.LSLGA.build_model_LSLGA(sample[tuple(groups)], pixscale=args.pixscale,
+            legacyhalos.LSLGA.build_model_LSLGA(sample[tuple(groups)], fullsample,
                                                 nproc=args.nproc, clobber=args.clobber)
         return
 

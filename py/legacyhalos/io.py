@@ -1081,9 +1081,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         # I'm going to be pedantic here to be sure I get it right (np.isin
         # doens't preserve order)--
         islslga = ['L' in refcat for refcat in tractor.ref_cat] # e.g., L6
+        posflux = tractor.get('flux_{}'.format(refband)) > 0
+        minsize = tractor.shape_r > 2.0 # minimum size [arcsec]
+        #posflux = np.logical_or(np.logical_or(tractor.flux_g > 0, tractor.flux_r > 0), tractor.flux_z > 0)
         central_galaxy, reject_galaxy, keep_galaxy = [], [], []
         for ii, sid in enumerate(sample['LSLGA_ID']):
-            I = np.where((sid == tractor.ref_id) * islslga)[0]
+            I = np.where((sid == tractor.ref_id) * posflux * minsize * islslga)[0]
             if len(I) == 0: # dropped by Tractor
                 reject_galaxy.append(ii)
             else:
