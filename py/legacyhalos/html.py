@@ -11,12 +11,14 @@ import astropy.table
 
 import legacyhalos.io
 import legacyhalos.misc
-import legacyhalos.hsc
 
-def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=None,
-           zcolumn='Z', radius_pixel=None, survey=None, mp=None, clobber=False,
-           verbose=False):
+def make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=None,
+                zcolumn='Z', radius_pixel=None, survey=None, mp=None, clobber=False,
+                verbose=False):
     """Build CCD-level QA.
+
+    [This script may be obsolete, since we no longer write out the individual
+    CCDs.]
 
     """
     from glob import glob
@@ -59,8 +61,8 @@ def qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=None,
     if not os.path.isfile(ccdposfile) or clobber:
         display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
 
-def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-              radius=None, survey=None, clobber=False, verbose=False):
+def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
+                   radius=None, survey=None, clobber=False, verbose=False):
     """Build CCD positions QA.
 
     radius in pixels
@@ -102,15 +104,14 @@ def qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     if not os.path.isfile(ccdposfile) or clobber:
         display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
-def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
-                      barlabel=None, clobber=False, verbose=False):
+def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
+                        barlabel=None, clobber=False, verbose=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
 
     """
     from legacyhalos.qa import addbar_to_png, fonttype
-    #from pkg_resources import resource_filename
     from PIL import Image, ImageDraw, ImageFont
     
     Image.MAX_IMAGE_PIXELS = None
@@ -207,7 +208,7 @@ def qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 #    print('Writing {}'.format(tf))
                 #    subprocess.call(cmd.split())
 
-def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
+def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
     """Visualize the maskbits image.
 
     """
@@ -236,10 +237,10 @@ def qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
             fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
             plt.close(fig)
 
-def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                       refband='r', pixscale=0.262, barlen=None, barlabel=None,
-                       clobber=False, verbose=False, largegalaxy=False,
-                       scaledfont=False):
+def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
+                    refband='r', pixscale=0.262, barlen=None, barlabel=None,
+                    clobber=False, verbose=False, largegalaxy=False,
+                    scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
 
     """
@@ -256,6 +257,9 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     if not bool(data):
         return
         
+    if data['failed']: # all galaxies dropped
+        return
+    
     # One set of QA plots per galaxy.
     if largegalaxy:
         for igal in np.arange(len(data['central_galaxy_id'])):
@@ -344,57 +348,7 @@ def qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     #        if not os.path.isfile(ellipsefitfile) or clobber:
     #            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
 
-def qa_mge_ellipse_results(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
-    """Generate QAplots from the MGE-based ellipse measurements (just for the
-    large-galaxy project).  This reads the ASDF files from write_mge_ellipsefit.
-
-    """
-    from glob import glob
-    from PIL import Image, ImageDraw
-    import asdf
-    from legacyhalos.qa import draw_ellipse_on_png
-
-    # This will only work for the large-galaxy project, but maybe that's OK.
-    suffix = 'largegalaxy'
-    mgefile = os.path.join(htmlgalaxydir, '{}-{}-mge-ellipse.png'.format(galaxy, suffix))
-    thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-mge-ellipse.png'.format(galaxy, suffix))
-    if not os.path.isfile(mgefile) or clobber:
-        jpgfile = os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, suffix))
-        if not os.path.isfile(jpgfile):
-            if verbose:
-                print('File {} not found!'.format(_jpgfile))
-                return
-
-        # Find and iterate on all the MGE-based ellipse fits--
-        mgefitfiles = glob(os.path.join(galaxydir, '{}-{}-*-mgefit.asdf'.format(galaxy, suffix)))
-        if len(mgefitfiles) == 0:
-            print('No mgefit .asdf files found!')
-            return
-
-        # Read the image and draw the ellipses--
-        with Image.open(jpgfile) as im:
-            sz = im.size
-            for mgefitfile in mgefitfiles:
-                with asdf.open(mgefitfile) as af:
-                    mgefit = af.tree
-                draw_ellipse_on_png(im, mgefit['bx'], sz[1]-mgefit['by'], mgefit['ba'],
-                                    mgefit['pa'], mgefit['d25'] * 60.0, mgefit['pixscale'],
-                                    color='#3388ff')
-                draw_ellipse_on_png(im, mgefit['mge_ymed'], sz[1]-mgefit['mge_xmed'], 1-mgefit['mge_eps'],
-                                    mgefit['mge_pa'], mgefit['mge_majoraxis'] * mgefit['pixscale'],
-                                    mgefit['pixscale'], color='#ffaa33')
-
-            print('Writing {}'.format(mgefile))
-            im.save(mgefile)
-
-        # Create a thumbnail.
-        cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(1024, mgefile, thumbfile)
-        if os.path.isfile(thumbfile):
-            os.remove(thumbfile)        
-        print('Writing {}'.format(thumbfile))
-        subprocess.call(cmd.split())
-
-def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
+def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                       clobber=False, verbose=False):
     """Generate QAplots from the Sersic modeling.
 
@@ -447,7 +401,7 @@ def qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', 
                nproc=1, barlen=None, barlabel=None,
-               radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
+               radius_mosaic_arcsec=None, maketrends=False, ccdqa=False
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
                largegalaxy=False, scaledfont=False):
     """Make QA plots.
@@ -468,10 +422,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
     if maketrends:
         from legacyhalos.qa import sample_trends
         sample_trends(sample, htmldir, datadir=datadir, verbose=verbose)
-
-    if ccdqa:
-        from astrometry.util.multiproc import multiproc
-        mp = multiproc(nthreads=nproc)
 
     #from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
 
@@ -499,36 +449,38 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
         # Build the ellipse plots.
-        qa_ellipse_results(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
-                           pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
-                           verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
+        make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
+                        pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
+                        verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
 
         # Build the montage coadds.
-        qa_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
-                          barlabel=barlabel, clobber=clobber, verbose=verbose)
-                          #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage)
+        make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
+                            barlabel=barlabel, clobber=clobber, verbose=verbose)
+                            #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage)
 
         # CCD positions
-        qa_ccdpos(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
-                  radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
-                  verbose=verbose)
+        make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                       radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
+                       verbose=verbose)
 
         # Build the maskbits figure.
         if False:
-            qa_maskbits(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
+            make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Sersic fiting results
         if False:
-            qa_sersic_results(galaxy, galaxydir, htmlgalaxydir, bands=bands,
-                              clobber=clobber, verbose=verbose)
+            make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands,
+                           clobber=clobber, verbose=verbose)
 
         # Build the CCD-level QA.  This QA script needs to be last, because we
         # check the completeness of the HTML portion of legacyhalos-mpi based on
         # the ccdpos file.
         if ccdqa:
-            qa_ccd(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
-                   zcolumn=zcolumn, mp=mp, survey=survey, clobber=clobber,
-                   verbose=verbose)
+            from astrometry.util.multiproc import multiproc
+            mp = multiproc(nthreads=nproc)
+            make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                        zcolumn=zcolumn, mp=mp, survey=survey, clobber=clobber,
+                        verbose=verbose)
 
         # Build the MGE plots.
         #qa_mge_results(galaxy, galaxydir, htmlgalaxydir, refband='r', band=band,
@@ -536,37 +488,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
 
     return 1
 
-def _javastring():
-    """Return a string that embeds a date in a webpage."""
-    import textwrap
-
-    js = textwrap.dedent("""
-    <SCRIPT LANGUAGE="JavaScript">
-    var months = new Array(13);
-    months[1] = "January";
-    months[2] = "February";
-    months[3] = "March";
-    months[4] = "April";
-    months[5] = "May";
-    months[6] = "June";
-    months[7] = "July";
-    months[8] = "August";
-    months[9] = "September";
-    months[10] = "October";
-    months[11] = "November";
-    months[12] = "December";
-    var dateObj = new Date(document.lastModified)
-    var lmonth = months[dateObj.getMonth() + 1]
-    var date = dateObj.getDate()
-    var fyear = dateObj.getYear()
-    if (fyear < 2000)
-    fyear = fyear + 1900
-    document.write(" " + fyear + " " + lmonth + " " + date)
-    </SCRIPT>
-    """)
-
-    return js
-        
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
               first=None, last=None, nproc=1, survey=None, makeplots=True,
@@ -595,7 +516,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
 
     # Write the last-updated date to a webpage.
-    js = _javastring()       
+    js = legacyhalos.misc._javastring()       
 
     # Get the viewer link
     def _viewer_link(gal):

@@ -795,7 +795,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     rasorted = np.argsort(raslices)
 
     # Write the last-updated date to a webpage.
-    js = legacyhalos.html._javastring()       
+    js = legacyhalos.misc._javastring()       
             
     trendshtml = 'trends.html'
     homehtml = 'index.html'
