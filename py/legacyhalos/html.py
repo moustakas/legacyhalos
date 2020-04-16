@@ -12,6 +12,37 @@ import astropy.table
 import legacyhalos.io
 import legacyhalos.misc
 
+def _javastring():
+    """Return a string that embeds a date in a webpage."""
+    import textwrap
+
+    js = textwrap.dedent("""
+    <SCRIPT LANGUAGE="JavaScript">
+    var months = new Array(13);
+    months[1] = "January";
+    months[2] = "February";
+    months[3] = "March";
+    months[4] = "April";
+    months[5] = "May";
+    months[6] = "June";
+    months[7] = "July";
+    months[8] = "August";
+    months[9] = "September";
+    months[10] = "October";
+    months[11] = "November";
+    months[12] = "December";
+    var dateObj = new Date(document.lastModified)
+    var lmonth = months[dateObj.getMonth() + 1]
+    var date = dateObj.getDate()
+    var fyear = dateObj.getYear()
+    if (fyear < 2000)
+    fyear = fyear + 1900
+    document.write(" " + fyear + " " + lmonth + " " + date)
+    </SCRIPT>
+    """)
+
+    return js
+        
 def make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=None,
                 zcolumn='Z', radius_pixel=None, survey=None, mp=None, clobber=False,
                 verbose=False):
@@ -401,7 +432,7 @@ def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', 
                nproc=1, barlen=None, barlabel=None,
-               radius_mosaic_arcsec=None, maketrends=False, ccdqa=False
+               radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
                largegalaxy=False, scaledfont=False):
     """Make QA plots.
@@ -516,7 +547,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
 
     # Write the last-updated date to a webpage.
-    js = legacyhalos.misc._javastring()       
+    js = _javastring()       
 
     # Get the viewer link
     def _viewer_link(gal):

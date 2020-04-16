@@ -9,7 +9,7 @@ srun -n 32 -c 1 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legac
 salloc -N 1 -C haswell -A desi -L cfs -t 01:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:latest
 srun -n 8 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
 
-salloc -N 4 -C haswell -A desi -L cfs -t 01:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:latest
+salloc -N 4 -C haswell -A desi -L cfs -t 02:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:latest
 srun -n 16 -c 8 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh > LSLGA-mpi.log-001 2>&1 &
 
 salloc -N 8 -C haswell -A desi -L cfs -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:latest

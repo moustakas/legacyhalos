@@ -14,37 +14,6 @@ RADIUS_CLUSTER_KPC = 500.0     # default cluster radius
 #SURVEY_DIR = '/global/project/projectdirs/cosmo/data/legacysurvey/dr8'
 ZCOLUMN = 'Z_LAMBDA'    
 
-def _javastring():
-    """Return a string that embeds a date in a webpage."""
-    import textwrap
-
-    js = textwrap.dedent("""
-    <SCRIPT LANGUAGE="JavaScript">
-    var months = new Array(13);
-    months[1] = "January";
-    months[2] = "February";
-    months[3] = "March";
-    months[4] = "April";
-    months[5] = "May";
-    months[6] = "June";
-    months[7] = "July";
-    months[8] = "August";
-    months[9] = "September";
-    months[10] = "October";
-    months[11] = "November";
-    months[12] = "December";
-    var dateObj = new Date(document.lastModified)
-    var lmonth = months[dateObj.getMonth() + 1]
-    var date = dateObj.getDate()
-    var fyear = dateObj.getYear()
-    if (fyear < 2000)
-    fyear = fyear + 1900
-    document.write(" " + fyear + " " + lmonth + " " + date)
-    </SCRIPT>
-    """)
-
-    return js
-        
 def srcs2image(cat, wcs, band='r', pixelized_psf=None, psf_sigma=1.0):
     """Build a model image from a Tractor catalog or a list of sources.
 

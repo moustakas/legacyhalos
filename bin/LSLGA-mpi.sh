@@ -42,8 +42,9 @@ export MKL_NUM_THREADS=1
 export KMP_AFFINITY=disabled
 export MPICH_GNI_FORK_MODE=FULLCOPY
 
+ncores=1
 #ncores=4
-ncores=8
+#ncores=8
 #ncores=16
 #ncores=32
 

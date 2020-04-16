@@ -694,17 +694,16 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
         shutil.chown(kdoutfile, group='cosmo')
 
 # Get the viewer link
-def _viewer_link(gal):
+def _viewer_link(ra, dec, width):
     baseurl = 'http://legacysurvey.org/viewer/'
-    width = gal['D25'] * 60 * 2 / pixscale
-    #width = 2 * cutout_radius_kpc(radius_kpc=radius_mosaic_kpc, redshift=gal[zcolumn],
-    #                              pixscale=pixscale) # [pixels]
-    if width > 400:
+    if width > 1200:
+        zoom = 13
+    elif (width > 400) * (width < 1200):
         zoom = 14
     else:
         zoom = 15
     viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8&lslga'.format(
-        baseurl, gal[racolumn], gal[deccolumn], zoom)
+        baseurl, ra, dec, zoom)
 
     return viewer
 
@@ -748,69 +747,23 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
                 res.append('...')
     return res
 
-#def _write_indexhtml():
-
-def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
-              racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
-              first=None, last=None, galaxylist=None,
-              nproc=1, survey=None, makeplots=True,
-              clobber=False, verbose=True, maketrends=False, ccdqa=False,
-              args=None):
-    """Make the HTML pages.
+def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
+                   racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
+                   maketrends=False):
+    """Build the home (index.html) page and, optionally, the trends.html top-level
+    page.
 
     """
-    from glob import glob
-    import subprocess
-    import fitsio
-
-    import legacyhalos.io
-    from legacyhalos.coadds import _mosaic_width
-    #from legacyhalos.misc import cutout_radius_kpc
-    #from legacyhalos.misc import HSC_RADIUS_CLUSTER_KPC as radius_mosaic_kpc
-
-    datadir = LSLGA_data_dir()
-    htmldir = LSLGA_html_dir()
-
-    if sample is None:
-        sample = read_sample(first=first, last=last, galaxylist=galaxylist)
-
-    if type(sample) is astropy.table.row.Row:
-        sample = astropy.table.Table(sample)
-
-    # Only create pages for the set of galaxies with a montage.
-    keep = np.arange(len(sample))
-    missing = missing_files(args, sample, indices_only=True)
-    #missing = missing_files(sample, filetype='coadds', size=1)[0]
-    if len(missing) > 0:
-        keep = np.delete(keep, missing)
-        print('Keeping {}/{} galaxies with complete montages.'.format(len(keep), len(sample)))
-        sample = sample[keep]
-    #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
-
-    ## group by RA slices
-    #raslices = np.array([str(ra)[:3] for ra in sample[racolumn]])
-    #rasorted = np.argsort(raslices)
-    raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
-    rasorted = np.argsort(raslices)
-
-    # Write the last-updated date to a webpage.
-    js = legacyhalos.misc._javastring()       
-            
-    trendshtml = 'trends.html'
-    homehtml = 'index.html'
-
-    # Build the home (index.html) page--
-    if not os.path.exists(htmldir):
-        os.makedirs(htmldir)
-        #shutil.chown(htmldir, group='cosmo')
     homehtmlfile = os.path.join(htmldir, homehtml)
+    print('Building {}'.format(homehtmlfile))
 
-    _write_indexhtml(homehtmlfile)
+    js = legacyhalos.html._javastring()       
 
-    # https://stackoverflow.com/questions/36745577/how-do-you-create-in-python-a-file-with-permissions-other-users-can-write
+    # group by RA slices
+    raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
+    #rasorted = raslices)
+
     with open(homehtmlfile, 'w') as html:
-    #with open(os.open(homehtmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
@@ -830,23 +783,6 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             html.write('<h3>RA Slice {}</h3>\n'.format(raslice))
             html.write('<table>\n')
 
-            #html.write('<tr>\n')
-            #html.write('<th></th>\n')
-            #html.write('<th></th>\n')
-            #html.write('<th>RA</th>\n')
-            #html.write('<th>Dec</th>\n')
-            #html.write('<th>D(25)</th>\n')
-            #html.write('<th></th>\n')
-            #html.write('</tr>\n')
-            #
-            #html.write('<tr>\n')
-            #html.write('<th>Number</th>\n')
-            #html.write('<th>Galaxy</th>\n')
-            #html.write('<th>(deg)</th>\n')
-            #html.write('<th>(deg)</th>\n')
-            #html.write('<th>(arcsec)</th>\n')
-            #html.write('<th>Viewer</th>\n')
-
             html.write('<tr>\n')
             #html.write('<th>Number</th>\n')
             html.write('<th> </th>\n')
@@ -865,6 +801,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 pngfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}-largegalaxy-grz-montage.png'.format(galaxy1))
                 thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-largegalaxy-grz-montage.png'.format(galaxy1))
 
+                ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
+
                 html.write('<tr>\n')
                 #html.write('<td>{:g}</td>\n'.format(count))
                 #print(gal['INDEX'], gal['LSLGA_ID'], gal['GALAXY'])
@@ -872,13 +810,13 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                 html.write('<td>{}</td>\n'.format(gal['INDEX']))
                 html.write('<td>{}</td>\n'.format(gal['LSLGA_ID']))
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
-                html.write('<td>{:.7f}</td>\n'.format(gal[racolumn]))
-                html.write('<td>{:.7f}</td>\n'.format(gal[deccolumn]))
-                html.write('<td>{:.4f}</td>\n'.format(gal[diamcolumn]))
+                html.write('<td>{:.7f}</td>\n'.format(ra1))
+                html.write('<td>{:.7f}</td>\n'.format(dec1))
+                html.write('<td>{:.4f}</td>\n'.format(diam1))
                 #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
                 #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
                 #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
-                html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
+                html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(ra1, dec1, diam1*2*60/pixscale)))
                 #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
                 html.write('</tr>\n')
             html.write('</table>\n')
@@ -887,529 +825,587 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         html.write('<br /><br />\n')
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
         html.write('</html></body>\n')
-        html.close()
 
-        # Build the trends (trends.html) page--
-        if maketrends:
-            trendshtmlfile = os.path.join(htmldir, trendshtml)
-            with open(trendshtmlfile, 'w') as html:
-            #with open(os.open(trendshtmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
-                html.write('<html><body>\n')
-                html.write('<style type="text/css">\n')
-                html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
-                html.write('</style>\n')
+    # Optionally build the trends (trends.html) page--
+    if maketrends:
+        trendshtmlfile = os.path.join(htmldir, trendshtml)
+        print('Building {}'.format(trendshtmlfile))
+        with open(trendshtmlfile, 'w') as html:
+        #with open(os.open(trendshtmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
+            html.write('<html><body>\n')
+            html.write('<style type="text/css">\n')
+            html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
+            html.write('</style>\n')
 
-                html.write('<h1>HSC Massive Galaxies: Sample Trends</h1>\n')
-                html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
-                html.write('<a href="trends/ellipticity_vs_sma.png"><img src="trends/ellipticity_vs_sma.png" alt="Missing file ellipticity_vs_sma.png" height="auto" width="50%"></a>')
-                html.write('<a href="trends/gr_vs_sma.png"><img src="trends/gr_vs_sma.png" alt="Missing file gr_vs_sma.png" height="auto" width="50%"></a>')
-                html.write('<a href="trends/rz_vs_sma.png"><img src="trends/rz_vs_sma.png" alt="Missing file rz_vs_sma.png" height="auto" width="50%"></a>')
+            html.write('<h1>HSC Massive Galaxies: Sample Trends</h1>\n')
+            html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
+            html.write('<a href="trends/ellipticity_vs_sma.png"><img src="trends/ellipticity_vs_sma.png" alt="Missing file ellipticity_vs_sma.png" height="auto" width="50%"></a>')
+            html.write('<a href="trends/gr_vs_sma.png"><img src="trends/gr_vs_sma.png" alt="Missing file gr_vs_sma.png" height="auto" width="50%"></a>')
+            html.write('<a href="trends/rz_vs_sma.png"><img src="trends/rz_vs_sma.png" alt="Missing file rz_vs_sma.png" height="auto" width="50%"></a>')
 
-                html.write('<br /><br />\n')
-                html.write('<b><i>Last updated {}</b></i>\n'.format(js))
-                html.write('</html></body>\n')
-                html.close()
+            html.write('<br /><br />\n')
+            html.write('<b><i>Last updated {}</b></i>\n'.format(js))
+            html.write('</html></body>\n')
 
-        # Make a separate HTML page for each object.
-        galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample[rasorted], html=True)
-        
-        nextgalaxy = np.roll(np.atleast_1d(galaxy), -1)
-        prevgalaxy = np.roll(np.atleast_1d(galaxy), 1)
-        nexthtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), -1)
-        prevhtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), 1)
-        #pdb.set_trace()
+def _build_htmlpage_one(args):
+    """Wrapper function for the multiprocessing."""
+    return build_htmlpage_one(*args)
 
-        for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate( zip(
-            sample[rasorted], np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir) ) ):
+def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, htmldir,
+                       racolumn, deccolumn, diamcolumn, pixscale, nextgalaxy, prevgalaxy,
+                       nexthtmlgalaxydir, prevhtmlgalaxydir, verbose):
+    """Build the web page for a single galaxy.
 
-            #radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
-            #    redshift=gal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
-            #radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
+    """
+    import fitsio
+    from glob import glob
+    
+    if not os.path.exists(htmlgalaxydir1):
+        os.makedirs(htmlgalaxydir1)
 
-            #ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose, filesuffix='largegalaxy')
-            #pipeline_ellipse = {}
-            #pipeline_ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose,
-            #                                                  filesuffix='pipeline')
+    js = legacyhalos.html._javastring()
+    
+    ccdsfile = glob(os.path.join(galaxydir1, '{}-largegalaxy-ccds-*.fits'.format(galaxy1))) # north or south
+    if len(ccdsfile) > 0:
+        nccds = fitsio.FITS(ccdsfile[0])[1].get_nrows()
+    else:
+        nccds = None
 
-            if not os.path.exists(htmlgalaxydir1):
-                os.makedirs(htmlgalaxydir1)
-                #shutil.chown(htmlgalaxydir1, group='cosmo')
+    samplefile = os.path.join(galaxydir1, '{}-largegalaxy-sample.fits'.format(galaxy1))
+    tractorfile = os.path.join(galaxydir1, '{}-largegalaxy-tractor.fits'.format(galaxy1))
+    if os.path.isfile(tractorfile) and os.path.isfile(samplefile):
+        sample = astropy.table.Table(fitsio.read(samplefile, upper=True))
+        if verbose:
+            print('Read {} galaxy(ies) from {}'.format(len(sample), samplefile))
 
-            ccdsfile = glob(os.path.join(galaxydir1, '{}-largegalaxy-ccds-*.fits'.format(galaxy1))) # north or south
-            if len(ccdsfile) > 0:
-                nccds = fitsio.FITS(ccdsfile[0])[1].get_nrows()
+        cols = ['ref_id', 'type', 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
+                'flux_g', 'flux_r', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z']
+        tractor = astropy.table.Table(fitsio.read(tractorfile, lower=True, columns=cols))#, rows=irows
+        # Deal with objects potentially dropped from Tractor fitting.
+        intractor = np.where(np.isin(tractor['ref_id'], sample['LSLGA_ID']))[0]
+        tractor = tractor[intractor]
+        tractor = tractor[np.argsort(tractor['flux_r'])[::-1]]
+
+        these = np.where(np.isin(sample['LSLGA_ID'], tractor['ref_id']))[0]
+        sample = sample[these]
+
+    nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
+    prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
+
+    htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
+    with open(htmlfile, 'w') as html:
+    #with open(os.open(htmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
+        html.write('<html><body>\n')
+        html.write('<style type="text/css">\n')
+        html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black}\n')
+        html.write('</style>\n')
+
+        html.write('<h1>{}</h1>\n'.format(galaxy1))
+
+        html.write('<a href="../../{}">Home</a>\n'.format(homehtml))
+        html.write('<br />\n')
+        html.write('<a href="../../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
+        html.write('<br />\n')
+        html.write('<a href="../../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
+        #html.write('<br />\n')
+        #html.write('<br />\n')
+
+        html.write('<h2>Group Properties</h2>\n')
+
+        # Table of properties
+        html.write('<table>\n')
+        html.write('<tr>\n')
+        #html.write('<th>Number</th>\n')
+        html.write('<th>Index<br />(Primary)</th>\n')
+        html.write('<th>LSLGA ID<br />(Primary)</th>\n')
+        html.write('<th>Group Name</th>\n')
+        html.write('<th>Group RA</th>\n')
+        html.write('<th>Group Dec</th>\n')
+        html.write('<th>Group Diameter<br />(arcmin)</th>\n')
+        #html.write('<th>Richness</th>\n')
+        #html.write('<th>Pcen</th>\n')
+        html.write('<th>Viewer</th>\n')
+        #html.write('<th>SkyServer</th>\n')
+        html.write('</tr>\n')
+
+        ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
+
+        html.write('<tr>\n')
+        #html.write('<td>{:g}</td>\n'.format(ii))
+        #print(gal['INDEX'], gal['LSLGA_ID'], gal['GALAXY'])
+        html.write('<td>{}</td>\n'.format(gal['INDEX']))
+        html.write('<td>{}</td>\n'.format(gal['LSLGA_ID']))
+        html.write('<td>{}</td>\n'.format(gal['GROUP_NAME']))
+        html.write('<td>{:.7f}</td>\n'.format(ra1))
+        html.write('<td>{:.7f}</td>\n'.format(dec1))
+        html.write('<td>{:.4f}</td>\n'.format(diam1))
+        #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
+        #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
+        #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
+        html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(ra1, dec1, diam1*2*60/pixscale)))
+        #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
+        html.write('</tr>\n')
+        html.write('</table>\n')
+
+        # Add the properties of each galaxy.
+        html.write('<h3>Group Members</h3>\n')
+        html.write('<table>\n')
+        html.write('<tr>\n')
+        html.write('<th>LSLGA ID</th>\n')
+        html.write('<th>Galaxy</th>\n')
+        html.write('<th>Morphology</th>\n')
+        html.write('<th>RA</th>\n')
+        html.write('<th>Dec</th>\n')
+        html.write('<th>D(25)<br />(arcmin)</th>\n')
+        #html.write('<th>PA<br />(deg)</th>\n')
+        #html.write('<th>e</th>\n')
+        html.write('</tr>\n')
+        for groupgal in sample:
+            #if '031705' in gal['GALAXY']:
+            #    print(groupgal['GALAXY'])
+            html.write('<tr>\n')
+            html.write('<td>{}</td>\n'.format(groupgal['LSLGA_ID']))
+            html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
+            typ = groupgal['TYPE'].strip()
+            if typ == '':
+                typ = '...'
+            html.write('<td>{}</td>\n'.format(typ))
+            html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
+            html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
+            html.write('<td>{:.4f}</td>\n'.format(groupgal['D25']))
+            #if np.isnan(groupgal['PA']):
+            #    pa = 0.0
+            #else:
+            #    pa = groupgal['PA']
+            #html.write('<td>{:.2f}</td>\n'.format(pa))
+            #html.write('<td>{:.3f}</td>\n'.format(1-groupgal['BA']))
+            html.write('</tr>\n')
+        html.write('</table>\n')
+
+        html.write('<h2>Image Mosaics</h2>\n')
+
+        if False:
+            html.write('<table>\n')
+            html.write('<tr><th colspan="3">Mosaic radius</th><th colspan="3">Point-source depth<br />(5-sigma, mag)</th><th colspan="3">Image quality<br />(FWHM, arcsec)</th></tr>\n')
+            html.write('<tr><th>kpc</th><th>arcsec</th><th>grz pixels</th><th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th></tr>\n')
+            html.write('<tr><td>{:.0f}</td><td>{:.3f}</td><td>{:.1f}</td>'.format(
+                radius_mosaic_kpc, radius_mosaic_arcsec, radius_mosaic_pixels))
+            if bool(ellipse):
+                html.write('<td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td>'.format(
+                    ellipse['psfdepth_g'], ellipse['psfdepth_min_g'], ellipse['psfdepth_max_g'],
+                    ellipse['psfdepth_r'], ellipse['psfdepth_min_r'], ellipse['psfdepth_max_r'],
+                    ellipse['psfdepth_z'], ellipse['psfdepth_min_z'], ellipse['psfdepth_max_z']))
+                html.write('<td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td></tr>\n'.format(
+                    ellipse['psfsize_g'], ellipse['psfsize_min_g'], ellipse['psfsize_max_g'],
+                    ellipse['psfsize_r'], ellipse['psfsize_min_r'], ellipse['psfsize_max_r'],
+                    ellipse['psfsize_z'], ellipse['psfsize_min_z'], ellipse['psfsize_max_z']))
+            html.write('</table>\n')
+            #html.write('<br />\n')
+
+        pngfile, thumbfile = '{}-largegalaxy-grz-montage.png'.format(galaxy1), 'thumb-{}-largegalaxy-grz-montage.png'.format(galaxy1)
+        html.write('<p>Large-galaxy preburn (left) data, (middle) model, and (right) residual image mosaic.</p>\n')
+        html.write('<table width="90%">\n')
+        html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
+            pngfile, thumbfile))
+        html.write('</table>\n')
+
+        pngfile, thumbfile = '{}-pipeline-grz-montage.png'.format(galaxy1), 'thumb-{}-pipeline-grz-montage.png'.format(galaxy1)
+        if os.path.isfile(os.path.join(htmlgalaxydir1, pngfile)):
+            html.write('<p>Pipeline (left) data, (middle) model, and (right) residual image mosaic.</p>\n')
+            html.write('<table width="90%">\n')
+            html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
+                pngfile, thumbfile))
+            html.write('</table>\n')
+
+        html.write('<h2>Elliptical Isophote Analysis</h2>\n')
+
+        html.write('<h3>Geometry</h3>\n')
+        if tractor is not None:
+            html.write('<table>\n')
+            html.write('<tr><th></th>\n')
+            html.write('<th colspan="5">Tractor</th>\n')
+            html.write('<th colspan="3">LSLGA</th>\n')
+            html.write('<th colspan="3">Ellipse Moments</th>\n')
+            html.write('<th colspan="5">Ellipse Fitting</th>\n')
+            html.write('</tr>\n')
+
+            html.write('<tr><th>LSLGA ID</th>\n')
+            html.write('<th>Type</th><th>n</th><th>r(50)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
+            html.write('<th>R(25)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
+            html.write('<th>Size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
+            html.write('<th>R(24)<br />(arcsec)</th><th>R(25)<br />(arcsec)</th><th>R(26)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
+            html.write('</tr>\n')
+
+            for tt in tractor:
+                ee = np.hypot(tt['shape_e1'], tt['shape_e2'])
+                ba = (1 - ee) / (1 + ee)
+                pa = 180 - (-np.rad2deg(np.arctan2(tt['shape_e2'], tt['shape_e1']) / 2))
+                pa = pa % 180
+
+                html.write('<tr><td>{}</td>\n'.format(tt['ref_id']))
+                html.write('<td>{}</td><td>{:.2f}</td><td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
+                    tt['type'], tt['sersic'], tt['shape_r'], pa, 1-ba))
+
+                galaxyid = str(tt['ref_id'])
+                af = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
+                                                    galaxyid=galaxyid, verbose=False)
+                if bool(af):
+                    ellipse = af.tree
+                    html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
+                        ellipse['lslga_d25']*60/2, ellipse['lslga_pa'], 1-ellipse['lslga_ba']))
+                    html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
+                        ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
+
+                    rr = []
+                    for rad in [ellipse['radius_sb24'], ellipse['radius_sb25'], ellipse['radius_sb26']]:
+                        if rad < 0:
+                            rr.append('...')
+                        else:
+                            rr.append('{:.3f}'.format(rad))
+                    html.write('<td>{}</td><td>{}</td><td>{}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
+                        rr[0], rr[1], rr[2], ellipse['pa'], ellipse['eps']))
+                    af.close()
+                else:
+                    html.write('<td>...</td><td>...</td><td>...</td>\n')
+                    html.write('<td>...</td><td>...</td><td>...</td>\n')
+                    html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
+                html.write('</tr>\n')
+            html.write('</table>\n')
+
+        html.write('<h3>Photometry</h3>\n')
+        if tractor is not None:
+            html.write('<table>\n')
+            html.write('<tr><th></th><th></th>\n')
+            html.write('<th colspan="3"></th>\n')
+            html.write('<th colspan="12">Curve of Growth</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr><th></th><th></th>\n')
+            html.write('<th colspan="3">Tractor</th>\n')
+            html.write('<th colspan="3">&lt R(24)<br />arcsec</th>\n')
+            html.write('<th colspan="3">&lt R(25)<br />arcsec</th>\n')
+            html.write('<th colspan="3">&lt R(26)<br />arcsec</th>\n')
+            html.write('<th colspan="3">Integrated</th>\n')
+            html.write('</tr>\n')
+
+            html.write('<tr><th>LSLGA ID</th><th>Galaxy</th>\n')
+            html.write('<th>g</th><th>r</th><th>z</th>\n')
+            html.write('<th>g</th><th>r</th><th>z</th>\n')
+            html.write('<th>g</th><th>r</th><th>z</th>\n')
+            html.write('<th>g</th><th>r</th><th>z</th>\n')
+            html.write('<th>g</th><th>r</th><th>z</th>\n')
+            html.write('</tr>\n')
+
+            for tt, ss in zip(tractor, sample):
+                g, r, z = _get_mags(tt, pipeline=True)
+                html.write('<tr><td>{}</td><td>{}</td>\n'.format(tt['ref_id'], ss['GALAXY']))
+                html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
+
+                galaxyid = str(tt['ref_id'])
+                af = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
+                                                    galaxyid=galaxyid, verbose=False)
+                if bool(af):
+                    ellipse = af.tree
+                    g, r, z = _get_mags(ellipse, R24=True)
+                    html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
+                    g, r, z = _get_mags(ellipse, R25=True)
+                    html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
+                    g, r, z = _get_mags(ellipse, R26=True)
+                    html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
+                    g, r, z = _get_mags(ellipse, cog=True)
+                    html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
+                    af.close()
+                else:
+                    html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
+                html.write('</tr>\n')
+            html.write('</table>\n')
+
+        if False:
+            html.write('<h4>Ellipse-fitting</h4>\n')
+            html.write('<table>\n')
+            html.write('<tr>')
+            html.write('<th colspan="3">Curve of Growth</th><th colspan="2">Mean Geometry</th><th colspan="2">Fitted Geometry</th>')
+            #html.write('<th colspan="3">Curve of growth<br />(custom sky, mag)</th><th colspan="3">Curve of growth<br />(pipeline sky, mag)</th>')
+            html.write('</tr>')
+
+            html.write('<tr><th>g</th><th>r</th><th>z</th><th>PA<br />(deg)</th><th>e</th><th>PA<br />(deg)</th><th>e</th></tr>\n')
+            #html.write('<th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th>')
+
+            html.write('<tr>')
+            if bool(ellipse):
+                g, r, z = (ellipse['cog_params_g']['mtot'], ellipse['cog_params_r']['mtot'],
+                           ellipse['cog_params_z']['mtot'])
+                html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
+                    g, r, z, ellipse['mge_pa'], ellipse['mge_eps'], ellipse['pa'], ellipse['eps']))
             else:
-                nccds = None
+                html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>')
 
-            samplefile = os.path.join(galaxydir1, '{}-largegalaxy-sample.fits'.format(galaxy1))
-            tractorfile = os.path.join(galaxydir1, '{}-largegalaxy-tractor.fits'.format(galaxy1))
-            if os.path.isfile(tractorfile) and os.path.isfile(samplefile):
-                sample = astropy.table.Table(fitsio.read(samplefile, upper=True))
-                if verbose:
-                    print('Read {} galaxy(ies) from {}'.format(len(sample), samplefile))
+            #if bool(pipeline_ellipse):
+            #    g, r, z = (pipeline_ellipse['cog_params_g']['mtot'], pipeline_ellipse['cog_params_r']['mtot'],
+            #               pipeline_ellipse['cog_params_z']['mtot'])
+            #    html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(g, r, z))
+            #else:
+            #    html.write('<td>...</td><td>...</td><td>...</td>')
 
-                cols = ['ref_id', 'type', 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
-                        'flux_g', 'flux_r', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z']
-                tractor = astropy.table.Table(fitsio.read(tractorfile, lower=True, columns=cols))#, rows=irows
-                # Deal with objects potentially dropped from Tractor fitting.
-                intractor = np.where(np.isin(tractor['ref_id'], sample['LSLGA_ID']))[0]
-                tractor = tractor[intractor]
-                tractor = tractor[np.argsort(tractor['flux_r'])[::-1]]
+            html.write('</tr>')
+            html.write('</table>\n')
+            html.write('<br />\n')
 
-                these = np.where(np.isin(sample['LSLGA_ID'], tractor['ref_id']))[0]
-                sample = sample[these]
+        if False:
+            html.write('<h4>Galaxy Geometry</h4>\n')
+            html.write('<p>The ellipses are based on the geometry of the parent LSLGA catalog (blue) and the second moments of the light distribution (orange). </p>\n')
 
-            nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
-            prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
+            html.write('<table width="60%">\n')
+            html.write('<tr><th>Maskbits</th><th>Ellipse Moments</th></tr>\n')
+            html.write('<tr>\n')
+            html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
+                '{}-largegalaxy-maskbits.png'.format(galaxy1)))
+            html.write('<td width="50%"><a href="{1}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
+                'thumb-{}-largegalaxy-mge-ellipse.png'.format(galaxy1), '{}-largegalaxy-mge-ellipse.png'.format(galaxy1)))
+            html.write('</tr>\n')
+            html.write('</table>\n')
 
-            htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
-            with open(htmlfile, 'w') as html:
-            #with open(os.open(htmlfile, os.O_CREAT | os.O_WRONLY, 0o664), 'w') as html:
-                html.write('<html><body>\n')
-                html.write('<style type="text/css">\n')
-                html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black}\n')
-                html.write('</style>\n')
-
-                html.write('<h1>{}</h1>\n'.format(galaxy1))
-
-                html.write('<a href="../../{}">Home</a>\n'.format(homehtml))
-                html.write('<br />\n')
-                html.write('<a href="../../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
-                html.write('<br />\n')
-                html.write('<a href="../../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
-                #html.write('<br />\n')
-                #html.write('<br />\n')
-
-                html.write('<h2>Group Properties</h2>\n')
-                
-                # Table of properties
-                html.write('<table>\n')
-                html.write('<tr>\n')
-                #html.write('<th>Number</th>\n')
-                html.write('<th>Index<br />(Primary)</th>\n')
-                html.write('<th>LSLGA ID<br />(Primary)</th>\n')
-                html.write('<th>Group Name</th>\n')
-                html.write('<th>Group RA</th>\n')
-                html.write('<th>Group Dec</th>\n')
-                html.write('<th>Group Diameter<br />(arcmin)</th>\n')
-                #html.write('<th>Richness</th>\n')
-                #html.write('<th>Pcen</th>\n')
-                html.write('<th>Viewer</th>\n')
-                #html.write('<th>SkyServer</th>\n')
-                html.write('</tr>\n')
-
-                html.write('<tr>\n')
-                #html.write('<td>{:g}</td>\n'.format(ii))
-                #print(gal['INDEX'], gal['LSLGA_ID'], gal['GALAXY'])
-                html.write('<td>{}</td>\n'.format(gal['INDEX']))
-                html.write('<td>{}</td>\n'.format(gal['LSLGA_ID']))
-                html.write('<td>{}</td>\n'.format(gal['GROUP_NAME']))
-                html.write('<td>{:.7f}</td>\n'.format(gal[racolumn]))
-                html.write('<td>{:.7f}</td>\n'.format(gal[deccolumn]))
-                html.write('<td>{:.4f}</td>\n'.format(gal[diamcolumn]))
-                #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
-                #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
-                #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
-                html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
-                #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
-                html.write('</tr>\n')
-                html.write('</table>\n')
-
-                # Add the properties of each galaxy.
-                html.write('<h3>Group Members</h3>\n')
-                html.write('<table>\n')
-                html.write('<tr>\n')
-                html.write('<th>LSLGA ID</th>\n')
-                html.write('<th>Galaxy</th>\n')
-                html.write('<th>Morphology</th>\n')
-                html.write('<th>RA</th>\n')
-                html.write('<th>Dec</th>\n')
-                html.write('<th>D(25)<br />(arcmin)</th>\n')
-                #html.write('<th>PA<br />(deg)</th>\n')
-                #html.write('<th>e</th>\n')
-                html.write('</tr>\n')
-                for groupgal in sample:
-                    #if '031705' in gal['GALAXY']:
-                    #    print(groupgal['GALAXY'])
-                    html.write('<tr>\n')
-                    html.write('<td>{}</td>\n'.format(groupgal['LSLGA_ID']))
-                    html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
-                    typ = groupgal['TYPE'].strip()
-                    if typ == '':
-                        typ = '...'
-                    html.write('<td>{}</td>\n'.format(typ))
-                    html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
-                    html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
-                    html.write('<td>{:.4f}</td>\n'.format(groupgal['D25']))
-                    #if np.isnan(groupgal['PA']):
-                    #    pa = 0.0
-                    #else:
-                    #    pa = groupgal['PA']
-                    #html.write('<td>{:.2f}</td>\n'.format(pa))
-                    #html.write('<td>{:.3f}</td>\n'.format(1-groupgal['BA']))
-                    html.write('</tr>\n')
-                html.write('</table>\n')
-
-                html.write('<h2>Image Mosaics</h2>\n')
-
+        for igal in np.arange(len(tractor['ref_id'])):
+            galaxyid = str(tractor['ref_id'][igal])
+            af = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
+                                                galaxyid=galaxyid, verbose=verbose)
+            if bool(af):
+                ellipse = af.tree
                 if False:
                     html.write('<table>\n')
-                    html.write('<tr><th colspan="3">Mosaic radius</th><th colspan="3">Point-source depth<br />(5-sigma, mag)</th><th colspan="3">Image quality<br />(FWHM, arcsec)</th></tr>\n')
-                    html.write('<tr><th>kpc</th><th>arcsec</th><th>grz pixels</th><th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th></tr>\n')
-                    html.write('<tr><td>{:.0f}</td><td>{:.3f}</td><td>{:.1f}</td>'.format(
-                        radius_mosaic_kpc, radius_mosaic_arcsec, radius_mosaic_pixels))
-                    if bool(ellipse):
-                        html.write('<td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td><td>{:.2f}<br />({:.2f}-{:.2f})</td>'.format(
-                            ellipse['psfdepth_g'], ellipse['psfdepth_min_g'], ellipse['psfdepth_max_g'],
-                            ellipse['psfdepth_r'], ellipse['psfdepth_min_r'], ellipse['psfdepth_max_r'],
-                            ellipse['psfdepth_z'], ellipse['psfdepth_min_z'], ellipse['psfdepth_max_z']))
-                        html.write('<td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td><td>{:.3f}<br />({:.3f}-{:.3f})</td></tr>\n'.format(
-                            ellipse['psfsize_g'], ellipse['psfsize_min_g'], ellipse['psfsize_max_g'],
-                            ellipse['psfsize_r'], ellipse['psfsize_min_r'], ellipse['psfsize_max_r'],
-                            ellipse['psfsize_z'], ellipse['psfsize_min_z'], ellipse['psfsize_max_z']))
+                    html.write('<tr><th>Fitting range<br />(arcsec)</th><th>Integration<br />mode</th><th>Clipping<br />iterations</th><th>Clipping<br />sigma</th></tr>')
+                    html.write('<tr><td>{:.3f}-{:.3f}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
+                        ellipse[refband]['sma'].min()*pixscale, ellipse[refband]['sma'].max()*pixscale,
+                        ellipse['integrmode'], ellipse['nclip'], ellipse['sclip']))
                     html.write('</table>\n')
-                    #html.write('<br />\n')
+                    html.write('<br />\n')
 
-                pngfile, thumbfile = '{}-largegalaxy-grz-montage.png'.format(galaxy1), 'thumb-{}-largegalaxy-grz-montage.png'.format(galaxy1)
-                html.write('<p>Large-galaxy preburn (left) data, (middle) model, and (right) residual image mosaic.</p>\n')
+                    html.write('<table>\n')
+                    html.write('<tr><th colspan="5">Mean Geometry</th>')
+
+                    html.write('<th colspan="4">Ellipse-fitted Geometry</th>')
+                    if ellipse['input_ellipse']:
+                        html.write('<th colspan="2">Input Geometry</th></tr>\n')
+                    else:
+                        html.write('</tr>\n')
+
+                    html.write('<tr><th>Integer center<br />(x,y, grz pixels)</th><th>Flux-weighted center<br />(x,y grz pixels)</th><th>Flux-weighted size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>')
+                    html.write('<th>Semi-major axis<br />(fitting range, arcsec)</th><th>Center<br />(x,y grz pixels)</th><th>PA<br />(deg)</th><th>e</th>')
+                    if ellipse['input_ellipse']:
+                        html.write('<th>PA<br />(deg)</th><th>e</th></tr>\n')
+                    else:
+                        html.write('</tr>\n')
+
+                    html.write('<tr><td>({:.0f}, {:.0f})</td><td>({:.3f}, {:.3f})</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
+                        ellipse['x0'], ellipse['y0'], ellipse['mge_xmed'], ellipse['mge_ymed'], ellipse['mge_majoraxis']*pixscale,
+                        ellipse['mge_pa'], ellipse['mge_eps']))
+
+                    if 'init_smamin' in ellipse.keys():
+                        html.write('<td>{:.3f}-{:.3f}</td><td>({:.3f}, {:.3f})<br />+/-({:.3f}, {:.3f})</td><td>{:.1f}+/-{:.1f}</td><td>{:.3f}+/-{:.3f}</td>'.format(
+                            ellipse['init_smamin']*pixscale, ellipse['init_smamax']*pixscale, ellipse['x0_median'],
+                            ellipse['y0_median'], ellipse['x0_err'], ellipse['y0_err'], ellipse['pa'], ellipse['pa_err'],
+                            ellipse['eps'], ellipse['eps_err']))
+                    else:
+                        html.write('<td>...</td><td>...</td><td>...</td><td>...</td>')
+                    if ellipse['input_ellipse']:
+                        html.write('<td>{:.1f}</td><td>{:.3f}</td></tr>\n'.format(
+                            np.degrees(ellipse['geometry'].pa)+90, ellipse['geometry'].eps))
+                    else:
+                        html.write('</tr>\n')
+                    html.write('</table>\n')
+                    html.write('<br />\n')
+
+                html.write('<h4>LSLGA {} - {}</h4>\n'.format(galaxyid, ellipse['galaxy']))
                 html.write('<table width="90%">\n')
-                html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
-                    pngfile, thumbfile))
+                html.write('<tr>\n')
+
+                pngfile = '{}-largegalaxy-{}-ellipse-multiband.png'.format(galaxy1, galaxyid)
+                thumbfile = 'thumb-{}-largegalaxy-{}-ellipse-multiband.png'.format(galaxy1, galaxyid)
+                html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" width="100%"></a></td>\n'.format(pngfile, thumbfile))
+                html.write('</tr>\n')
                 html.write('</table>\n')
+                html.write('<br />\n')
 
-                pngfile, thumbfile = '{}-pipeline-grz-montage.png'.format(galaxy1), 'thumb-{}-pipeline-grz-montage.png'.format(galaxy1)
-                if os.path.isfile(os.path.join(htmlgalaxydir1, pngfile)):
-                    html.write('<p>Pipeline (left) data, (middle) model, and (right) residual image mosaic.</p>\n')
-                    html.write('<table width="90%">\n')
-                    html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
-                        pngfile, thumbfile))
-                    html.write('</table>\n')
-
-                html.write('<h2>Elliptical Isophote Analysis</h2>\n')
-
-                html.write('<h3>Geometry</h3>\n')
-                if tractor is not None:
-                    html.write('<table>\n')
-                    html.write('<tr><th></th>\n')
-                    html.write('<th colspan="5">Tractor</th>\n')
-                    html.write('<th colspan="3">LSLGA</th>\n')
-                    html.write('<th colspan="3">Ellipse Moments</th>\n')
-                    html.write('<th colspan="5">Ellipse Fitting</th>\n')
-                    html.write('</tr>\n')
-
-                    html.write('<tr><th>LSLGA ID</th>\n')
-                    html.write('<th>Type</th><th>n</th><th>r(50)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
-                    html.write('<th>R(25)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
-                    html.write('<th>Size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
-                    html.write('<th>R(24)<br />(arcsec)</th><th>R(25)<br />(arcsec)</th><th>R(26)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
-                    html.write('</tr>\n')
-                    
-                    for tt in tractor:
-                        ee = np.hypot(tt['shape_e1'], tt['shape_e2'])
-                        ba = (1 - ee) / (1 + ee)
-                        pa = 180 - (-np.rad2deg(np.arctan2(tt['shape_e2'], tt['shape_e1']) / 2))
-                        pa = pa % 180
-                        
-                        html.write('<tr><td>{}</td>\n'.format(tt['ref_id']))
-                        html.write('<td>{}</td><td>{:.2f}</td><td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                            tt['type'], tt['sersic'], tt['shape_r'], pa, 1-ba))
-
-                        galaxyid = str(tt['ref_id'])
-                        af = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
-                                                            galaxyid=galaxyid, verbose=False)
-                        if bool(af):
-                            ellipse = af.tree
-                            html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                                ellipse['lslga_d25']*60/2, ellipse['lslga_pa'], 1-ellipse['lslga_ba']))
-                            html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                                ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
-
-                            rr = []
-                            for rad in [ellipse['radius_sb24'], ellipse['radius_sb25'], ellipse['radius_sb26']]:
-                                if rad < 0:
-                                    rr.append('...')
-                                else:
-                                    rr.append('{:.3f}'.format(rad))
-                            html.write('<td>{}</td><td>{}</td><td>{}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                                rr[0], rr[1], rr[2], ellipse['pa'], ellipse['eps']))
-                            af.close()
-                        else:
-                            html.write('<td>...</td><td>...</td><td>...</td>\n')
-                            html.write('<td>...</td><td>...</td><td>...</td>\n')
-                            html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
-                        html.write('</tr>\n')
-                    html.write('</table>\n')
-                    
-                html.write('<h3>Photometry</h3>\n')
-                if tractor is not None:
-                    html.write('<table>\n')
-                    html.write('<tr><th></th><th></th>\n')
-                    html.write('<th colspan="3"></th>\n')
-                    html.write('<th colspan="12">Curve of Growth</th>\n')
-                    html.write('</tr>\n')
-                    html.write('<tr><th></th><th></th>\n')
-                    html.write('<th colspan="3">Tractor</th>\n')
-                    html.write('<th colspan="3">&lt R(24)<br />arcsec</th>\n')
-                    html.write('<th colspan="3">&lt R(25)<br />arcsec</th>\n')
-                    html.write('<th colspan="3">&lt R(26)<br />arcsec</th>\n')
-                    html.write('<th colspan="3">Integrated</th>\n')
-                    html.write('</tr>\n')
-
-                    html.write('<tr><th>LSLGA ID</th><th>Galaxy</th>\n')
-                    html.write('<th>g</th><th>r</th><th>z</th>\n')
-                    html.write('<th>g</th><th>r</th><th>z</th>\n')
-                    html.write('<th>g</th><th>r</th><th>z</th>\n')
-                    html.write('<th>g</th><th>r</th><th>z</th>\n')
-                    html.write('<th>g</th><th>r</th><th>z</th>\n')
-                    html.write('</tr>\n')
-
-                    for tt, ss in zip(tractor, sample):
-                        g, r, z = _get_mags(tt, pipeline=True)
-                        html.write('<tr><td>{}</td><td>{}</td>\n'.format(tt['ref_id'], ss['GALAXY']))
-                        html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
-
-                        galaxyid = str(tt['ref_id'])
-                        af = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
-                                                            galaxyid=galaxyid, verbose=False)
-                        if bool(af):
-                            ellipse = af.tree
-                            g, r, z = _get_mags(ellipse, R24=True)
-                            html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
-                            g, r, z = _get_mags(ellipse, R25=True)
-                            html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
-                            g, r, z = _get_mags(ellipse, R26=True)
-                            html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
-                            g, r, z = _get_mags(ellipse, cog=True)
-                            html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
-                            af.close()
-                        else:
-                            html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
-                        html.write('</tr>\n')
-                    html.write('</table>\n')
-
-                if False:
-                    html.write('<h4>Ellipse-fitting</h4>\n')
-                    html.write('<table>\n')
-                    html.write('<tr>')
-                    html.write('<th colspan="3">Curve of Growth</th><th colspan="2">Mean Geometry</th><th colspan="2">Fitted Geometry</th>')
-                    #html.write('<th colspan="3">Curve of growth<br />(custom sky, mag)</th><th colspan="3">Curve of growth<br />(pipeline sky, mag)</th>')
-                    html.write('</tr>')
-
-                    html.write('<tr><th>g</th><th>r</th><th>z</th><th>PA<br />(deg)</th><th>e</th><th>PA<br />(deg)</th><th>e</th></tr>\n')
-                    #html.write('<th>g</th><th>r</th><th>z</th><th>g</th><th>r</th><th>z</th>')
-
-                    html.write('<tr>')
-                    if bool(ellipse):
-                        g, r, z = (ellipse['cog_params_g']['mtot'], ellipse['cog_params_r']['mtot'],
-                                   ellipse['cog_params_z']['mtot'])
-                        html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
-                            g, r, z, ellipse['mge_pa'], ellipse['mge_eps'], ellipse['pa'], ellipse['eps']))
-                    else:
-                        html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>')
-
-                    #if bool(pipeline_ellipse):
-                    #    g, r, z = (pipeline_ellipse['cog_params_g']['mtot'], pipeline_ellipse['cog_params_r']['mtot'],
-                    #               pipeline_ellipse['cog_params_z']['mtot'])
-                    #    html.write('<td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(g, r, z))
-                    #else:
-                    #    html.write('<td>...</td><td>...</td><td>...</td>')
-
-                    html.write('</tr>')
-                    html.write('</table>\n')
-                    html.write('<br />\n')
-                
-                if False:
-                    html.write('<h4>Galaxy Geometry</h4>\n')
-                    html.write('<p>The ellipses are based on the geometry of the parent LSLGA catalog (blue) and the second moments of the light distribution (orange). </p>\n')
-
-                    html.write('<table width="60%">\n')
-                    html.write('<tr><th>Maskbits</th><th>Ellipse Moments</th></tr>\n')
-                    html.write('<tr>\n')
-                    html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-                        '{}-largegalaxy-maskbits.png'.format(galaxy1)))
-                    html.write('<td width="50%"><a href="{1}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-                        'thumb-{}-largegalaxy-mge-ellipse.png'.format(galaxy1), '{}-largegalaxy-mge-ellipse.png'.format(galaxy1)))
-                    html.write('</tr>\n')
-                    html.write('</table>\n')
-
-                for igal in np.arange(len(tractor['ref_id'])):
-                    galaxyid = str(tractor['ref_id'][igal])
-                    af = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
-                                                        galaxyid=galaxyid, verbose=verbose)
-                    if bool(af):
-                        ellipse = af.tree
-                        if False:
-                            html.write('<table>\n')
-                            html.write('<tr><th>Fitting range<br />(arcsec)</th><th>Integration<br />mode</th><th>Clipping<br />iterations</th><th>Clipping<br />sigma</th></tr>')
-                            html.write('<tr><td>{:.3f}-{:.3f}</td><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
-                                ellipse[refband]['sma'].min()*pixscale, ellipse[refband]['sma'].max()*pixscale,
-                                ellipse['integrmode'], ellipse['nclip'], ellipse['sclip']))
-                            html.write('</table>\n')
-                            html.write('<br />\n')
-
-                            html.write('<table>\n')
-                            html.write('<tr><th colspan="5">Mean Geometry</th>')
-
-                            html.write('<th colspan="4">Ellipse-fitted Geometry</th>')
-                            if ellipse['input_ellipse']:
-                                html.write('<th colspan="2">Input Geometry</th></tr>\n')
-                            else:
-                                html.write('</tr>\n')
-
-                            html.write('<tr><th>Integer center<br />(x,y, grz pixels)</th><th>Flux-weighted center<br />(x,y grz pixels)</th><th>Flux-weighted size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>')
-                            html.write('<th>Semi-major axis<br />(fitting range, arcsec)</th><th>Center<br />(x,y grz pixels)</th><th>PA<br />(deg)</th><th>e</th>')
-                            if ellipse['input_ellipse']:
-                                html.write('<th>PA<br />(deg)</th><th>e</th></tr>\n')
-                            else:
-                                html.write('</tr>\n')
-
-                            html.write('<tr><td>({:.0f}, {:.0f})</td><td>({:.3f}, {:.3f})</td><td>{:.3f}</td><td>{:.3f}</td><td>{:.3f}</td>'.format(
-                                ellipse['x0'], ellipse['y0'], ellipse['mge_xmed'], ellipse['mge_ymed'], ellipse['mge_majoraxis']*pixscale,
-                                ellipse['mge_pa'], ellipse['mge_eps']))
-
-                            if 'init_smamin' in ellipse.keys():
-                                html.write('<td>{:.3f}-{:.3f}</td><td>({:.3f}, {:.3f})<br />+/-({:.3f}, {:.3f})</td><td>{:.1f}+/-{:.1f}</td><td>{:.3f}+/-{:.3f}</td>'.format(
-                                    ellipse['init_smamin']*pixscale, ellipse['init_smamax']*pixscale, ellipse['x0_median'],
-                                    ellipse['y0_median'], ellipse['x0_err'], ellipse['y0_err'], ellipse['pa'], ellipse['pa_err'],
-                                    ellipse['eps'], ellipse['eps_err']))
-                            else:
-                                html.write('<td>...</td><td>...</td><td>...</td><td>...</td>')
-                            if ellipse['input_ellipse']:
-                                html.write('<td>{:.1f}</td><td>{:.3f}</td></tr>\n'.format(
-                                    np.degrees(ellipse['geometry'].pa)+90, ellipse['geometry'].eps))
-                            else:
-                                html.write('</tr>\n')
-                            html.write('</table>\n')
-                            html.write('<br />\n')
-
-                        html.write('<h4>LSLGA {} - {}</h4>\n'.format(galaxyid, ellipse['galaxy']))
-                        html.write('<table width="90%">\n')
-                        html.write('<tr>\n')
-
-                        pngfile = '{}-largegalaxy-{}-ellipse-multiband.png'.format(galaxy1, galaxyid)
-                        thumbfile = 'thumb-{}-largegalaxy-{}-ellipse-multiband.png'.format(galaxy1, galaxyid)
-                        html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" width="100%"></a></td>\n'.format(pngfile, thumbfile))
-                        html.write('</tr>\n')
-                        html.write('</table>\n')
-                        html.write('<br />\n')
-
-                        html.write('<table width="90%">\n')
-                        html.write('<tr>\n')
-                        pngfile = '{}-largegalaxy-{}-ellipse-sbprofile.png'.format(galaxy1, galaxyid)
-                        html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-                        pngfile = '{}-largegalaxy-{}-ellipse-cog.png'.format(galaxy1, galaxyid)
-                        html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-                        html.write('</tr>\n')
-                        html.write('</table>\n')
-                        #html.write('<br />\n')
-                        af.close()
-                    else:
-                        html.write('<p>Ellipse-fitting not done or failed.</p>\n')
-
-                    if intflux:
-                        html.write('<h4>Aperture photometry</h4>\n')
-                        html.write('<table>\n')
-                        html.write('<tr>')
-                        html.write('<th colspan="3"><10 kpc (mag)</th>')
-                        html.write('<th colspan="3"><30 kpc (mag)</th>')
-                        html.write('<th colspan="3"><100 kpc (mag)</th>')
-                        html.write('</tr>')
-
-                        html.write('<tr>')
-                        html.write('<th>g</th><th>r</th><th>z</th>')
-                        html.write('<th>g</th><th>r</th><th>z</th>')
-                        html.write('<th>g</th><th>r</th><th>z</th>')
-                        html.write('</tr>')
-
-                        html.write('<tr>')
-                        g, r, z = _get_mags(intflux[ii], rad='10', kpc=True)
-                        html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
-                        g, r, z = _get_mags(intflux[ii], rad='30', kpc=True)
-                        html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
-                        g, r, z = _get_mags(intflux[ii], rad='100', kpc=True)
-                        html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
-                        html.write('</tr>')
-
-                    html.write('</table>\n')
-                    html.write('<br />\n')
-
+                html.write('<table width="90%">\n')
+                html.write('<tr>\n')
+                pngfile = '{}-largegalaxy-{}-ellipse-sbprofile.png'.format(galaxy1, galaxyid)
+                html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+                pngfile = '{}-largegalaxy-{}-ellipse-cog.png'.format(galaxy1, galaxyid)
+                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+                html.write('</tr>\n')
+                html.write('</table>\n')
                 #html.write('<br />\n')
+                af.close()
+            else:
+                html.write('<p>Ellipse-fitting not done or failed.</p>\n')
+
+            if False:
+                html.write('<h4>Aperture photometry</h4>\n')
+                html.write('<table>\n')
+                html.write('<tr>')
+                html.write('<th colspan="3"><10 kpc (mag)</th>')
+                html.write('<th colspan="3"><30 kpc (mag)</th>')
+                html.write('<th colspan="3"><100 kpc (mag)</th>')
+                html.write('</tr>')
+
+                html.write('<tr>')
+                html.write('<th>g</th><th>r</th><th>z</th>')
+                html.write('<th>g</th><th>r</th><th>z</th>')
+                html.write('<th>g</th><th>r</th><th>z</th>')
+                html.write('</tr>')
+
+                html.write('<tr>')
+                g, r, z = _get_mags(intflux[ii], rad='10', kpc=True)
+                html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
+                g, r, z = _get_mags(intflux[ii], rad='30', kpc=True)
+                html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
+                g, r, z = _get_mags(intflux[ii], rad='100', kpc=True)
+                html.write('<td>{}</td><td>{}</td><td>{}</td>'.format(g, r, z))
+                html.write('</tr>')
+
+            html.write('</table>\n')
+            html.write('<br />\n')
+
+        #html.write('<br />\n')
+        html.write('<h2>CCD Diagnostics</h2>\n')
+
+        html.write('<table width="90%">\n')
+        pngfile = '{}-ccdpos.png'.format(galaxy1)
+        html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
+            pngfile))
+        html.write('</table>\n')
+        #html.write('<br />\n')
+
+        if False:
+            html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
+            html.write('<table width="90%">\n')
+
+            # single-sersic
+            html.write('<tr>\n')
+            html.write('<th>Single Sersic (No Wavelength Dependence)</th><th>Single Sersic</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+            html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+            html.write('</tr>\n')
+
+            # Sersic+exponential
+            html.write('<tr>\n')
+            html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td><a href="{}-sersic-exponential-nowavepower.png"><img src="{}-sersic-exponential-nowavepower.png" alt="Missing file {}-sersic-exponential-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+            html.write('<td><a href="{}-sersic-exponential.png"><img src="{}-sersic-exponential.png" alt="Missing file {}-sersic-exponential.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+            html.write('</tr>\n')
+
+            # double-sersic
+            html.write('<tr>\n')
+            html.write('<th>Double Sersic (No Wavelength Dependence)</th><th>Double Sersic</th>\n')
+            html.write('</tr>\n')
+            html.write('<tr>\n')
+            html.write('<td><a href="{}-sersic-double-nowavepower.png"><img src="{}-sersic-double-nowavepower.png" alt="Missing file {}-sersic-double-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+            html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
+            html.write('</tr>\n')
+
+            html.write('</table>\n')
+
+            html.write('<br />\n')
+
+            if nccds and ccdqa:
                 html.write('<h2>CCD Diagnostics</h2>\n')
-
                 html.write('<table width="90%">\n')
+                html.write('<tr>\n')
                 pngfile = '{}-ccdpos.png'.format(galaxy1)
-                html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
+                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
                     pngfile))
+                html.write('</tr>\n')
+
+                for iccd in range(nccds):
+                    html.write('<tr>\n')
+                    pngfile = '{}-2d-ccd{:02d}.png'.format(galaxy1, iccd)
+                    html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
+                        pngfile))
+                    html.write('</tr>\n')
                 html.write('</table>\n')
-                #html.write('<br />\n')
-
-                if False:
-                    html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
-                    html.write('<table width="90%">\n')
-
-                    # single-sersic
-                    html.write('<tr>\n')
-                    html.write('<th>Single Sersic (No Wavelength Dependence)</th><th>Single Sersic</th>\n')
-                    html.write('</tr>\n')
-                    html.write('<tr>\n')
-                    html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                    html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                    html.write('</tr>\n')
-
-                    # Sersic+exponential
-                    html.write('<tr>\n')
-                    html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
-                    html.write('</tr>\n')
-                    html.write('<tr>\n')
-                    html.write('<td><a href="{}-sersic-exponential-nowavepower.png"><img src="{}-sersic-exponential-nowavepower.png" alt="Missing file {}-sersic-exponential-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                    html.write('<td><a href="{}-sersic-exponential.png"><img src="{}-sersic-exponential.png" alt="Missing file {}-sersic-exponential.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                    html.write('</tr>\n')
-
-                    # double-sersic
-                    html.write('<tr>\n')
-                    html.write('<th>Double Sersic (No Wavelength Dependence)</th><th>Double Sersic</th>\n')
-                    html.write('</tr>\n')
-                    html.write('<tr>\n')
-                    html.write('<td><a href="{}-sersic-double-nowavepower.png"><img src="{}-sersic-double-nowavepower.png" alt="Missing file {}-sersic-double-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                    html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                    html.write('</tr>\n')
-
-                    html.write('</table>\n')
-
-                    html.write('<br />\n')
-
-                    if nccds and ccdqa:
-                        html.write('<h2>CCD Diagnostics</h2>\n')
-                        html.write('<table width="90%">\n')
-                        html.write('<tr>\n')
-                        pngfile = '{}-ccdpos.png'.format(galaxy1)
-                        html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-                            pngfile))
-                        html.write('</tr>\n')
-
-                        for iccd in range(nccds):
-                            html.write('<tr>\n')
-                            pngfile = '{}-2d-ccd{:02d}.png'.format(galaxy1, iccd)
-                            html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-                                pngfile))
-                            html.write('</tr>\n')
-                        html.write('</table>\n')
-                        html.write('<br />\n')
-
-                html.write('<br />\n')
-                html.write('<br />\n')
-                
-                html.write('<a href="../../{}">Home</a>\n'.format(homehtml))
-                html.write('<br />\n')
-                html.write('<a href="../../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
-                html.write('<br />\n')
-                html.write('<a href="../../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
                 html.write('<br />\n')
 
-                html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
-                html.write('<br />\n')
-                html.write('</html></body>\n')
-                html.close()
+        html.write('<br />\n')
+        html.write('<br />\n')
+
+        html.write('<a href="../../{}">Home</a>\n'.format(homehtml))
+        html.write('<br />\n')
+        html.write('<a href="../../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
+        html.write('<br />\n')
+        html.write('<a href="../../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
+        html.write('<br />\n')
+
+        html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
+        html.write('<br />\n')
+        html.write('</html></body>\n')
+
+def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
+              refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
+              racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
+              first=None, last=None, galaxylist=None,
+              nproc=1, survey=None, makeplots=True,
+              clobber=False, verbose=True, maketrends=False, ccdqa=False,
+              args=None):
+    """Make the HTML pages.
+
+    """
+    import subprocess
+    from astrometry.util.multiproc import multiproc
+
+    import legacyhalos.io
+    from legacyhalos.coadds import _mosaic_width
+
+    datadir = LSLGA_data_dir()
+    htmldir = LSLGA_html_dir()
+    if not os.path.exists(htmldir):
+        os.makedirs(htmldir)
+
+    if sample is None:
+        sample = read_sample(first=first, last=last, galaxylist=galaxylist)
+
+    if type(sample) is astropy.table.row.Row:
+        sample = astropy.table.Table(sample)
+        
+    # Only create pages for the set of galaxies with a montage.
+    keep = np.arange(len(sample))
+    missing = missing_files(args, sample, indices_only=True)
+    if len(missing) > 0:
+        keep = np.delete(keep, missing)
+        print('Keeping {}/{} galaxies with complete montages.'.format(len(keep), len(sample)))
+        sample = sample[keep]
+    #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
+
+    trendshtml = 'trends.html'
+    homehtml = 'index.html'
+
+    # Build the home (index.html) page--
+    build_homehtml(sample, htmldir, homehtml=homehtml, pixscale=pixscale,
+                   racolumn=racolumn, deccolumn=deccolumn, diamcolumn=diamcolumn,
+                   maketrends=maketrends)
+
+    # Now build the individual pages in parallel.
+    raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
+    rasorted = np.argsort(raslices)
+    galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample[rasorted], html=True)
+
+    nextgalaxy = np.roll(np.atleast_1d(galaxy), -1)
+    prevgalaxy = np.roll(np.atleast_1d(galaxy), 1)
+    nexthtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), -1)
+    prevhtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), 1)
+
+    mp = multiproc(nthreads=nproc)
+    args = []
+    for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate(zip(
+        sample[rasorted], np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir))):
+        args.append([ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, htmldir,
+                     racolumn, deccolumn, diamcolumn, pixscale, nextgalaxy,
+                     prevgalaxy, nexthtmlgalaxydir, prevhtmlgalaxydir, verbose])
+    ok = mp.map(_build_htmlpage_one, args)
+    
+    pdb.set_trace()
 
     # Make the plots.
     if makeplots:
@@ -1425,21 +1421,5 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
             [shutil.chown(os.path.join(topdir, dd), group='cosmo') for dd in dirs]
             [shutil.chown(os.path.join(topdir, ff), group='cosmo') for ff in files]
         
-        #cmd = 'chgrp -R cosmo {}'.format(htmldir)
-        #print(cmd)
-        #err1 = subprocess.call(cmd.split())
-        #
-        #cmd = 'find {} -type d -exec chmod 775 {{}} +'.format(htmldir)
-        #print(cmd)
-        #err2 = subprocess.call(cmd.split())
-        #
-        #cmd = 'find {} -type f -exec chmod 664 {{}} +'.format(htmldir)
-        #print(cmd)
-        #err3 = subprocess.call(cmd.split())
-        #
-        #if err1 != 0 or err2 != 0 or err3 != 0:
-        #    print('Something went wrong updating permissions; please check the logfile.')
-        #    return 0
-    
     return 1
 
