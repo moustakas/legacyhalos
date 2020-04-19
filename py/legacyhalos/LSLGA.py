@@ -338,8 +338,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             rows = rows[brickcut]
             
         if True: # DR9-SV bricklist
-            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-DR9SV-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'bricklist-DR9SV-south.txt'), dtype='str')
+            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
+            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
 
@@ -428,10 +428,11 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
 
     import warnings
     import fitsio
-    from astropy.table import Table
+    from astropy.table import Table, vstack
     from tractor.ellipses import EllipseESoft
     from legacyhalos.io import read_ellipsefit
     from legacyhalos.misc import is_in_ellipse
+    from legacyhalos.ellipse import SBTHRESH as sbcuts
     
     onegal = Table(onegal)
     galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
@@ -442,7 +443,7 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
     # list here.
     if not os.path.isfile(tractorfile):
         print('Missing tractor file {}'.format(tractorfile))
-        return None, None
+        return None, None, onegal
     
     tractor = Table(fitsio.read(tractorfile))
     #print('Temporarily remove the wise light-curve columns!')
@@ -454,14 +455,13 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
         tractor = tractor[notgaia]
 
     # Initialize every source with PREBURNED=True, FREEZE=False
-    tractor['preburned'] = np.ones(len(tractor), bool)  # Everything was preburned...
-    tractor['freeze'] = np.zeros(len(tractor), bool)    # ...but we only want to freeze the LSLGA galaxies...
+    tractor['preburned'] = np.ones(len(tractor), bool)  # Everything was preburned but we only want to freeze the...
+    tractor['freeze'] = np.zeros(len(tractor), bool)    # ...LSLGA galaxies and sources in that galaxie's ellipse.
         
-    # Gather up ee legacyhalos.ellipse.ellipse_cog--
-    sbcuts = [23, 24, 25, 25.5, 26]
+    # Gather up ee legacyhalos.ellipse.ellipse_cog results--
     radkeys = ['radius_sb{:0g}'.format(sbcut) for sbcut in sbcuts]
         
-    tractor['d25'] = np.zeros(len(tractor), np.float32) - 1 # ...and sources in that galaxie's ellipse.
+    tractor['d25'] = np.zeros(len(tractor), np.float32) - 1 
     tractor['pa'] = np.zeros(len(tractor), np.float32) - 1
     tractor['ba'] = np.ones(len(tractor), np.float32) - 1
     for radkey in radkeys:
@@ -485,7 +485,7 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
             ellipsefiles.append(ellipsefile)
         else:
             print('No ellipse fit for {} (LSLGA_ID={})'.format(fullsample['GALAXY'][these[igal]], galid))
-            reject.append(galid)
+            reject.append(Table(fullsample[these][igal]))
 
     for ellipsefile in ellipsefiles:
         lslga_id = os.path.basename(ellipsefile).split('-')[-2]
@@ -545,7 +545,10 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
         #    plt.savefig('junk.png')
         #    pdb.set_trace()
 
-    return tractor, reject
+    if len(reject) > 0:
+        reject = vstack(reject)
+
+    return tractor, reject, None
 
 def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     """Gather all the fitting results and build the final model-based LSLGA catalog.
@@ -562,25 +565,45 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     refcat, _ = get_large_galaxy_version(os.getenv('LARGEGALAXIES_CAT'))
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
-    outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    #print('Hack the path!')
-    #outdir = '/global/u2/i/ioannis/scratch'
-    
+    #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
+    outdir = legacyhalos.LSLGA.LSLGA_data_dir()
     outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
         return
 
+    rejectfile = os.path.join(outdir, 'LSLGA-reject-{}.fits'.format(version))
+    nogrzfile = os.path.join(outdir, 'LSLGA-nogrz-{}.fits'.format(version))
+
     mp = multiproc(nthreads=nproc)
-    res = mp.map(_build_model_LSLGA_one, [(onegal, fullsample, refcat) for onegal in sample])
-    rr = list(zip(*res))
+    args = []
+    for onegal in sample:
+        args.append((onegal, fullsample[fullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat))
+    rr = mp.map(_build_model_LSLGA_one, args)
+                 
+    rr = list(zip(*rr))
     cat = list(filter(None, rr[0]))
     reject = list(filter(None, rr[1]))
+    nogrz = list(filter(None, rr[2]))
     if len(cat) == 0:
         print('Something went wrong and no galaxies were fitted.')
         return
     cat = vstack(cat)
-    reject = np.hstack(reject)
+
+    if len(reject) > 0:
+        reject = vstack(reject)
+        reject = reject['GALAXY', 'RA', 'DEC', 'LSLGA_ID']
+        reject.rename_column('GALAXY', 'NAME')
+        print('Writing {} rejected galaxies to {}'.format(len(reject), rejectfile))
+        reject.write(rejectfile, overwrite=True)
+
+    if len(nogrz) > 0:
+        nogrz = vstack(nogrz)
+        nogrz = nogrz['GALAXY', 'RA', 'DEC', 'LSLGA_ID']
+        nogrz.rename_column('GALAXY', 'NAME')
+        print('Writing {} galaxies with no grz coverage to {}'.format(len(nogrz), nogrzfile))
+        nogrz.write(nogrzfile, overwrite=True)
+
     #for d1, d2 in zip(cat[0].dtype.descr, cat[1].dtype.descr):
     #    if d1 != d2:
     #        print(d1, d2)
@@ -608,7 +631,10 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     # Throw away rejected galaxies--
     if len(reject) > 0:
         print('Rejecting {} LSLGA galaxies.'.format(len(reject)))
-        rem = np.where(np.isin(lslga['LSLGA_ID'], reject))[0]
+        rem = np.where(np.isin(lslga['LSLGA_ID'], reject['LSLGA_ID']))[0]
+        if len(rem) != len(reject):
+            print('Missing rejected galaxies in parent LSLGA!')
+            pdb.set_trace()
         lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
 
     lslga['LSLGA_RA'] = lslga['RA']
@@ -672,6 +698,20 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     out = vstack((out[out['LSLGA_ID'] != -1], out[out['LSLGA_ID'] == -1]))
     del lslga, cat
 
+    # One final check--every galaxy in fullsample should be accounted for in
+    # either 'out' or 'reject', with no duplication!  Galaxies in 'nogrz' *will*
+    # be in 'out' because we still want to use them in production even though we
+    # couldn't do ellipse-fitting.
+    _out = out[(out['LSLGA_ID'] != -1) * out['PREBURNED']]
+    chk1 = np.where(np.isin(fullsample['LSLGA_ID'], _out['LSLGA_ID']))[0]
+    chk2 = np.where(np.isin(out['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
+    chk3 = np.where(np.isin(out['LSLGA_ID'], reject['LSLGA_ID']))[0]
+    chk4 = np.where(np.isin(reject['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
+    assert(len(chk1) == len(_out))
+    assert(len(chk2) == len(nogrz))
+    assert(len(chk3) == 0)
+    assert(len(chk4) == 0)
+    
     print('Writing {} galaxies to {}'.format(len(out), outfile))
     hdrversion = 'L{}-MODEL'.format(version[1:2]) # fragile!
     hdr['LSLGAVER'] = hdrversion

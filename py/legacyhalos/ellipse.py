@@ -24,6 +24,8 @@ from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
 from photutils.isophote.sample import CentralEllipseSample
 from photutils.isophote.fitter import CentralEllipseFitter
 
+SBTHRESH = [23, 24, 25, 25.5, 26] # surface brightness thresholds
+
 class CogModel(astropy.modeling.Fittable1DModel):
     """Class to empirically model the curve of growth.
 
@@ -102,8 +104,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     #print('We should measure these radii from the extinction-corrected photometry!')
     sberr = sbprofile['muerr_r']
     rr = (sbprofile['sma_r'] * pixscale)**0.25 # [arcsec]
-    sbcuts = [23, 24, 25, 25.5, 26]
-    for sbcut in sbcuts:
+    for sbcut in SBTHRESH:
         if sbprofile['mu_r'].max() < sbcut:
             print('Profile too shallow to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
             results['radius_sb{:0g}'.format(sbcut)] = -1.0
