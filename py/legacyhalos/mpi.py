@@ -24,7 +24,7 @@ def _done(galaxy, err, t0, log=None):
     print('Finished galaxy {} in {:.3f} minutes.'.format(
           galaxy, (time.time() - t0)/60), flush=True, file=log)
 
-def call_pipeline_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
+def call_pipeline_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                          pixscale=0.262, racolumn='RA', deccolumn='DEC',
                          apodize=False, unwise=True, force=False, plots=False,
                          verbose=False, cleanup=True, write_all_pickles=False,
@@ -36,8 +36,6 @@ def call_pipeline_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
     radius_mosaic in arcsec
 
     """
-    run = legacyhalos.io.get_run(onegal)
-    
     t0 = time.time()
     if debug:
         _start(galaxy)
@@ -210,7 +208,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                                                   get_galaxy_galaxydir=get_galaxy_galaxydir)
                 _done(galaxy, err, t0, log=log)
 
-def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
+def call_largegalaxy_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                             pixscale=0.262, racolumn='RA', deccolumn='DEC',
                             apodize=False, unwise=True, force=False, plots=False,
                             verbose=False, cleanup=True, write_all_pickles=False,
@@ -223,12 +221,10 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
     radius_mosaic in arcsec
 
     """
-    run = legacyhalos.io.get_run(onegal)
-    
     t0 = time.time()
     if debug:
         _start(galaxy)
-        err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
+        err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey, 
                                                     radius_mosaic=radius_mosaic, nproc=nproc, 
                                                     pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
                                                     apodize=apodize, unwise=unwise, force=force, plots=plots,
@@ -240,7 +236,7 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic, nproc=1,
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey,
+                err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey, 
                                                             radius_mosaic=radius_mosaic, nproc=nproc, 
                                                             pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
                                                             apodize=apodize, unwise=unwise, force=force, plots=plots,

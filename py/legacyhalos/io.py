@@ -1051,6 +1051,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         cols = ['ra', 'dec', 'bx', 'by', 'type', 'ref_cat', 'ref_id',
                 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
                 'flux_g', 'flux_r', 'flux_z',
+                'nobs_g', 'nobs_r', 'nobs_z',
                 'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
                 'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
                 'psfsize_g', 'psfsize_r', 'psfsize_z']
@@ -1080,26 +1081,55 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     if largegalaxy:
         # I'm going to be pedantic here to be sure I get it right (np.isin
         # doens't preserve order)--
+        msg = []
         islslga = ['L' in refcat for refcat in tractor.ref_cat] # e.g., L6
-        posflux = tractor.get('flux_{}'.format(refband)) > 0
-        minsize = tractor.shape_r > 2.0 # minimum size [arcsec]
-        #posflux = np.logical_or(np.logical_or(tractor.flux_g > 0, tractor.flux_r > 0), tractor.flux_z > 0)
+        minsize = 2.0     # [arcsec]
+        minsize_rex = 5.0 # minimum size for REX [arcsec]
         central_galaxy, reject_galaxy, keep_galaxy = [], [], []
+        data['tractor_flags'] = {}
         for ii, sid in enumerate(sample['LSLGA_ID']):
-            I = np.where((sid == tractor.ref_id) * posflux * minsize * islslga)[0]
+            I = np.where((sid == tractor.ref_id) * islslga)[0]
             if len(I) == 0: # dropped by Tractor
                 reject_galaxy.append(ii)
+                data['tractor_flags'].update({str(sid): 'dropped'})
+                msg.append('Dropped by Tractor (spurious?)')
             else:
-                if (tractor.type[I] == 'PSF') or (tractor.type[I] == 'REX'):
+                r50 = tractor.shape_r[I][0]
+                refflux = tractor.get('flux_{}'.format(refband))[I][0]
+                ng, nr, nz = tractor.nobs_g[I][0], tractor.nobs_z[I][0], tractor.nobs_z[I][0]
+                if ng < 1 or nr < 1 or nz < 1:
                     reject_galaxy.append(ii)
+                    data['tractor_flags'].update({str(sid): 'nogrz'})
+                    msg.append('Missing 3-band coverage')
+                elif tractor.type[I] == 'PSF': # always reject
+                    reject_galaxy.append(ii)
+                    data['tractor_flags'].update({str(sid): 'psf'})
+                    msg.append('Tractor type=PSF')
+                elif refflux <= 0:
+                    reject_galaxy.append(ii)
+                    data['tractor_flags'].update({str(sid): 'negflux'})
+                    msg.append('{}-band flux={:.3g} (<=0)'.format(refband, refflux))
+                elif r50 < minsize:
+                    reject_galaxy.append(ii)
+                    data['tractor_flags'].update({str(sid): 'anytype_toosmall'})
+                    msg.append('r50={:.3f} (<{:.1f}) arcsec'.format(r50, minsize))
+                elif tractor.type[I] == 'REX':
+                    if r50 > minsize_rex: # REX must have a minimum size
+                        keep_galaxy.append(ii)
+                        central_galaxy.append(I)
+                    else:
+                        reject_galaxy.append(ii)
+                        data['tractor_flags'].update({str(sid): 'rex_toosmall'})
+                        msg.append('Tractor type=REX & r50={:.3f} (<{:.1f}) arcsec'.format(r50, minsize_rex))
                 else:
                     keep_galaxy.append(ii)
                     central_galaxy.append(I)
 
         if len(reject_galaxy) > 0:
             reject_galaxy = np.hstack(reject_galaxy)
-            print('Warning: The following seed galaxies have been dropped by Tractor (or are PSF or REX)!')
-            print(sample[reject_galaxy]['LSLGA_ID', 'GALAXY', 'RA', 'DEC'])
+            for jj, rej in enumerate(reject_galaxy):
+                print('  Dropping {} (LSLGA_ID={}, RA, Dec = {:.7f} {:.7f}): {}'.format(
+                    sample[rej]['GALAXY'], sample[rej]['LSLGA_ID'], sample[rej]['RA'], sample[rej]['DEC'], msg[jj]))
 
         if len(central_galaxy) > 0:
             keep_galaxy = np.hstack(keep_galaxy)

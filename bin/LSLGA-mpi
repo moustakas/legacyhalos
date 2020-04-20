@@ -19,7 +19,8 @@ def main():
     import legacyhalos.mpi
     import legacyhalos.LSLGA
 
-    from legacypipe.survey import LegacySurveyData
+    from legacypipe.runs import get_survey
+    #from legacypipe.survey import LegacySurveyData
     from legacyhalos.mpi import (call_pipeline_coadds, call_custom_coadds, call_largegalaxy_coadds,
                                  call_ellipse, call_htmlplots)
     from legacyhalos.LSLGA import ZCOLUMN
@@ -56,7 +57,7 @@ def main():
             fullsample = None
     else:
         sample, fullsample = None, None
-        
+
     if comm:
         sample = comm.bcast(sample, root=0)
         fullsample = comm.bcast(fullsample, root=0)
@@ -135,8 +136,10 @@ def main():
         else:
             radius_mosaic_arcsec = onegal['GROUP_DIAMETER'] * 60 * 1.5 # [arcsec]
 
-        survey = LegacySurveyData()
-        survey.output_dir = galaxydir
+        run = legacyhalos.io.get_run(onegal)
+        survey = get_survey(run, output_dir=galaxydir)
+        #survey = LegacySurveyData()
+        #survey.output_dir = galaxydir
 
         if args.largegalaxy_coadds:
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
@@ -146,7 +149,7 @@ def main():
                 #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
                 thissample.write(samplefile, overwrite=True)
                 
-                call_largegalaxy_coadds(onegal, galaxy, survey, radius_mosaic_arcsec, nproc=args.nproc,
+                call_largegalaxy_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                         pixscale=args.pixscale, racolumn='GROUP_RA', deccolumn='GROUP_DEC',
                                         apodize=False, unwise=True, force=args.force, plots=False,
                                         verbose=args.verbose, cleanup=cleanup, write_all_pickles=True,
@@ -157,7 +160,7 @@ def main():
         if args.pipeline_coadds:
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
                 # No unwise here (we do it in largegalaxy_coadds)
-                call_pipeline_coadds(onegal, galaxy, survey, radius_mosaic_arcsec, nproc=args.nproc,
+                call_pipeline_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                      pixscale=args.pixscale, racolumn='GROUP_RA', deccolumn='GROUP_DEC',
                                      apodize=False, unwise=False, force=args.force, plots=False,
                                      verbose=args.verbose, cleanup=True, write_all_pickles=True,

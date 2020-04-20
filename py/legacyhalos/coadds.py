@@ -67,7 +67,7 @@ def _copyfile(infile, outfile, clobber=False):
 
 def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                      unwise=True, cleanup=False, just_coadds=False,
-                     clobber=False):
+                     clobber=False, require_grz=True):
     """Move (rename) files into the desired output directory and clean up.
 
     """
@@ -95,6 +95,11 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     ccdsfile = os.path.join(output_dir, '{}-ccds-{}.fits'.format(galaxy, run))
     allbands = fitsio.read(ccdsfile, columns='filter')
     bands = list(sorted(set(allbands)))
+
+    ## For objects on the edge of the footprint we can sometimes lose 3-band
+    ## coverage if one of the bands is fully masked. Check here and write out all
+    ## the files except a 
+    #if require_grz:
 
     # image coadds (FITS + JPG)
     for band in bands:
@@ -393,7 +398,8 @@ def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         # Move (rename) files into the desired output directory and clean up.
         ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
                               run, unwise=unwise, cleanup=cleanup,
-                              just_coadds=just_coadds, clobber=force)
+                              just_coadds=just_coadds, clobber=force,
+                              require_grz=require_grz)
         return ok
 
 def _build_objmask(img, ivar, skypix, boxcar=5, boxsize=1024):
@@ -720,7 +726,8 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         # Move (rename) files into the desired output directory and clean up.
         ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
                               run, unwise=unwise, cleanup=cleanup,
-                              just_coadds=just_coadds, clobber=force)
+                              just_coadds=just_coadds, clobber=force,
+                              require_grz=require_grz)
         return ok
 
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,

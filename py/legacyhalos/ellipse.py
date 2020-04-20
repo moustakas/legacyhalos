@@ -54,13 +54,17 @@ def _apphot_one(args):
     """Wrapper function for the multiprocessing."""
     return apphot_one(*args)
 
-def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False):
+def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False, iscircle=False):
     """Perform aperture photometry in a single elliptical annulus.
 
     """
-    from photutils import EllipticalAperture, aperture_photometry
+    from photutils import EllipticalAperture, CircularAperture, aperture_photometry
 
-    aperture = EllipticalAperture((x0, y0), aa, bb, theta)
+    if iscircle:
+        aperture = CircularAperture((x0, y0), aa)
+    else:
+        aperture = EllipticalAperture((x0, y0), aa, bb, theta)
+        
     # Integrate the data to get the total surface brightness (in
     # nanomaggies/arcsec2) and the mask to get the fractional area.
     
@@ -149,7 +153,11 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             
         sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
         smb = sma * eps
-
+        if eps == 0:
+            iscircle = True
+        else:
+            iscircle = False
+        
         x0 = refellipsefit['x0'] * pixscalefactor
         y0 = refellipsefit['y0'] * pixscalefactor
 
@@ -159,13 +167,13 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         with np.errstate(all='ignore'):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', category=AstropyUserWarning)
-                cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False)
+                cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle)
                                                 for aa, bb in zip(sma, smb)])
                 cogflux = np.hstack(cogflux)
 
                 if '{}_var'.format(filt) in data.keys():
                     var = data['{}_var'.format(filt)][centralindx] # [nanomaggies**2/arcsec**4]
-                    cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True)
+                    cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True, iscircle)
                                                     for aa, bb in zip(sma, smb)])
                     cogferr = np.hstack(cogferr)
                 else:
@@ -268,7 +276,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
         #print('Measuring integrated magnitudes to different radii.')
         sb = ellipse_sbprofile(refellipsefit, linear=True)
-        for radkey in ['radius_sb{:0g}'.format(sbcut) for sbcut in sbcuts]:
+        for radkey in ['radius_sb{:0g}'.format(sbcut) for sbcut in SBTHRESH]:
             magkey = radkey.replace('radius_', 'mag_{}_'.format(filt))
             smamax = results[radkey] # semi-major axis
             if smamax > 0 and smamax < np.max(sma_arcsec):
