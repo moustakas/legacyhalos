@@ -14,7 +14,7 @@ import legacyhalos.io
 RADIUS_CLUSTER_KPC = 100.0     # default cluster radius
 ZCOLUMN = 'Z'
 RACOLUMN = 'GROUP_RA'
-DECCOLUMN = 'GROUP_DEC',
+DECCOLUMN = 'GROUP_DEC'
 DIAMCOLUMN = 'GROUP_DIAMETER'
 
 def mpi_args():
@@ -439,7 +439,7 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
     # list here.
     if not os.path.isfile(tractorfile):
         print('Missing tractor file {}'.format(tractorfile))
-        return None, None, onegal
+        return None, None, None, onegal
 
     # Note: for galaxies on the edge of the footprint we can also sometimes
     # lose 3-band coverage if one or more of the bands is fully masked
@@ -452,7 +452,7 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
             print('  Missing image {}'.format(imfile))
             grzmissing = True
     if grzmissing:
-        return None, None, onegal
+        return None, None, None, onegal
     
     tractor = Table(fitsio.read(tractorfile))
     #print('Temporarily remove the wise light-curve columns!')
@@ -486,17 +486,19 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
     # Gather up all the ellipse files, which *define* the sample, but also track
     # the galaxies that fail ellipse-fitting.
     #ellipsefiles = glob(os.path.join(galaxydir, '{}-largegalaxy-*-ellipse.asdf'.format(galaxy)))
-    ellipsefiles, reject = [], []
-    these = np.where(fullsample['GROUP_ID'] == onegal['GROUP_ID'])[0]
-    for igal, galid in enumerate(fullsample['LSLGA_ID'][these]):
+    reject, inspect = [], []
+    for igal, galid in enumerate(np.atleast_1d(fullsample['LSLGA_ID'])):
         ellipsefile = os.path.join(galaxydir, '{}-largegalaxy-{}-ellipse.asdf'.format(galaxy, galid))
-        if os.path.isfile(ellipsefile):
-            ellipsefiles.append(ellipsefile)
-        else:
-            print('No ellipse fit for {} (LSLGA_ID={})'.format(fullsample['GALAXY'][these[igal]], galid))
-            reject.append(Table(fullsample[these][igal]))
+        if not os.path.isfile(ellipsefile):
+            try:
+                print('No ellipse fit for {} (LSLGA_ID={})'.format(fullsample['GALAXY'][igal], galid))
+                reject.append(Table(fullsample[igal]))
+            except:
+                print('Problem rejecting', galaxy, galid)
+                pdb.set_trace()
+            continue
 
-    for ellipsefile in ellipsefiles:
+        # parse it!
         lslga_id = os.path.basename(ellipsefile).split('-')[-2]
         lslga_id = np.int(lslga_id)
         this = np.where((tractor['ref_cat'] == refcat) * (tractor['ref_id'] == lslga_id))[0]
@@ -506,8 +508,12 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
             
         af = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id), filesuffix='largegalaxy', verbose=True)
         ellipse = af.tree
-
-        print('Need to record the various failures like centroid shifts!')
+        if ellipse['badcenter']:
+            try:
+                inspect.append(Table(fullsample[igal]))
+            except:
+                print('Problem stacking', galaxy, galid)
+                pdb.set_trace()
 
         # Add the basic ellipse geometry and the aperture photometry--
         tractor['freeze'][this] = True
@@ -558,8 +564,10 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
 
     if len(reject) > 0:
         reject = vstack(reject)
+    if len(inspect) > 0:
+        inspect = vstack(inspect)
 
-    return tractor, reject, None
+    return tractor, reject, inspect, None
 
 def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     """Gather all the fitting results and build the final model-based LSLGA catalog.
@@ -584,6 +592,7 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
         return
 
     rejectfile = os.path.join(outdir, 'LSLGA-reject-{}.fits'.format(version))
+    inspectfile = os.path.join(outdir, 'LSLGA-inspect-{}.fits'.format(version))
     nogrzfile = os.path.join(outdir, 'LSLGA-nogrz-{}.fits'.format(version))
 
     mp = multiproc(nthreads=nproc)
@@ -591,11 +600,13 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     for onegal in sample:
         args.append((onegal, fullsample[fullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat))
     rr = mp.map(_build_model_LSLGA_one, args)
-
     rr = list(zip(*rr))
+
     cat = list(filter(None, rr[0]))
     reject = list(filter(None, rr[1]))
-    nogrz = list(filter(None, rr[2]))
+    inspect = list(filter(None, rr[2]))
+    nogrz = list(filter(None, rr[3]))
+
     if len(cat) == 0:
         print('Something went wrong and no galaxies were fitted.')
         return
@@ -603,14 +614,21 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
 
     if len(reject) > 0:
         reject = vstack(reject)
-        reject = reject['GALAXY', 'RA', 'DEC', 'LSLGA_ID']
+        reject = reject['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA']
         reject.rename_column('GALAXY', 'NAME')
         print('Writing {} rejected galaxies to {}'.format(len(reject), rejectfile))
         reject.write(rejectfile, overwrite=True)
 
+    if len(inspect) > 0:
+        inspect = vstack(inspect)
+        inspect = inspect['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA']
+        inspect.rename_column('GALAXY', 'NAME')
+        print('Writing {} galaxies to inspect to {}'.format(len(inspect), inspectfile))
+        inspect.write(inspectfile, overwrite=True)
+
     if len(nogrz) > 0:
         nogrz = vstack(nogrz)
-        nogrz = nogrz['GALAXY', 'RA', 'DEC', 'LSLGA_ID']
+        nogrz = nogrz['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA']
         nogrz.rename_column('GALAXY', 'NAME')
         print('Writing {} galaxies with no grz coverage to {}'.format(len(nogrz), nogrzfile))
         nogrz.write(nogrzfile, overwrite=True)

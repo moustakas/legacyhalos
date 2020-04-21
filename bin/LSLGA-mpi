@@ -63,20 +63,19 @@ def main():
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
-    if args.build_LSLGA:
-        if rank == 0:
-            if args.build_LSLGA:
-                _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
-                legacyhalos.LSLGA.build_model_LSLGA(sample[tuple(groups)], fullsample,
-                                                    nproc=args.nproc, clobber=args.clobber)
+    if (args.build_LSLGA or args.htmlindex) and rank == 0:
+        if args.build_LSLGA:
+            _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
+            legacyhalos.LSLGA.build_model_LSLGA(sample[tuple(groups)], fullsample,
+                                                nproc=args.nproc, clobber=args.clobber)
 
-            if args.htmlindex:
-                legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
-                                            racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
-                                            zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
-                                            makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                            ccdqa=args.ccdqa, args=args)
-            return
+        if args.htmlindex:
+            legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
+                                        racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
+                                        zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+                                        makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                        ccdqa=args.ccdqa, args=args)
+        return
     
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
