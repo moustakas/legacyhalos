@@ -13,6 +13,9 @@ import legacyhalos.io
 
 RADIUS_CLUSTER_KPC = 100.0     # default cluster radius
 ZCOLUMN = 'Z'
+RACOLUMN = 'GROUP_RA'
+DECCOLUMN = 'GROUP_DEC',
+DIAMCOLUMN = 'GROUP_DIAMETER'
 
 def mpi_args():
     import argparse

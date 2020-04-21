@@ -20,10 +20,9 @@ def main():
     import legacyhalos.LSLGA
 
     from legacypipe.runs import get_survey
-    #from legacypipe.survey import LegacySurveyData
     from legacyhalos.mpi import (call_pipeline_coadds, call_custom_coadds, call_largegalaxy_coadds,
                                  call_ellipse, call_htmlplots)
-    from legacyhalos.LSLGA import ZCOLUMN
+    from legacyhalos.LSLGA import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
 
     lslgadir = legacyhalos.LSLGA.LSLGA_dir()
     datadir = legacyhalos.LSLGA.LSLGA_data_dir()
@@ -62,22 +61,22 @@ def main():
         sample = comm.bcast(sample, root=0)
         fullsample = comm.bcast(fullsample, root=0)
 
-    if args.build_LSLGA:
-        if rank == 0:
-            _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
-            legacyhalos.LSLGA.build_model_LSLGA(sample[tuple(groups)], fullsample,
-                                                nproc=args.nproc, clobber=args.clobber)
-        return
-
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
-    if args.htmlindex:
+    if args.build_LSLGA:
         if rank == 0:
-            legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
-                                        zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
-                                        makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                        ccdqa=args.ccdqa, args=args)
-        return
+            if args.build_LSLGA:
+                _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
+                legacyhalos.LSLGA.build_model_LSLGA(sample[tuple(groups)], fullsample,
+                                                    nproc=args.nproc, clobber=args.clobber)
+
+            if args.htmlindex:
+                legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
+                                            racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
+                                            zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+                                            makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                            ccdqa=args.ccdqa, args=args)
+            return
     
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
@@ -106,7 +105,7 @@ def main():
     if len(groups[rank]) == 0 or args.count:
         if len(groups[rank]) > 0 and args.debug:
             galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[tuple(groups)])
-            for ii, dd, diam in zip(groups[rank], galaxydir, sample[tuple(groups)]['GROUP_DIAMETER']):
+            for ii, dd, diam in zip(groups[rank], galaxydir, sample[tuple(groups)][DIAMCOLUMN]):
                 print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
         return
 
@@ -130,29 +129,26 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        cleanup = True
         if args.largegalaxy_customsky:
-            radius_mosaic_arcsec = onegal['GROUP_DIAMETER'] * 60 # [arcsec]
+            radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
         else:
-            radius_mosaic_arcsec = onegal['GROUP_DIAMETER'] * 60 * 1.5 # [arcsec]
+            radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
 
         run = legacyhalos.io.get_run(onegal)
         survey = get_survey(run, output_dir=galaxydir)
-        #survey = LegacySurveyData()
-        #survey.output_dir = galaxydir
 
         if args.largegalaxy_coadds:
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-                # Write out the full sample for this object and then build the coadds.
+                # Write out the individual galaxies for this mosaic.
                 thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
                 samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
                 #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
                 thissample.write(samplefile, overwrite=True)
                 
                 call_largegalaxy_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
-                                        pixscale=args.pixscale, racolumn='GROUP_RA', deccolumn='GROUP_DEC',
+                                        pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                         apodize=False, unwise=True, force=args.force, plots=False,
-                                        verbose=args.verbose, cleanup=cleanup, write_all_pickles=True,
+                                        verbose=args.verbose, cleanup=True, write_all_pickles=True,
                                         no_splinesky=False, customsky=args.largegalaxy_customsky,
                                         just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                         require_grz=True, debug=args.debug, logfile=logfile)
@@ -161,7 +157,7 @@ def main():
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
                 # No unwise here (we do it in largegalaxy_coadds)
                 call_pipeline_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
-                                     pixscale=args.pixscale, racolumn='GROUP_RA', deccolumn='GROUP_DEC',
+                                     pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                      apodize=False, unwise=False, force=args.force, plots=False,
                                      verbose=args.verbose, cleanup=True, write_all_pickles=True,
                                      no_splinesky=False, just_coadds=args.just_coadds,
@@ -173,38 +169,6 @@ def main():
                              nproc=args.nproc, verbose=args.verbose, debug=args.debug,
                              logfile=logfile, largegalaxy=True, pipeline=False)
                              
-                #pdb.set_trace()
-                #import asdf
-                #data = legacyhalos.io.read_multiband(galaxy, galaxydir, refband='r',
-                #                                     pixscale=args.pixscale,
-                #                                     verbose=args.verbose,
-                #                                     largegalaxy=True)
-                #[data.pop('{}_masked'.format(filt)) for filt in data['bands']] # remove the images
-                #for igal in np.arange(len(data['central_galaxy_id'])):
-                #    lslga_id = data['central_galaxy_id'][igal]
-                #    thisgal = fullsample[fullsample['LSLGA_ID'] == lslga_id]
-                #    if len(thisgal) == 0:
-                #        print('Well this is embarrassing: unable to find galaxy {} in full sample.'.format(
-                #            lslga_id))
-                #        continue
-                #    tree = {'lslga_id': lslga_id, 'galaxy': str(thisgal['GALAXY'][0]), #str(onegal['GALAXY']),
-                #            'pixscale': np.float32(args.pixscale)}
-                #    for key in ['ra', 'dec', 'pgc', 'pa', 'ba', 'd25']:
-                #        tree[key] = thisgal[key.upper()][0]
-                #        
-                #    for key in data['mge'][igal].keys():
-                #        if key == 'bx' or key == 'by': # keep the Tractor columns
-                #            tree[key] = data['mge'][igal][key]
-                #        else:
-                #            tree['mge_{}'.format(key)] = data['mge'][igal][key]
-                #        af = asdf.AsdfFile(tree)
-                #
-                #    filesuffix = 'largegalaxy-{}'.format(lslga_id)
-                #    legacyhalos.io.write_mge_ellipsefit(galaxy, galaxydir, af, filesuffix=filesuffix,
-                #                                        verbose=args.verbose)
-                #    #bb = legacyhalos.io.read_mge_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
-                #    #                                        verbose=args.verbose)
-                    
         if args.htmlplots:
             if radius_mosaic_arcsec > 6 * 60: # [>6] arcmin
                 barlabel = '2 arcmin'
