@@ -109,8 +109,8 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     sberr = sbprofile['muerr_r']
     rr = (sbprofile['sma_r'] * pixscale)**0.25 # [arcsec]
     for sbcut in SBTHRESH:
-        if sbprofile['mu_r'].max() < sbcut:
-            print('Profile too shallow to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
+        if sbprofile['mu_r'].max() < sbcut or sbprofile['mu_r'].min() > sbcut:
+            print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
             results['radius_sb{:0g}'.format(sbcut)] = -1.0
             continue
 
@@ -118,6 +118,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         keep = np.where((sb > -1) * (sb < 1))[0]
         #coeff = np.polyfit(rr[keep], sb[keep], 1, w=1/sberr[keep])
         # Monte Carlo to get the radius
+
         rcut = []
         for ii in np.arange(20):
             sbfit = rand.normal(sb[keep], sberr[keep])
