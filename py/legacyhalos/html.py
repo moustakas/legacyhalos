@@ -12,8 +12,10 @@ import astropy.table
 import legacyhalos.io
 import legacyhalos.misc
 
-def _javastring():
-    """Return a string that embeds a date in a webpage."""
+def html_javadate():
+    """Return a string that embeds a date in a webpage using Javascript.
+
+    """
     import textwrap
 
     js = textwrap.dedent("""
@@ -519,6 +521,26 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
 
     return 1
 
+# Get the viewer link
+def viewer_link(ra, dec, width):
+    baseurl = 'http://legacysurvey.org/viewer/'
+    if width > 1200:
+        zoom = 13
+    elif (width > 400) * (width < 1200):
+        zoom = 14
+    else:
+        zoom = 15
+    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8&lslga'.format(
+        baseurl, ra, dec, zoom)
+
+    return viewer
+
+def skyserver_link(gal):
+    if 'SDSS_OBJID' in gal.colnames:
+        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
+    else:
+        return ''
+
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
               first=None, last=None, nproc=1, survey=None, makeplots=True,
@@ -547,7 +569,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
 
     # Write the last-updated date to a webpage.
-    js = _javastring()       
+    js = html_javadate()       
 
     # Get the viewer link
     def _viewer_link(gal):

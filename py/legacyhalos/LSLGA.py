@@ -412,13 +412,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     
     return sample
 
-# From TheTractor/code/optimize_mixture_profiles.py
-from scipy.special import gammaincinv
-def sernorm(n):
-	return gammaincinv(2.*n, 0.5)
-def sersic_profile(x, n):
-    return np.exp(-sernorm(n) * (x ** (1./n) - 1.))
-
 def _build_model_LSLGA_one(args):
     """Wrapper function for the multiprocessing."""
     return build_model_LSLGA_one(*args)
@@ -751,26 +744,6 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
         shutil.chown(outfile, group='cosmo')
         shutil.chown(kdoutfile, group='cosmo')
 
-# Get the viewer link
-def _viewer_link(ra, dec, width):
-    baseurl = 'http://legacysurvey.org/viewer/'
-    if width > 1200:
-        zoom = 13
-    elif (width > 400) * (width < 1200):
-        zoom = 14
-    else:
-        zoom = 15
-    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8&lslga'.format(
-        baseurl, ra, dec, zoom)
-
-    return viewer
-
-def _skyserver_link(gal):
-    if 'SDSS_OBJID' in gal.colnames:
-        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
-    else:
-        return ''
-
 def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
     res = []
     for band in ('g', 'r', 'z'):
@@ -815,7 +788,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
     homehtmlfile = os.path.join(htmldir, homehtml)
     print('Building {}'.format(homehtmlfile))
 
-    js = legacyhalos.html._javastring()       
+    js = legacyhalos.html.html_javadate()       
 
     # group by RA slices
     raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
@@ -860,6 +833,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
                 thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-largegalaxy-grz-montage.png'.format(galaxy1))
 
                 ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
+                viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale)
 
                 html.write('<tr>\n')
                 #html.write('<td>{:g}</td>\n'.format(count))
@@ -874,7 +848,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
                 #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
                 #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
                 #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
-                html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(ra1, dec1, diam1*2*60/pixscale)))
+                html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
                 #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
                 html.write('</tr>\n')
             html.write('</table>\n')
@@ -941,7 +915,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
     nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
     prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
     
-    js = legacyhalos.html._javastring()
+    js = legacyhalos.html.html_javadate()
 
     # Support routines--
 
@@ -991,6 +965,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
 
         """
         ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
+        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale)
 
         html.write('<h2>Group Properties</h2>\n')
 
@@ -1021,7 +996,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
         #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
         #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
-        html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(ra1, dec1, diam1*2*60/pixscale)))
+        html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
         #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
         html.write('</tr>\n')
         html.write('</table>\n')
@@ -1283,7 +1258,6 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
             #html.write('<br />\n')
             af.close()
 
-
     def _html_ccd_diagnostics(html):
         html.write('<h2>CCD Diagnostics</h2>\n')
 
@@ -1339,7 +1313,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
               racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
               first=None, last=None, galaxylist=None,
-              nproc=1, survey=None, makeplots=True,
+              nproc=1, survey=None, makeplots=False,
               clobber=False, verbose=True, maketrends=False, ccdqa=False,
               args=None, fix_permissions=True):
     """Make the HTML pages.
@@ -1399,19 +1373,4 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                      clobber, fix_permissions])
     ok = mp.map(_build_htmlpage_one, args)
     
-    # Make the plots?
-    if makeplots:
-        err = legacyhalos.html.make_plots(sample, datadir=datadir, htmldir=htmldir, refband=refband,
-                                          bands=bands, pixscale=pixscale, survey=survey, clobber=clobber,
-                                          verbose=verbose, nproc=nproc, ccdqa=ccdqa, maketrends=maketrends,
-                                          zcolumn=zcolumn)
-
-    #if fix_permissions:
-    #    print('Fixing group permissions.')
-    #    for topdir, dirs, files in os.walk(htmldir):
-    #        for dd in dirs:
-    #            shutil.chown(os.path.join(topdir, dd), group='cosmo')
-    #        for ff in files:
-    #            shutil.chown(os.path.join(topdir, ff), group='cosmo')
-        
     return 1
