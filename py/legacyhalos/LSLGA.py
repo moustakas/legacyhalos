@@ -240,7 +240,8 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
 
 def LSLGA_version():
     #version = 'v5.0' # dr9e
-    version = 'v6.0'  # DR9
+    #version = 'v6.0'  # dr9f,g
+    version = 'v7.0'  # DR9
     return version
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
@@ -286,7 +287,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         print('Selecting {} custom sky galaxies.'.format(nrows))
     elif preselect_sample:
         cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_MULT',
-                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'LSLGA_ID', 'GALAXY']
+                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'LSLGA_ID', 'GALAXY', 'RA', 'DEC']
         sample = fitsio.read(samplefile, columns=cols)
         rows = np.arange(len(sample))
 
@@ -339,8 +340,18 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #rows = np.where([brick in bricklist for brick in brickname])[0]
             brickcut = np.where(np.isin(brickname, bricklist))[0]
             rows = rows[brickcut]
+
+        if True: # SAGA host galaxies
+            from astrometry.libkd.spherematch import match_radec
+            saga = astropy.table.Table.read(os.path.join(LSLGA_dir(), 'sample', 'saga_hosts.csv'))
+            #fullsample = legacyhalos.LSLGA.read_sample(preselect_sample=False)
+            m1, m2, d12 = match_radec(sample['RA'][samplecut], sample['DEC'][samplecut],
+                                      saga['RA'], saga['DEC'], 5/3600.0, nearest=True)
+            #ww = np.where(np.isin(sample['GROUP_ID'], fullsample['GROUP_ID'][m1]))[0]
+            #ww = np.hstack([np.where(gid == sample['GROUP_ID'])[0] for gid in fullsample['GROUP_ID'][m1]])
+            rows = rows[m1]
             
-        if True: # DR9-SV bricklist
+        if False: # DR9-SV bricklist
             nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
             bricklist = np.union1d(nbricklist, sbricklist)
