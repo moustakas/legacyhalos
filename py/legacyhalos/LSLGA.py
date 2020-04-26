@@ -340,6 +340,13 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             brickcut = np.where(np.isin(brickname, bricklist))[0]
             rows = rows[brickcut]
 
+        if True: # largest galaxies which may need reprocessing (just the north)
+            #bricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
+            #brickcut = np.where(np.isin(brickname, bricklist))[0]
+            #rows = rows[brickcut]
+            m1 = sample['GROUP_DEC'][samplecut] > 30 # 32.375
+            rows = rows[m1]
+            
         if False: # SAGA host galaxies
             from astrometry.libkd.spherematch import match_radec
             saga = astropy.table.Table.read(os.path.join(LSLGA_dir(), 'sample', 'saga_hosts.csv'))
@@ -954,13 +961,15 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         if len(ccdsfile) > 0:
             nccds = fitsio.FITS(ccdsfile[0])[1].get_nrows()
 
+        # samplefile can exist without tractorfile when using --just-coadds
         samplefile = os.path.join(galaxydir1, '{}-{}-sample.fits'.format(galaxy1, prefix))
-        tractorfile = os.path.join(galaxydir1, '{}-{}-tractor.fits'.format(galaxy1, prefix))
-        if os.path.isfile(tractorfile) and os.path.isfile(samplefile):
+        if os.path.isfile(samplefile):
             sample = astropy.table.Table(fitsio.read(samplefile, upper=True))
             if verbose:
                 print('Read {} galaxy(ies) from {}'.format(len(sample), samplefile))
-
+                
+        tractorfile = os.path.join(galaxydir1, '{}-{}-tractor.fits'.format(galaxy1, prefix))
+        if os.path.isfile(tractorfile):
             cols = ['ref_cat', 'ref_id', 'type', 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
                     'flux_g', 'flux_r', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z']
             tractor = astropy.table.Table(fitsio.read(tractorfile, lower=True, columns=cols))#, rows=irows

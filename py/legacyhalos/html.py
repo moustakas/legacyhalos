@@ -228,7 +228,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     continue
 
                 # Create a couple smaller thumbnail images
-                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(1024, montagefile, thumbfile)
+                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(512, montagefile, thumbfile)
                 if os.path.isfile(thumbfile):
                     os.remove(thumbfile)                
                 print('Writing {}'.format(thumbfile))

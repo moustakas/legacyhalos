@@ -1,0 +1,4 @@
+    #explist = sorted(set([ff.strip().replace('mosaic/CP/','').replace('90prime/CP/','') for ff in ccds.image_filename]))
+    #with open('M51-exposures.txt', 'w') as ff:
+    #    [ff.write('{}\n'.format(ee)) for ee in explist]
+

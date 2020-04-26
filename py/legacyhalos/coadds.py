@@ -666,7 +666,7 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     width = _mosaic_width(radius_mosaic, pixscale)
     brickname = 'custom-{}'.format(custom_brickname(onegal[racolumn], onegal[deccolumn]))
-    
+
     # Quickly read the input CCDs and check that we have all the colors we need.
     bands = ['g', 'r', 'z']
     ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width)

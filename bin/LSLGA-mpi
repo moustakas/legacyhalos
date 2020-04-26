@@ -106,6 +106,9 @@ def main():
             galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[tuple(groups)])
             for ii, dd, diam in zip(groups[rank], galaxydir, sample[tuple(groups)][DIAMCOLUMN]):
                 print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+            #for ii, dd, diam, ra, dec in zip(groups[rank], galaxydir, sample[tuple(groups)][DIAMCOLUMN],
+            #                                 sample[tuple(groups)][RACOLUMN], sample[tuple(groups)][DECCOLUMN]):
+            #    print('  {} {} (D25={:.3f}, RA, Dec={:.5f} {:.5f})'.format(ii, dd, diam, ra, dec))
         return
 
     # Loop on the remaining objects.
