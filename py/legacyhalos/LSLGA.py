@@ -270,7 +270,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     # Select the galaxies requiring custom sky-subtraction.
     if customsky:
-        #customgals = ['NGC4236']
         sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
         rows = np.arange(len(sample))
 
@@ -341,7 +340,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             brickcut = np.where(np.isin(brickname, bricklist))[0]
             rows = rows[brickcut]
 
-        if True: # SAGA host galaxies
+        if False: # SAGA host galaxies
             from astrometry.libkd.spherematch import match_radec
             saga = astropy.table.Table.read(os.path.join(LSLGA_dir(), 'sample', 'saga_hosts.csv'))
             #fullsample = legacyhalos.LSLGA.read_sample(preselect_sample=False)

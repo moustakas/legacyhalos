@@ -103,7 +103,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
 
     # image coadds (FITS + JPG)
     for band in bands:
-        for imtype, outtype in zip(('image', 'invvar', 'copsf'), ('image', 'invvar', 'psf')):
+        for imtype, outtype in zip(('image', 'invvar'), ('image', 'invvar')):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
@@ -125,6 +125,17 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
         if cleanup:
             _do_cleanup()
         return 1
+
+    # PSFs
+    for band in bands:
+        for imtype, outtype in zip('copsf', 'psf'):
+            ok = _copyfile(
+                os.path.join(output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                             os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, outtype, band)),
+                clobber=clobber)
+            if not ok:
+                return ok
 
     # tractor catalog
     ok = _copyfile(

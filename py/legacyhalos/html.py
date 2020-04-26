@@ -182,7 +182,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
             if check is False:
                 if os.path.isfile(np.atleast_1d(jpgfile)[0]):
                     just_coadds = True
-                    
+
             if check or just_coadds:
                 with Image.open(np.atleast_1d(jpgfile)[0]) as im:
                     sz = im.size
@@ -206,14 +206,14 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
                     #cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 -resize 4096x4096\> '
                     if barlen:
-                        addbar_to_png(jpgfile, barlen, barlabel, None, barpngfile, scaledfont=True)
+                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
                         cmd = cmd+' '+barpngfile
                     else:
                         cmd = cmd+' '+jpgfile
                 else:
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
                     if barlen:
-                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
+                        addbar_to_png(jpgfile, barlen, barlabel, None, barpngfile, scaledfont=True)
                         cmd = cmd+' '+barpngfile+' '
                         cmd = cmd+' '.join(ff for ff in jpgfile[1:])
                     else:
@@ -489,7 +489,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         # Build the montage coadds.
         make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
                             barlabel=barlabel, clobber=clobber, verbose=verbose)
-                            #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage)
 
         # CCD positions
         make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
