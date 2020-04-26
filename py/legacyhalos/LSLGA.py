@@ -340,7 +340,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             brickcut = np.where(np.isin(brickname, bricklist))[0]
             rows = rows[brickcut]
 
-        if True: # largest galaxies which may need reprocessing (just the north)
+        if False: # largest galaxies which may need reprocessing (just the north)
             #bricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             #brickcut = np.where(np.isin(brickname, bricklist))[0]
             #rows = rows[brickcut]
@@ -357,7 +357,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #ww = np.hstack([np.where(gid == sample['GROUP_ID'])[0] for gid in fullsample['GROUP_ID'][m1]])
             rows = rows[m1]
             
-        if False: # DR9-SV bricklist
+        if True: # DR9-SV bricklist
             nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
             bricklist = np.union1d(nbricklist, sbricklist)
