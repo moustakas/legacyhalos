@@ -28,7 +28,7 @@ export UNWISE_MODEL_SKY_DIR=/global/cfs/cdirs/cosmo/work/wise/unwise_catalog/dr2
 export GAIA_CAT_DIR=/global/cfs/cdirs/cosmo/work/gaia/chunks-gaia-dr2-astrom-2
 export GAIA_CAT_VER=2
 export TYCHO2_KD_DIR=/global/cfs/cdirs/cosmo/staging/tycho2
-export LARGEGALAXIES_CAT=/global/cfs/cdirs/cosmo/staging/largegalaxies/v6.0/LSLGA-v6.0.kd.fits
+export LARGEGALAXIES_CAT=/global/cfs/cdirs/cosmo/staging/largegalaxies/v7.0/LSLGA-v7.0.kd.fits
 export PS1CAT_DIR=/global/cfs/cdirs/cosmo/work/ps1/cats/chunks-qz-star-v3
 export GALEX_DIR=/global/cfs/cdirs/cosmo/data/galex/images
 
@@ -42,8 +42,10 @@ export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/legacyhalos
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 
 export LSLGA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA
-export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9-5arcmin
-export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9-5arcmin
+export LSLGA_DATA_DIR=/global/cscratch1/sd/ioannis/LSLGA-data-DR9-1arcmin
+export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9-1arcmin
+#export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9-5arcmin
+#export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9-5arcmin
 
 export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
 
@@ -65,14 +67,15 @@ grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
 let usemem=${maxmem}*${ncores}/32
 
 if [ $stage = "largegalaxy-coadds" ]; then
-    echo 'JUST COADDS!'
-    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --just-coadds --d25max 20 --d25min 5
+    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --d25max 1 --last 999
+    #echo 'JUST COADDS!'
+    #time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --just-coadds --d25max 20 --d25min 5
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --ellipse --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --ellipse --nproc $ncores --mpi --verbose --d25max 1 --last 999
 elif [ $stage = "htmlplots" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --htmlplots --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --htmlplots --nproc $ncores --mpi --verbose --d25max 1 --last 999
 else
     echo "Unrecognized stage "$stage
 fi

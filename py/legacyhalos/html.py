@@ -213,7 +213,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 else:
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
                     if barlen:
-                        addbar_to_png(jpgfile, barlen, barlabel, None, barpngfile, scaledfont=True)
+                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
                         cmd = cmd+' '+barpngfile+' '
                         cmd = cmd+' '.join(ff for ff in jpgfile[1:])
                     else:
@@ -228,7 +228,11 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     continue
 
                 # Create a couple smaller thumbnail images
-                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(512, montagefile, thumbfile)
+                if sz[0] > 512:
+                    thumbsz = 512
+                else:
+                    thumbsz = sz[0]
+                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(thumbsz, montagefile, thumbfile)
                 if os.path.isfile(thumbfile):
                     os.remove(thumbfile)                
                 print('Writing {}'.format(thumbfile))
@@ -521,16 +525,20 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
     return 1
 
 # Get the viewer link
-def viewer_link(ra, dec, width):
-    baseurl = 'http://legacysurvey.org/viewer/'
+def viewer_link(ra, dec, width, lslga=False):
+    baseurl = 'http://legacysurvey.org/viewer-dev/'
     if width > 1200:
         zoom = 13
     elif (width > 400) * (width < 1200):
         zoom = 14
     else:
         zoom = 15
-    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8&lslga'.format(
-        baseurl, ra, dec, zoom)
+    if lslga:
+        layer1 = '&lslga'
+    else:
+        layer1 = ''
+    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8{}'.format(
+        baseurl, ra, dec, zoom, layer1)
 
     return viewer
 

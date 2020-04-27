@@ -134,6 +134,8 @@ def main():
         if args.largegalaxy_customsky:
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
         else:
+            #print('Temporarily hack the radius by a factor of 1.5!!')
+            #radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
 
         run = legacyhalos.io.get_run(onegal)

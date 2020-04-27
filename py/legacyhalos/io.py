@@ -11,7 +11,7 @@ import numpy as np
 import numpy.ma as ma
 from glob import glob
 
-import fitsio, asdf
+import fitsio
 from astropy.table import Table, hstack
 from astropy.io import fits
 from astrometry.util.fits import fits_table, merge_tables
@@ -400,6 +400,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     pickle - write an old-style pickle file
 
     """
+    import asdf
+    
     if pickle:
         suff = '.p'
     else:
@@ -429,6 +431,8 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True,
     """Read the output of write_ellipsefit.
 
     """
+    import asdf
+    
     if pickle:
         suff = '.p'
     else:

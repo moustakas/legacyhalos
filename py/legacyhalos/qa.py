@@ -64,7 +64,7 @@ def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
 
     draw = ImageDraw.ImageDraw(overlay)
     box_corners = (0, 0, overlay_width, overlay_height)
-    draw.ellipse(box_corners, fill=None, outline=color, width=4)
+    draw.ellipse(box_corners, fill=None, outline=color, width=2)
 
     rotated = overlay.rotate(pa, expand=True)
     rotated_width, rotated_height = rotated.size
@@ -676,6 +676,17 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
                             ellipsefit['pa'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
                             ellipsefit['refpixscale'], color='red') # '#ffaa33')
+                            
+        if ellipsefit['radius_sb26'] > 0:
+            sbr = ellipsefit['radius_sb26']
+        elif ellipsefit['radius_sb25'] > 0:
+            sbr = ellipsefit['radius_sb25'] * 1.2
+        else:
+            sbr = -1
+        if sbr > 0:
+            draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
+                                ellipsefit['pa'], 2 * sbr, ellipsefit['refpixscale'], color='white')
+                            
         draw = ImageDraw.Draw(colorimg)
         if barlen and barlabel:
             width = np.round(sz[0]/150).astype('int')
@@ -776,12 +787,12 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper.plot(color='red', lw=3, axes=ax1, alpha=0.9, label='Mean geometry')
 
                 # Visualize the ellipse-fitted geometry
-                maxis = ellipsefit['radius_sb25'] / ellipsefit['refpixscale'] # [pixels]
+                maxis = sbr / ellipsefit['refpixscale'] # [pixels]
                 if maxis > 0:
                     ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                                  maxis, maxis*(1 - ellipsefit['eps']),
                                                  np.radians(ellipsefit['pa']-90))
-                    ellaper.plot(color='k', lw=3, axes=ax1, alpha=0.9, label='Ellipse geometry')
+                    ellaper.plot(color='k', lw=4, axes=ax1, alpha=0.9, label='Ellipse geometry')
 
                 # Visualize the LSLGA geometry, if present.
                 if ('lslga_pa' in ellipsefit.keys()) * ('lslga_ba' in ellipsefit.keys()) * ('lslga_d25' in ellipsefit.keys()):

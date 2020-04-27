@@ -357,9 +357,11 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #ww = np.hstack([np.where(gid == sample['GROUP_ID'])[0] for gid in fullsample['GROUP_ID'][m1]])
             rows = rows[m1]
             
-        if True: # DR9-SV bricklist
-            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
+        if True: # DR9 bricklist
+            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
+            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
+            #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
+            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
 
@@ -868,7 +870,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
                 thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-largegalaxy-grz-montage.png'.format(galaxy1))
 
                 ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
-                viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale)
+                viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, lslga=True)
 
                 html.write('<tr>\n')
                 #html.write('<td>{:g}</td>\n'.format(count))
@@ -1002,7 +1004,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
 
         """
         ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
-        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale)
+        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, lslga=True)
 
         html.write('<h2>Group Properties</h2>\n')
 

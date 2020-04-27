@@ -41,7 +41,8 @@ glist = ['NGC3034_GROUP',
          'NGC5866_GROUP',
          'NGC3031_GROUP',
          'NGC5457_GROUP',
-         'NGC0598_GROUP']
+         'NGC0598_GROUP',
+         'NGC4258']
 
 ss = read_sample(preselect_sample=False, galaxylist=glist)
 ss = ss[ss['GROUP_PRIMARY'] * ss['IN_DESI']]

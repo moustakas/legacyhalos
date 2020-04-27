@@ -128,7 +128,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
 
     # PSFs
     for band in bands:
-        for imtype, outtype in zip('copsf', 'psf'):
+        for imtype, outtype in zip(['copsf'], ['psf']):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
@@ -247,6 +247,8 @@ def get_ccds(survey, ra, dec, pixscale, width):
 
     targetwcs = wcs_for_brick(brick, W=width, H=width, pixscale=pixscale)
     ccds = survey.ccds_touching_wcs(targetwcs)
+    if np.sum(ccds.ccd_cuts == 0) == 0:
+        return []
     ccds.cut(ccds.ccd_cuts == 0)
     ccds.cut(np.array([b in ['g', 'r', 'z'] for b in ccds.filter]))
 
@@ -670,12 +672,16 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # Quickly read the input CCDs and check that we have all the colors we need.
     bands = ['g', 'r', 'z']
     ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width)
+    if len(ccds) == 0:
+        print('No CCDs touching this brick; nothing to do.')
+        return 1
+    
     usebands = list(sorted(set(ccds.filter)))
     these = [filt in usebands for filt in bands]
     print('Bands touching this brick, {}'.format(' '.join([filt for filt in usebands])))
     if np.sum(these) != 3 and require_grz:
-        print('Missing imaging in grz.')
-        return 0
+        print('Missing imaging in grz and require_grz=True; nothing to do.')
+        return 1
 
     ## Useful bit of code for quickly getting the list of exposures in the
     ## footprint.

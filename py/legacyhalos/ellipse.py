@@ -146,7 +146,10 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         deltaa_filt = deltaa * pixscalefactor
 
         if filt in refellipsefit['bands']:
-            maxsma = sbprofile['sma_{}'.format(filt)].max()        # [pixels]
+            if len(sbprofile['sma_{}'.format(filt)]) == 0: # can happen with partial coverage in other bands
+                maxsma = sbprofile['sma_{}'.format(refband)].max()
+            else:
+                maxsma = sbprofile['sma_{}'.format(filt)].max()        # [pixels]
             #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt)] # [pixels]
         else:
             maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
@@ -188,15 +191,20 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 ok = (cogflux > 0) * np.isfinite(cogflux)
                 cogmagerr = np.ones(len(cogmag))
 
-        if len(ok) == 0:
-            print('No good pixels--fix me!')
-            
+        results['cog_smaunit'] = 'arcsec'
+        
+        if np.count_nonzero(ok) == 0:
+            print('Warning: No good {}-band pixels to fit; skipping.'.format(filt))
+            results['cog_sma_{}'.format(filt)] = np.array([])
+            results['cog_mag_{}'.format(filt)] = np.array(-1)
+            results['cog_magerr_{}'.format(filt)] = np.array(-1)
+            continue
+
         sma_arcsec = sma[ok] * pixscale             # [arcsec]
         cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
         if cogferr is not None:
             cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
 
-        results['cog_smaunit'] = 'arcsec'
         results['cog_sma_{}'.format(filt)] = sma_arcsec
         results['cog_mag_{}'.format(filt)] = cogmag
         results['cog_magerr_{}'.format(filt)] = cogmagerr
