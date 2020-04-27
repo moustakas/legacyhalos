@@ -784,15 +784,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         filesuffix = ''
         #central_galaxy_id = None
 
-    def _isdone():
-        # Create an "isdone" file--
-        isdonefile = os.path.join(galaxydir, '{}-{}-ellipse.isdone'.format(galaxy, filesuffix))
-        cmd = 'touch {}'.format(isdonefile)
-        subprocess.call(cmd.split())
-
     # Read the data and then do ellipse-fitting.
     data, sample = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
-                                                 #central_galaxy_id=central_galaxy_id,
                                                  refband=refband, pixscale=pixscale,
                                                  galex_pixscale=galex_pixscale,
                                                  unwise_pixscale=unwise_pixscale,
@@ -802,8 +795,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     
     if bool(data):
         if data['failed']: # all galaxies dropped
-            _isdone()
-            return 1
+            return 1, filesuffix
 
         for igal in np.arange(len(data['central_galaxy_id'])):
             central_galaxy_id = data['central_galaxy_id'][igal]
@@ -828,10 +820,15 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                               nclip=nclip, sclip=sclip, verbose=verbose,
                                               input_ellipse=input_ellipse, maxsma=maxsma,
                                               fitgeometry=False, galaxyinfo=galaxyinfo)
-        _isdone()
-        return 1
+        return 1, filesuffix
     else:
-        return 0
+        # An object can get here if it's a "known" failure, e.g., if the object
+        # falls off the edge of the footprint (and therefore it will never have
+        # coadds).
+        if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
+            return 1, filesuffix
+        else:
+            return 0, filesuffix
 
     #if pipeline:
     #    print('Forced ellipse-fitting on the pipeline images.')

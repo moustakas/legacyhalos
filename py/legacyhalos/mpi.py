@@ -5,7 +5,7 @@ legacyhalos.mpi
 Code to deal with the MPI portion of the pipeline.
 
 """
-import os, time, pdb
+import os, time, subprocess, pdb
 import numpy as np
 from contextlib import redirect_stdout, redirect_stderr
 
@@ -18,11 +18,17 @@ def _start(galaxy, log=None, seed=None):
     print('Started working on galaxy {} at {}'.format(
         galaxy, time.asctime()), flush=True, file=log)
 
-def _done(galaxy, err, t0, log=None):
+def _done(galaxy, galaxydir, err, t0, stage, filesuffix, log=None):
     if err == 0:
         print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+    else:
+        isdonefile = os.path.join(galaxydir, '{}-{}-{}.isdone'.format(galaxy, filesuffix, stage))
+        cmd = 'touch {}'.format(isdonefile)
+        subprocess.call(cmd.split())
+        
     print('Finished galaxy {} in {:.3f} minutes.'.format(
           galaxy, (time.time() - t0)/60), flush=True, file=log)
+    
 
 def call_pipeline_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                          pixscale=0.262, racolumn='RA', deccolumn='DEC',
@@ -110,26 +116,28 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
     t0 = time.time()
     if debug:
         _start(galaxy)
-        err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                                                      pixscale=pixscale, nproc=nproc,
-                                                      zcolumn=zcolumn, input_ellipse=input_ellipse,
-                                                      verbose=verbose, debug=debug,
-                                                      sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                      unwise=unwise, unwise_pixscale=unwise_pixscale,
-                                                      largegalaxy=largegalaxy, pipeline=pipeline)
-        _done(galaxy, err, t0)
+        err, filesuffix = legacyhalos.ellipse.legacyhalos_ellipse(
+            onegal, galaxy=galaxy, galaxydir=galaxydir,
+            pixscale=pixscale, nproc=nproc,
+            zcolumn=zcolumn, input_ellipse=input_ellipse,
+            verbose=verbose, debug=debug,
+            sdss=sdss, sdss_pixscale=sdss_pixscale,
+            unwise=unwise, unwise_pixscale=unwise_pixscale,
+            largegalaxy=largegalaxy, pipeline=pipeline)
+        _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.ellipse.legacyhalos_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                                                              pixscale=pixscale, nproc=nproc,
-                                                              zcolumn=zcolumn, input_ellipse=input_ellipse,
-                                                              verbose=verbose, debug=debug,
-                                                              sdss=sdss, sdss_pixscale=sdss_pixscale,
-                                                              unwise=unwise, unwise_pixscale=unwise_pixscale,
-                                                              largegalaxy=largegalaxy, pipeline=pipeline)
-                _done(galaxy, err, t0, log=log)
+                err, filesuffix = legacyhalos.ellipse.legacyhalos_ellipse(
+                    onegal, galaxy=galaxy, galaxydir=galaxydir,
+                    pixscale=pixscale, nproc=nproc,
+                    zcolumn=zcolumn, input_ellipse=input_ellipse,
+                    verbose=verbose, debug=debug,
+                    sdss=sdss, sdss_pixscale=sdss_pixscale,
+                    unwise=unwise, unwise_pixscale=unwise_pixscale,
+                    largegalaxy=largegalaxy, pipeline=pipeline)
+                _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix, log=log)
 
 def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile):
     """Wrapper script to do Sersic-fitting.
@@ -224,27 +232,29 @@ def call_largegalaxy_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
     t0 = time.time()
     if debug:
         _start(galaxy)
-        err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey, 
-                                                    radius_mosaic=radius_mosaic, nproc=nproc, 
-                                                    pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
-                                                    apodize=apodize, unwise=unwise, force=force, plots=plots,
-                                                    verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
-                                                    no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
-                                                    require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
-        _done(galaxy, err, t0)
+        err, filesuffix = legacyhalos.coadds.largegalaxy_coadds(
+            onegal, galaxy=galaxy, survey=survey, 
+            radius_mosaic=radius_mosaic, nproc=nproc, 
+            pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
+            apodize=apodize, unwise=unwise, force=force, plots=plots,
+            verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
+            no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
+            require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
+        _done(galaxy, survey.output_dir, err, t0, 'coadds', filesuffix)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.coadds.largegalaxy_coadds(onegal, galaxy=galaxy, survey=survey, 
-                                                            radius_mosaic=radius_mosaic, nproc=nproc, 
-                                                            pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
-                                                            apodize=apodize, unwise=unwise, force=force, plots=plots,
-                                                            verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
-                                                            no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
-                                                            require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,
-                                                            log=log)
-                _done(galaxy, err, t0, log=log)
+                err, filesuffix = legacyhalos.coadds.largegalaxy_coadds(
+                    onegal, galaxy=galaxy, survey=survey, 
+                    radius_mosaic=radius_mosaic, nproc=nproc, 
+                    pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, run=run,
+                    apodize=apodize, unwise=unwise, force=force, plots=plots,
+                    verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
+                    no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
+                    require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,
+                    log=log)
+                _done(galaxy, survey.output_dir, err, t0, 'coadds', filesuffix, log=log)
 
 def mpi_args():
     import argparse

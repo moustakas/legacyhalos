@@ -78,10 +78,7 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
     if args.largegalaxy_coadds:
         suffix = 'largegalaxy-coadds'
         if filesuffix is None:
-            if args.just_coadds:
-                filesuffix = '-largegalaxy-image-grz.jpg'
-            else:
-                filesuffix = '-largegalaxy-resid-grz.jpg'
+            filesuffix = '-largegalaxy-coadds.isdone'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.pipeline_coadds:
         suffix = 'pipeline-coadds'

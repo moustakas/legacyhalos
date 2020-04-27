@@ -247,7 +247,7 @@ def get_ccds(survey, ra, dec, pixscale, width):
 
     targetwcs = wcs_for_brick(brick, W=width, H=width, pixscale=pixscale)
     ccds = survey.ccds_touching_wcs(targetwcs)
-    if np.sum(ccds.ccd_cuts == 0) == 0:
+    if ccds is None or np.sum(ccds.ccd_cuts == 0) == 0:
         return []
     ccds.cut(ccds.ccd_cuts == 0)
     ccds.cut(np.array([b in ['g', 'r', 'z'] for b in ccds.filter]))
@@ -674,14 +674,14 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width)
     if len(ccds) == 0:
         print('No CCDs touching this brick; nothing to do.')
-        return 1
+        return 1, stagesuffix
     
     usebands = list(sorted(set(ccds.filter)))
     these = [filt in usebands for filt in bands]
     print('Bands touching this brick, {}'.format(' '.join([filt for filt in usebands])))
     if np.sum(these) != 3 and require_grz:
         print('Missing imaging in grz and require_grz=True; nothing to do.')
-        return 1
+        return 1, stagesuffix
 
     ## Useful bit of code for quickly getting the list of exposures in the
     ## footprint.
@@ -738,14 +738,14 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
     if err != 0:
         print('Something went wrong; please check the logfile.')
-        return 0
+        return 0, stagesuffix
     else:
         # Move (rename) files into the desired output directory and clean up.
         ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
                               run, unwise=unwise, cleanup=cleanup,
                               just_coadds=just_coadds, clobber=force,
                               require_grz=require_grz)
-        return ok
+        return ok, stagesuffix
 
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,
