@@ -1017,7 +1017,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                     filt2imfile[filt][imtype] = imfile
                     break
             if not os.path.isfile(imfile):
-                print('File {} not found.'.format(imfile))
+                if verbose:
+                    print('File {} not found.'.format(imfile))
                 found_data = False
 
     data = dict()

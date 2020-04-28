@@ -18,11 +18,15 @@ def _start(galaxy, log=None, seed=None):
     print('Started working on galaxy {} at {}'.format(
         galaxy, time.asctime()), flush=True, file=log)
 
-def _done(galaxy, galaxydir, err, t0, stage, filesuffix, log=None):
+def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
     if err == 0:
         print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
     else:
-        isdonefile = os.path.join(galaxydir, '{}-{}-{}.isdone'.format(galaxy, filesuffix, stage))
+        if filesuffix is None:
+            suffix = ''
+        else:
+            suffix = '-{}'.format(filesuffix)
+        isdonefile = os.path.join(galaxydir, '{}{}-{}.isdone'.format(galaxy, suffix, stage))
         cmd = 'touch {}'.format(isdonefile)
         subprocess.call(cmd.split())
         
@@ -193,28 +197,30 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
 
     if debug:
         _start(galaxy)
-        err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
-                                          pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
-                                          barlen=barlen, barlabel=barlabel,
-                                          radius_mosaic_arcsec=radius_mosaic_arcsec,
-                                          maketrends=False, ccdqa=ccdqa,
-                                          clobber=clobber, verbose=verbose, 
-                                          largegalaxy=largegalaxy, 
-                                          get_galaxy_galaxydir=get_galaxy_galaxydir)
-        _done(galaxy, err, t0)
+        err = legacyhalos.html.make_plots(
+            onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
+            pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
+            barlen=barlen, barlabel=barlabel,
+            radius_mosaic_arcsec=radius_mosaic_arcsec,
+            maketrends=False, ccdqa=ccdqa,
+            clobber=clobber, verbose=verbose, 
+            largegalaxy=largegalaxy, 
+            get_galaxy_galaxydir=get_galaxy_galaxydir)
+        _done(galaxy, survey.output_dir, err, t0, 'html')
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err = legacyhalos.html.make_plots(onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
-                                                  pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
-                                                  barlen=barlen, barlabel=barlabel,
-                                                  radius_mosaic_arcsec=radius_mosaic_arcsec,
-                                                  maketrends=False, ccdqa=ccdqa,
-                                                  clobber=clobber, verbose=verbose,
-                                                  largegalaxy=largegalaxy, 
-                                                  get_galaxy_galaxydir=get_galaxy_galaxydir)
-                _done(galaxy, err, t0, log=log)
+                err = legacyhalos.html.make_plots(
+                    onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
+                    pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
+                    barlen=barlen, barlabel=barlabel,
+                    radius_mosaic_arcsec=radius_mosaic_arcsec,
+                    maketrends=False, ccdqa=ccdqa,
+                    clobber=clobber, verbose=verbose,
+                    largegalaxy=largegalaxy, 
+                    get_galaxy_galaxydir=get_galaxy_galaxydir)
+                _done(galaxy, survey.output_dir, err, t0, 'html')
 
 def call_largegalaxy_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                             pixscale=0.262, racolumn='RA', deccolumn='DEC',

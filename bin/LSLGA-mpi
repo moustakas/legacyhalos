@@ -193,7 +193,11 @@ def main():
                                radius_mosaic_arcsec=radius_mosaic_arcsec,
                                largegalaxy=True, 
                                get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)
-            
+
+    # Wait for all ranks to finish.
+    if comm is not None:
+        comm.barrier()
+                
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)

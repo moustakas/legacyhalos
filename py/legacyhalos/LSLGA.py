@@ -738,7 +738,9 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
                 lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)
     
     # Stack!
-    out = vstack((lslga, out))
+    print('Temporarily leaving off the original LSLGA!')
+    if False:
+        out = vstack((lslga, out))
     out = out[np.argsort(out['LSLGA_ID'])]
     out = vstack((out[out['LSLGA_ID'] != -1], out[out['LSLGA_ID'] == -1]))
     del lslga, cat
@@ -789,13 +791,26 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
             iv = cat['flux_ivar_{}'.format(band)]
             ff = cat['flux_{}'.format(band)]
         elif R24:
-            mag = cat['mag_{}_sb24'.format(band)]
+            if 'mag_{}_sb24'.format(band) in cat.keys():
+                mag = cat['mag_{}_sb24'.format(band)]
+            else:
+                print('Fix me')
+                mag = -1
         elif R25:
-            mag = cat['mag_{}_sb25'.format(band)]
+            if 'mag_{}_sb25'.format(band) in cat.keys():
+                mag = cat['mag_{}_sb25'.format(band)]
+            else:
+                mag = -1
         elif R26:
-            mag = cat['mag_{}_sb26'.format(band)]
+            if 'mag_{}_sb26'.format(band) in cat.keys():
+                mag = cat['mag_{}_sb26'.format(band)]
+            else:
+                mag = -1
         elif cog:
-            mag = cat['cog_params_{}'.format(band)]['mtot']
+            if 'cog_params_{}'.format(band) in cat.keys():
+                mag = cat['cog_params_{}'.format(band)]['mtot']
+            else:
+                mag = -1
         else:
             print('Thar be rocks ahead!')
         if mag:

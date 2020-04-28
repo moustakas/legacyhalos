@@ -210,6 +210,10 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                         cmd = cmd+' '+barpngfile
                     else:
                         cmd = cmd+' '+jpgfile
+                    if sz[0] > 512:
+                        thumbsz = 512
+                    else:
+                        thumbsz = sz[0]
                 else:
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
                     if barlen:
@@ -218,6 +222,10 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                         cmd = cmd+' '.join(ff for ff in jpgfile[1:])
                     else:
                         cmd = cmd+' '.join(ff for ff in jpgfile)
+                    if sz[0] > 512:
+                        thumbsz = 512*3
+                    else:
+                        thumbsz = sz[0]*3
                 cmd = cmd+' {}'.format(montagefile)
 
                 #if verbose:
@@ -228,11 +236,8 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     continue
 
                 # Create a couple smaller thumbnail images
-                if sz[0] > 512:
-                    thumbsz = 512
-                else:
-                    thumbsz = sz[0]
-                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(thumbsz, montagefile, thumbfile)
+                cmd = 'convert -thumbnail {0} {1} {2}'.format(thumbsz, montagefile, thumbfile)
+                #print(cmd)
                 if os.path.isfile(thumbfile):
                     os.remove(thumbfile)                
                 print('Writing {}'.format(thumbfile))
