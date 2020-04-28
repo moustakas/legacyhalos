@@ -543,10 +543,12 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
                 tractor['mag_{}_tot'.format(filt)][this] = ellipse['cog_params_{}'.format(filt)]['mtot']
         
         # Now add the radius
-        if ellipse['radius_sb25'] > 0:
-            tractor['d25'][this] = ellipse['radius_sb25'] * 2 / 60
+        if ellipse['radius_sb26'] > 0:
+            tractor['d25'][this] = ellipse['radius_sb26'] * 2 / 60
+        elif ellipse['radius_sb25'] > 0:
+            tractor['d25'][this] = 1.2 * ellipse['radius_sb25'] * 2 / 60
         elif ellipse['radius_sb24'] > 0:
-            tractor['d25'][this] = ellipse['radius_sb24'] * 2 / 60
+            tractor['d25'][this] = 1.5 * ellipse['radius_sb24'] * 2 / 60
         else:
             tractor['d25'][this] = ellipse['lslga_d25']
             #tractor['d25'][this] = ellipse['majoraxis'] * ellipse['refpixscale'] * 2 / 60
