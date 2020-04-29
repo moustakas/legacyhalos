@@ -126,16 +126,17 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             _do_cleanup()
         return 1
 
-    # PSFs
-    for band in bands:
-        for imtype, outtype in zip(['copsf'], ['psf']):
-            ok = _copyfile(
-                os.path.join(output_dir, 'coadd', 'cus', brickname,
-                             'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
-                             os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, outtype, band)),
-                clobber=clobber)
-            if not ok:
-                return ok
+    # PSFs (none for stagesuffix=='pipeline')
+    if stagesuffix != 'pipeline':
+        for band in bands:
+            for imtype, outtype in zip(['copsf'], ['psf']):
+                ok = _copyfile(
+                    os.path.join(output_dir, 'coadd', 'cus', brickname,
+                                 'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                                 os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, outtype, band)),
+                    clobber=clobber)
+                if not ok:
+                    return ok
 
     # tractor catalog
     ok = _copyfile(
@@ -561,6 +562,12 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     radius_mosaic in arcsec
 
+    You must specify *one* of the following:
+      * pipeline - standard call to runbrick
+      * custom - for the cluster centrals project; calls stage_largegalaxies but
+        with custom sky-subtraction
+      * largegalaxy - for the LSLGA project; calls stage_largegalaxies
+
     """
     if survey is None:
         from legacypipe.survey import LegacySurveyData
@@ -569,10 +576,15 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     if galaxy is None:
         galaxy = 'galaxy'
 
-    stagesuffix = 'largegalaxy'
-
-    if just_coadds:
-        unwise = False
+    if custom:
+        stagesuffix = 'custom'
+    elif largegalaxy:
+        stagesuffix = 'largegalaxy'
+    elif pipeline:
+        stagesuffix = 'pipeline'
+    else:
+        print('You must specify at least one of largegalaxy, pipeline, or custom!')
+        return 0, ''
 
     width = _mosaic_width(radius_mosaic, pixscale)
     brickname = 'custom-{}'.format(custom_brickname(onegal[racolumn], onegal[deccolumn]))
@@ -602,13 +614,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} --run {run} '
-    cmd += '--largegalaxy-preburner --saddle-fraction 0.2 --saddle-min 4.0 '
-    #cmd += '--nsigma 10 '
-    if customsky:
-        print('Skipping custom sky')
-        #cmd += '--largegalaxy-skysub '
-        #print('HACK!!!!!!!!!!!!!!!!! doing just largegalaxies stage in legacyhalos.coadds')
-        #cmd += '--stage largegalaxies '
     if write_all_pickles:
         cmd += '--write-stage tims --write-stage srcs '
     else:
@@ -617,6 +622,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--checkpoint {galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p '
     cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
     if just_coadds:
+        unwise = False
         cmd += '--stage image_coadds --early-coadds '
     if not unwise:
         cmd += '--no-unwise-coadds --no-wise '
@@ -626,7 +632,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-gaia '
     if no_tycho:
         cmd += '--no-tycho '
-        
     if force:
         cmd += '--force-all '
         checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(
@@ -635,6 +640,19 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             os.remove(checkpointfile)
     if no_splinesky:
         cmd += '--no-splinesky '
+    if customsky:
+        print('Skipping custom sky')
+        #cmd += '--largegalaxy-skysub '
+        #print('HACK!!!!!!!!!!!!!!!!! doing just largegalaxies stage in legacyhalos.coadds')
+        #cmd += '--stage largegalaxies '
+
+    # stage-specific options here--
+    if largegalaxy:
+        cmd += '--largegalaxy-preburner --saddle-fraction 0.2 --saddle-min 4.0 '
+        #cmd += '--nsigma 10 '
+    if custom:
+        print('Write me!')
+        pdb.set_trace()
 
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
                      ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
@@ -644,7 +662,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print(cmd, flush=True, file=log)
 
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
-    pdb.set_trace()
     if err != 0:
         print('Something went wrong; please check the logfile.')
         return 0, stagesuffix
@@ -655,99 +672,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                               just_coadds=just_coadds, clobber=force,
                               require_grz=require_grz)
         return ok, stagesuffix
-
-def obsolete_pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                    nproc=1, pixscale=0.262, racolumn='RA', deccolumn='DEC', run='south', 
-                    log=None, apodize=False, unwise=True, force=False,
-                    plots=False, verbose=False, cleanup=True,
-                    write_all_pickles=False, no_splinesky=False, just_coadds=False,
-                    no_large_galaxies=False, no_gaia=False, no_tycho=False):
-    """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
-
-    radius_mosaic in arcsec
-
-    """
-    if survey is None:
-        from legacypipe.survey import LegacySurveyData
-        survey = LegacySurveyData()
-        
-    if galaxy is None:
-        galaxy = 'galaxy'
-
-    stagesuffix = 'pipeline'
-
-    if just_coadds:
-        unwise = False
-    
-    width = _mosaic_width(radius_mosaic, pixscale)
-    brickname = 'custom-{}'.format(custom_brickname(onegal[racolumn], onegal[deccolumn]))
-    
-    # Quickly read the input CCDs and check that we have all the colors we need.
-    bands = ['g', 'r', 'z']
-    ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width)
-    usebands = list(sorted(set(ccds.filter)))
-    these = [filt in usebands for filt in bands]
-    print('Bands touching this brick, {}'.format(' '.join([filt for filt in usebands])))
-    if np.sum(these) != 3 and require_grz:
-        print('Missing imaging in grz.')
-        return 0
-
-    # Run the pipeline!
-    cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
-    cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
-    cmd += '--threads {threads} --outdir {outdir} '
-    cmd += '--survey-dir {survey_dir} --run {run} '
-    #cmd += '--write-stage tims '
-    if write_all_pickles:
-        cmd += '--write-stage tims --write-stage srcs '
-    else:
-        cmd += '--write-stage srcs '
-    #cmd += '--min-mjd 0 ' # obsolete
-    cmd += '--skip-calibs '
-    #cmd += '--no-wise-ceres '
-    cmd += '--checkpoint {galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p '
-    cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
-    if just_coadds:
-        cmd += '--stage image_coadds --early-coadds '
-    if not unwise:
-        cmd += '--no-unwise-coadds --no-wise '
-    if apodize:
-        cmd += '--apodize '
-    if no_gaia:
-        cmd += '--no-gaia '
-    if no_tycho:
-        cmd += '--no-tycho '
-    if no_large_galaxies:
-        cmd += '--no-large-galaxies '
-
-    if force:
-        cmd += '--force-all '
-        checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(
-            galaxydir=survey.output_dir, galaxy=galaxy, stagesuffix=stagesuffix)
-        if os.path.isfile(checkpointfile):
-            os.remove(checkpointfile)
-    if no_splinesky:
-        cmd += '--no-splinesky '
-
-    width = _mosaic_width(radius_mosaic, pixscale)
-    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
-                     ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
-                     pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     galaxydir=survey.output_dir, survey_dir=survey.survey_dir, run=run,
-                     stagesuffix=stagesuffix)
-    print(cmd, flush=True, file=log)
-
-    err = subprocess.call(cmd.split(), stdout=log, stderr=log)
-    if err != 0:
-        print('Something went wrong; please check the logfile.')
-        return 0
-    else:
-        # Move (rename) files into the desired output directory and clean up.
-        ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
-                              run, unwise=unwise, cleanup=cleanup,
-                              just_coadds=just_coadds, clobber=force,
-                              require_grz=require_grz)
-        return ok
 
 def obsolete_custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,

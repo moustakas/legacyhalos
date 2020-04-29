@@ -86,7 +86,8 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
             if args.just_coadds:
                 filesuffix = '-pipeline-image-grz.jpg'
             else:
-                filesuffix = '-pipeline-resid-grz.jpg'
+                filesuffix = '-pipeline-coadds.isdone'
+                #filesuffix = '-pipeline-resid-grz.jpg'
         galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.ellipse:
         suffix = 'ellipse'
