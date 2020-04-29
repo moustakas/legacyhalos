@@ -322,99 +322,6 @@ def isolate_central(cat, wcs, psf_sigma=1.1, radius_search=5.0, centrals=True):
 
     return keep
 
-def pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                    nproc=1, pixscale=0.262, racolumn='RA', deccolumn='DEC', run='south', 
-                    log=None, apodize=False, unwise=True, force=False,
-                    plots=False, verbose=False, cleanup=True,
-                    write_all_pickles=False, no_splinesky=False, just_coadds=False,
-                    no_large_galaxies=False, no_gaia=False, no_tycho=False):
-    """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
-
-    radius_mosaic in arcsec
-
-    """
-    if survey is None:
-        from legacypipe.survey import LegacySurveyData
-        survey = LegacySurveyData()
-        
-    if galaxy is None:
-        galaxy = 'galaxy'
-
-    stagesuffix = 'pipeline'
-
-    if just_coadds:
-        unwise = False
-    
-    width = _mosaic_width(radius_mosaic, pixscale)
-    brickname = 'custom-{}'.format(custom_brickname(onegal[racolumn], onegal[deccolumn]))
-    
-    # Quickly read the input CCDs and check that we have all the colors we need.
-    bands = ['g', 'r', 'z']
-    ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width)
-    usebands = list(sorted(set(ccds.filter)))
-    these = [filt in usebands for filt in bands]
-    print('Bands touching this brick, {}'.format(' '.join([filt for filt in usebands])))
-    if np.sum(these) != 3 and require_grz:
-        print('Missing imaging in grz.')
-        return 0
-
-    # Run the pipeline!
-    cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
-    cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
-    cmd += '--threads {threads} --outdir {outdir} '
-    cmd += '--survey-dir {survey_dir} --run {run} '
-    #cmd += '--write-stage tims '
-    if write_all_pickles:
-        cmd += '--write-stage tims --write-stage srcs '
-    else:
-        cmd += '--write-stage srcs '
-    #cmd += '--min-mjd 0 ' # obsolete
-    cmd += '--skip-calibs '
-    #cmd += '--no-wise-ceres '
-    cmd += '--checkpoint {galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p '
-    cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
-    if just_coadds:
-        cmd += '--stage image_coadds --early-coadds '
-    if not unwise:
-        cmd += '--no-unwise-coadds --no-wise '
-    if apodize:
-        cmd += '--apodize '
-    if no_gaia:
-        cmd += '--no-gaia '
-    if no_tycho:
-        cmd += '--no-tycho '
-    if no_large_galaxies:
-        cmd += '--no-large-galaxies '
-
-    if force:
-        cmd += '--force-all '
-        checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(
-            galaxydir=survey.output_dir, galaxy=galaxy, stagesuffix=stagesuffix)
-        if os.path.isfile(checkpointfile):
-            os.remove(checkpointfile)
-    if no_splinesky:
-        cmd += '--no-splinesky '
-
-    width = _mosaic_width(radius_mosaic, pixscale)
-    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
-                     ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
-                     pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
-                     galaxydir=survey.output_dir, survey_dir=survey.survey_dir, run=run,
-                     stagesuffix=stagesuffix)
-    print(cmd, flush=True, file=log)
-
-    err = subprocess.call(cmd.split(), stdout=log, stderr=log)
-    if err != 0:
-        print('Something went wrong; please check the logfile.')
-        return 0
-    else:
-        # Move (rename) files into the desired output directory and clean up.
-        ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
-                              run, unwise=unwise, cleanup=cleanup,
-                              just_coadds=just_coadds, clobber=force,
-                              require_grz=require_grz)
-        return ok
-
 def _build_objmask(img, ivar, skypix, boxcar=5, boxsize=1024):
     """Build an object mask by doing a quick estimate of the sky background on a
     given CCD.
@@ -643,12 +550,13 @@ def custom_sky(survey, brickname, brickwcs, onegal, radius_mask_arcsec,
     
     return out
 
-def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                       nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC', 
-                       log=None, apodize=False, unwise=True, force=False,
-                       plots=False, verbose=False, cleanup=True,
-                       write_all_pickles=False, no_splinesky=False, customsky=False,
-                       just_coadds=False, require_grz=True, no_gaia=False, no_tycho=False):
+def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
+                  nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC', 
+                  largegalaxy=False, pipeline=False, custom=True,
+                  log=None, apodize=False, unwise=True, force=False,
+                  plots=False, verbose=False, cleanup=True,
+                  write_all_pickles=False, no_splinesky=False, customsky=False,
+                  just_coadds=False, require_grz=True, no_gaia=False, no_tycho=False):
     """Build a custom set of large-galaxy coadds
 
     radius_mosaic in arcsec
@@ -748,7 +656,100 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                               require_grz=require_grz)
         return ok, stagesuffix
 
-def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
+def obsolete_pipeline_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
+                    nproc=1, pixscale=0.262, racolumn='RA', deccolumn='DEC', run='south', 
+                    log=None, apodize=False, unwise=True, force=False,
+                    plots=False, verbose=False, cleanup=True,
+                    write_all_pickles=False, no_splinesky=False, just_coadds=False,
+                    no_large_galaxies=False, no_gaia=False, no_tycho=False):
+    """Run legacypipe.runbrick on a custom "brick" centered on the galaxy.
+
+    radius_mosaic in arcsec
+
+    """
+    if survey is None:
+        from legacypipe.survey import LegacySurveyData
+        survey = LegacySurveyData()
+        
+    if galaxy is None:
+        galaxy = 'galaxy'
+
+    stagesuffix = 'pipeline'
+
+    if just_coadds:
+        unwise = False
+    
+    width = _mosaic_width(radius_mosaic, pixscale)
+    brickname = 'custom-{}'.format(custom_brickname(onegal[racolumn], onegal[deccolumn]))
+    
+    # Quickly read the input CCDs and check that we have all the colors we need.
+    bands = ['g', 'r', 'z']
+    ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width)
+    usebands = list(sorted(set(ccds.filter)))
+    these = [filt in usebands for filt in bands]
+    print('Bands touching this brick, {}'.format(' '.join([filt for filt in usebands])))
+    if np.sum(these) != 3 and require_grz:
+        print('Missing imaging in grz.')
+        return 0
+
+    # Run the pipeline!
+    cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
+    cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
+    cmd += '--threads {threads} --outdir {outdir} '
+    cmd += '--survey-dir {survey_dir} --run {run} '
+    #cmd += '--write-stage tims '
+    if write_all_pickles:
+        cmd += '--write-stage tims --write-stage srcs '
+    else:
+        cmd += '--write-stage srcs '
+    #cmd += '--min-mjd 0 ' # obsolete
+    cmd += '--skip-calibs '
+    #cmd += '--no-wise-ceres '
+    cmd += '--checkpoint {galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p '
+    cmd += '--pickle {galaxydir}/{galaxy}-{stagesuffix}-%%(stage)s.p '
+    if just_coadds:
+        cmd += '--stage image_coadds --early-coadds '
+    if not unwise:
+        cmd += '--no-unwise-coadds --no-wise '
+    if apodize:
+        cmd += '--apodize '
+    if no_gaia:
+        cmd += '--no-gaia '
+    if no_tycho:
+        cmd += '--no-tycho '
+    if no_large_galaxies:
+        cmd += '--no-large-galaxies '
+
+    if force:
+        cmd += '--force-all '
+        checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(
+            galaxydir=survey.output_dir, galaxy=galaxy, stagesuffix=stagesuffix)
+        if os.path.isfile(checkpointfile):
+            os.remove(checkpointfile)
+    if no_splinesky:
+        cmd += '--no-splinesky '
+
+    width = _mosaic_width(radius_mosaic, pixscale)
+    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
+                     ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
+                     pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
+                     galaxydir=survey.output_dir, survey_dir=survey.survey_dir, run=run,
+                     stagesuffix=stagesuffix)
+    print(cmd, flush=True, file=log)
+
+    err = subprocess.call(cmd.split(), stdout=log, stderr=log)
+    if err != 0:
+        print('Something went wrong; please check the logfile.')
+        return 0
+    else:
+        # Move (rename) files into the desired output directory and clean up.
+        ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
+                              run, unwise=unwise, cleanup=cleanup,
+                              just_coadds=just_coadds, clobber=force,
+                              require_grz=require_grz)
+        return ok
+
+def obsolete_custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   radius_mask=None, nproc=1, pixscale=0.262, log=None,
                   apodize=False, plots=False, verbose=False, cleanup=True,
                   write_ccddata=False, sky_annulus=True, centrals=True,
