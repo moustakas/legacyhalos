@@ -736,6 +736,7 @@ def largegalaxy_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print(cmd, flush=True, file=log)
 
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
+    pdb.set_trace()
     if err != 0:
         print('Something went wrong; please check the logfile.')
         return 0, stagesuffix

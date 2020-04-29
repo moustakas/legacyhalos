@@ -440,7 +440,7 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
 
     import warnings
     import fitsio
-    from astropy.table import Table, vstack
+    from astropy.table import Table, vstack, hstack
     from tractor.ellipses import EllipseESoft
     from legacyhalos.io import read_ellipsefit
     from legacyhalos.misc import is_in_ellipse
@@ -516,8 +516,14 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
             pdb.set_trace()
             
         if not os.path.isfile(ellipsefile):
+            # Add some info from the Tractor catalog so we can debug--
             print('Ellipse-fit reject: {} (LSLGA_ID={})'.format(fullsample['GALAXY'][igal], galid))
-            reject.append(Table(fullsample[igal]))
+            rej = Table(fullsample[igal])
+            tt = tractor[this]['ra', 'dec', 'type', 'flux_r', 'shape_r']
+            for col in ['ra', 'dec', 'type']:
+                tt.rename_column(col, 'tractor_{}'.format(col))
+            rej = hstack((rej, tt))
+            reject.append(rej)
             # Leave the rejected source in the Tractor catalog but reset ref_cat
             # and ref_id. That way if it's a galaxy that just happens to be too
             # small to pass our size cuts in legacyhalos.io.read_multiband to be
@@ -647,13 +653,16 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
 
     if len(reject) > 0:
         reject = vstack(reject)
-        reject = reject['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA']
+        [reject.rename_column(col, col.upper()) for col in reject.colnames]
+        reject = reject['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA',
+                        'TRACTOR_TYPE', 'FLUX_R', 'SHAPE_R']
         reject.rename_column('GALAXY', 'NAME')
         print('Writing {} rejected galaxies to {}'.format(len(reject), rejectfile))
         reject.write(rejectfile, overwrite=True)
 
     if len(inspect) > 0:
         inspect = vstack(inspect)
+        [inspect.rename_column(col, col.upper()) for col in inspect.colnames]
         inspect = inspect['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA']
         inspect.rename_column('GALAXY', 'NAME')
         print('Writing {} galaxies to inspect to {}'.format(len(inspect), inspectfile))
