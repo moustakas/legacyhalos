@@ -131,14 +131,16 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
     yfaint, ybright = 0, 50
     for filt in bands:
+        col = next(colors)            
         #flux = ellipsefit['apphot_mag_{}'.format(filt)]
         #good = np.where( np.isfinite(flux) * (flux > 0) )[0]
         #mag = 22.5-2.5*np.log10(flux[good])
         sma = ellipsefit['cog_sma_{}'.format(filt)]
         cog = ellipsefit['cog_mag_{}'.format(filt)]
         cogparams = ellipsefit['cog_params_{}'.format(filt)]
+        if not bool(cogparams): # no measurement
+            continue
         magtot, chi2 = cogparams['mtot'], cogparams['chi2']
-
         if 'cog_magerr_{}'.format(filt) in ellipsefit.keys():
             cogerr = ellipsefit['cog_magerr_{}'.format(filt)]
         else:
@@ -998,9 +1000,13 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
                                        gridspec_kw = {'height_ratios':[2, 1]})
         for filt in bands:
+            col = next(colors)
+            
             radius = sbprofile['radius_{}'.format(filt)]**0.25
             mu = sbprofile['mu_{}'.format(filt)]
             muerr = sbprofile['muerr_{}'.format(filt)]
+            if len(mu) == 0: # no good data
+                continue
 
             #good = (ellipsefit[filt].stop_code < 4)
             #bad = ~good
@@ -1014,7 +1020,6 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
             #mu = mu[good]
             #muerr = muerr[good]
             
-            col = next(colors)
             ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt),
                              facecolor=col, edgecolor='k', lw=2, alpha=0.75)
 

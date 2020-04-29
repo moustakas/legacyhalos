@@ -111,7 +111,9 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     for sbcut in SBTHRESH:
         if sbprofile['mu_r'].max() < sbcut or sbprofile['mu_r'].min() > sbcut:
             print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
-            results['radius_sb{:0g}'.format(sbcut)] = -1.0
+            results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
+            #for filt in bands:
+            #    results['mag_{}_sb{:0g}'.format(filt, sbcut)] = np.float(-1.0)
             continue
 
         sb = sbprofile['mu_r'] - sbcut
@@ -196,8 +198,15 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         if np.count_nonzero(ok) == 0:
             print('Warning: No good {}-band pixels to fit; skipping.'.format(filt))
             results['cog_sma_{}'.format(filt)] = np.array([])
-            results['cog_mag_{}'.format(filt)] = np.array(-1)
-            results['cog_magerr_{}'.format(filt)] = np.array(-1)
+            results['cog_mag_{}'.format(filt)] = np.float32(-1)
+            results['cog_magerr_{}'.format(filt)] = np.float32(-1)
+            results['cog_params_{}'.format(filt)] = {}#{'mtot': np.float32(-1),
+                                                      # 'm0': np.float32(-1),
+                                                      # 'alpha1': np.float32(-1),
+                                                      # 'alpha2': np.float32(-1),
+                                                      # 'chi2': np.float32(1e6)}
+            for sbcut in SBTHRESH:
+                results['mag_{}_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
             continue
 
         sma_arcsec = sma[ok] * pixscale             # [arcsec]

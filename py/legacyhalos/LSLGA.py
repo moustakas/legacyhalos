@@ -454,7 +454,7 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
     # keep them in the LSLGA catalog, though, so don't add them to the `reject`
     # list here.
     if not os.path.isfile(tractorfile):
-        print('Missing tractor file {}'.format(tractorfile))
+        print('Tractor catalog missing: {}'.format(tractorfile))
         return None, None, None, onegal
 
     # Note: for galaxies on the edge of the footprint we can also sometimes
@@ -503,24 +503,31 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
     # the galaxies that fail ellipse-fitting.
     #ellipsefiles = glob(os.path.join(galaxydir, '{}-largegalaxy-*-ellipse.asdf'.format(galaxy)))
     reject, inspect = [], []
+    ellipseisdone = os.path.isfile(os.path.join(galaxydir, '{}-largegalaxy-ellipse.isdone'.format(galaxy)))
     for igal, galid in enumerate(np.atleast_1d(fullsample['LSLGA_ID'])):
         ellipsefile = os.path.join(galaxydir, '{}-largegalaxy-{}-ellipse.asdf'.format(galaxy, galid))
-        if not os.path.isfile(ellipsefile):
-            try:
-                print('No ellipse fit for {} (LSLGA_ID={})'.format(fullsample['GALAXY'][igal], galid))
-                reject.append(Table(fullsample[igal]))
-            except:
-                print('Problem rejecting', galaxy, galid)
-                pdb.set_trace()
-            continue
 
-        # parse it!
+        # parse it -- fragile!
         lslga_id = os.path.basename(ellipsefile).split('-')[-2]
         lslga_id = np.int(lslga_id)
         this = np.where((tractor['ref_cat'] == refcat) * (tractor['ref_id'] == lslga_id))[0]
         if len(this) != 1:
             print('Doom has befallen you.')
             pdb.set_trace()
+            
+        if not os.path.isfile(ellipsefile):
+            print('Ellipse-fit reject: {} (LSLGA_ID={})'.format(fullsample['GALAXY'][igal], galid))
+            reject.append(Table(fullsample[igal]))
+            # Leave the rejected source in the Tractor catalog but reset ref_cat
+            # and ref_id. That way if it's a galaxy that just happens to be too
+            # small to pass our size cuts in legacyhalos.io.read_multiband to be
+            # ellipse-fit, Tractor will still know about it. In particular, if
+            # it's a small galaxy *inside* the elliptical mask of another galaxy
+            # (see, e.g., SDSSJ123843.02+092744.0 -
+            # http://legacysurvey.org/viewer-dev?ra=189.679290&dec=9.462331&layer=dr8&zoom=14&lslga),
+            # we want to be sure it doesn't get forced PSF!
+            tractor['ref_id'][this], tractor['ref_cat'][this] = 0, ' '
+            continue
             
         af = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id), filesuffix='largegalaxy', verbose=True)
         ellipse = af.tree
@@ -539,9 +546,14 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
             tractor[radkey][this] = ellipse[radkey]
             for filt in ['g', 'r', 'z']:
                 magkey = radkey.replace('radius_', 'mag_{}_'.format(filt))
+                if magkey not in ellipse.keys():
+                    print('Problem with {}!'.format(galaxy))
                 tractor[magkey][this] = ellipse[magkey]
-                tractor['mag_{}_tot'.format(filt)][this] = ellipse['cog_params_{}'.format(filt)]['mtot']
-        
+                if bool(ellipse['cog_params_{}'.format(filt)]):
+                    tractor['mag_{}_tot'.format(filt)][this] = ellipse['cog_params_{}'.format(filt)]['mtot']
+                else:
+                    tractor['mag_{}_tot'.format(filt)][this] = -1.0
+                    
         # Now add the radius
         if ellipse['radius_sb26'] > 0:
             tractor['d25'][this] = ellipse['radius_sb26'] * 2 / 60
@@ -574,11 +586,14 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
         #    pdb.set_trace()
 
         #if len(these) > 10:
-        #    import matplotlib.pyplot as plt
-        #    plt.scatter(tractor['ra'], tractor['dec'], s=5)
-        #    plt.scatter(tractor['ra'][these], tractor['dec'][these], s=5, color='red')
-        #    plt.savefig('junk.png')
-        #    pdb.set_trace()
+            #bb = np.where(tractor['objid'] == 33)[0]
+            #import matplotlib.pyplot as plt
+            #plt.clf()
+            #plt.scatter(tractor['ra'], tractor['dec'], s=5)
+            #plt.scatter(tractor['ra'][these], tractor['dec'][these], s=5, color='red')
+            #plt.scatter(tractor['ra'][bb], tractor['dec'][bb], s=50, color='k')
+            #plt.savefig('junk.png')
+        #   # pdb.set_trace()
 
     if len(reject) > 0:
         reject = vstack(reject)
@@ -604,7 +619,7 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
     outdir = legacyhalos.LSLGA.LSLGA_data_dir()
-    outfile = os.path.join(outdir, 'LSLGA-model-{}.fits'.format(version))
+    outfile = os.path.join(outdir, 'LSLGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
         return
@@ -740,8 +755,10 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
                 lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)
     
     # Stack!
-    print('Temporarily leaving off the original LSLGA!')
-    if False:
+    skipfull = True
+    if skipfull:
+        print('Temporarily leaving off the original LSLGA!')
+    else:
         out = vstack((lslga, out))
     out = out[np.argsort(out['LSLGA_ID'])]
     out = vstack((out[out['LSLGA_ID'] != -1], out[out['LSLGA_ID'] == -1]))
@@ -752,15 +769,16 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     # be in 'out' because we still want to use them in production even though we
     # couldn't do ellipse-fitting.
     _out = out[(out['LSLGA_ID'] != -1) * out['PREBURNED']]
-    chk1 = np.where(np.isin(fullsample['LSLGA_ID'], _out['LSLGA_ID']))[0]
-    chk2 = np.where(np.isin(out['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
-    chk3 = np.where(np.isin(out['LSLGA_ID'], reject['LSLGA_ID']))[0]
-    chk4 = np.where(np.isin(reject['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
-    assert(len(chk1) == len(_out))
-    assert(len(chk2) == len(nogrz))
-    assert(len(chk3) == 0)
-    assert(len(chk4) == 0)
-    
+    if not skipfull:
+        chk1 = np.where(np.isin(fullsample['LSLGA_ID'], _out['LSLGA_ID']))[0]
+        chk2 = np.where(np.isin(out['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
+        chk3 = np.where(np.isin(out['LSLGA_ID'], reject['LSLGA_ID']))[0]
+        chk4 = np.where(np.isin(reject['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
+        assert(len(chk1) == len(_out))
+        assert(len(chk2) == len(nogrz))
+        assert(len(chk3) == 0)
+        assert(len(chk4) == 0)
+
     print('Writing {} galaxies to {}'.format(len(out), outfile))
     hdrversion = 'L{}-MODEL'.format(version[1:2]) # fragile!
     hdr['LSLGAVER'] = hdrversion
@@ -793,26 +811,30 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
             iv = cat['flux_ivar_{}'.format(band)]
             ff = cat['flux_{}'.format(band)]
         elif R24:
-            if 'mag_{}_sb24'.format(band) in cat.keys():
-                mag = cat['mag_{}_sb24'.format(band)]
-            else:
-                print('Fix me')
-                mag = -1
+            mag = cat['mag_{}_sb24'.format(band)]
+            #if 'mag_{}_sb24'.format(band) in cat.keys():
+            #    mag = cat['mag_{}_sb24'.format(band)]
+            #else:
+            #    print('Fix me')
+            #    mag = -1
         elif R25:
-            if 'mag_{}_sb25'.format(band) in cat.keys():
-                mag = cat['mag_{}_sb25'.format(band)]
-            else:
-                mag = -1
+            mag = cat['mag_{}_sb25'.format(band)]
+            #if 'mag_{}_sb25'.format(band) in cat.keys():
+            #    mag = cat['mag_{}_sb25'.format(band)]
+            #else:
+            #    mag = -1
         elif R26:
-            if 'mag_{}_sb26'.format(band) in cat.keys():
-                mag = cat['mag_{}_sb26'.format(band)]
-            else:
-                mag = -1
+            mag = cat['mag_{}_sb26'.format(band)]
+            #if 'mag_{}_sb26'.format(band) in cat.keys():
+            #    mag = cat['mag_{}_sb26'.format(band)]
+            #else:
+            #    mag = -1
         elif cog:
-            if 'cog_params_{}'.format(band) in cat.keys():
-                mag = cat['cog_params_{}'.format(band)]['mtot']
-            else:
-                mag = -1
+            mag = cat['cog_params_{}'.format(band)]['mtot']
+            #if 'cog_params_{}'.format(band) in cat.keys():
+            #    mag = cat['cog_params_{}'.format(band)]['mtot']
+            #else:
+            #    mag = -1
         else:
             print('Thar be rocks ahead!')
         if mag:
