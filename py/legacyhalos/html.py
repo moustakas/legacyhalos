@@ -474,6 +474,9 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
     if get_galaxy_galaxydir is None:
         get_galaxy_galaxydir = legacyhalos.io.get_galaxy_galaxydir
 
+    if type(sample) is astropy.table.row.Row:
+        sample = astropy.table.Table(sample)
+        
     # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
         galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(onegal, html=True)

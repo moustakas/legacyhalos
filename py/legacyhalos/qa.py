@@ -131,7 +131,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
     yfaint, ybright = 0, 50
     for filt in bands:
-        col = next(colors)            
+        col = next(colors) # iterate here in case we're missing a bandpass
+        
         #flux = ellipsefit['apphot_mag_{}'.format(filt)]
         #good = np.where( np.isfinite(flux) * (flux > 0) )[0]
         #mag = 22.5-2.5*np.log10(flux[good])
@@ -153,7 +154,6 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         else:
             label = r'{}={:.3f} ($\chi^2_\nu={:.1f}$)'.format(filt, magtot, chi2)
             
-        col = next(colors)
         #ax.plot(sma, cog, label=label)
         ax.fill_between(sma, cog-cogerr, cog+cogerr, label=label, color=col)
                         #facecolor=col, edgecolor='k', lw=2)

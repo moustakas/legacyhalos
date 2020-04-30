@@ -14,19 +14,15 @@ def main():
     """Top-level wrapper.
 
     """
-    from astropy.table import Table, hstack
     import legacyhalos.io
-    import legacyhalos.mpi
     import legacyhalos.LSLGA
 
     from legacypipe.runs import get_survey
-    from legacyhalos.mpi import call_custom_coadds, call_ellipse, call_htmlplots
     from legacyhalos.LSLGA import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
 
     lslgadir = legacyhalos.LSLGA.LSLGA_dir()
     datadir = legacyhalos.LSLGA.LSLGA_data_dir()
     htmldir = legacyhalos.LSLGA.LSLGA_html_dir()
-
     args = legacyhalos.LSLGA.mpi_args()
 
     if args.mpi:
@@ -134,14 +130,13 @@ def main():
         if args.largegalaxy_customsky:
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
         else:
-            #print('Temporarily hack the radius by a factor of 1.5!!')
-            #radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
 
         run = legacyhalos.io.get_run(onegal)
         survey = get_survey(run, output_dir=galaxydir)
 
         if args.largegalaxy_coadds:
+            from legacyhalos.mpi import call_custom_coadds
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
                 # Write out the individual galaxies for this mosaic.
                 thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
@@ -159,6 +154,7 @@ def main():
                                    require_grz=True, debug=args.debug, logfile=logfile)
 
         if args.pipeline_coadds:
+            from legacyhalos.mpi import call_custom_coadds
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
                 # No unwise here (we do it in largegalaxy_coadds)
                 call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
@@ -170,12 +166,14 @@ def main():
                                    no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
+            from legacyhalos.mpi import call_ellipse
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
                 call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                              nproc=args.nproc, verbose=args.verbose, debug=args.debug,
                              logfile=logfile, largegalaxy=True, pipeline=False)
                              
         if args.htmlplots:
+            from legacyhalos.mpi import call_htmlplots
             if radius_mosaic_arcsec > 6 * 60: # [>6] arcmin
                 barlabel = '2 arcmin'
                 barlen = np.ceil(120 / args.pixscale).astype(int) # [pixels]
@@ -186,7 +184,7 @@ def main():
                 barlabel = '30 arcsec'
                 barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
             if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-                call_htmlplots(Table(onegal), galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
+                call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
                                verbose=args.verbose, debug=args.debug, clobber=args.clobber,
                                ccdqa=args.ccdqa, logfile=logfile, zcolumn=ZCOLUMN,
                                htmldir=htmldir, datadir=datadir,
