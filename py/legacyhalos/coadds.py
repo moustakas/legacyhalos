@@ -648,7 +648,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     # stage-specific options here--
     if largegalaxy:
-        cmd += '--largegalaxy-preburner --saddle-fraction 0.2 --saddle-min 4.0 '
+        cmd += '--fit-on-coadds --saddle-fraction 0.2 --saddle-min 4.0 '
         #cmd += '--nsigma 10 '
     if custom:
         print('Write me!')
