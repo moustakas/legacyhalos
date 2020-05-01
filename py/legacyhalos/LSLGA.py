@@ -5,13 +5,10 @@ legacyhalos.LSLGA
 Code to deal with the LSLGA sample and project.
 
 """
-import os, time, shutil, pdb
+import os, shutil, pdb
 import numpy as np
 import astropy
 
-import legacyhalos.io
-
-RADIUS_CLUSTER_KPC = 100.0     # default cluster radius
 ZCOLUMN = 'Z'
 RACOLUMN = 'GROUP_RA'
 DECCOLUMN = 'GROUP_DEC'
@@ -161,6 +158,12 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
         else:
             return suffix, weighted_indices
 
+def LSLGA_version():
+    #version = 'v5.0' # dr9e
+    #version = 'v6.0'  # dr9f,g
+    version = 'v7.0'  # DR9
+    return version
+
 def LSLGA_dir():
     if 'LSLGA_DIR' not in os.environ:
         print('Required ${LSLGA_DIR environment variable not set.')
@@ -168,7 +171,6 @@ def LSLGA_dir():
     ldir = os.path.abspath(os.getenv('LSLGA_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
-        #shutil.chown(ldir, group='cosmo')
     return ldir
 
 def LSLGA_data_dir():
@@ -178,7 +180,6 @@ def LSLGA_data_dir():
     ldir = os.path.abspath(os.getenv('LSLGA_DATA_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
-        #shutil.chown(ldir, group='cosmo')
     return ldir
 
 def LSLGA_html_dir():
@@ -188,7 +189,6 @@ def LSLGA_html_dir():
     ldir = os.path.abspath(os.getenv('LSLGA_HTML_DIR'))
     if not os.path.isdir(ldir):
         os.makedirs(ldir, exist_ok=True)
-        #shutil.chown(ldir, group='cosmo')
     return ldir
 
 def get_raslice(ra):
@@ -236,12 +236,6 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
-def LSLGA_version():
-    #version = 'v5.0' # dr9e
-    #version = 'v6.0'  # dr9f,g
-    version = 'v7.0'  # DR9
-    return version
-
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
                 customsky=False, preselect_sample=True, d25min=0.1, d25max=100.0):
     """Read/generate the parent LSLGA catalog.
@@ -282,6 +276,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         rows = rows[samplecut]
         nrows = len(rows)
         print('Selecting {} custom sky galaxies.'.format(nrows))
+        
     elif preselect_sample:
         cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_MULT',
                 'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'LSLGA_ID', 'GALAXY', 'RA', 'DEC']
@@ -354,8 +349,22 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #ww = np.where(np.isin(sample['GROUP_ID'], fullsample['GROUP_ID'][m1]))[0]
             #ww = np.hstack([np.where(gid == sample['GROUP_ID'])[0] for gid in fullsample['GROUP_ID'][m1]])
             rows = rows[m1]
+
+        if True: # test fitting of all the DR8 candidates
+            fullsample = read_sample(preselect_sample=False, columns=['LSLGA_ID', 'GALAXY', 'GROUP_ID', 'GROUP_NAME', 'GROUP_DIAMETER', 'IN_DESI'])
+            ww = np.where(fullsample['LSLGA_ID'] >= 6e6)[0]
+            #galaxylist = np.unique(fullsample['GROUP_NAME'][ww])
+            #print(len(ww), len(set(fullsample['GROUP_ID'][ww])))
+            #for gid in set(fullsample['GROUP_ID'][ww]):
+            #    ii = np.where(gid == sample['GROUP_ID'][samplecut])[0]
+            #    jj = np.where(gid == fullsample['GROUP_ID'])[0]
+            #    print(astropy.table.Table(sample[samplecut][ii]))
+            #    print(fullsample[jj])
+            #    pdb.set_trace()
+            these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
+            rows = rows[these]
             
-        if True: # DR9 bricklist
+        if False: # DR9 bricklist
             nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
             sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
             #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
@@ -876,6 +885,8 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
     page.
 
     """
+    import legacyhalos.html
+    
     homehtmlfile = os.path.join(htmldir, homehtml)
     print('Building {}'.format(homehtmlfile))
 
@@ -988,6 +999,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
     """
     import fitsio
     from glob import glob
+    import legacyhalos.io
+    import legacyhalos.html
     
     if not os.path.exists(htmlgalaxydir1):
         os.makedirs(htmlgalaxydir1)
@@ -995,8 +1008,6 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
             for topdir, dirs, files in os.walk(htmlgalaxydir1):
                 for dd in dirs:
                     shutil.chown(os.path.join(topdir, dd), group='cosmo')
-                #for ff in files:
-                #    shutil.chown(os.path.join(topdir, ff), group='cosmo')
 
     htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
     if os.path.isfile(htmlfile) and not clobber:

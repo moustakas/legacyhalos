@@ -8,7 +8,7 @@
 # Example: build the largegalaxy-coadds using 16 MPI tasks with 8 cores per node (and therefore 16*8/32=4 nodes)
 
 #salloc -N 4 -C haswell -A desi -L cfs -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:latest
-#srun -n 16 -c 8 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh largegalaxy-coadds 8 > LSLGA-largegalaxy-coadds.log.1 2>&1 &
+#srun -n 16 -c 8 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh largegalaxy-coadds 8 > coadds.log.1 2>&1 &
 
 # Grab the input arguments--
 stage=$1
