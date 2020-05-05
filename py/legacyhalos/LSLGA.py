@@ -64,19 +64,24 @@ def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
     checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
     #print('missing_files_one: ', checkfile)
     if os.path.exists(checkfile) and clobber is False:
-        return False
+        return 'done'
     else:
         #print('missing_files_one: ', checkfile)
-        return True
+        # Did this object fail?
+        if '.isdone' in checkfile:
+            failfile = checkfile.replace('.isdone', '.isfail')
+            if os.path.exists(failfile):
+                return 'fail'
+        return 'todo'
     
-def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
+def missing_files(args, sample, size=1, filesuffix=None):
     from astrometry.util.multiproc import multiproc
 
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     if args.largegalaxy_coadds:
         suffix = 'largegalaxy-coadds'
         if filesuffix is None:
             filesuffix = '-largegalaxy-coadds.isdone'
-        galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.pipeline_coadds:
         suffix = 'pipeline-coadds'
         if filesuffix is None:
@@ -85,17 +90,14 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
             else:
                 filesuffix = '-pipeline-coadds.isdone'
                 #filesuffix = '-pipeline-resid-grz.jpg'
-        galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.ellipse:
         suffix = 'ellipse'
         if filesuffix is None:
             filesuffix = '-largegalaxy-ellipse.isdone'
-        galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     elif args.build_LSLGA:
         suffix = 'build-LSLGA'
         if filesuffix is None:
             filesuffix = '-largegalaxy-ellipse.isdone'
-        galaxy, galaxydir = get_galaxy_galaxydir(sample)
     elif args.htmlplots:
         suffix = 'html'
         if filesuffix is None:
@@ -104,7 +106,7 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
             else:
                 filesuffix = '-ccdpos.png'
                 #filesuffix = '-largegalaxy-maskbits.png'
-            galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
         suffix = 'htmlindex'
         if filesuffix is None:
@@ -134,30 +136,37 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
     mp = multiproc(nthreads=args.nproc)
     todo = mp.map(_missing_files_one, [(gal, gdir, filesuffix, clobber)
                                            for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))])
+    todo = np.array(todo)
 
-    if np.sum(todo) == 0:
-        if indices_only:
-            return list()
-        else:
-            return suffix, list()
+    itodo = np.where(todo == 'todo')[0]
+    idone = np.where(todo == 'done')[0]
+    ifail = np.where(todo == 'fail')[0]
+
+    if len(ifail) > 0:
+        fail_indices = indices[ifail]
     else:
-        indices = indices[todo]
+        fail_indices = list()
+
+    if len(idone) > 0:
+        done_indices = indices[idone]
+    else:
+        done_indices = list()
+
+    if len(itodo) > 0:
+        _todo_indices = indices[itodo]
 
         # Assign the sample to ranks to make the D25 distribution per rank ~flat.
 
         # https://stackoverflow.com/questions/33555496/split-array-into-equally-weighted-chunks-based-on-order
-        weight = np.atleast_1d(sample['D25'])[indices]
+        weight = np.atleast_1d(sample['D25'])[_todo_indices]
         cumuweight = weight.cumsum() / weight.sum()
         idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
-        weighted_indices = np.array_split(indices, idx)
-        indices = np.array_split(indices, size)
+        todo_indices = np.array_split(_todo_indices, idx) # weighted
+    else:
+        todo_indices = list()
 
-        #[print(np.sum(sample['D25'][ww]), np.sum(sample['D25'][vv])) for ww, vv in zip(weighted_indices, indices)]
-        if indices_only:
-            return weighted_indices
-        else:
-            return suffix, weighted_indices
-
+    return suffix, todo_indices, done_indices, fail_indices
+    
 def LSLGA_version():
     #version = 'v5.0' # dr9e
     #version = 'v6.0'  # dr9f,g
@@ -1442,11 +1451,13 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         
     # Only create pages for the set of galaxies with a montage.
     keep = np.arange(len(sample))
-    missing = missing_files(args, sample, indices_only=True)
-    if len(missing) > 0:
-        keep = np.delete(keep, missing)
-        print('Keeping {}/{} galaxies with complete montages.'.format(len(keep), len(sample)))
-        sample = sample[keep]
+    _, _, done, _ = missing_files(args, sample, done_indices_only=True)
+    if len(done) == 0:
+        print('No galaxies with complete montages!')
+        return
+    
+    print('Keeping {}/{} galaxies with complete montages.'.format(len(done), len(sample)))
+    sample = sample[done]
     #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
 
     trendshtml = 'trends.html'

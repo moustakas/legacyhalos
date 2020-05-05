@@ -7,7 +7,7 @@
 
 # Example: build the largegalaxy-coadds using 16 MPI tasks with 8 cores per node (and therefore 16*8/32=4 nodes)
 
-#salloc -N 4 -C haswell -A desi -L cfs -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:latest
+#salloc -N 4 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:latest
 #srun -n 16 -c 8 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh largegalaxy-coadds 8 > coadds.log.1 2>&1 &
 
 # Grab the input arguments--
@@ -67,7 +67,7 @@ grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
 let usemem=${maxmem}*${ncores}/32
 
 if [ $stage = "largegalaxy-coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --d25max 1 --last 999
+    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --d25max 1.5 --count --debug
     #echo 'JUST COADDS!'
     #time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --just-coadds --d25max 20 --d25min 5
 elif [ $stage = "pipeline-coadds" ]; then

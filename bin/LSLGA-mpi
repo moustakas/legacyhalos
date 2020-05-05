@@ -60,7 +60,7 @@ def main():
     # the full sample, so do that here and then return.
     if (args.build_LSLGA or args.htmlindex) and rank == 0:
         if args.build_LSLGA:
-            _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
+            _, _, groups, _ = legacyhalos.LSLGA.missing_files(args, sample, size)
             legacyhalos.LSLGA.build_model_LSLGA(sample[tuple(groups)], fullsample,
                                                 nproc=args.nproc, clobber=args.clobber)
 
@@ -74,39 +74,52 @@ def main():
     
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
-    groups, suffix = [], ''
     if rank == 0:
-        suffix, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
+        suffix, groups, _, fail = legacyhalos.LSLGA.missing_files(args, sample, size)
+    else:
+        groups, suffix = [], ''
 
     if comm:
         groups = comm.bcast(groups, root=0)
         suffix = comm.bcast(suffix, root=0)
 
-    if len(groups) == 0:
-        ntodo = 0
-    else:
-        ntodo = len(np.hstack(np.atleast_1d(groups)))
-
-    if rank == 0:
-        if ntodo == 0:
-            print('{} for all {} galaxies are complete!'.format(
-                suffix.upper(), len(sample)), flush=True)
-            return
-        else:
-            print('{} left to do: {} / {} divided across {} group(s) and {} rank(s).'.format(
-                suffix.upper(), ntodo, len(sample), len(groups), size), flush=True)
-
-    if len(groups[rank]) == 0 or args.count:
-        if len(groups[rank]) > 0 and args.debug:
-            galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[tuple(groups)])
-            for ii, dd, diam in zip(groups[rank], galaxydir, sample[tuple(groups)][DIAMCOLUMN]):
-                #print('touch {}/{}-largegalaxy-coadds.isdone'.format(dd, galaxy[ii]))
-                print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
-            #for ii, dd, diam, ra, dec in zip(groups[rank], galaxydir, sample[tuple(groups)][DIAMCOLUMN],
-            #                                 sample[tuple(groups)][RACOLUMN], sample[tuple(groups)][DECCOLUMN]):
-            #    print('  {} {} (D25={:.3f}, RA, Dec={:.5f} {:.5f})'.format(ii, dd, diam, ra, dec))
+    if len(groups[rank]) == 0:
+        print('{} for all {} galaxies on rank {} are complete!'.format(
+            suffix.upper(), len(sample)), rank, flush=True)
         return
-
+    else:
+        if rank == 0:
+            # List the failures--
+            if len(fail) > 0:
+                print('{} failures: {} / {}'.format(suffix.upper(), len(fail), len(sample)), flush=True)
+                if args.debug:
+                    galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[fail])
+                    for ii, dd, diam in zip(fail, np.atleast_1d(galaxydir), sample[fail][DIAMCOLUMN]):
+                        print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+            # List the objects left--
+            ntodo = len(np.hstack(groups))
+            print('{} left to do: {} / {} divided across {} rank(s).'.format(
+                suffix.upper(), ntodo, len(sample)-len(fail), size), flush=True)
+        # Wait for all ranks to catch up.
+        if comm is not None:
+            comm.barrier()
+            
+        # This snippet of code is good if you want each rank to list the
+        # galaxies it has left, but the log output gets messy, so just have
+        # rank=0 print to the log.
+        if args.count:
+            print('    Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
+            # Just have rank 0 print the galaxies left to do.
+            if rank == 0 and args.debug:
+                todo = np.hstack(groups)
+                galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[todo])
+                for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
+                    print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                #galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[groups[rank]])
+                #for ii, dd, diam in zip(groups[rank], np.atleast_1d(galaxydir), sample[groups[rank]][DIAMCOLUMN]):
+                #    print('    {} {} (D25={:.3f})'.format(ii, dd, diam))
+            return
+    
     # Loop on the remaining objects.
     print('Starting {} {} on rank {} at {}'.format(len(groups[rank]), suffix.upper(),
                                                    rank, time.asctime()), flush=True)

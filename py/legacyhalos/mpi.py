@@ -19,16 +19,18 @@ def _start(galaxy, log=None, seed=None):
         galaxy, time.asctime()), flush=True, file=log)
 
 def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
+    if filesuffix is None:
+        suffix = ''
+    else:
+        suffix = '-{}'.format(filesuffix)
     if err == 0:
         print('ERROR: galaxy {}; please check the logfile.'.format(galaxy), flush=True, file=log)
+        donefile = os.path.join(galaxydir, '{}{}-{}.isfail'.format(galaxy, suffix, stage))
     else:
-        if filesuffix is None:
-            suffix = ''
-        else:
-            suffix = '-{}'.format(filesuffix)
-        isdonefile = os.path.join(galaxydir, '{}{}-{}.isdone'.format(galaxy, suffix, stage))
-        cmd = 'touch {}'.format(isdonefile)
-        subprocess.call(cmd.split())
+        donefile = os.path.join(galaxydir, '{}{}-{}.isdone'.format(galaxy, suffix, stage))
+        
+    cmd = 'touch {}'.format(donefile)
+    subprocess.call(cmd.split())
         
     print('Finished galaxy {} in {:.3f} minutes.'.format(
           galaxy, (time.time() - t0)/60), flush=True, file=log)
