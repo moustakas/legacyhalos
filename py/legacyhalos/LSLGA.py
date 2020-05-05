@@ -60,11 +60,19 @@ def _missing_files_one(args):
     """Wrapper for the multiprocessing."""
     return missing_files_one(*args)
 
-def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
+def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
     checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
     #print('missing_files_one: ', checkfile)
     if os.path.exists(checkfile) and clobber is False:
-        return 'done'
+        # Is the stage that this stage depends on done, too?
+        if dependson is not None:
+            dependsfile = os.path.join(galaxydir, '{}{}'.format(galaxy, dependson))
+            if os.path.exists(dependsfile):
+                return 'done'
+            else:
+                return 'todo'
+        else:
+            return 'done'
     else:
         #print('missing_files_one: ', checkfile)
         # Did this object fail?
@@ -74,43 +82,38 @@ def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
                 return 'fail'
         return 'todo'
     
-def missing_files(args, sample, size=1, filesuffix=None):
+def missing_files(args, sample, size=1):
     from astrometry.util.multiproc import multiproc
 
+    dependson = None
     galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     if args.largegalaxy_coadds:
         suffix = 'largegalaxy-coadds'
-        if filesuffix is None:
-            filesuffix = '-largegalaxy-coadds.isdone'
+        filesuffix = '-largegalaxy-coadds.isdone'
     elif args.pipeline_coadds:
         suffix = 'pipeline-coadds'
-        if filesuffix is None:
-            if args.just_coadds:
-                filesuffix = '-pipeline-image-grz.jpg'
-            else:
-                filesuffix = '-pipeline-coadds.isdone'
-                #filesuffix = '-pipeline-resid-grz.jpg'
+        if args.just_coadds:
+            filesuffix = '-pipeline-image-grz.jpg'
+        else:
+            filesuffix = '-pipeline-coadds.isdone'
     elif args.ellipse:
         suffix = 'ellipse'
-        if filesuffix is None:
-            filesuffix = '-largegalaxy-ellipse.isdone'
+        filesuffix = '-largegalaxy-ellipse.isdone'
+        dependson = '-largegalaxy-coadds.isdone'
     elif args.build_LSLGA:
         suffix = 'build-LSLGA'
-        if filesuffix is None:
-            filesuffix = '-largegalaxy-ellipse.isdone'
+        filesuffix = '-largegalaxy-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
-        if filesuffix is None:
-            if args.just_coadds:
-                filesuffix = '-largegalaxy-grz-montage.png'
-            else:
-                filesuffix = '-ccdpos.png'
-                #filesuffix = '-largegalaxy-maskbits.png'
+        if args.just_coadds:
+            filesuffix = '-largegalaxy-grz-montage.png'
+        else:
+            filesuffix = '-ccdpos.png'
+            #filesuffix = '-largegalaxy-maskbits.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
         suffix = 'htmlindex'
-        if filesuffix is None:
-            filesuffix = '-largegalaxy-grz-montage.png'
+        filesuffix = '-largegalaxy-grz-montage.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
         print('Nothing to do.')
@@ -134,9 +137,8 @@ def missing_files(args, sample, size=1, filesuffix=None):
     indices = np.arange(ngal)
 
     mp = multiproc(nthreads=args.nproc)
-    todo = mp.map(_missing_files_one, [(gal, gdir, filesuffix, clobber)
-                                           for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))])
-    todo = np.array(todo)
+    args = [(gal, gdir, filesuffix, dependson, clobber) for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))]
+    todo = np.array(mp.map(_missing_files_one, args))
 
     itodo = np.where(todo == 'todo')[0]
     idone = np.where(todo == 'done')[0]

@@ -146,7 +146,6 @@ def main():
 
         if args.largegalaxy_coadds:
             from legacyhalos.mpi import call_custom_coadds
-            #if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
             # Write out the individual galaxies for this mosaic.
             thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
             samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
@@ -164,8 +163,8 @@ def main():
 
         if args.pipeline_coadds:
             from legacyhalos.mpi import call_custom_coadds
-            #if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-            # No unwise here (we do it in largegalaxy_coadds)
+            # No unwise here (we do it in largegalaxy_coadds) and don't care
+            # about the model images.
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=True, custom=False,

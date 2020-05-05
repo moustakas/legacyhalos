@@ -28,11 +28,21 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     """
     import fitsio
 
-    def _copyfile(infile, outfile, clobber=False):
+    #def get_git_version(dirname=None):
+    #    """Shamelessly taken from legacypipe.survey."""
+    #    if dirname is None:
+    #        import legacyhalos
+    #        dirname = os.path.dirname(legacyhalos.__file__)
+    #    cmd = 'cd {} && git describe'.format(dirname)
+    #    err = subprocess.call(cmd.split(), stdout=log, stderr=log)
+
+    def _copyfile(infile, outfile, clobber=False, update_header=False):
         if os.path.isfile(outfile) and not clobber:
             return 1
         if os.path.isfile(infile):
             os.rename(infile, outfile)
+            if update_header:
+                pass
             return 1
         else:
             print('Missing file {}; please check the logfile.'.format(infile))
@@ -74,7 +84,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
                              os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, outtype, band)),
-                clobber=clobber)
+                clobber=clobber, update_header=True)
             if not ok:
                 return ok
 
