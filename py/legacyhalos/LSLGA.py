@@ -145,12 +145,12 @@ def missing_files(args, sample, size=1, filesuffix=None):
     if len(ifail) > 0:
         fail_indices = indices[ifail]
     else:
-        fail_indices = list()
+        fail_indices = np.array([])
 
     if len(idone) > 0:
         done_indices = indices[idone]
     else:
-        done_indices = list()
+        done_indices = np.array([])
 
     if len(itodo) > 0:
         _todo_indices = indices[itodo]
@@ -163,7 +163,7 @@ def missing_files(args, sample, size=1, filesuffix=None):
         idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
         todo_indices = np.array_split(_todo_indices, idx) # weighted
     else:
-        todo_indices = list()
+        todo_indices = np.array([])
 
     return suffix, todo_indices, done_indices, fail_indices
     

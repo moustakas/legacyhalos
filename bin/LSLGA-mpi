@@ -150,40 +150,40 @@ def main():
 
         if args.largegalaxy_coadds:
             from legacyhalos.mpi import call_custom_coadds
-            if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-                # Write out the individual galaxies for this mosaic.
-                thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
-                samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
-                #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
-                thissample.write(samplefile, overwrite=True)
-                
-                call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
-                                   pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                                   largegalaxy=True, pipeline=False, custom=False,
-                                   apodize=False, unwise=True, force=args.force, plots=False,
-                                   verbose=args.verbose, cleanup=True, write_all_pickles=True,
-                                   no_splinesky=False, customsky=args.largegalaxy_customsky,
-                                   just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
-                                   require_grz=True, debug=args.debug, logfile=logfile)
+            #if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
+            # Write out the individual galaxies for this mosaic.
+            thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
+            samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
+            #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+            thissample.write(samplefile, overwrite=True)
+
+            call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
+                               pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
+                               largegalaxy=True, pipeline=False, custom=False,
+                               apodize=False, unwise=True, force=args.force, plots=False,
+                               verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                               no_splinesky=False, customsky=args.largegalaxy_customsky,
+                               just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
+                               require_grz=True, debug=args.debug, logfile=logfile)
 
         if args.pipeline_coadds:
             from legacyhalos.mpi import call_custom_coadds
-            if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-                # No unwise here (we do it in largegalaxy_coadds)
-                call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
-                                   pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                                   largegalaxy=False, pipeline=True, custom=False,
-                                   apodize=False, unwise=False, force=args.force, plots=False,
-                                   verbose=args.verbose, cleanup=True, write_all_pickles=True,
-                                   no_splinesky=False, just_coadds=args.just_coadds,
-                                   no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
+            #if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
+            # No unwise here (we do it in largegalaxy_coadds)
+            call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
+                               pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
+                               largegalaxy=False, pipeline=True, custom=False,
+                               apodize=False, unwise=False, force=args.force, plots=False,
+                               verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                               no_splinesky=False, just_coadds=args.just_coadds,
+                               no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
             from legacyhalos.mpi import call_ellipse
-            if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-                call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
-                             nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                             logfile=logfile, largegalaxy=True, pipeline=False)
+            #if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
+            call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
+                         nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                         logfile=logfile, largegalaxy=True, pipeline=False)
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
@@ -196,15 +196,15 @@ def main():
             else:
                 barlabel = '30 arcsec'
                 barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
-            if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
-                call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
-                               verbose=args.verbose, debug=args.debug, clobber=args.clobber,
-                               ccdqa=args.ccdqa, logfile=logfile, zcolumn=ZCOLUMN,
-                               htmldir=htmldir, datadir=datadir,
-                               barlen=barlen, barlabel=barlabel,
-                               radius_mosaic_arcsec=radius_mosaic_arcsec,
-                               largegalaxy=True, 
-                               get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)
+            #if len(legacyhalos.LSLGA.missing_files(args, onegal, indices_only=True)) == 1:
+            call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
+                           verbose=args.verbose, debug=args.debug, clobber=args.clobber,
+                           ccdqa=args.ccdqa, logfile=logfile, zcolumn=ZCOLUMN,
+                           htmldir=htmldir, datadir=datadir,
+                           barlen=barlen, barlabel=barlabel,
+                           radius_mosaic_arcsec=radius_mosaic_arcsec,
+                           largegalaxy=True, 
+                           get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)
 
     # Wait for all ranks to finish.
     if comm is not None:
@@ -213,9 +213,9 @@ def main():
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups = legacyhalos.LSLGA.missing_files(args, sample, size)
+        _, groups, _, _ = legacyhalos.LSLGA.missing_files(args, sample, size)
         if len(groups) > 0:
-            stilltodo = len(np.hstack(np.atleast_1d(groups)))
+            stilltodo = len(np.hstack(groups))
         else:
             stilltodo = 0
         print('{} left to do: {} / {}.'.format(suffix.upper(), stilltodo, ntodo), flush=True)
