@@ -14,6 +14,43 @@ RADIUS_CLUSTER_KPC = 500.0     # default cluster radius
 #SURVEY_DIR = '/global/project/projectdirs/cosmo/data/legacysurvey/dr8'
 ZCOLUMN = 'Z_LAMBDA'    
 
+def viewer_inspect(cat):
+    """Write a little catalog that can be uploaded to the viewer.
+
+    """
+    out = cat['GALAXY', 'RA', 'DEC']
+    out.rename_column('GALAXY', 'NAME')
+    outfile = os.path.join(os.getenv('HOME'), 'tmp', 'viewer.fits')
+    print('Writing {} objects to {}'.format(len(cat), outfile))
+    out.write(outfile, overwrite=True)
+
+def imagetool_inspect(cat, group=False):
+    """Write a little catalog that can be uploaded to
+    https://yymao.github.io/decals-image-list-tool/
+
+    """
+    if group:
+        galcol, racol, deccol = 'GROUP_NAME', 'GROUP_RA', 'GROUP_DEC'
+    else:
+        racol, deccol = 'RA', 'DEC'
+        galcol = 'GALAXY'
+        if not galcol in cat.colnames:
+            galcol = 'NAME'
+        
+    outfile = os.path.join(os.getenv('HOME'), 'tmp', 'inspect.txt')
+    print('Writing {} objects to {}'.format(len(cat), outfile))
+    with open(outfile, 'w') as ff:
+        ff.write('name ra dec\n')
+        for ii, (gal, ra, dec) in enumerate(zip(cat[galcol], cat[racol], cat[deccol])):
+            if gal.strip() == '':
+                if 'ALTNAME' in cat.colnames:
+                    gal = cat['ALTNAME'][ii].strip().replace(' ', '')
+                    if gal == '':
+                        gal = 'galaxy'
+                else:
+                    gal = 'galaxy'
+            ff.write('{} {:.6f} {:.6f}\n'.format(gal, ra, dec))
+
 def srcs2image(cat, wcs, band='r', pixelized_psf=None, psf_sigma=1.0):
     """Build a model image from a Tractor catalog or a list of sources.
 
