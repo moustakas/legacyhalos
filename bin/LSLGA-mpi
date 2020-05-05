@@ -104,25 +104,21 @@ def main():
         if comm is not None:
             comm.barrier()
             
-        # This snippet of code is good if you want each rank to list the
-        # galaxies it has left, but the log output gets messy, so just have
-        # rank=0 print to the log.
         if args.count:
-            print('    Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
+            print(' Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
             # Just have rank 0 print the galaxies left to do.
             if rank == 0 and args.debug:
                 todo = np.hstack(groups)
                 galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[todo])
                 for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                     print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
-                #galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[groups[rank]])
-                #for ii, dd, diam in zip(groups[rank], np.atleast_1d(galaxydir), sample[groups[rank]][DIAMCOLUMN]):
-                #    print('    {} {} (D25={:.3f})'.format(ii, dd, diam))
             return
     
     # Loop on the remaining objects.
-    print('Starting {} {} on rank {} at {}'.format(len(groups[rank]), suffix.upper(),
-                                                   rank, time.asctime()), flush=True)
+    print('Starting {} {} on rank {} with {} cores at {}'.format(
+        len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
+        flush=True)
+    
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]

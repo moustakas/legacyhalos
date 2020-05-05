@@ -18,7 +18,7 @@ ncores=$2
 #   echo "ncores must be a positive integer" >&2; exit 1
 #fi
 
-echo 'Working on stage '$stage' with '$ncores' cores.'
+#echo 'Working on stage '$stage' with '$ncores' cores.'
 
 # Set up the needed environment variables dependencies--
 export DUST_DIR=/global/cfs/cdirs/cosmo/data/dust/v0_1
