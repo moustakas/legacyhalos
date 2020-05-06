@@ -119,14 +119,11 @@ def missing_files(args, sample, size=1):
         print('Nothing to do.')
         return
 
-    # Always set clobber False for htmlindex because we're not making files,
-    # we're just looking for them.
-    if args.htmlindex:
+    # Make clobber=False for build_LSLGA and htmlindex because we're not making
+    # the files here, we're just looking for them. The argument args.clobber
+    # gets used downstream.
+    if args.htmlindex or args.build_LSLGA:
         clobber = False
-    # Set clobber to True when building the catalog because we're looking for
-    # the ellipse files, we're not writing them.
-    elif args.build_LSLGA:
-        clobber = True
     else:
         clobber = args.clobber
 
@@ -468,7 +465,7 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
     from legacyhalos.ellipse import SBTHRESH as sbcuts
     
     onegal = Table(onegal)
-    galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
+    galaxy, galaxydir = get_galaxy_galaxydir(onegal)
 
     tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
     # These galaxies are missing because we don't have grz coverage. We want to
@@ -648,12 +645,12 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     from legacypipe.reference import get_large_galaxy_version
         
     # This is a little fragile.
-    version = legacyhalos.LSLGA.LSLGA_version()
+    version = LSLGA_version()
     refcat, _ = get_large_galaxy_version(os.getenv('LARGEGALAXIES_CAT'))
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    outdir = legacyhalos.LSLGA.LSLGA_data_dir()
+    outdir = LSLGA_data_dir()
     outfile = os.path.join(outdir, 'LSLGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
@@ -1453,7 +1450,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         
     # Only create pages for the set of galaxies with a montage.
     keep = np.arange(len(sample))
-    _, _, done, _ = missing_files(args, sample, done_indices_only=True)
+    _, _, done, _ = missing_files(args, sample)
     if len(done) == 0:
         print('No galaxies with complete montages!')
         return

@@ -73,9 +73,9 @@ if [ $stage = "largegalaxy-coadds" ]; then
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --ellipse --nproc $ncores --mpi --verbose --d25max 1 --last 999
+    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --ellipse --nproc $ncores --mpi --verbose --d25max 1.5
 elif [ $stage = "htmlplots" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --htmlplots --nproc $ncores --mpi --verbose --d25max 1 --last 999
+    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --htmlplots --nproc $ncores --mpi --verbose --d25max 1.5
 else
     echo "Unrecognized stage "$stage
 fi

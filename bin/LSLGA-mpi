@@ -60,8 +60,11 @@ def main():
     # the full sample, so do that here and then return.
     if (args.build_LSLGA or args.htmlindex) and rank == 0:
         if args.build_LSLGA:
-            _, _, groups, _ = legacyhalos.LSLGA.missing_files(args, sample, size)
-            legacyhalos.LSLGA.build_model_LSLGA(sample[tuple(groups)], fullsample,
+            _, _, idone, _ = legacyhalos.LSLGA.missing_files(args, sample, size)
+            if len(idone) == 0:
+                print('No ellipse files found!')
+                return
+            legacyhalos.LSLGA.build_model_LSLGA(sample[idone], fullsample,
                                                 nproc=args.nproc, clobber=args.clobber)
 
         if args.htmlindex:
@@ -115,7 +118,7 @@ def main():
             return
     
     # Loop on the remaining objects.
-    print('Starting {} {} on rank {} with {} cores at {}'.format(
+    print('Starting {} {} on rank {} with {} cores on {}'.format(
         len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
         flush=True)
     
