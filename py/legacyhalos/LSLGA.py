@@ -144,12 +144,12 @@ def missing_files(args, sample, size=1):
     if len(ifail) > 0:
         fail_indices = indices[ifail]
     else:
-        fail_indices = np.array([])
+        fail_indices = [np.array([])]
 
     if len(idone) > 0:
         done_indices = indices[idone]
     else:
-        done_indices = np.array([])
+        done_indices = [np.array([])]
 
     if len(itodo) > 0:
         _todo_indices = indices[itodo]
@@ -162,7 +162,7 @@ def missing_files(args, sample, size=1):
         idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
         todo_indices = np.array_split(_todo_indices, idx) # weighted
     else:
-        todo_indices = np.array([])
+        todo_indices = [np.array([])]
 
     return suffix, todo_indices, done_indices, fail_indices
     
@@ -358,7 +358,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #ww = np.hstack([np.where(gid == sample['GROUP_ID'])[0] for gid in fullsample['GROUP_ID'][m1]])
             rows = rows[m1]
 
-        if True: # test fitting of all the DR8 candidates
+        if False: # test fitting of all the DR8 candidates
             fullsample = read_sample(preselect_sample=False, columns=['LSLGA_ID', 'GALAXY', 'GROUP_ID', 'GROUP_NAME', 'GROUP_DIAMETER', 'IN_DESI'])
             ww = np.where(fullsample['LSLGA_ID'] >= 6e6)[0]
             #galaxylist = np.unique(fullsample['GROUP_NAME'][ww])
@@ -372,9 +372,11 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
             
-        if False: # DR9 bricklist
-            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
+        if True: # DR9 bricklist
+            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
+            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')
+            #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
+            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
             #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
             bricklist = np.union1d(nbricklist, sbricklist)
@@ -430,7 +432,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
 
     #print('Gigantic hack!!')
-    #galaxylist = np.loadtxt('/global/u2/i/ioannis/junk2', dtype=str)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/junk', dtype=str)
     
     if galaxylist is not None:
         if verbose:
@@ -446,12 +448,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     
     return sample
 
-def _build_model_LSLGA_one(args):
+def _build_ellipse_LSLGA_one(args):
     """Wrapper function for the multiprocessing."""
-    return build_model_LSLGA_one(*args)
+    return build_ellipse_LSLGA_one(*args)
 
-def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
-    """Gather the fitting results build a single galaxy.
+def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L6'):
+    """Gather the ellipse-fitting results for a single galaxy.
 
     """
     from glob import glob
@@ -533,7 +535,7 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
         if not os.path.isfile(ellipsefile):
             # Add some info from the Tractor catalog so we can debug--
             print('Ellipse-fit reject: {} (LSLGA_ID={})'.format(fullsample['GALAXY'][igal], lslga_id))
-            rej = Table(fullsample[igal]['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA'])
+            rej = Table(fullsample[igal]['LSLGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID', 'D25', 'PA', 'BA'])
             rej['TRACTOR_RA'] = np.float64(-1)
             rej['TRACTOR_DEC'] = np.float64(-1)
             rej['TRACTOR_TYPE'] = np.array('   ')
@@ -634,8 +636,8 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
 
     return tractor, reject, inspect, None
 
-def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
-    """Gather all the fitting results and build the final model-based LSLGA catalog.
+def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
+    """Gather all the ellipse-fitting results and build the final LSLGA catalog.
 
     """
     import fitsio
@@ -664,7 +666,7 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     args = []
     for onegal in sample:
         args.append((onegal, fullsample[fullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat))
-    rr = mp.map(_build_model_LSLGA_one, args)
+    rr = mp.map(_build_ellipse_LSLGA_one, args)
     rr = list(zip(*rr))
 
     cat = list(filter(None, rr[0]))
@@ -865,11 +867,10 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
             #else:
             #    mag = -1
         elif cog:
-            mag = cat['cog_params_{}'.format(band)]['mtot']
-            #if 'cog_params_{}'.format(band) in cat.keys():
-            #    mag = cat['cog_params_{}'.format(band)]['mtot']
-            #else:
-            #    mag = -1
+            if bool(cat['cog_params_{}'.format(band)]):
+                mag = cat['cog_params_{}'.format(band)]['mtot']
+            else:
+                mag = -1
         else:
             print('Thar be rocks ahead!')
         if mag:

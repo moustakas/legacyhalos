@@ -274,6 +274,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print('Bands touching this brick, {}'.format(' '.join([filt for filt in usebands])))
     if np.sum(these) != 3 and require_grz:
         print('Missing imaging in grz and require_grz=True; nothing to do.')
+        ccdsfile = os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run))
+        # should we write out the CCDs file?
+        print('Writing {} CCDs to {}'.format(len(ccds), ccdsfile))
+        ccds.writeto(ccdsfile, overwrite=True)
         return 1, stagesuffix
 
     # Run the pipeline!

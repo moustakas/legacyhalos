@@ -42,8 +42,10 @@ export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/legacyhalos
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 
 export LSLGA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA
-export LSLGA_DATA_DIR=/global/cscratch1/sd/ioannis/LSLGA-data-DR9-1arcmin
-export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9-1arcmin
+export LSLGA_DATA_DIR=/global/cscratch1/sd/ioannis/LSLGA-data-dr9h
+export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-dr9h
+#export LSLGA_DATA_DIR=/global/cscratch1/sd/ioannis/LSLGA-data-DR9-1arcmin
+#export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9-1arcmin
 #export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9-5arcmin
 #export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9-5arcmin
 
@@ -73,7 +75,7 @@ if [ $stage = "largegalaxy-coadds" ]; then
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --ellipse --nproc $ncores --mpi --verbose --d25max 1.5
+    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --ellipse --nproc $ncores --mpi --verbose --d25max 1.5 --clobber
 elif [ $stage = "htmlplots" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --htmlplots --nproc $ncores --mpi --verbose --d25max 1.5
 else
