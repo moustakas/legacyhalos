@@ -919,7 +919,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             # pixels belonging to the central.
             _residual_mask = residual_mask.copy()
             _residual_mask[central_mask] = ma.nomask
-            mask = ma.mask_or(_residual_mask, newmask)
+            mask = ma.mask_or(_residual_mask, newmask, shrink=False)
 
             # Need to be smarter about the srcs list...
             srcs = tractor.copy()

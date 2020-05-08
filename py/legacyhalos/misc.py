@@ -80,7 +80,7 @@ def srcs2image(cat, wcs, band='r', pixelized_psf=None, psf_sigma=1.0):
 
     # Do we have a tractor catalog or a list of sources?
     if type(cat) is astrometry.util.fits.tabledata:
-        srcs = legacypipe.catalog.read_fits_catalog(cat, fluxPrefix='')
+        srcs = legacypipe.catalog.read_fits_catalog(cat)
     else:
         srcs = cat
 

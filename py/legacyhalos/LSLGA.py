@@ -60,68 +60,70 @@ def _missing_files_one(args):
     """Wrapper for the multiprocessing."""
     return missing_files_one(*args)
 
-def missing_files_one(galaxy, galaxydir, filesuffix, clobber):
+def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
     checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
     #print('missing_files_one: ', checkfile)
     if os.path.exists(checkfile) and clobber is False:
-        return False
+        # Is the stage that this stage depends on done, too?
+        if dependson is not None:
+            dependsfile = os.path.join(galaxydir, '{}{}'.format(galaxy, dependson))
+            if os.path.exists(dependsfile):
+                return 'done'
+            else:
+                return 'todo'
+        else:
+            return 'done'
     else:
         #print('missing_files_one: ', checkfile)
-        return True
+        # Did this object fail?
+        if '.isdone' in checkfile:
+            failfile = checkfile.replace('.isdone', '.isfail')
+            if os.path.exists(failfile):
+                return 'fail'
+        return 'todo'
     
-def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
+def missing_files(args, sample, size=1):
     from astrometry.util.multiproc import multiproc
 
+    dependson = None
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     if args.largegalaxy_coadds:
         suffix = 'largegalaxy-coadds'
-        if filesuffix is None:
-            filesuffix = '-largegalaxy-coadds.isdone'
-        galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+        filesuffix = '-largegalaxy-coadds.isdone'
     elif args.pipeline_coadds:
         suffix = 'pipeline-coadds'
-        if filesuffix is None:
-            if args.just_coadds:
-                filesuffix = '-pipeline-image-grz.jpg'
-            else:
-                filesuffix = '-pipeline-coadds.isdone'
-                #filesuffix = '-pipeline-resid-grz.jpg'
-        galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+        if args.just_coadds:
+            filesuffix = '-pipeline-image-grz.jpg'
+        else:
+            filesuffix = '-pipeline-coadds.isdone'
     elif args.ellipse:
         suffix = 'ellipse'
-        if filesuffix is None:
-            filesuffix = '-largegalaxy-ellipse.isdone'
-        galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+        filesuffix = '-largegalaxy-ellipse.isdone'
+        dependson = '-largegalaxy-coadds.isdone'
     elif args.build_LSLGA:
         suffix = 'build-LSLGA'
-        if filesuffix is None:
-            filesuffix = '-largegalaxy-ellipse.isdone'
-        galaxy, galaxydir = get_galaxy_galaxydir(sample)
+        filesuffix = '-largegalaxy-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
-        if filesuffix is None:
-            if args.just_coadds:
-                filesuffix = '-largegalaxy-grz-montage.png'
-            else:
-                filesuffix = '-ccdpos.png'
-                #filesuffix = '-largegalaxy-maskbits.png'
-            galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+        if args.just_coadds:
+            filesuffix = '-largegalaxy-grz-montage.png'
+        else:
+            filesuffix = '-ccdpos.png'
+            #filesuffix = '-largegalaxy-maskbits.png'
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
         suffix = 'htmlindex'
-        if filesuffix is None:
-            filesuffix = '-largegalaxy-grz-montage.png'
+        filesuffix = '-largegalaxy-grz-montage.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
         print('Nothing to do.')
         return
 
-    # Always set clobber False for htmlindex because we're not making files,
-    # we're just looking for them.
-    if args.htmlindex:
+    # Make clobber=False for build_LSLGA and htmlindex because we're not making
+    # the files here, we're just looking for them. The argument args.clobber
+    # gets used downstream.
+    if args.htmlindex or args.build_LSLGA:
         clobber = False
-    # Set clobber to True when building the catalog because we're looking for
-    # the ellipse files, we're not writing them.
-    elif args.build_LSLGA:
-        clobber = True
     else:
         clobber = args.clobber
 
@@ -132,32 +134,38 @@ def missing_files(args, sample, size=1, indices_only=False, filesuffix=None):
     indices = np.arange(ngal)
 
     mp = multiproc(nthreads=args.nproc)
-    todo = mp.map(_missing_files_one, [(gal, gdir, filesuffix, clobber)
-                                           for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))])
+    args = [(gal, gdir, filesuffix, dependson, clobber) for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))]
+    todo = np.array(mp.map(_missing_files_one, args))
 
-    if np.sum(todo) == 0:
-        if indices_only:
-            return list()
-        else:
-            return suffix, list()
+    itodo = np.where(todo == 'todo')[0]
+    idone = np.where(todo == 'done')[0]
+    ifail = np.where(todo == 'fail')[0]
+
+    if len(ifail) > 0:
+        fail_indices = indices[ifail]
     else:
-        indices = indices[todo]
+        fail_indices = np.array([])
+
+    if len(idone) > 0:
+        done_indices = indices[idone]
+    else:
+        done_indices = np.array([])
+
+    if len(itodo) > 0:
+        _todo_indices = indices[itodo]
 
         # Assign the sample to ranks to make the D25 distribution per rank ~flat.
 
         # https://stackoverflow.com/questions/33555496/split-array-into-equally-weighted-chunks-based-on-order
-        weight = np.atleast_1d(sample['D25'])[indices]
+        weight = np.atleast_1d(sample['D25'])[_todo_indices]
         cumuweight = weight.cumsum() / weight.sum()
         idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
-        weighted_indices = np.array_split(indices, idx)
-        indices = np.array_split(indices, size)
+        todo_indices = np.array_split(_todo_indices, idx) # weighted
+    else:
+        todo_indices = np.array([])
 
-        #[print(np.sum(sample['D25'][ww]), np.sum(sample['D25'][vv])) for ww, vv in zip(weighted_indices, indices)]
-        if indices_only:
-            return weighted_indices
-        else:
-            return suffix, weighted_indices
-
+    return suffix, todo_indices, done_indices, fail_indices
+    
 def LSLGA_version():
     #version = 'v5.0' # dr9e
     #version = 'v6.0'  # dr9f,g
@@ -457,7 +465,7 @@ def build_model_LSLGA_one(onegal, fullsample, refcat='L6'):
     from legacyhalos.ellipse import SBTHRESH as sbcuts
     
     onegal = Table(onegal)
-    galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
+    galaxy, galaxydir = get_galaxy_galaxydir(onegal)
 
     tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
     # These galaxies are missing because we don't have grz coverage. We want to
@@ -637,12 +645,12 @@ def build_model_LSLGA(sample, fullsample, nproc=1, clobber=False):
     from legacypipe.reference import get_large_galaxy_version
         
     # This is a little fragile.
-    version = legacyhalos.LSLGA.LSLGA_version()
+    version = LSLGA_version()
     refcat, _ = get_large_galaxy_version(os.getenv('LARGEGALAXIES_CAT'))
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    outdir = legacyhalos.LSLGA.LSLGA_data_dir()
+    outdir = LSLGA_data_dir()
     outfile = os.path.join(outdir, 'LSLGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
@@ -1442,11 +1450,13 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         
     # Only create pages for the set of galaxies with a montage.
     keep = np.arange(len(sample))
-    missing = missing_files(args, sample, indices_only=True)
-    if len(missing) > 0:
-        keep = np.delete(keep, missing)
-        print('Keeping {}/{} galaxies with complete montages.'.format(len(keep), len(sample)))
-        sample = sample[keep]
+    _, _, done, _ = missing_files(args, sample)
+    if len(done) == 0:
+        print('No galaxies with complete montages!')
+        return
+    
+    print('Keeping {}/{} galaxies with complete montages.'.format(len(done), len(sample)))
+    sample = sample[done]
     #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
 
     trendshtml = 'trends.html'
