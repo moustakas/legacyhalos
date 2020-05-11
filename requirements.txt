@@ -2,10 +2,5 @@ numpy
 scipy
 astropy
 matplotlib
-tractor
-astrometry.net
-legacypipe
-prospector
-sedpy
-fsps
-dynest
+fitsio
+

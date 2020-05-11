@@ -1,0 +1,81 @@
+version: 2.1
+
+# Very handy tools for working with this file:
+# - the circleci command-line tool:
+#    https://circleci.com/docs/2.0/local-cli/#installation
+#    eg:
+#      circleci config validate
+#      circleci config process .circleci/config.yml
+#
+#      circleci config process .circleci/config.yml > process.yml
+#      circleci local execute -c process.yml --job test-36
+#
+# - docs:
+#    https://circleci.com/docs/2.0/reusing-config/
+# - the python "orb" we're using:
+#    https://circleci.com/orbs/registry/orb/circleci/python
+
+orbs:
+  python: circleci/python@0.2.1
+
+# The default circleci cache does not save ~/.local/bin!
+# (which we need for the 'coverage' program)
+commands:
+  save-cache-bin:
+    description: Save Pip packages to cache (with bin).
+    parameters:
+      key:
+        default: pip
+        description: The cache key to use. The key is immutable.
+        type: string
+    steps:
+    - save_cache:
+        key: << parameters.key >>-{{ checksum "requirements.txt"  }}
+        paths:
+        - /home/circleci/.local/lib/
+        - /home/circleci/.local/bin/
+
+jobs:
+  runtests:
+    parameters:
+      pyver:
+        type: string
+      coveralls:
+        type: boolean
+        default: false
+    executor:
+      name: python/default
+      tag: << parameters.pyver >>
+    steps:
+      - checkout
+      - python/load-cache:
+          key: pip-<< parameters.pyver >>
+      - python/install-deps
+      - run:
+          name: Coverage deps
+          command: |
+              pip install coverage coveralls pyyaml
+      - save-cache-bin:
+          key: pip-<< parameters.pyver >>
+      - run:
+          command: |
+              coverage run setup.py test
+          name: Tests
+      - when:
+          condition: << parameters.coveralls >>
+          steps:
+            - run:
+                name: Coveralls
+                command: |
+                 # first set up project in coveralls.io, then
+                 # set this env.var in the circleci build config,
+                 # https://circleci.com/gh/moustakas/legacyhalos/edit#env-vars
+                 COVERALLS_REPO_TOKEN=${COVERALLS_REPO_TOKEN} coveralls
+
+workflows:
+  main:
+    jobs:
+      - runtests:
+          name: runtests-38
+          pyver: "3.8"
+          coveralls: true

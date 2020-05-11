@@ -84,8 +84,7 @@ def _dointegrate(radius, sb, sberr, rmin=None, rmax=None, band='r'):
         ferr = 2 * np.pi * integrate.simps(x=_radius, y=_radius*_sberr) # [nanomaggies]
 
         if band == 'r':
-            area = 2 * np.pi * integrate
-            .simps(x=_radius, y=_radius) # [kpc2]
+            area = 2 * np.pi * integrate.simps(x=_radius, y=_radius) # [kpc2]
         else:
             area = 0.0
         
