@@ -106,6 +106,8 @@ def main():
     else:
         print(' Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
         if args.count:
+            if rank == 0 and args.debug is False:
+                return
             if rank > 0:
                 return
         
@@ -124,7 +126,7 @@ def main():
             for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                 print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
         return 
-                
+
     # Loop on the remaining objects.
     print('Starting {} {} on rank {} with {} cores on {}'.format(
         len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
