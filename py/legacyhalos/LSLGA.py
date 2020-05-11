@@ -82,7 +82,7 @@ def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
                 return 'fail'
         return 'todo'
     
-def missing_files(args, sample, size=1):
+def missing_files(args, sample, size=1, clobber_overwrite=None):
     from astrometry.util.multiproc import multiproc
 
     dependson = None
@@ -126,6 +126,9 @@ def missing_files(args, sample, size=1):
         clobber = False
     else:
         clobber = args.clobber
+
+    if clobber_overwrite is not None:
+        clobber = clobber_overwrite
 
     if type(sample) is astropy.table.row.Row:
         ngal = 1

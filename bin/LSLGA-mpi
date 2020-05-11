@@ -215,7 +215,7 @@ def main():
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups, _, _ = legacyhalos.LSLGA.missing_files(args, sample, size)
+        _, groups, _, _ = legacyhalos.LSLGA.missing_files(args, sample, size, clobber_overwrite=False)
         if len(groups) > 0:
             stilltodo = len(np.hstack(groups))
         else:
