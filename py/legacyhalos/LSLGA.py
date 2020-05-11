@@ -142,12 +142,12 @@ def missing_files(args, sample, size=1):
     ifail = np.where(todo == 'fail')[0]
 
     if len(ifail) > 0:
-        fail_indices = indices[ifail]
+        fail_indices = [indices[ifail]]
     else:
         fail_indices = [np.array([])]
 
     if len(idone) > 0:
-        done_indices = indices[idone]
+        done_indices = [indices[idone]]
     else:
         done_indices = [np.array([])]
 
