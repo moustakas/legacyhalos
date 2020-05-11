@@ -1,7 +1,7 @@
 Authors:
 
 - `John Moustakas (Siena College) <https://github.com/moustakas>`_
-- `Dustin Lang (Dunlap Institute for Astronomy & Astrophysics) <https://github.com/dstndstn>`_ 
+- `Dustin Lang (Perimeter Institute for Theoretical Physics) <https://github.com/dstndstn>`_ 
 
 Direct contributions to the code base:
 

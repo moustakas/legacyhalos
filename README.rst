@@ -1,5 +1,5 @@
-Stellar Mass Content of Dark Matter Halos in Legacy Survey Imaging
-==================================================================
+Stellar Mass Content of Dark Matter Halos in Legacy Surveys Imaging
+===================================================================
 
 The `DESI Legacy Imaging Surveys`_ have delivered deep *grz* optical imaging and
 unWISE *W1* and *W2* mid-infrared imaging of over 20,000 sq. deg of the
