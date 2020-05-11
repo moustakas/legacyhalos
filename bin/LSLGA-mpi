@@ -64,8 +64,8 @@ def main():
             if len(idone) == 0:
                 print('No ellipse files found!')
                 return
-            legacyhalos.LSLGA.build_model_LSLGA(sample[idone], fullsample,
-                                                nproc=args.nproc, clobber=args.clobber)
+            legacyhalos.LSLGA.build_ellipse_LSLGA(sample[idone], fullsample,
+                                                  nproc=args.nproc, clobber=args.clobber)
 
         if args.htmlindex:
             legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
@@ -88,21 +88,21 @@ def main():
 
     if len(groups[rank]) == 0:
         print('{} for all {} galaxies on rank {} are complete!'.format(
-            suffix.upper(), len(sample)), rank, flush=True)
+            suffix.upper(), len(sample), rank), flush=True)
         return
     else:
         if rank == 0:
             # List the failures--
-            if len(fail) > 0:
+            if len(fail[rank]) > 0:
                 print('{} failures: {} / {}'.format(suffix.upper(), len(fail), len(sample)), flush=True)
                 if args.debug:
-                    galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[fail])
-                    for ii, dd, diam in zip(fail, np.atleast_1d(galaxydir), sample[fail][DIAMCOLUMN]):
+                    galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[fail[rank]])
+                    for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
                         print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
             # List the objects left--
             ntodo = len(np.hstack(groups))
             print('{} left to do: {} / {} divided across {} rank(s).'.format(
-                suffix.upper(), ntodo, len(sample)-len(fail), size), flush=True)
+                suffix.upper(), ntodo, len(sample)-len(fail[rank]), size), flush=True)
         # Wait for all ranks to catch up.
         if comm is not None:
             comm.barrier()

@@ -594,13 +594,14 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
         W = np.max(tractor.by) - np.min(tractor.by)
         if incenter:
             dH = 0.1 * H
+            these = np.where((tractor.bx >= np.int(H / 2 - dH)) * (tractor.bx <= np.int(H / 2 + dH)) *
+                             (tractor.by >= np.int(H / 2 - dH)) * (tractor.by <= np.int(H / 2 + dH)) *
+                             (tractor.get(psfdepthcol) > 0))[0]
         else:
-            dH = H
-        these = ( (tractor.bx > np.int(H / 2 - dH)) * (tractor.bx < np.int(H / 2 + dH)) *
-                  (tractor.by > np.int(H / 2 - dH)) * (tractor.by < np.int(H / 2 + dH)) *
-                  (tractor.get(psfdepthcol) > 0) )
-        if np.sum(these) == 0:
-            print('No sources at the center of the field, sonable to get PSF size!')
+            these = np.where(tractor.get(psfdepthcol) > 0)[0]
+            
+        if len(these) == 0:
+            print('No sources at the center of the field, unable to get PSF size!')
             continue
 
         # Get the PSF size and image depth.
@@ -616,7 +617,7 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
         out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
         out['psfdepth_min_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.min(psfdepth)))).astype('f4')
         out['psfdepth_max_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.max(psfdepth)))).astype('f4')
-
+        
     return out
 
 def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
@@ -1061,6 +1062,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                 'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
                 'psfsize_g', 'psfsize_r', 'psfsize_z']
         tractor = fits_table(tractorfile, columns=cols)
+        hdr = fitsio.read_header(tractorfile)
         if verbose:
             print('Read {} sources from {}'.format(len(tractor), tractorfile))
         data.update(_get_psfsize_and_depth(tractor, bands, pixscale, incenter=False))
