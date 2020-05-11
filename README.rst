@@ -1,8 +1,9 @@
 Stellar Mass Content of Dark Matter Halos in Legacy Survey Imaging
 ==================================================================
 
-The `Legacy Surveys`_ are delivering deep *grz* optical imaging and unWISE *W1* and *W2*
-mid-infrared imaging of over 14,000 sq. deg of the extragalactic sky.
+The `DESI Legacy Imaging Surveys`_ have delivered deep *grz* optical imaging and
+unWISE *W1* and *W2* mid-infrared imaging of over 20,000 sq. deg of the
+extragalactic sky.
 
 This repository contains code and papers for a multi-pronged analysis of the
 group- and cluster-scale dark matter halos identified in Legacy Survey imaging,
@@ -27,10 +28,11 @@ The key science goals are to:
 
 5. And lots more...!
 
-We gratefully acknowledge partial funding support for this work from the
-National Science Foundation (NSF) grant AST-1616414.
+We gratefully acknowledge funding support for this work from the National
+Science Foundation under grant AST-1616414 and the U.S. Department of Energy,
+Office of Science, Office of High Energy Physics under Award Number DE-SC002008.
 
 .. image:: https://img.shields.io/badge/PDF-latest-orange.svg?style=flat
     :target: https://github.com/moustakas/legacyhalos/blob/master-pdf/paper/ms.pdf
 
-.. _`Legacy Survey`: http://legacysurvey.org
+.. _`DESI Legacy Imaging Surveys`: http://legacysurvey.org
