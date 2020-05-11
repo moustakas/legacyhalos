@@ -78,7 +78,7 @@ def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
         # Did this object fail?
         if '.isdone' in checkfile:
             failfile = checkfile.replace('.isdone', '.isfail')
-            if os.path.exists(failfile):
+            if os.path.exists(failfile) and clobber is False:
                 return 'fail'
         return 'todo'
     
@@ -373,10 +373,10 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             rows = rows[these]
             
         if True: # DR9 bricklist
-            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')
-            #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
+            #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
+            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')
+            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
+            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
             #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
             bricklist = np.union1d(nbricklist, sbricklist)
@@ -437,14 +437,18 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     if galaxylist is not None:
         if verbose:
             print('Selecting specific galaxies.')
-        sample = sample[np.isin(sample[galcolumn], galaxylist)]
+        these = np.isin(sample[galcolumn], galaxylist)
+        if np.count_nonzero(these) == 0:
+            print('No matching galaxies!')
+            return astropy.table.Table()
+        else:
+            sample = sample[these]
 
     #print(get_brickname(sample['GROUP_RA'], sample['GROUP_DEC']))
 
     # Reverse sort by diameter. Actually, don't do this, otherwise there's a
     # significant imbalance between ranks.
-    if False:
-        sample = sample[np.argsort(sample['GROUP_DIAMETER'])]
+    #sample = sample[np.argsort(sample['GROUP_DIAMETER'])]
     
     return sample
 
