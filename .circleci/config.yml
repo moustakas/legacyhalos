@@ -1,0 +1,32 @@
+version: 2.1
+
+orbs:
+  python: circleci/python@0.2.1
+
+jobs:
+  build-and-test:
+    executor: python/default
+    steps:
+      - checkout
+      - python/load-cache
+      - python/install-deps
+      - run:
+          name: Coverage deps
+          command: |
+              pip install coveralls
+      - python/save-cache
+      - run:
+          command: coverage run setup.py test
+          name: Tests
+      - run:
+          name: Coveralls
+          command: |
+              # set in the circleci build config,
+              # https://circleci.com/gh/legacysurvey/legacypipe/edit#env-vars
+              echo "COVERALLS_REPO_TOKEN=${COVERALLS_REPO_TOKEN} bundle exec rspec spec" > .coveralls.yml
+              coveralls
+
+workflows:
+  main:
+    jobs:
+      - build-and-test
