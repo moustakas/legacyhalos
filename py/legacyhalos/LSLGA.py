@@ -78,8 +78,12 @@ def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
         # Did this object fail?
         if '.isdone' in checkfile:
             failfile = checkfile.replace('.isdone', '.isfail')
-            if os.path.exists(failfile) and clobber is False:
-                return 'fail'
+            if os.path.exists(failfile):
+                if clobber is False:
+                    return 'fail'
+                else:
+                    os.remove(failfile)
+                    return 'todo'
         return 'todo'
     
 def missing_files(args, sample, size=1, clobber_overwrite=None):
@@ -1459,12 +1463,12 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     # Only create pages for the set of galaxies with a montage.
     keep = np.arange(len(sample))
     _, _, done, _ = missing_files(args, sample)
-    if len(done) == 0:
+    if len(done[0]) == 0:
         print('No galaxies with complete montages!')
         return
     
-    print('Keeping {}/{} galaxies with complete montages.'.format(len(done), len(sample)))
-    sample = sample[done]
+    print('Keeping {}/{} galaxies with complete montages.'.format(len(done[0]), len(sample)))
+    sample = sample[done[0]]
     #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
 
     trendshtml = 'trends.html'
