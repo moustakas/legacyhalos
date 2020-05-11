@@ -167,7 +167,10 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         weight = np.atleast_1d(sample['D25'])[_todo_indices]
         cumuweight = weight.cumsum() / weight.sum()
         idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
-        todo_indices = np.array_split(_todo_indices, idx) # weighted
+        if len(idx) < size: # can happen in corner cases
+            todo_indices = np.array_split(_todo_indices, size) # unweighted
+        else:
+            todo_indices = np.array_split(_todo_indices, idx) # weighted
     else:
         todo_indices = [np.array([])]
 
@@ -529,7 +532,8 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L6'):
         tractor['mag_{}_tot'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
     
     # Gather up all the ellipse files, which *define* the sample, but also track
-    # the galaxies that fail ellipse-fitting.
+    # the galaxies that fail ellipse-fitting (or are not ellipse-fit because
+    # they're too small).
     reject, inspect = [], []
     ellipseisdone = os.path.isfile(os.path.join(galaxydir, '{}-largegalaxy-ellipse.isdone'.format(galaxy)))
     for igal, lslga_id in enumerate(np.atleast_1d(fullsample['LSLGA_ID'])):
@@ -540,8 +544,7 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L6'):
         # Add it to the 'reject' pile.
         this = np.where((tractor['ref_cat'] == refcat) * (tractor['ref_id'] == lslga_id))[0]
         if len(this) > 1:
-            print('Multiple matches should never happen!')
-            pdb.set_trace()
+            raise ValueError('Multiple matches should never happen!')
 
         if not os.path.isfile(ellipsefile):
             # Add some info from the Tractor catalog so we can debug--

@@ -92,8 +92,9 @@ def main():
         suffix = comm.bcast(suffix, root=0)
 
     if rank == 0:
+        ntodo = len(np.hstack(groups))
         print('{} left to do: {} / {} divided across {} rank(s).'.format(
-            suffix.upper(), len(np.hstack(groups)), len(sample), size), flush=True)
+            suffix.upper(), ntodo, len(sample), size), flush=True)
         
     # Wait for all ranks to catch up.
     if comm is not None:
@@ -121,7 +122,7 @@ def main():
 
         todo = np.hstack(groups)
         if len(todo) > 0:
-            print('Galaxies left to do:')
+            #print('Galaxies left to do:')
             galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[todo])
             for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                 print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
