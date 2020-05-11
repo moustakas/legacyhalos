@@ -32,9 +32,6 @@ We gratefully acknowledge funding support for this work from the National
 Science Foundation under grant AST-1616414 and the U.S. Department of Energy,
 Office of Science, Office of High Energy Physics under Award Number DE-SC002008.
 
-.. image:: https://img.shields.io/badge/PDF-latest-orange.svg?style=flat
-    :target: https://github.com/moustakas/legacyhalos/blob/master-pdf/paper/ms.pdf
-
 .. _`DESI Legacy Imaging Surveys`: http://legacysurvey.org
 
 Automated build & testing
