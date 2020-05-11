@@ -12,8 +12,10 @@ import astropy.table
 import legacyhalos.io
 import legacyhalos.misc
 
-def _javastring():
-    """Return a string that embeds a date in a webpage."""
+def html_javadate():
+    """Return a string that embeds a date in a webpage using Javascript.
+
+    """
     import textwrap
 
     js = textwrap.dedent("""
@@ -180,7 +182,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
             if check is False:
                 if os.path.isfile(np.atleast_1d(jpgfile)[0]):
                     just_coadds = True
-                    
+
             if check or just_coadds:
                 with Image.open(np.atleast_1d(jpgfile)[0]) as im:
                     sz = im.size
@@ -204,10 +206,14 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
                     #cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 -resize 4096x4096\> '
                     if barlen:
-                        addbar_to_png(jpgfile, barlen, barlabel, None, barpngfile, scaledfont=True)
+                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
                         cmd = cmd+' '+barpngfile
                     else:
                         cmd = cmd+' '+jpgfile
+                    if sz[0] > 512:
+                        thumbsz = 512
+                    else:
+                        thumbsz = sz[0]
                 else:
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
                     if barlen:
@@ -216,6 +222,10 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                         cmd = cmd+' '.join(ff for ff in jpgfile[1:])
                     else:
                         cmd = cmd+' '.join(ff for ff in jpgfile)
+                    if sz[0] > 512:
+                        thumbsz = 512*3
+                    else:
+                        thumbsz = sz[0]*3
                 cmd = cmd+' {}'.format(montagefile)
 
                 #if verbose:
@@ -226,7 +236,8 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     continue
 
                 # Create a couple smaller thumbnail images
-                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(1024, montagefile, thumbfile)
+                cmd = 'convert -thumbnail {0} {1} {2}'.format(thumbsz, montagefile, thumbfile)
+                #print(cmd)
                 if os.path.isfile(thumbfile):
                     os.remove(thumbfile)                
                 print('Writing {}'.format(thumbfile))
@@ -463,6 +474,9 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
     if get_galaxy_galaxydir is None:
         get_galaxy_galaxydir = legacyhalos.io.get_galaxy_galaxydir
 
+    if type(sample) is astropy.table.row.Row:
+        sample = astropy.table.Table(sample)
+        
     # Loop on each galaxy.
     for ii, onegal in enumerate(sample):
         galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(onegal, html=True)
@@ -487,7 +501,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         # Build the montage coadds.
         make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
                             barlabel=barlabel, clobber=clobber, verbose=verbose)
-                            #pipeline_montage=pipeline_montage, largegalaxy_montage=largegalaxy_montage)
 
         # CCD positions
         make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
@@ -519,6 +532,30 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
 
     return 1
 
+# Get the viewer link
+def viewer_link(ra, dec, width, lslga=False):
+    baseurl = 'http://legacysurvey.org/viewer-dev/'
+    if width > 1200:
+        zoom = 13
+    elif (width > 400) * (width < 1200):
+        zoom = 14
+    else:
+        zoom = 15
+    if lslga:
+        layer1 = '&lslga'
+    else:
+        layer1 = ''
+    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8{}'.format(
+        baseurl, ra, dec, zoom, layer1)
+
+    return viewer
+
+def skyserver_link(gal):
+    if 'SDSS_OBJID' in gal.colnames:
+        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
+    else:
+        return ''
+
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
               first=None, last=None, nproc=1, survey=None, makeplots=True,
@@ -547,7 +584,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
 
     # Write the last-updated date to a webpage.
-    js = _javastring()       
+    js = html_javadate()       
 
     # Get the viewer link
     def _viewer_link(gal):

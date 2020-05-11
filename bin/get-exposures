@@ -1,0 +1,77 @@
+#!/usr/bin/env python
+
+import os, pdb
+import numpy as np
+import legacyhalos.io
+from legacypipe.runs import get_survey
+from legacyhalos.coadds import _mosaic_width
+from legacyhalos.misc import custom_brickname
+from legacyhalos.LSLGA import read_sample
+
+def get_ccds(survey, ra, dec, pixscale, width):
+    """Quickly get the CCDs touching this custom brick.  This code is mostly taken
+    from legacypipe.runbrick.stage_tims.
+
+    """
+    from legacypipe.survey import wcs_for_brick, BrickDuck
+    brickname = 'custom-{}'.format(custom_brickname(ra, dec))
+    brick = BrickDuck(ra, dec, brickname)
+
+    targetwcs = wcs_for_brick(brick, W=width, H=width, pixscale=pixscale)
+    ccds = survey.ccds_touching_wcs(targetwcs)
+    ccds.cut(ccds.ccd_cuts == 0)
+    ccds.cut(np.array([b in ['g', 'r', 'z'] for b in ccds.filter]))
+
+    return ccds
+
+glist = ['NGC3034_GROUP',
+         'NGC3077',
+         'NGC3726',
+         'NGC3953_GROUP',
+         'NGC3992_GROUP',
+         'NGC4051',
+         'NGC4096',
+         'NGC4125_GROUP',
+         'UGC07698',
+         'NGC4736_GROUP',
+         'NGC5055',
+         'NGC5194_GROUP',
+         'NGC5322_GROUP',
+         'NGC5354_GROUP',
+         'NGC5866_GROUP',
+         'NGC3031_GROUP',
+         'NGC5457_GROUP',
+         'NGC0598_GROUP',
+         'NGC4258']
+
+ss = read_sample(preselect_sample=False, galaxylist=glist)
+ss = ss[ss['GROUP_PRIMARY'] * ss['IN_DESI']]
+
+pixscale = 0.262
+
+explist_north, explist_decam = [], []
+for onegal in ss:
+    print('Working on {}'.format(onegal['GALAXY']))
+    run = legacyhalos.io.get_run(onegal)
+    survey = get_survey(run)#, output_dir=galaxydir)
+
+    radius_mosaic_arcsec = onegal['GROUP_DIAMETER'] * 60 * 1.5 # [arcsec]
+    width = _mosaic_width(radius_mosaic_arcsec, pixscale)
+    
+    ccds = get_ccds(survey, onegal['GROUP_RA'], onegal['GROUP_DEC'], pixscale, width)
+    xplist = [ff.strip() for ff in ccds.image_filename]
+    #xplist = [ff.strip().replace('mosaic/CP/','').replace('90prime/CP/','') for ff in ccds.image_filename]
+
+    if 'decam' in ccds.image_filename[0]:
+        print('  DECam')
+        explist_decam.append(xplist)
+    else:
+        explist_north.append(xplist)
+
+explist_north = sorted(set(np.hstack(explist_north)))
+with open('largegalaxy-exposures-reprocess-north.txt', 'w') as ff:
+    [ff.write('{}\n'.format(ee)) for ee in explist_north]
+    
+explist_decam = sorted(set(np.hstack(explist_decam)))
+with open('largegalaxy-exposures-reprocess-decam.txt', 'w') as ff:
+    [ff.write('{}\n'.format(ee)) for ee in explist_decam]

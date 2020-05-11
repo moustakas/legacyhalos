@@ -24,6 +24,8 @@ from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
 from photutils.isophote.sample import CentralEllipseSample
 from photutils.isophote.fitter import CentralEllipseFitter
 
+SBTHRESH = [23, 24, 25, 25.5, 26] # surface brightness thresholds
+
 class CogModel(astropy.modeling.Fittable1DModel):
     """Class to empirically model the curve of growth.
 
@@ -52,13 +54,17 @@ def _apphot_one(args):
     """Wrapper function for the multiprocessing."""
     return apphot_one(*args)
 
-def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False):
+def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False, iscircle=False):
     """Perform aperture photometry in a single elliptical annulus.
 
     """
-    from photutils import EllipticalAperture, aperture_photometry
+    from photutils import EllipticalAperture, CircularAperture, aperture_photometry
 
-    aperture = EllipticalAperture((x0, y0), aa, bb, theta)
+    if iscircle:
+        aperture = CircularAperture((x0, y0), aa)
+    else:
+        aperture = EllipticalAperture((x0, y0), aa, bb, theta)
+        
     # Integrate the data to get the total surface brightness (in
     # nanomaggies/arcsec2) and the mask to get the fractional area.
     
@@ -102,17 +108,19 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     #print('We should measure these radii from the extinction-corrected photometry!')
     sberr = sbprofile['muerr_r']
     rr = (sbprofile['sma_r'] * pixscale)**0.25 # [arcsec]
-    sbcuts = [23, 24, 25, 25.5, 26]
-    for sbcut in sbcuts:
-        if sbprofile['mu_r'].max() < sbcut:
-            print('Profile too shallow to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
-            results['radius_sb{:0g}'.format(sbcut)] = -1.0
+    for sbcut in SBTHRESH:
+        if sbprofile['mu_r'].max() < sbcut or sbprofile['mu_r'].min() > sbcut:
+            print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
+            results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
+            #for filt in bands:
+            #    results['mag_{}_sb{:0g}'.format(filt, sbcut)] = np.float(-1.0)
             continue
 
         sb = sbprofile['mu_r'] - sbcut
         keep = np.where((sb > -1) * (sb < 1))[0]
         #coeff = np.polyfit(rr[keep], sb[keep], 1, w=1/sberr[keep])
         # Monte Carlo to get the radius
+
         rcut = []
         for ii in np.arange(20):
             sbfit = rand.normal(sb[keep], sberr[keep])
@@ -140,7 +148,10 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         deltaa_filt = deltaa * pixscalefactor
 
         if filt in refellipsefit['bands']:
-            maxsma = sbprofile['sma_{}'.format(filt)].max()        # [pixels]
+            if len(sbprofile['sma_{}'.format(filt)]) == 0: # can happen with partial coverage in other bands
+                maxsma = sbprofile['sma_{}'.format(refband)].max()
+            else:
+                maxsma = sbprofile['sma_{}'.format(filt)].max()        # [pixels]
             #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt)] # [pixels]
         else:
             maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
@@ -148,7 +159,11 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             
         sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
         smb = sma * eps
-
+        if eps == 0:
+            iscircle = True
+        else:
+            iscircle = False
+        
         x0 = refellipsefit['x0'] * pixscalefactor
         y0 = refellipsefit['y0'] * pixscalefactor
 
@@ -158,13 +173,13 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         with np.errstate(all='ignore'):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', category=AstropyUserWarning)
-                cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False)
+                cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle)
                                                 for aa, bb in zip(sma, smb)])
                 cogflux = np.hstack(cogflux)
 
                 if '{}_var'.format(filt) in data.keys():
                     var = data['{}_var'.format(filt)][centralindx] # [nanomaggies**2/arcsec**4]
-                    cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True)
+                    cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True, iscircle)
                                                     for aa, bb in zip(sma, smb)])
                     cogferr = np.hstack(cogferr)
                 else:
@@ -178,15 +193,27 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 ok = (cogflux > 0) * np.isfinite(cogflux)
                 cogmagerr = np.ones(len(cogmag))
 
-        if len(ok) == 0:
-            print('No good pixels--fix me!')
-            
+        results['cog_smaunit'] = 'arcsec'
+        
+        if np.count_nonzero(ok) == 0:
+            print('Warning: No good {}-band pixels to fit; skipping.'.format(filt))
+            results['cog_sma_{}'.format(filt)] = np.array([])
+            results['cog_mag_{}'.format(filt)] = np.float32(-1)
+            results['cog_magerr_{}'.format(filt)] = np.float32(-1)
+            results['cog_params_{}'.format(filt)] = {}#{'mtot': np.float32(-1),
+                                                      # 'm0': np.float32(-1),
+                                                      # 'alpha1': np.float32(-1),
+                                                      # 'alpha2': np.float32(-1),
+                                                      # 'chi2': np.float32(1e6)}
+            for sbcut in SBTHRESH:
+                results['mag_{}_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
+            continue
+
         sma_arcsec = sma[ok] * pixscale             # [arcsec]
         cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
         if cogferr is not None:
             cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
 
-        results['cog_smaunit'] = 'arcsec'
         results['cog_sma_{}'.format(filt)] = sma_arcsec
         results['cog_mag_{}'.format(filt)] = cogmag
         results['cog_magerr_{}'.format(filt)] = cogmagerr
@@ -267,7 +294,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
         #print('Measuring integrated magnitudes to different radii.')
         sb = ellipse_sbprofile(refellipsefit, linear=True)
-        for radkey in ['radius_sb{:0g}'.format(sbcut) for sbcut in sbcuts]:
+        for radkey in ['radius_sb{:0g}'.format(sbcut) for sbcut in SBTHRESH]:
             magkey = radkey.replace('radius_', 'mag_{}_'.format(filt))
             smamax = results[radkey] # semi-major axis
             if smamax > 0 and smamax < np.max(sma_arcsec):
@@ -766,15 +793,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         filesuffix = ''
         #central_galaxy_id = None
 
-    def _isdone():
-        # Create an "isdone" file--
-        isdonefile = os.path.join(galaxydir, '{}-{}-ellipse.isdone'.format(galaxy, filesuffix))
-        cmd = 'touch {}'.format(isdonefile)
-        subprocess.call(cmd.split())
-
     # Read the data and then do ellipse-fitting.
     data, sample = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
-                                                 #central_galaxy_id=central_galaxy_id,
                                                  refband=refband, pixscale=pixscale,
                                                  galex_pixscale=galex_pixscale,
                                                  unwise_pixscale=unwise_pixscale,
@@ -784,8 +804,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     
     if bool(data):
         if data['failed']: # all galaxies dropped
-            _isdone()
-            return 1
+            return 1, filesuffix
 
         for igal in np.arange(len(data['central_galaxy_id'])):
             central_galaxy_id = data['central_galaxy_id'][igal]
@@ -810,10 +829,15 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                               nclip=nclip, sclip=sclip, verbose=verbose,
                                               input_ellipse=input_ellipse, maxsma=maxsma,
                                               fitgeometry=False, galaxyinfo=galaxyinfo)
-        _isdone()
-        return 1
+        return 1, filesuffix
     else:
-        return 0
+        # An object can get here if it's a "known" failure, e.g., if the object
+        # falls off the edge of the footprint (and therefore it will never have
+        # coadds).
+        if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
+            return 1, filesuffix
+        else:
+            return 0, filesuffix
 
     #if pipeline:
     #    print('Forced ellipse-fitting on the pipeline images.')
