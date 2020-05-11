@@ -23,9 +23,6 @@ def main():
     basedir = legacyhalos.LSLGA.LSLGA_dir()
     datadir = legacyhalos.LSLGA.LSLGA_data_dir()
     htmldir = legacyhalos.LSLGA.LSLGA_html_dir()
-    print('$LSLGA_DIR={}'.format(basedir))
-    print('$LSLGA_DATA_DIR={}'.format(datadir))
-    print('$LSLGA_HTML_DIR={}'.format(htmldir))
     
     args = legacyhalos.LSLGA.mpi_args()
 
@@ -40,6 +37,9 @@ def main():
     # Read and broadcast the sample.
     sample, fullsample = None, None
     if rank == 0:
+        print('$LSLGA_DIR={}'.format(basedir))
+        print('$LSLGA_DATA_DIR={}'.format(datadir))
+        print('$LSLGA_HTML_DIR={}'.format(htmldir))
         sample = legacyhalos.LSLGA.read_sample(first=args.first, last=args.last,
                                                d25min=args.d25min, d25max=args.d25max, 
                                                galaxylist=args.galaxylist,
@@ -91,38 +91,40 @@ def main():
         groups = comm.bcast(groups, root=0)
         suffix = comm.bcast(suffix, root=0)
 
-    if rank == 0 and len(fail[rank]) > 0:
-        # List the failures--
-        print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
-        if args.debug:
-            galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[fail[rank]])
-            for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
-                print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+    if rank == 0:
+        print('{} left to do: {} / {} divided across {} rank(s).'.format(
+            suffix.upper(), len(np.hstack(groups)), len(sample), size), flush=True)
+        
+    # Wait for all ranks to catch up.
+    if comm is not None:
+        comm.barrier()
 
     if len(groups[rank]) == 0:
         print('{} for all {} galaxies on rank {} are complete!'.format(
             suffix.upper(), len(sample), rank), flush=True)
         return
     else:
-        # List the objects left--
-        ntodo = len(np.hstack(groups))
-        print('{} left to do: {} / {} divided across {} rank(s).'.format(
-            suffix.upper(), ntodo, len(sample)-len(fail[rank]), size), flush=True)
-        
-        # Wait for all ranks to catch up.
-        if comm is not None:
-            comm.barrier()
-            
+        print(' Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
         if args.count:
-            print(' Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
-            # Just have rank 0 print the galaxies left to do.
-            if rank == 0 and args.debug:
-                todo = np.hstack(groups)
-                galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[todo])
-                for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
-                    print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
-            return
+            if rank > 0:
+                return
+        
+    # Only list the failures and remaining galaxies using rank0
+    if rank == 0 and args.debug:
+        if len(fail[rank]) > 0:
+            print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
+            galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[fail[rank]])
+            for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
+                print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
 
+        todo = np.hstack(groups)
+        if len(todo) > 0:
+            print('Galaxies left to do:')
+            galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[todo])
+            for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
+                print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+        return 
+                
     # Loop on the remaining objects.
     print('Starting {} {} on rank {} with {} cores on {}'.format(
         len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
