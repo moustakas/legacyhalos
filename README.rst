@@ -36,3 +36,14 @@ Office of Science, Office of High Energy Physics under Award Number DE-SC002008.
     :target: https://github.com/moustakas/legacyhalos/blob/master-pdf/paper/ms.pdf
 
 .. _`DESI Legacy Imaging Surveys`: http://legacysurvey.org
+
+Automated build & testing
+-------------------------
+
+.. image:: https://img.shields.io/circleci/project/github/moustakas/legacyhalos.svg
+  :alt: Build
+  :target: https://circleci.com/gh/moustakas/legacyhalos
+
+.. image:: https://coveralls.io/repos/github/moustakas/legacyhalos/badge.svg?branch=master
+  :alt: Coverage
+  :target: https://coveralls.io/github/moustakas/legacyhalos?branch=master
