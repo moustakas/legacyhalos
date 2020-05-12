@@ -383,13 +383,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             rows = rows[these]
             
         if True: # DR9 bricklist
-            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')
+            bricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
+            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')
+            
             #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
             #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
-            bricklist = np.union1d(nbricklist, sbricklist)
+            #bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
 
             #rows = np.where([brick in bricklist for brick in brickname])[0]
@@ -489,7 +490,7 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L6'):
     # list here.
     if not os.path.isfile(tractorfile):
         print('Tractor catalog missing: {}'.format(tractorfile))
-        return None, None, None, onegal
+        return None, None, None, None, onegal
 
     # Note: for galaxies on the edge of the footprint we can also sometimes
     # lose 3-band coverage if one or more of the bands is fully masked
@@ -502,27 +503,28 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L6'):
             print('  Missing image {}'.format(imfile))
             grzmissing = True
     if grzmissing:
-        return None, None, None, onegal
+        return None, None, None, None, onegal
     
     tractor = Table(fitsio.read(tractorfile))
-    #print('Temporarily remove the wise light-curve columns!')
-    #[tractor.remove_column(col) for col in tractor.colnames if 'lc_' in col]
 
     # Remove Gaia stars immediately, so they're not double-counted.
     notgaia = np.where(tractor['ref_cat'] != 'G2')[0]
     if len(notgaia) > 0:
         tractor = tractor[notgaia]
+    assert('G2' not in set(tractor['ref_cat']))
 
     # Initialize every source with PREBURNED=True, FREEZE=False
     tractor['preburned'] = np.ones(len(tractor), bool)  # Everything was preburned but we only want to freeze the...
     tractor['freeze'] = np.zeros(len(tractor), bool)    # ...LSLGA galaxies and sources in that galaxie's ellipse.
         
-    # Gather up ee legacyhalos.ellipse.ellipse_cog results--
-    radkeys = ['radius_sb{:0g}'.format(sbcut) for sbcut in sbcuts]
-        
-    tractor['d25'] = np.zeros(len(tractor), np.float32) - 1 
+    # Add the columns we'll need in legacypipe.reference
+    tractor['diam'] = np.zeros(len(tractor), np.float32) - 1 
+    tractor['diam_ref'] = np.zeros(len(tractor), 'U4')
     tractor['pa'] = np.zeros(len(tractor), np.float32) - 1
     tractor['ba'] = np.ones(len(tractor), np.float32) - 1
+
+    # Gather up the legacyhalos.ellipse.ellipse_cog results--
+    radkeys = ['radius_sb{:0g}'.format(sbcut) for sbcut in sbcuts]
     for radkey in radkeys:
         tractor[radkey] = np.zeros(len(tractor), np.float32) - 1
         for filt in ['g', 'r', 'z']:
@@ -532,59 +534,63 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L6'):
         tractor['mag_{}_tot'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
     
     # Gather up all the ellipse files, which *define* the sample, but also track
-    # the galaxies that fail ellipse-fitting (or are not ellipse-fit because
-    # they're too small).
-    reject, inspect = [], []
+    # the galaxies that are dropped by Tractor and, separately, galaxies which
+    # fail ellipse-fitting (or are not ellipse-fit because they're too small).
+    notractor, noellipse, badcenter = [], [], []
     ellipseisdone = os.path.isfile(os.path.join(galaxydir, '{}-largegalaxy-ellipse.isdone'.format(galaxy)))
     for igal, lslga_id in enumerate(np.atleast_1d(fullsample['LSLGA_ID'])):
         ellipsefile = os.path.join(galaxydir, '{}-largegalaxy-{}-ellipse.asdf'.format(galaxy, lslga_id))
 
         # Find this object in the Tractor catalog. If it's not here, it was
         # dropped from Tractor fitting, which most likely means it's spurious!
-        # Add it to the 'reject' pile.
+        # Add it to the 'notractor' pile.
         this = np.where((tractor['ref_cat'] == refcat) * (tractor['ref_id'] == lslga_id))[0]
         if len(this) > 1:
             raise ValueError('Multiple matches should never happen!')
 
         if not os.path.isfile(ellipsefile):
-            # Add some info from the Tractor catalog so we can debug--
-            print('Ellipse-fit reject: {} (LSLGA_ID={})'.format(fullsample['GALAXY'][igal], lslga_id))
-            rej = Table(fullsample[igal]['LSLGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID', 'D25', 'PA', 'BA'])
-            rej['TRACTOR_RA'] = np.float64(-1)
-            rej['TRACTOR_DEC'] = np.float64(-1)
-            rej['TRACTOR_TYPE'] = np.array('   ')
-            rej['FLUX_R'] = np.float32(-1)
-            rej['SHAPE_R'] = np.float32(-1)
-
-            if len(this) == 1:
-                # Leave the rejected source in the Tractor catalog but reset ref_cat
-                # and ref_id. That way if it's a galaxy that just happens to be too
-                # small to pass our size cuts in legacyhalos.io.read_multiband to be
-                # ellipse-fit, Tractor will still know about it. In particular, if
-                # it's a small galaxy *inside* the elliptical mask of another galaxy
-                # (see, e.g., SDSSJ123843.02+092744.0 -
+            if len(this) == 0:
+                # Add some info from the Tractor catalog so we can debug--
+                print('Tractor & ellipse-fit reject: {} (LSLGA_ID={})'.format(fullsample['GALAXY'][igal], lslga_id))
+                notrac = Table(fullsample[igal]['LSLGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID', 'D25', 'PA', 'BA'])
+                notrac['TRACTOR_RA'] = np.float64(-1)
+                notrac['TRACTOR_DEC'] = np.float64(-1)
+                notrac['TRACTOR_TYPE'] = np.array('   ')
+                notrac['FLUX_R'] = np.float32(-1)
+                notrac['SHAPE_R'] = np.float32(-1)
+                notractor.append(notrac)
+            else:
+                # Objects here were fit by Tractor but *not* ellipse-fit. Keep
+                # them but reset ref_cat and ref_id. That way if it's a galaxy
+                # that just happens to be too small to pass our size cuts in
+                # legacyhalos.io.read_multiband to be ellipse-fit, Tractor will
+                # still know about it. In particular, if it's a small galaxy (or
+                # point source, I guess) *inside* the elliptical mask of another
+                # galaxy (see, e.g., SDSSJ123843.02+092744.0 -
                 # http://legacysurvey.org/viewer-dev?ra=189.679290&dec=9.462331&layer=dr8&zoom=14&lslga),
                 # we want to be sure it doesn't get forced PSF!
+                print('Ellipse-fit reject: {} (LSLGA_ID={}, type={}, r50={:.2f} arcsec, fluxr={:.3f} nanomaggies)'.format(
+                    fullsample['GALAXY'][igal], lslga_id, tractor['type'][this[0]], tractor['shape_r'][this[0]],
+                    tractor['flux_r'][this[0]]))
                 tractor['ref_cat'][this] = ' '
                 tractor['ref_id'][this] = 0
                 tractor['freeze'][this] = True
                 
-                rej['TRACTOR_RA'] = tractor['ra'][this]
-                rej['TRACTOR_DEC'] = tractor['dec'][this]
-                rej['TRACTOR_TYPE'] = tractor['type'][this]
-                rej['FLUX_R'] = tractor['flux_r'][this]
-                rej['SHAPE_R'] = tractor['shape_r'][this]
-                
-            reject.append(rej)
+                noell = Table(fullsample[igal]['LSLGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID', 'D25', 'PA', 'BA'])
+                noell['TRACTOR_RA'] = tractor['ra'][this]
+                noell['TRACTOR_DEC'] = tractor['dec'][this]
+                noell['TRACTOR_TYPE'] = tractor['type'][this]
+                noell['FLUX_R'] = tractor['flux_r'][this]
+                noell['SHAPE_R'] = tractor['shape_r'][this]
+                noellipse.append(noell)
         else:
             af = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id), filesuffix='largegalaxy', verbose=True)
             ellipse = af.tree
+            # Objects with "badcenter" shifted positions significantly during
+            # ellipse-fitting, which *may* point to a problem. Inspect those
+            # separately.
             if ellipse['badcenter']:
-                try:
-                    inspect.append(Table(fullsample[igal]))
-                except:
-                    print('Problem stacking', galaxy, lslga_id)
-                    pdb.set_trace()
+                badcenter.append(Table(fullsample[igal]))
 
             # Add the basic ellipse geometry and the aperture photometry--
             tractor['freeze'][this] = True
@@ -602,25 +608,27 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L6'):
                     else:
                         tractor['mag_{}_tot'.format(filt)][this] = -1.0
 
-            # Now add the radius
+            # Now add the radius and track where it came from--
             if ellipse['radius_sb26'] > 0:
-                tractor['d25'][this] = ellipse['radius_sb26'] * 2 / 60
+                tractor['diam_ref'][this] = 'sb26'
+                tractor['diam'][this] = ellipse['radius_sb26'] * 2 / 60
             elif ellipse['radius_sb25'] > 0:
-                tractor['d25'][this] = 1.2 * ellipse['radius_sb25'] * 2 / 60
+                tractor['diam_ref'][this] = 'sb25'
+                tractor['diam'][this] = 1.2 * ellipse['radius_sb25'] * 2 / 60
             elif ellipse['radius_sb24'] > 0:
-                tractor['d25'][this] = 1.5 * ellipse['radius_sb24'] * 2 / 60
+                tractor['diam_ref'][this] = 'sb24'
+                tractor['diam'][this] = 1.5 * ellipse['radius_sb24'] * 2 / 60
             else:
-                tractor['d25'][this] = ellipse['lslga_d25']
+                tractor['diam_ref'][this] = 'leda'
+                tractor['diam'][this] = ellipse['lslga_d25']
                 #tractor['d25'][this] = ellipse['majoraxis'] * ellipse['refpixscale'] * 2 / 60
 
-            if tractor['d25'][this] == 0:
-                print('Doom has befallen you.')
-                pdb.set_trace()
+            if tractor['diam'][this] <= 0:
+                raise ValueError('Doom has befallen you.')
 
-            # Next find all the objects in the elliptical "sphere-of-influence" of
-            # this galaxy, and freeze those parameters as well.  **Important**: do
-            # not pass forward the Gaia sources so they're not double-counted.
-            logr, e1, e2 = EllipseESoft.rAbPhiToESoft(tractor['d25'][this]*60/2,
+            # Next find all the objects in the "ellipse-of-influence" of this
+            # galaxy, and freeze those parameters as well.
+            logr, e1, e2 = EllipseESoft.rAbPhiToESoft(tractor['diam'][this]*60/2,
                                                       tractor['ba'][this],
                                                       180-tractor['pa'][this]) # note the 180 rotation
             cut1 = is_in_ellipse(tractor['ra'], tractor['dec'], tractor['ra'][this],
@@ -643,12 +651,23 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L6'):
                 #plt.savefig('junk.png')
             #   # pdb.set_trace()
 
-    if len(reject) > 0:
-        reject = vstack(reject)
-    if len(inspect) > 0:
-        inspect = vstack(inspect)
+    if len(tractor) > 0:
+        for col in tractor.colnames:
+            tractor.rename_column(col, col.upper())
+    if len(notractor) > 0:
+        notractor = vstack(notractor)
+        #for col in notractor.colnames:
+        #    notractor.rename_column(col, col.upper())
+    if len(noellipse) > 0:
+        noellipse = vstack(noellipse)
+        for col in noellipse.colnames:
+            noellipse.rename_column(col, col.upper())
+    if len(badcenter) > 0:
+        badcenter = vstack(badcenter)
+        for col in badcenter.colnames:
+            badcenter.rename_column(col, col.upper())
 
-    return tractor, reject, inspect, None
+    return tractor, notractor, noellipse, badcenter, None
 
 def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     """Gather all the ellipse-fitting results and build the final LSLGA catalog.
@@ -663,6 +682,11 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     # This is a little fragile.
     version = LSLGA_version()
     refcat, _ = get_large_galaxy_version(os.getenv('LARGEGALAXIES_CAT'))
+    lslgafile = os.getenv('LARGEGALAXIES_CAT')
+    print('Using LARGEGALAXIES_CAT={}'.format(lslgafile))
+    if 'ellipse' in lslgafile:
+        print('Warning: Cannot use $LARGEGALAXIES_CAT with ellipse-fitting results!')
+        return
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
@@ -672,8 +696,9 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
         return
 
-    rejectfile = os.path.join(outdir, 'LSLGA-reject-{}.fits'.format(version))
-    inspectfile = os.path.join(outdir, 'LSLGA-inspect-{}.fits'.format(version))
+    notractorfile = os.path.join(outdir, 'LSLGA-notractor-{}.fits'.format(version))
+    noellipsefile = os.path.join(outdir, 'LSLGA-noellipse-{}.fits'.format(version))
+    badcenterfile = os.path.join(outdir, 'LSLGA-badcenter-{}.fits'.format(version))
     nogrzfile = os.path.join(outdir, 'LSLGA-nogrz-{}.fits'.format(version))
 
     mp = multiproc(nthreads=nproc)
@@ -684,43 +709,49 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     rr = list(zip(*rr))
 
     cat = list(filter(None, rr[0]))
-    reject = list(filter(None, rr[1]))
-    inspect = list(filter(None, rr[2]))
-    nogrz = list(filter(None, rr[3]))
+    notractor = list(filter(None, rr[1]))
+    noellipse = list(filter(None, rr[2]))
+    badcenter = list(filter(None, rr[3]))
+    nogrz = list(filter(None, rr[4]))
 
     if len(cat) == 0:
         print('Something went wrong and no galaxies were fitted.')
         return
     cat = vstack(cat)
 
-    if len(reject) > 0:
-        reject = vstack(reject)
+    if len(notractor) > 0:
+        notractor = vstack(notractor)
         #[reject.rename_column(col, col.upper()) for col in reject.colnames]
         #reject = reject['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA',
         #                'TRACTOR_TYPE', 'FLUX_R', 'SHAPE_R']
-        reject.rename_column('GALAXY', 'NAME')
-        print('Writing {} rejected galaxies to {}'.format(len(reject), rejectfile))
-        reject.write(rejectfile, overwrite=True)
+        #notractor.rename_column('GALAXY', 'NAME')
+        print('Writing {} galaxies dropped by Tractor to {}'.format(len(notractor), notractorfile))
+        notractor.write(notractorfile, overwrite=True)
 
-    if len(inspect) > 0:
-        inspect = vstack(inspect)
-        [inspect.rename_column(col, col.upper()) for col in inspect.colnames]
-        inspect = inspect['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA']
-        inspect.rename_column('GALAXY', 'NAME')
-        print('Writing {} galaxies to inspect to {}'.format(len(inspect), inspectfile))
-        inspect.write(inspectfile, overwrite=True)
+    if len(noellipse) > 0:
+        noellipse = vstack(noellipse)
+        print('Writing {} galaxies not ellipse-fit to {}'.format(len(noellipse), noellipsefile))
+        noellipse.write(noellipsefile, overwrite=True)
+
+    if len(badcenter) > 0:
+        badcenter = vstack(badcenter)
+        badcenter = badcenter['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA']
+        #badcenter.rename_column('GALAXY', 'NAME')
+        print('Writing {} galaxies with bad ellipse centers to {}'.format(len(badcenter), badcenterfile))
+        badcenter.write(badcenterfile, overwrite=True)
+        del badcenter
 
     if len(nogrz) > 0:
         nogrz = vstack(nogrz)
         nogrz = nogrz['GALAXY', 'RA', 'DEC', 'LSLGA_ID', 'D25', 'PA', 'BA']
-        nogrz.rename_column('GALAXY', 'NAME')
+        #nogrz.rename_column('GALAXY', 'NAME')
         print('Writing {} galaxies with no grz coverage to {}'.format(len(nogrz), nogrzfile))
         nogrz.write(nogrzfile, overwrite=True)
+        del nogrz
 
     #for d1, d2 in zip(cat[0].dtype.descr, cat[1].dtype.descr):
     #    if d1 != d2:
     #        print(d1, d2)
-    [cat.rename_column(col, col.upper()) for col in cat.colnames]
     print('Gathered {} pre-burned and frozen galaxies.'.format(len(cat)))
     print('  Frozen (all): {}'.format(np.sum(cat['FREEZE'])))
     print('  Frozen (LSLGA): {}'.format(np.sum(cat['FREEZE'] * (cat['REF_CAT'] == refcat))))
@@ -735,31 +766,37 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     print('Keeping {} frozen galaxies, of which {} are LSLGA.'.format(len(ifreeze), len(ilslga)))
 
     # Read the full parent LSLGA catalog and add all the Tractor columns.
-    lslgafile = os.getenv('LARGEGALAXIES_CAT')
     lslga, hdr = fitsio.read(lslgafile, header=True)
     lslga = Table(lslga)
-    lslgacols = lslga.colnames
     print('Read {} galaxies from {}'.format(len(lslga), lslgafile))
 
-    # Throw away rejected galaxies--
-    if len(reject) > 0:
-        print('Rejecting {} LSLGA galaxies.'.format(len(reject)))
-        rem = np.where(np.isin(lslga['LSLGA_ID'], reject['LSLGA_ID']))[0]
-        if len(rem) != len(reject):
-            print('Missing rejected galaxies in parent LSLGA!')
-            pdb.set_trace()
+    # Remove galaxies that were either dropped by Tractor in pre-burning or
+    # which were not ellipse-fit (the latter are in the Tractor catalog but with
+    # REF_CAT='').
+    if len(notractor) > 0:
+        print('Removing {} LSLGA galaxies dropped by Tractor.'.format(len(notractor)))
+        rem = np.where(np.isin(lslga['LSLGA_ID'], notractor['LSLGA_ID']))[0]
+        assert(len(rem) == len(notractor))
+        lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
+    if len(noellipse) > 0:
+        print('Removing {} LSLGA galaxies not ellipse-fit.'.format(len(noellipse)))
+        rem = np.where(np.isin(lslga['LSLGA_ID'], noellipse['LSLGA_ID']))[0]
+        assert(len(rem) == len(noellipse))
         lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
 
     lslga['LSLGA_RA'] = lslga['RA']
     lslga['LSLGA_DEC'] = lslga['DEC']
     lslga['MORPHTYPE'] = lslga['TYPE']
-    lslga['D25_ORIG'] = lslga['D25']
-    lslga['PA_ORIG'] = lslga['PA']
-    lslga['BA_ORIG'] = lslga['BA']
+    lslga.rename_column('D25', 'DIAM')
+    lslga['DIAM_REF'] = 'leda'
+    lslga['D25_LEDA'] = lslga['DIAM']
+    lslga['PA_LEDA'] = lslga['PA']
+    lslga['BA_LEDA'] = lslga['BA']
+    lslgacols = lslga.colnames
 
     # Create a temporary catalog and add a temporary column to enable the join--
     _lslga = lslga.copy()
-    for col in ['RA', 'DEC', 'TYPE', 'D25', 'PA', 'BA']:
+    for col in ['RA', 'DEC', 'TYPE', 'DIAM', 'DIAM_REF', 'PA', 'BA']:
         _lslga.remove_column(col)
     _lslga['REF_ID'] = lslga['LSLGA_ID']
 
@@ -787,7 +824,7 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
 
     # Next, remove the already-burned LSLGA galaxies so we don't double-count them.
     rem = np.where(np.isin(lslga['LSLGA_ID'], out['REF_ID']))[0]
-    print('Removing {} LSLGA galaxies from the parent catalog, so we do not double-count them.'.format(len(rem)))
+    print('Removing {} LSLGA galaxies from the pre-burned catalog, so we do not double-count them.'.format(len(rem)))
     lslga = lslga[np.delete(np.arange(len(lslga)), rem)] # remove duplicates
 
     #chk1 = np.where(out['PREBURNED'] * (out['REF_CAT'] == 'L6'))[0]
@@ -806,7 +843,7 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
                 lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)
     
     # Stack!
-    skipfull = True
+    skipfull = False
     if skipfull:
         print('Temporarily leaving off the original LSLGA!')
     else:
@@ -816,22 +853,31 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     del lslga, cat
 
     # One final check--every galaxy in fullsample should be accounted for in
-    # either 'out' or 'reject', with no duplication!  Galaxies in 'nogrz' *will*
+    # either 'out' or 'notractor', with no duplication!  Galaxies in 'nogrz' *will*
     # be in 'out' because we still want to use them in production even though we
     # couldn't do ellipse-fitting.
     _out = out[(out['LSLGA_ID'] != -1) * out['PREBURNED']]
     if not skipfull:
         chk1 = np.where(np.isin(fullsample['LSLGA_ID'], _out['LSLGA_ID']))[0]
-        chk2 = np.where(np.isin(out['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
-        chk3 = np.where(np.isin(out['LSLGA_ID'], reject['LSLGA_ID']))[0]
-        chk4 = np.where(np.isin(reject['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
         assert(len(chk1) == len(_out))
-        assert(len(chk2) == len(nogrz))
-        assert(len(chk3) == 0)
-        assert(len(chk4) == 0)
+        if len(nogrz) > 0:
+            chk2 = np.where(np.isin(out['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
+            assert(len(chk2) == len(nogrz))
+        if len(notractor) > 0:
+            chk3 = np.where(np.isin(out['LSLGA_ID'], notractor['LSLGA_ID']))[0]
+            assert(len(chk3) == 0)
+        if len(noellipse) > 0:
+            chk4 = np.where(np.isin(out['LSLGA_ID'], noellipse['LSLGA_ID']))[0]
+            assert(len(chk4) == 0)
+        if len(nogrz) > 0 and len(notractor) > 0:            
+            chk5 = np.where(np.isin(notractor['LSLGA_ID'], nogrz['LSLGA_ID']))[0]
+            assert(len(chk5) == 0)
+
+    assert(np.all(np.isfinite(out['PA'])))
+    assert(np.all(np.isfinite(out['BA'])))
 
     print('Writing {} galaxies to {}'.format(len(out), outfile))
-    hdrversion = 'L{}-MODEL'.format(version[1:2]) # fragile!
+    hdrversion = 'L{}-ELLIPSE'.format(version[1:2]) # fragile!
     hdr['LSLGAVER'] = hdrversion
     fitsio.write(outfile, out.as_array(), header=hdr, clobber=True)
 

@@ -66,10 +66,10 @@ def main():
     if (args.build_LSLGA or args.htmlindex) and rank == 0:
         if args.build_LSLGA:
             _, _, idone, _ = legacyhalos.LSLGA.missing_files(args, sample, size)
-            if len(idone) == 0:
+            if len(idone[rank]) == 0:
                 print('No ellipse files found!')
                 return
-            legacyhalos.LSLGA.build_ellipse_LSLGA(sample[idone], fullsample,
+            legacyhalos.LSLGA.build_ellipse_LSLGA(sample[idone[rank]], fullsample,
                                                   nproc=args.nproc, clobber=args.clobber)
 
         if args.htmlindex:
