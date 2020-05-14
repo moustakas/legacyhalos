@@ -2,7 +2,7 @@ Build a Docker container for the legacyhalos project.
 =====================================================
 
 ```
-docker pull legacysurvey/legacypipe:dev
+docker pull legacysurvey/legacypipe:DR9.4-rc2
 docker build . -t flagnarg/legacyhalos
 docker push flagnarg/legacyhalos:latest
 
