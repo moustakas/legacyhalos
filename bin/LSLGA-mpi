@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """MPI wrapper for the Legacy Surveys large galaxies.
 
-LSLGA-mpi --largegalaxy-coadds --largegalaxy-customsky --count --debug
+LSLGA-mpi --coadds --customsky --count --debug
 
 """
 import matplotlib
@@ -44,12 +44,12 @@ def main():
                                                d25min=args.d25min, d25max=args.d25max, 
                                                galaxylist=args.galaxylist,
                                                verbose=args.verbose,
-                                               customsky=args.largegalaxy_customsky,
+                                               customsky=args.customsky,
                                                preselect_sample=True)
         if len(sample) == 0:
             return
         # For the custom coadds step we write out the full sample in each mosaic.
-        if args.largegalaxy_coadds or args.build_LSLGA:
+        if args.coadds or args.build_LSLGA:
             fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose,
                                                        preselect_sample=False,
                                                        customsky=False)
@@ -150,7 +150,7 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        if args.largegalaxy_customsky:
+        if args.customsky:
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
         else:
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
@@ -158,7 +158,7 @@ def main():
         run = legacyhalos.io.get_run(onegal)
         survey = get_survey(run, output_dir=galaxydir)
 
-        if args.largegalaxy_coadds:
+        if args.coadds:
             from legacyhalos.mpi import call_custom_coadds
             # Write out the individual galaxies for this mosaic.
             thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
@@ -171,14 +171,14 @@ def main():
                                largegalaxy=True, pipeline=False, custom=False,
                                apodize=False, unwise=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=True, write_all_pickles=True,
-                               no_splinesky=False, customsky=args.largegalaxy_customsky,
+                               no_splinesky=False, customsky=args.customsky,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile)
 
         if args.pipeline_coadds:
             from legacyhalos.mpi import call_custom_coadds
-            # No unwise here (we do it in largegalaxy_coadds) and don't care
-            # about the model images.
+            # No unwise here (we do it in --coadds) and don't care about the
+            # model images.
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=True, custom=False,

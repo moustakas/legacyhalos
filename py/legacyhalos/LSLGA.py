@@ -28,9 +28,9 @@ def mpi_args():
     parser.add_argument('--d25min', default=0.1, type=float, help='Minimum diameter (arcmin).')
     parser.add_argument('--d25max', default=100.0, type=float, help='Maximum diameter (arcmin).')
 
+    parser.add_argument('--coadds', action='store_true', help='Build the large-galaxy coadds.')
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipeline coadds.')
-    parser.add_argument('--largegalaxy-coadds', action='store_true', help='Build the large-galaxy coadds.')
-    parser.add_argument('--largegalaxy-customsky', action='store_true', help='Build the largest large-galaxy coadds with custom sky-subtraction.')
+    parser.add_argument('--customsky', action='store_true', help='Build the largest large-galaxy coadds with custom sky-subtraction.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
     #parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
 
@@ -91,8 +91,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
 
     dependson = None
     galaxy, galaxydir = get_galaxy_galaxydir(sample)        
-    if args.largegalaxy_coadds:
-        suffix = 'largegalaxy-coadds'
+    if args.coadds:
+        suffix = 'coadds'
         filesuffix = '-largegalaxy-coadds.isdone'
     elif args.pipeline_coadds:
         suffix = 'pipeline-coadds'
