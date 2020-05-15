@@ -2,22 +2,22 @@ Build a Docker container for the legacyhalos project.
 =====================================================
 
 ```
-docker pull legacysurvey/legacypipe:DR9.4-rc2
-docker build . -t flagnarg/legacyhalos
-docker push flagnarg/legacyhalos:latest
+docker pull legacysurvey/legacypipe:DR9.4.1
+docker build . -t legacysurvey/legacyhalos
+docker push legacysurvey/legacyhalos:latest
 
-docker tag flagnarg/legacyhalos:latest flagnarg/legacyhalos:v0.0.7
-docker push flagnarg/legacyhalos:v0.0.7
+docker tag legacysurvey/legacyhalos:latest legacysurvey/legacyhalos:v0.0.1
+docker push legacysurvey/legacyhalos:v0.0.1
 ```
 
 To enter the container (with a shell prompt) on a laptop do:
 ```
-docker pull flagnarg/legacyhalos:latest
-docker run -it flagnarg/legacyhalos:latest
+docker pull legacysurvey/legacyhalos:latest
+docker run -it legacysurvey/legacyhalos:latest
 ```
 
 Or at NERSC:
 ```
-shifterimg pull docker:flagnarg/legacyhalos:latest
-shifter --image docker:flagnarg/legacyhalos:latest bash
+shifterimg pull docker:legacysurvey/legacyhalos:latest
+shifter --image docker:legacysurvey/legacyhalos:latest bash
 ```
