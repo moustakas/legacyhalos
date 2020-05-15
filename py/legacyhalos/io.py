@@ -1119,7 +1119,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                 elif r50 < minsize:
                     reject_galaxy.append(ii)
                     data['tractor_flags'].update({str(sid): 'anytype_toosmall'})
-                    msg.append('r50={:.3f} (<{:.1f}) arcsec'.format(r50, minsize))
+                    msg.append('type={}, r50={:.3f} (<{:.1f}) arcsec'.format(tractor.type[I], r50, minsize))
                 elif tractor.type[I] == 'REX':
                     if r50 > minsize_rex: # REX must have a minimum size
                         keep_galaxy.append(ii)
