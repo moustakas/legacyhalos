@@ -672,8 +672,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     # First display the color mosaic...
     if ellipsefit and ellipsefit['success']:
         sz = colorimg.size
-        draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], ellipsefit['lslga_ba'],
-                            ellipsefit['lslga_pa'], ellipsefit['lslga_d25'] * 60.0, ellipsefit['refpixscale'],
+        draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], ellipsefit['ba_leda'],
+                            ellipsefit['pa_leda'], ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
                             color='blue') # '#3388ff')
         draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
                             ellipsefit['pa'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
@@ -797,11 +797,11 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                     ellaper.plot(color='k', lw=4, axes=ax1, alpha=0.9, label='Ellipse geometry')
 
                 # Visualize the LSLGA geometry, if present.
-                if ('lslga_pa' in ellipsefit.keys()) * ('lslga_ba' in ellipsefit.keys()) * ('lslga_d25' in ellipsefit.keys()):
-                    maxis = ellipsefit['lslga_d25'] * 60 / ellipsefit['refpixscale'] / 2 # [pixels]
+                if ('pa_leda' in ellipsefit.keys()) * ('ba_leda' in ellipsefit.keys()) * ('d25_leda' in ellipsefit.keys()):
+                    maxis = ellipsefit['d25_leda'] * 60 / ellipsefit['refpixscale'] / 2 # [pixels]
                     ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                                                 maxis, maxis * ellipsefit['lslga_ba'],
-                                                 np.radians(ellipsefit['lslga_pa']-90))
+                                                 maxis, maxis * ellipsefit['ba_leda'],
+                                                 np.radians(ellipsefit['pa_leda']-90))
                     ellaper.plot(color='blue', lw=3, axes=ax1, alpha=1.0, label='LSLGA geometry')
                 #pdb.set_trace()
                 ## Visualize the fitted geometry

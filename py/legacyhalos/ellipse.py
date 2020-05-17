@@ -4,25 +4,18 @@ legacyhalos.ellipse
 
 Code to do ellipse fitting on the residual coadds.
 """
-from __future__ import absolute_import, division, print_function
-
-import os, copy, pdb
+import os, pdb
 import time, warnings
-import multiprocessing
-
 import numpy as np
-import numpy.ma as ma
 import matplotlib.pyplot as plt
 
 import astropy.modeling
-
-import legacyhalos.io
-import legacyhalos.misc
-
 from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                 Isophote, IsophoteList)
 from photutils.isophote.sample import CentralEllipseSample
 from photutils.isophote.fitter import CentralEllipseFitter
+
+import legacyhalos.io
 
 SBTHRESH = [23, 24, 25, 25.5, 26] # surface brightness thresholds
 
@@ -85,6 +78,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     pixscalefactor - assumed to be constant for all bandpasses!
 
     """
+    import numpy.ma as ma
     import astropy.table
     from astropy.utils.exceptions import AstropyUserWarning
     from scipy import integrate
@@ -193,7 +187,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 ok = (cogflux > 0) * np.isfinite(cogflux)
                 cogmagerr = np.ones(len(cogmag))
 
-        results['cog_smaunit'] = 'arcsec'
+        #results['cog_smaunit'] = 'arcsec'
         
         if np.count_nonzero(ok) == 0:
             print('Warning: No good {}-band pixels to fit; skipping.'.format(filt))
@@ -343,6 +337,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
 def _unmask_center(img):
     # https://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
+    import numpy.ma as ma
     nn = img.shape[0]
     x0, y0 = geometry.x0, geometry.y0
     rad = geometry.sma # [pixels]
@@ -393,6 +388,7 @@ def integrate_isophot_one(img, sma, theta, eps, x0, y0, pixscalefactor,
     theta in radians
 
     """
+    import copy
     #g = iso.sample.geometry # fixed geometry
     #g = copy.deepcopy(iso.sample.geometry) # fixed geometry
     g = EllipseGeometry(x0=x0, y0=y0, eps=eps, sma=sma, pa=theta)
@@ -619,6 +615,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
       io.write_ellipsefit).
 
     """
+    import multiprocessing
+    
     bands, refband, refpixscale = data['bands'], data['refband'], data['refpixscale']
     
     # If fitgeometry=True then fit for the geometry as a function of semimajor
@@ -639,7 +637,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     ellipsefit['fitgeometry'] = fitgeometry
 
     # This is fragile, but copy over a specific set of keys from the data dictionary--
-    copykeys = ['bands', 'refband', 'refpixscale', 'shape',
+    copykeys = ['bands', 'refband', 'refpixscale',
+                '{}_width'.format(refband), '{}_height'.format(refband),
                 'psfsigma_g', 'psfsigma_r', 'psfsigma_z',
                 'psfsize_g', 'psfsize_min_g', 'psfsize_max_g',
                 'psfdepth_g', 'psfdepth_min_g', 'psfdepth_max_g', 
@@ -657,7 +656,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     # Fix the center to be the peak (pixel) values. Could also use bx,by here
     # from Tractor.  Also initialize the geometry with the moment-derived
     # values.  Note that (x,y) are switched between MGE and photutils!!
-    for key in ['badcenter', 'eps', 'pa', 'theta', 'majoraxis', 'ra_med', 'dec_med',
+    for key in ['badcenter', 'eps', 'pa', 'theta', 'majoraxis', 'ra_x0', 'dec_y0',
                 'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z']:
         ellipsefit[key] = mge[key]
     for mgekey, ellkey in zip(['ymed', 'xmed'], ['x0', 'y0']):
@@ -707,7 +706,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 
     # Integrate to the edge [pixels].
     if maxsma is None:
-        maxsma = 0.95 * (data['shape'][0]/2) / np.cos(geometry.pa % (np.pi/4))
+        maxsma = 0.95 * (data['{}_width'.format(refband)]/2) / np.cos(geometry.pa % (np.pi/4))
     ellipsefit['maxsma'] = np.float32(maxsma) # [pixels]
 
     sma = np.arange(np.ceil(maxsma)).astype('f4')
@@ -749,10 +748,13 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 
     # Write out
     if not nowrite:
-        if galaxyinfo:
-            ellipsefit.update(galaxyinfo)
+        #if galaxyinfo:
+        #    ellipsefit.update(galaxyinfo)
         legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
-                                        galaxyid=galaxyid, verbose=True,
+                                        galaxyid=galaxyid,
+                                        galaxyinfo=galaxyinfo,
+                                        refband=refband,
+                                        verbose=True,
                                         filesuffix=filesuffix)
 
     return ellipsefit
@@ -773,8 +775,9 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
     """
     import subprocess
+    import astropy.units as u
     
-    if galaxydir is None or galaxy is None:
+    if galaxy is None and galaxydir is None:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
 
     if zcolumn is not None and zcolumn in onegal.columns:
@@ -784,11 +787,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
 
     if largegalaxy:
         filesuffix = 'largegalaxy'
-        # In general, there can be LSLGA galaxies in the field that *don't*
-        # belong to this particular group; filter those out so we don't
-        # double-count them.
-        #these = np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]
-        #central_galaxy_id = fullsample['LSLGA_ID'][these]
     else:
         filesuffix = ''
         #central_galaxy_id = None
@@ -812,20 +810,20 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             print('Starting ellipse-fitting for galaxy {}'.format(galaxyid))
             if largegalaxy:
                 maxsma = 2 * data['mge'][igal]['majoraxis'] # [pixels]
-                # Supplement the fit results dictionary with some additional info--
-                samp = sample[sample['LSLGA_ID'] == central_galaxy_id]
-                galaxyinfo = {'lslga_id': central_galaxy_id,
-                              'galaxy': str(np.atleast_1d(samp['GALAXY'])[0])}
-                for key, outkey in zip(['ra', 'dec', 'pgc', 'pa', 'ba', 'd25'],
-                                       ['ra', 'dec', 'pgc', 'lslga_pa', 'lslga_ba', 'lslga_d25']):
-                    galaxyinfo[outkey] = np.atleast_1d(samp[key.upper()])[0]
+                # Supplement the fit results dictionary with some additional info.
+                samp = sample[sample['ID'] == central_galaxy_id]
+                galaxyinfo = {'id': (central_galaxy_id, ''),
+                              'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
+                for key, unit in zip(['ra', 'dec', 'pgc', 'pa_leda', 'ba_leda', 'd25_leda'],
+                                     [u.deg, u.deg, '', u.deg, '', u.arcmin]):
+                    galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
             else:
                 maxsma, galaxyid = None, None
-                galaxyinfo = {'redshift': redshift}
+                galaxyinfo = {'redshift': (redshift, '')}
 
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, centralindx=igal,
                                               galaxyid=galaxyid, filesuffix=filesuffix,
-                                              refband='r', nproc=nproc, integrmode=integrmode,
+                                              refband=refband, nproc=nproc, integrmode=integrmode,
                                               nclip=nclip, sclip=sclip, verbose=verbose,
                                               input_ellipse=input_ellipse, maxsma=maxsma,
                                               fitgeometry=False, galaxyinfo=galaxyinfo)

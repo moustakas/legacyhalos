@@ -106,28 +106,22 @@ def main():
         return
     else:
         print(' Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
-        if args.count:
-            if rank == 0 and args.debug is False:
-                return
-            if rank > 0:
-                return
+        if rank == 0 and args.count:
+            if args.debug:
+                if len(fail[rank]) > 0:
+                    print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
+                    galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[fail[rank]])
+                    for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
+                        print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+
+                todo = np.hstack(groups)
+                if len(todo) > 0:
+                    #print('Galaxies left to do:')
+                    galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[todo])
+                    for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
+                        print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+            return
         
-    # Only list the failures and remaining galaxies using rank0
-    if rank == 0 and args.debug:
-        if len(fail[rank]) > 0:
-            print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
-            galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[fail[rank]])
-            for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
-                print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
-
-        todo = np.hstack(groups)
-        if len(todo) > 0:
-            #print('Galaxies left to do:')
-            galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[todo])
-            for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
-                print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
-        return 
-
     # Loop on the remaining objects.
     print('Starting {} {} on rank {} with {} cores on {}'.format(
         len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
