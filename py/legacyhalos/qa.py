@@ -613,7 +613,7 @@ def display_sersic(sersic, png=None, verbose=False):
 
     ylim = ax.get_ylim()
     if sersic['success']:
-        ax.fill_between([0, 3*model.psfsigma_r*sersic['refpixscale']], [ylim[0], ylim[0]], # [arcsec]
+        ax.fill_between([0, 3*model.psfsize_r], [ylim[0], ylim[0]], # [arcsec]
                         [ylim[1], ylim[1]], facecolor='grey', alpha=0.1)
         ax.text(0.02, 0.07, 'PSF\n(3$\sigma$)', ha='center', va='center',
                 transform=ax.transAxes, fontsize=10)
@@ -1163,7 +1163,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 
         for xx in (ax1, ax2):
             ylim = xx.get_ylim()
-            xx.fill_between([0, (3*ellipsefit['psfsigma_r']*ellipsefit['refpixscale'])**0.25],
+            xx.fill_between([0, (3*ellipsefit['psfsize_r'])**0.25],
                             [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
             
         ax2.text(0.05, 0.15, 'PSF\n(3$\sigma$)', ha='center', va='center',
@@ -1789,7 +1789,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
             xx.set_xlim(xlim)
             
             ylim = xx.get_ylim()
-            xx.fill_between([0, 3*ellipsefit['psfsigma_r']*ellipsefit['refpixscale']], [ylim[0], ylim[0]],
+            xx.fill_between([0, 3*ellipsefit['psfsize_r']], [ylim[0], ylim[0]],
                             [ylim[1], ylim[1]], color='grey', alpha=0.1)
             
         ax4.text(0.03, 0.09, 'PSF\n(3$\sigma$)', ha='center', va='center',

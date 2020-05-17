@@ -191,16 +191,16 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         
         if np.count_nonzero(ok) == 0:
             print('Warning: No good {}-band pixels to fit; skipping.'.format(filt))
-            results['cog_sma_{}'.format(filt)] = np.array([])
-            results['cog_mag_{}'.format(filt)] = np.float32(-1)
-            results['cog_magerr_{}'.format(filt)] = np.float32(-1)
-            results['cog_params_{}'.format(filt)] = {}#{'mtot': np.float32(-1),
+            results['{}_cog_sma'.format(filt)] = np.array([])
+            results['{}_cog_mag'.format(filt)] = np.float32(-1)
+            results['{}_cog_magerr'.format(filt)] = np.float32(-1)
+            results['{}_cog_params'.format(filt)] = {}#{'mtot': np.float32(-1),
                                                       # 'm0': np.float32(-1),
                                                       # 'alpha1': np.float32(-1),
                                                       # 'alpha2': np.float32(-1),
                                                       # 'chi2': np.float32(1e6)}
             for sbcut in SBTHRESH:
-                results['mag_{}_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
+                results['{}_mag_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
             continue
 
         sma_arcsec = sma[ok] * pixscale             # [arcsec]
@@ -208,9 +208,9 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         if cogferr is not None:
             cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
 
-        results['cog_sma_{}'.format(filt)] = sma_arcsec
-        results['cog_mag_{}'.format(filt)] = cogmag
-        results['cog_magerr_{}'.format(filt)] = cogmagerr
+        results['{}_cog_sma'.format(filt)] = np.float32(sma_arcsec)
+        results['{}_cog_mag'.format(filt)] = np.float32(cogmag)
+        results['{}_cog_magerr'.format(filt)] = np.float32(cogmagerr)
 
         #print('Modeling the curve of growth.')
         def get_chi2(bestfit):
@@ -280,7 +280,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
         
         #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)
-        results['cog_params_{}'.format(filt)] = {'mtot': np.float32(P.mtot.value),
+        results['{}_cog_params'.format(filt)] = {'mtot': np.float32(P.mtot.value),
                                                  'm0': np.float32(P.m0.value),
                                                  'alpha1': np.float32(P.alpha1.value),
                                                  'alpha2': np.float32(P.alpha2.value),
@@ -288,14 +288,18 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
         #print('Measuring integrated magnitudes to different radii.')
         sb = ellipse_sbprofile(refellipsefit, linear=True)
-        for radkey in ['radius_sb{:0g}'.format(sbcut) for sbcut in SBTHRESH]:
-            magkey = radkey.replace('radius_', 'mag_{}_'.format(filt))
+        radkeys = ['radius_sb{:0g}'.format(sbcut) for sbcut in SBTHRESH]
+        for radkey in radkeys:
+            magkey = radkey.replace('radius_', '{}_mag_'.format(filt))
+            magerrkey = '{}_err'.format(magkey)
+            
             smamax = results[radkey] # semi-major axis
             if smamax > 0 and smamax < np.max(sma_arcsec):
                 rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
 
-                rr = sb['radius_{}'.format(filt)] # [circularized radius, arcsec]
-                yy = sb['mu_{}'.format(filt)]     # [surface brightness, nanomaggies/arcsec**2]
+                rr = sb['radius_{}'.format(filt)]    # [circularized radius, arcsec]
+                yy = sb['mu_{}'.format(filt)]        # [surface brightness, nanomaggies/arcsec**2]
+                yyerr = sb['muerr_{}'.format(filt)] # [surface brightness, nanomaggies/arcsec**2]
                 try:
                     #print(filt, rr.max(), rmax)
                     yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
@@ -304,13 +308,22 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                     keep = np.where(rr < rmax)[0]
                     _rr = np.hstack((rr[keep], rmax))
                     _yy = np.hstack((yy[keep], yy_rmax))
+                    _yyerr = np.hstack((yyerr[keep], yy_rmax))
 
                     flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
+                    fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
+                    if fvar <= 0:
+                        ferr = -1.0
+                    else:
+                        ferr = 2 * np.pi * np.sqrt(fvar)
                     results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                    results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
                 except:
                     results[magkey] = np.float32(-1.0)
+                    results[magerrkey] = np.float32(-1.0)
             else:
                 results[magkey] = np.float32(-1.0)
+                results[magerrkey] = np.float32(-1.0)
                 
     #pdb.set_trace()
         
@@ -445,7 +458,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
 
     sbprofile = dict()
     for filt in bands:
-        psfkey = 'psfsigma_{}'.format(filt)
+        psfkey = 'psfsize_{}'.format(filt)
         if psfkey in ellipsefit.keys():
             sbprofile[psfkey] = ellipsefit[psfkey]
 
@@ -536,7 +549,7 @@ def _fitgeometry_refband(ellipsefit, geometry0, majoraxis, refband='r', verbose=
     """
     smamax = majoraxis # inner, outer radius
     #smamax = 1.5*majoraxis
-    smamin = ellipsefit['psfsigma_{}'.format(refband)]
+    smamin = ellipsefit['psfsize_{}'.format(refband)] / ellipsefit['refpixscale']
 
     if smamin > majoraxis:
         print('Warning! this galaxy is smaller than three times the seeing FWHM!')
@@ -632,20 +645,20 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     ellipsefit = dict()
     ellipsefit['input_ellipse'] = False
     ellipsefit['integrmode'] = integrmode
-    ellipsefit['sclip'] = sclip
-    ellipsefit['nclip'] = nclip
+    ellipsefit['sclip'] = np.int8(sclip)
+    ellipsefit['nclip'] = np.int8(nclip)
     ellipsefit['fitgeometry'] = fitgeometry
 
     # This is fragile, but copy over a specific set of keys from the data dictionary--
     copykeys = ['bands', 'refband', 'refpixscale',
                 '{}_width'.format(refband), '{}_height'.format(refband),
-                'psfsigma_g', 'psfsigma_r', 'psfsigma_z',
-                'psfsize_g', 'psfsize_min_g', 'psfsize_max_g',
-                'psfdepth_g', 'psfdepth_min_g', 'psfdepth_max_g', 
-                'psfsize_r', 'psfsize_min_r', 'psfsize_max_r',
-                'psfdepth_r', 'psfdepth_min_r', 'psfdepth_max_r',
-                'psfsize_z', 'psfsize_min_z', 'psfsize_max_z',
-                'psfdepth_z', 'psfdepth_min_z', 'psfdepth_max_z']
+                #'psfsigma_g', 'psfsigma_r', 'psfsigma_z',
+                'psfsize_g', #'psfsize_min_g', 'psfsize_max_g',
+                'psfdepth_g', #'psfdepth_min_g', 'psfdepth_max_g', 
+                'psfsize_r', #'psfsize_min_r', 'psfsize_max_r',
+                'psfdepth_r', #'psfdepth_min_r', 'psfdepth_max_r',
+                'psfsize_z', #'psfsize_min_z', 'psfsize_max_z',
+                'psfdepth_z'] #'psfdepth_min_z', 'psfdepth_max_z']
     for key in copykeys:
         if key in data.keys():
             ellipsefit[key] = data[key]

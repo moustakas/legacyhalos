@@ -436,6 +436,46 @@ def _write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         #af = asdf.AsdfFile(ellipsefit)
         #af.write_to(ellipsefitfile)
 
+def _read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True, use_pickle=False):
+    """Read the output of write_ellipsefit.
+
+    OBSOLETE - we now use FITS
+
+    """
+    import asdf
+    
+    if use_pickle:
+        suff = '.p'
+    else:
+        suff = '.asdf'
+    
+    if galaxyid.strip() == '':
+        galid = ''
+    else:
+        galid = '-{}'.format(galaxyid)
+    if filesuffix.strip() == '':
+        fsuff = ''
+    else:
+        fsuff = '-{}'.format(filesuffix)
+
+    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse{}'.format(galaxy, fsuff, galid, suff))
+        
+    try:
+        if use_pickle:
+            with open(ellipsefitfile, 'rb') as ell:
+                ellipsefit = pickle.load(ell)
+        else:
+            #with asdf.open(ellipsefitfile) as af:
+            #    ellipsefit = af.tree
+            ellipsefit = asdf.open(ellipsefitfile)
+    except:
+        #raise IOError
+        if verbose:
+            print('File {} not found!'.format(ellipsefitfile))
+        ellipsefit = dict()
+
+    return ellipsefit
+
 # ellipsefit data model
 def _get_ellipse_datamodel(refband='r'):
     cols = [
@@ -461,29 +501,29 @@ def _get_ellipse_datamodel(refband='r'):
         ('sclip', ''),
         ('nclip', ''),
 
-        ('psfsigma_g', u.pixel),
-        ('psfsigma_r', u.pixel),
-        ('psfsigma_z', u.pixel),
+        #('psfsigma_g', u.pixel),
+        #('psfsigma_r', u.pixel),
+        #('psfsigma_z', u.pixel),
 
         ('psfsize_g', u.arcsec),
-        ('psfsize_min_g', u.arcsec),
-        ('psfsize_max_g', u.arcsec),
+        #('psfsize_min_g', u.arcsec),
+        #('psfsize_max_g', u.arcsec),
         ('psfsize_r', u.arcsec),
-        ('psfsize_min_r', u.arcsec),
-        ('psfsize_max_r', u.arcsec),
+        #('psfsize_min_r', u.arcsec),
+        #('psfsize_max_r', u.arcsec),
         ('psfsize_z', u.arcsec),
-        ('psfsize_min_z', u.arcsec),
-        ('psfsize_max_z', u.arcsec),
+        #('psfsize_min_z', u.arcsec),
+        #('psfsize_max_z', u.arcsec),
 
         ('psfdepth_g', u.mag),
-        ('psfdepth_min_g', u.mag),
-        ('psfdepth_max_g', u.mag),
+        #('psfdepth_min_g', u.mag),
+        #('psfdepth_max_g', u.mag),
         ('psfdepth_r', u.mag),
-        ('psfdepth_min_r', u.mag),
-        ('psfdepth_max_r', u.mag),
+        #('psfdepth_min_r', u.mag),
+        #('psfdepth_max_r', u.mag),
         ('psfdepth_z', u.mag),
-        ('psfdepth_min_z', u.mag),
-        ('psfdepth_max_z', u.mag),
+        #('psfdepth_min_z', u.mag),
+        #('psfdepth_max_z', u.mag),
 
         ('mw_transmission_g', ''),
         ('mw_transmission_r', ''),
@@ -560,32 +600,32 @@ def _get_ellipse_datamodel(refband='r'):
 
         #('cog_smaunit', ''),
 
-        ('cog_sma_g', u.arcsec),
-        ('cog_mag_g', u.mag),
-        ('cog_magerr_g', u.mag),
-        ('cog_params_g_mtot', u.mag),
-        ('cog_params_g_m0', u.mag),
-        ('cog_params_g_alpha1', ''),
-        ('cog_params_g_alpha2', ''),
-        ('cog_params_g_chi2', ''),
+        ('g_cog_sma', u.arcsec),
+        ('g_cog_mag', u.mag),
+        ('g_cog_magerr', u.mag),
+        ('g_cog_params_mtot', u.mag),
+        ('g_cog_params_m0', u.mag),
+        ('g_cog_params_alpha1', ''),
+        ('g_cog_params_alpha2', ''),
+        ('g_cog_params_chi2', ''),
 
-        ('cog_sma_r', u.arcsec),
-        ('cog_mag_r', u.mag),
-        ('cog_magerr_r', u.mag),
-        ('cog_params_r_mtot', u.mag),
-        ('cog_params_r_m0', u.mag),
-        ('cog_params_r_alpha1', ''),
-        ('cog_params_r_alpha2', ''),
-        ('cog_params_r_chi2', ''),
+        ('r_cog_sma', u.arcsec),
+        ('r_cog_mag', u.mag),
+        ('r_cog_magerr', u.mag),
+        ('r_cog_params_mtot', u.mag),
+        ('r_cog_params_m0', u.mag),
+        ('r_cog_params_alpha1', ''),
+        ('r_cog_params_alpha2', ''),
+        ('r_cog_params_chi2', ''),
 
-        ('cog_sma_z', u.arcsec),
-        ('cog_mag_z', u.mag),
-        ('cog_magerr_z', u.mag),
-        ('cog_params_z_mtot', u.mag),
-        ('cog_params_z_m0', u.mag),
-        ('cog_params_z_alpha1', ''),
-        ('cog_params_z_alpha2', ''),
-        ('cog_params_z_chi2', ''),
+        ('z_cog_sma', u.arcsec),
+        ('z_cog_mag', u.mag),
+        ('z_cog_magerr', u.mag),
+        ('z_cog_params_mtot', u.mag),
+        ('z_cog_params_m0', u.mag),
+        ('z_cog_params_alpha1', ''),
+        ('z_cog_params_alpha2', ''),
+        ('z_cog_params_chi2', ''),
 
         ('radius_sb23', u.arcsec),
         ('radius_sb23_err', u.arcsec),
@@ -598,23 +638,38 @@ def _get_ellipse_datamodel(refband='r'):
         ('radius_sb26', u.arcsec),
         ('radius_sb26_err', u.arcsec),
 
-        ('mag_g_sb23', u.mag),
-        ('mag_g_sb24', u.mag),
-        ('mag_g_sb25', u.mag),
-        ('mag_g_sb25.5', u.mag),
-        ('mag_g_sb26', u.mag),
+        ('g_mag_sb23', u.mag),
+        ('g_mag_sb23_err', u.mag),
+        ('g_mag_sb24', u.mag),
+        ('g_mag_sb24_err', u.mag),
+        ('g_mag_sb25', u.mag),
+        ('g_mag_sb25_err', u.mag),
+        ('g_mag_sb25.5', u.mag),
+        ('g_mag_sb25.5_err', u.mag),
+        ('g_mag_sb26', u.mag),
+        ('g_mag_sb26_err', u.mag),
 
-        ('mag_r_sb23', u.mag),
-        ('mag_r_sb24', u.mag),
-        ('mag_r_sb25', u.mag),
-        ('mag_r_sb25.5', u.mag),
-        ('mag_r_sb26', u.mag),
+        ('r_mag_sb23', u.mag),
+        ('r_mag_sb23_err', u.mag),
+        ('r_mag_sb24', u.mag),
+        ('r_mag_sb24_err', u.mag),
+        ('r_mag_sb25', u.mag),
+        ('r_mag_sb25_err', u.mag),
+        ('r_mag_sb25.5', u.mag),
+        ('r_mag_sb25.5_err', u.mag),
+        ('r_mag_sb26', u.mag),
+        ('r_mag_sb26_err', u.mag),
 
-        ('mag_z_sb23', u.mag),
-        ('mag_z_sb24', u.mag),
-        ('mag_z_sb25', u.mag),
-        ('mag_z_sb25.5', u.mag),
-        ('mag_z_sb26', u.mag),
+        ('z_mag_sb23', u.mag),
+        ('z_mag_sb23_err', u.mag),
+        ('z_mag_sb24', u.mag),
+        ('z_mag_sb24_err', u.mag),
+        ('z_mag_sb25', u.mag),
+        ('z_mag_sb25_err', u.mag),
+        ('z_mag_sb25.5', u.mag),
+        ('z_mag_sb25.5_err', u.mag),
+        ('z_mag_sb26', u.mag),
+        ('z_mag_sb26_err', u.mag),
         ]
     return cols
 
@@ -672,7 +727,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         if key not in datakeys:
             raise ValueError('Data model change -- no column {}!'.format(key))
         data = datadict[key]
-        if np.isscalar(data) or len(data) > 1:
+        if np.isscalar(data):# or len(np.array(data)) > 1:
             data = np.atleast_1d(data)
         else:
             data = np.atleast_2d(data)
@@ -681,8 +736,6 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         col = Column(name=key, data=data)
         out.add_column(col)
 
-    pdb.set_trace()
-
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
 
@@ -690,17 +743,10 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         print('Writing {}'.format(ellipsefitfile))
     out.write(ellipsefitfile, overwrite=True)
 
-def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True, use_pickle=False):
+def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True):
     """Read the output of write_ellipsefit.
 
     """
-    import asdf
-    
-    if use_pickle:
-        suff = '.p'
-    else:
-        suff = '.asdf'
-    
     if galaxyid.strip() == '':
         galid = ''
     else:
@@ -710,21 +756,14 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True,
     else:
         fsuff = '-{}'.format(filesuffix)
 
-    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse{}'.format(galaxy, fsuff, galid, suff))
+    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse.fits'.format(galaxy, fsuff, galid))
         
-    try:
-        if use_pickle:
-            with open(ellipsefitfile, 'rb') as ell:
-                ellipsefit = pickle.load(ell)
-        else:
-            #with asdf.open(ellipsefitfile) as af:
-            #    ellipsefit = af.tree
-            ellipsefit = asdf.open(ellipsefitfile)
-    except:
-        #raise IOError
+    if os.path.isfile(ellipsefitfile):
+        ellipsefit = Table.read(ellipsefitfile)
+    else:
         if verbose:
             print('File {} not found!'.format(ellipsefitfile))
-        ellipsefit = dict()
+        ellipsefit = Table()
 
     return ellipsefit
 
@@ -840,7 +879,7 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
         print('File {} exists.'.format(resultsfile))
 
 def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
-    """Helper function for read_multiband. Compute the average PSF size (in arcsec)
+    """Support function for read_multiband. Compute the average PSF size (in arcsec)
     and depth (in 5-sigma AB mags) in each bandpass based on the Tractor
     catalog.
 
@@ -874,12 +913,12 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
 
         out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
         out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
-        out['psfsize_min_{}'.format(filt)] = np.min(psfsize).astype('f4')
-        out['psfsize_max_{}'.format(filt)] = np.max(psfsize).astype('f4')
+        #out['psfsize_min_{}'.format(filt)] = np.min(psfsize).astype('f4')
+        #out['psfsize_max_{}'.format(filt)] = np.max(psfsize).astype('f4')
 
         out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
-        out['psfdepth_min_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.min(psfdepth)))).astype('f4')
-        out['psfdepth_max_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.max(psfdepth)))).astype('f4')
+        #out['psfdepth_min_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.min(psfdepth)))).astype('f4')
+        #out['psfdepth_max_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.max(psfdepth)))).astype('f4')
         
     return out
 

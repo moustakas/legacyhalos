@@ -145,6 +145,15 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     if not ok:
         return ok
 
+    for band in ['g', 'r', 'z']:
+        ok = _copyfile(
+            os.path.join(output_dir, 'coadd', 'cus', brickname,
+                         'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
+            os.path.join(output_dir, '{}-depth-{}.fits.fz'.format(galaxy, band)),
+            clobber=clobber)
+        if not ok:
+            return ok
+
     # model coadds
     for band in bands:
         for imtype in ['model']:
