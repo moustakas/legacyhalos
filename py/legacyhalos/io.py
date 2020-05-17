@@ -5,19 +5,14 @@ legacyhalos.io
 Code to read and write the various legacyhalos files.
 
 """
-import os, warnings
-import pickle, pdb
+import os, pdb
 import numpy as np
 import numpy.ma as ma
-from glob import glob
 
 import fitsio
 import astropy.units as u
-from astropy.table import Table, hstack, Column
-from astropy.io import fits
-from astrometry.util.fits import fits_table, merge_tables
-
-import legacyhalos.coadds
+from astropy.table import Table, Column
+from astrometry.util.fits import fits_table
 
 def missing_files_groups(args, sample, size, htmldir=None):
     """Simple task-specific wrapper on missing_files.
@@ -143,9 +138,11 @@ def get_run_ccds(onegal, radius_mosaic, pixscale, log=None): # kdccds_north, kdc
     or the DECaLS CCDs file when running the pipeline.
 
     """
+    from astrometry.util.fits import fits_table, merge_tables
     from astrometry.util.util import Tan
     from astrometry.libkd.spherematch import tree_search_radec
     from legacypipe.survey import ccds_touching_wcs
+    import legacyhalos.coadds
     
     ra, dec = onegal['RA'], onegal['DEC']
     if dec < 25:
@@ -402,6 +399,7 @@ def _write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     OBSOLETE - we now use FITS
 
     """
+    import pickle
     from astropy.io import fits
     from asdf import fits_embed
     #import asdf
@@ -442,6 +440,7 @@ def _read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True
     OBSOLETE - we now use FITS
 
     """
+    import pickle
     import asdf
     
     if use_pickle:
@@ -739,9 +738,28 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
 
+    # build out the FITS header
+    def _ellipsefit_header():
+        import subprocess
+        import pydl
+        import legacyhalos
+        hdr = fitsio.FITSHDR()
+
+        cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
+        ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
+        hdr.add_record(dict(name='LEGHALOV', value=ver, comment='legacyhalos git version'))
+
+        depvers, headers = [], []
+        for name, pkg in [('pydl', pydl)]:
+            hdr.add_record(dict(name=name, value=pkg.__version__, comment='{} version'.format(name)))
+
+        return hdr
+    hdr = _ellipsefit_header()
+
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
-    out.write(ellipsefitfile, overwrite=True)
+    #out.write(ellipsefitfile, overwrite=True)
+    fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
 def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True):
     """Read the output of write_ellipsefit.
@@ -852,6 +870,8 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     """Write out the output of legacyhalos-results
 
     """
+    from astropy.io import fits
+    
     lsdir = legacyhalos_dir()
     resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
     if not os.path.isfile(resultsfile) or clobber:
@@ -1684,6 +1704,8 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', index=None, satellites=Fal
     """Read the parent redMaPPer cluster catalog and updated photometry.
     
     """
+    from astropy.table import hstack
+    
     if satellites:
         suffix1, suffix2 = '_members', '-members'
     else:

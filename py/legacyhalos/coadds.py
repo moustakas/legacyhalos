@@ -28,14 +28,6 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     """
     import fitsio
 
-    #def get_git_version(dirname=None):
-    #    """Shamelessly taken from legacypipe.survey."""
-    #    if dirname is None:
-    #        import legacyhalos
-    #        dirname = os.path.dirname(legacyhalos.__file__)
-    #    cmd = 'cd {} && git describe'.format(dirname)
-    #    err = subprocess.call(cmd.split(), stdout=log, stderr=log)
-
     def _copyfile(infile, outfile, clobber=False, update_header=False):
         if os.path.isfile(outfile) and not clobber:
             return 1

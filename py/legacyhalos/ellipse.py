@@ -645,8 +645,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     ellipsefit = dict()
     ellipsefit['input_ellipse'] = False
     ellipsefit['integrmode'] = integrmode
-    ellipsefit['sclip'] = np.int8(sclip)
-    ellipsefit['nclip'] = np.int8(nclip)
+    ellipsefit['sclip'] = np.int16(sclip)
+    ellipsefit['nclip'] = np.int16(nclip)
     ellipsefit['fitgeometry'] = fitgeometry
 
     # This is fragile, but copy over a specific set of keys from the data dictionary--
