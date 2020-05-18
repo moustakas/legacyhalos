@@ -470,6 +470,29 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     
     return sample
 
+def _get_diameter(ellipse):
+    """Wrapper to get the mean D(26) diameter.
+
+    ellipse - legacyhalos.ellipse dictionary
+
+    diam in arcmin
+
+    """
+    if ellipse['radius_sb26'] > 0:
+        diam, diamref = 2 * ellipse['radius_sb26'] / 60, 'SB26' # [arcmin]
+    elif ellipse['radius_sb25'] > 0:
+        diam, diamref = 1.2 * 2 * ellipse['radius_sb25'] / 60, 'SB25' # [arcmin]
+    #elif ellipse['radius_sb24'] > 0:
+    #    diam, diamref = 1.5 * ellipse['radius_sb24'] * 2 / 60, 'SB24' # [arcmin]
+    else:
+        diam, diamref = 1.2 * ellipse['d25_leda'] / 60, 'LEDA' # [arcmin]
+        #diam, diamref = 2 * ellipse['majoraxis'] * ellipse['refpixscale'] / 60, 'WGHT' # [arcmin]
+
+    if diam <= 0:
+        raise ValueError('Doom has befallen you.')
+
+    return diam, diamref
+
 def _build_ellipse_LSLGA_one(args):
     """Wrapper function for the multiprocessing."""
     return build_ellipse_LSLGA_one(*args)
@@ -646,20 +669,8 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
             # Get the ellipse-derived geometry, which we'll add to the Tractor
             # catalog below.
             pa, ba = ellipse['pa'], 1 - ellipse['eps']
+            diam, diamref = _get_diameter(ellipse)
             
-            if ellipse['radius_sb26'] > 0:
-                diam, diamref = 2 * ellipse['radius_sb26'] / 60, 'SB26' # [arcmin]
-            elif ellipse['radius_sb25'] > 0:
-                diam, diamref = 1.2 * 2 * ellipse['radius_sb25'] / 60, 'SB25' # [arcmin]
-            #elif ellipse['radius_sb24'] > 0:
-            #    diam, diamref = 1.5 * ellipse['radius_sb24'] * 2 / 60, 'SB24' # [arcmin]
-            else:
-                diam, diamref = 1.2 * ellipse['d25_leda'] / 60, 'LEDA' # [arcmin]
-                #diam, diamref = 2 * ellipse['majoraxis'] * ellipse['refpixscale'] / 60, 'WGHT' # [arcmin]
-
-            if diam <= 0:
-                raise ValueError('Doom has befallen you.')
-
             # Next find all the objects in the "ellipse-of-influence" of this
             # galaxy and freeze them. Note: EllipseE.fromRAbPhi wants semi-major
             # axis (i.e., radius) in arcsec.
