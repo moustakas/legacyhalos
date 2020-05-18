@@ -345,8 +345,6 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                 #pdb.set_trace()
                 #continue
 
-                af.close()
-
     #for filesuffix in ('largegalaxy', 'custom'):
     #    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
     #

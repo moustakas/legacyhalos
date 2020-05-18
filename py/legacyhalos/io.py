@@ -14,6 +14,28 @@ import astropy.units as u
 from astropy.table import Table, Column
 from astrometry.util.fits import fits_table
 
+# build out the FITS header
+def legacyhalos_header(hdr=None):
+    """Build a header with code versions, etc.
+
+    """
+    import subprocess
+    import pydl
+    import legacyhalos
+
+    if hdr is None:
+        hdr = fitsio.FITSHDR()
+
+    cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
+    ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
+    hdr.add_record(dict(name='LEGHALOV', value=ver, comment='legacyhalos git version'))
+
+    depvers, headers = [], []
+    for name, pkg in [('pydl', pydl)]:
+        hdr.add_record(dict(name=name, value=pkg.__version__, comment='{} version'.format(name)))
+
+    return hdr
+    
 def missing_files_groups(args, sample, size, htmldir=None):
     """Simple task-specific wrapper on missing_files.
 
@@ -713,11 +735,12 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     # First, unpack the nested dictionaries.
     datadict = {}
     for key in ellipsefit.keys():
-        if type(ellipsefit[key]) is dict:
-            for key2 in ellipsefit[key].keys():
-                datadict['{}_{}'.format(key, key2)] = ellipsefit[key][key2]
-        else:
-             datadict[key] = ellipsefit[key]
+        #if type(ellipsefit[key]) is dict: # obsolete
+        #    for key2 in ellipsefit[key].keys():
+        #        datadict['{}_{}'.format(key, key2)] = ellipsefit[key][key2]
+        #else:
+        #    datadict[key] = ellipsefit[key]
+        datadict[key] = ellipsefit[key]
     del ellipsefit
 
     # Add to the data table
@@ -738,23 +761,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
 
-    # build out the FITS header
-    def _ellipsefit_header():
-        import subprocess
-        import pydl
-        import legacyhalos
-        hdr = fitsio.FITSHDR()
-
-        cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
-        ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
-        hdr.add_record(dict(name='LEGHALOV', value=ver, comment='legacyhalos git version'))
-
-        depvers, headers = [], []
-        for name, pkg in [('pydl', pydl)]:
-            hdr.add_record(dict(name=name, value=pkg.__version__, comment='{} version'.format(name)))
-
-        return hdr
-    hdr = _ellipsefit_header()
+    hdr = legacyhalos_header()
 
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
@@ -762,7 +769,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
 def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True):
-    """Read the output of write_ellipsefit.
+    """Read the output of write_ellipsefit. Convert the astropy Table into a
+    dictionary so we can use a bunch of legacy code.
 
     """
     if galaxyid.strip() == '':
@@ -777,11 +785,19 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True)
     ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse.fits'.format(galaxy, fsuff, galid))
         
     if os.path.isfile(ellipsefitfile):
-        ellipsefit = Table.read(ellipsefitfile)
+        data = Table.read(ellipsefitfile)
+
+        # Convert (back!) into a dictionary.
+        ellipsefit = {}
+        for key in data.colnames:
+            val = data[key].tolist()[0]
+            if np.logical_not(np.isscalar(val)) and len(val) > 0:
+                val = np.array(val)
+            ellipsefit[key] = val
     else:
         if verbose:
             print('File {} not found!'.format(ellipsefitfile))
-        ellipsefit = Table()
+        ellipsefit = dict()
 
     return ellipsefit
 

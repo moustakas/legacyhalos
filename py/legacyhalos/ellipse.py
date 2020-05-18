@@ -192,13 +192,19 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         if np.count_nonzero(ok) == 0:
             print('Warning: No good {}-band pixels to fit; skipping.'.format(filt))
             results['{}_cog_sma'.format(filt)] = np.array([])
-            results['{}_cog_mag'.format(filt)] = np.float32(-1)
-            results['{}_cog_magerr'.format(filt)] = np.float32(-1)
-            results['{}_cog_params'.format(filt)] = {}#{'mtot': np.float32(-1),
-                                                      # 'm0': np.float32(-1),
-                                                      # 'alpha1': np.float32(-1),
-                                                      # 'alpha2': np.float32(-1),
-                                                      # 'chi2': np.float32(1e6)}
+            results['{}_cog_mag'.format(filt)] = np.array([])
+            results['{}_cog_magerr'.format(filt)] = np.array([])
+            # old data model
+            #results['{}_cog_params'.format(filt)] = {'mtot': np.float32(-1),
+            #                                          'm0': np.float32(-1),
+            #                                          'alpha1': np.float32(-1),
+            #                                          'alpha2': np.float32(-1),
+            #                                          'chi2': np.float32(1e6)}
+            results['{}_cog_params_mtot'.format(filt)] = np.float32(-1)
+            results['{}_cog_params_m0'.format(filt)] = np.float32(-1)
+            results['{}_cog_params_alpha1'.format(filt)] = np.float32(-1)
+            results['{}_cog_params_alpha2'.format(filt)] = np.float32(-1)
+            results['{}_cog_params_mtot'.format(filt)] = np.float32(1e6)
             for sbcut in SBTHRESH:
                 results['{}_mag_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
             continue
@@ -280,11 +286,16 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
         
         #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)
-        results['{}_cog_params'.format(filt)] = {'mtot': np.float32(P.mtot.value),
-                                                 'm0': np.float32(P.m0.value),
-                                                 'alpha1': np.float32(P.alpha1.value),
-                                                 'alpha2': np.float32(P.alpha2.value),
-                                                 'chi2': np.float32(minchi2)}
+        #results['{}_cog_params'.format(filt)] = {'mtot': np.float32(P.mtot.value),
+        #                                         'm0': np.float32(P.m0.value),
+        #                                         'alpha1': np.float32(P.alpha1.value),
+        #                                         'alpha2': np.float32(P.alpha2.value),
+        #                                         'chi2': np.float32(minchi2)}
+        results['{}_cog_params_mtot'.format(filt)] = np.float32(P.mtot.value)
+        results['{}_cog_params_m0'.format(filt)] = np.float32(P.m0.value)
+        results['{}_cog_params_alpha1'.format(filt)] = np.float32(P.alpha1.value)
+        results['{}_cog_params_alpha2'.format(filt)] = np.float32(P.alpha2.value)
+        results['{}_cog_params_chi2'.format(filt)] = np.float32(minchi2)
 
         #print('Measuring integrated magnitudes to different radii.')
         sb = ellipse_sbprofile(refellipsefit, linear=True)
@@ -358,37 +369,37 @@ def _unmask_center(img):
     img.mask[xx**2 + yy**2 <= rad**2] = ma.nomask
     return img
 
-def _unpack_isofit(isofit):
+def _unpack_isofit(ellipsefit, filt, isofit):
     """Unpack the IsophotList objects into a dictionary because the resulting pickle
     files are huge.
 
     https://photutils.readthedocs.io/en/stable/api/photutils.isophote.IsophoteList.html#photutils.isophote.IsophoteList
 
     """
-    result = {
-        'sma': isofit.sma.astype('f4'),
-        'eps': isofit.eps.astype('f4'),
-        'eps_err': isofit.ellip_err.astype('f4'),
-        'pa': isofit.pa.astype('f4'),
-        'pa_err': isofit.pa_err.astype('f4'),
-        'intens': isofit.intens.astype('f4'),
-        'intens_err': isofit.int_err.astype('f4'),
-        'x0': isofit.x0.astype('f4'),
-        'x0_err': isofit.x0_err.astype('f4'),
-        'y0': isofit.y0.astype('f4'),
-        'y0_err': isofit.y0_err.astype('f4'),
-        'a3': isofit.a3.astype('f4'),
-        'a3_err': isofit.a3_err.astype('f4'),
-        'a4': isofit.a4.astype('f4'),
-        'a4_err': isofit.a4_err.astype('f4'),
-        'rms': isofit.rms.astype('f4'),
-        'pix_stddev': isofit.pix_stddev.astype('f4'),
-        'stop_code': isofit.stop_code.astype(np.int16),
-        'ndata': isofit.ndata.astype(np.int16),
-        'nflag': isofit.nflag.astype(np.int16),
-        'niter': isofit.niter.astype(np.int16)}
+    ellipsefit.update({
+        '{}_sma'.format(filt): isofit.sma.astype('f4'),
+        '{}_eps'.format(filt): isofit.eps.astype('f4'),
+        '{}_eps_err'.format(filt): isofit.ellip_err.astype('f4'),
+        '{}_pa'.format(filt): isofit.pa.astype('f4'),
+        '{}_pa_err'.format(filt): isofit.pa_err.astype('f4'),
+        '{}_intens'.format(filt): isofit.intens.astype('f4'),
+        '{}_intens_err'.format(filt): isofit.int_err.astype('f4'),
+        '{}_x0'.format(filt): isofit.x0.astype('f4'),
+        '{}_x0_err'.format(filt): isofit.x0_err.astype('f4'),
+        '{}_y0'.format(filt): isofit.y0.astype('f4'),
+        '{}_y0_err'.format(filt): isofit.y0_err.astype('f4'),
+        '{}_a3'.format(filt): isofit.a3.astype('f4'),
+        '{}_a3_err'.format(filt): isofit.a3_err.astype('f4'),
+        '{}_a4'.format(filt): isofit.a4.astype('f4'),
+        '{}_a4_err'.format(filt): isofit.a4_err.astype('f4'),
+        '{}_rms'.format(filt): isofit.rms.astype('f4'),
+        '{}_pix_stddev'.format(filt): isofit.pix_stddev.astype('f4'),
+        '{}_stop_code'.format(filt): isofit.stop_code.astype(np.int16),
+        '{}_ndata'.format(filt): isofit.ndata.astype(np.int16),
+        '{}_nflag'.format(filt): isofit.nflag.astype(np.int16),
+        '{}_niter'.format(filt): isofit.niter.astype(np.int16)})
         
-    return result
+    return ellipsefit
 
 def _integrate_isophot_one(args):
     """Wrapper function for the multiprocessing."""
@@ -445,26 +456,20 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
       (converted to arcsec) rather than the circularized radius
 
     """
+    sbprofile = dict()
     bands = ellipsefit['bands']
     if 'refpixscale' in ellipsefit.keys():
         pixscale = ellipsefit['refpixscale']
     else:
         pixscale = ellipsefit['pixscale']
-
-    if 'geometry' in ellipsefit.keys():
-        eps = ellipsefit['geometry'].eps
-    else:
-        eps = ellipsefit['eps']
-
-    sbprofile = dict()
+    eps = ellipsefit['eps']
+    if 'redshift' in ellipsefit.keys():
+        sbprofile['redshift'] = ellipsefit['redshift']    
+            
     for filt in bands:
         psfkey = 'psfsize_{}'.format(filt)
-        if psfkey in ellipsefit.keys():
-            sbprofile[psfkey] = ellipsefit[psfkey]
+        sbprofile[psfkey] = ellipsefit[psfkey]
 
-    if 'redshift' in ellipsefit.keys():
-        sbprofile['redshift'] = ellipsefit['redshift']
-    
     sbprofile['minerr'] = minerr
     sbprofile['smaunit'] = 'pixels'
     sbprofile['radiusunit'] = 'arcsec'
@@ -475,9 +480,10 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
     for filt in bands:
         #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-        sb = ellipsefit[filt]['intens']             # [nanomaggies/arcsec2]
-        sberr = np.sqrt(ellipsefit[filt]['intens_err']**2 + (0.4 * np.log(10) * sb * minerr)**2)
-        sma = ellipsefit[filt]['sma']                               # semi-major axis [pixels]
+        sma = ellipsefit['{}_sma'.format(filt)]   # semi-major axis [pixels]
+        sb = ellipsefit['{}_intens'.format(filt)] # [nanomaggies/arcsec2]
+        sberr = np.sqrt(ellipsefit['{}_intens_err'.format(filt)]**2 + (0.4 * np.log(10) * sb * minerr)**2)
+            
         if sma_not_radius:
             radius = sma * pixscale # [arcsec]
         else:
@@ -743,7 +749,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 
         # Build the IsophoteList instance with the result.
         #ellipsefit[filt] = IsophoteList(isobandfit)
-        ellipsefit[filt] = _unpack_isofit(IsophoteList(isobandfit))
+        #ellipsefit[filt] = _unpack_isofit(IsophoteList(isobandfit))
+        ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
         print('...{:.3f} sec'.format(time.time() - t0))
     print('Time for all images = {:.3f} sec'.format(time.time()-tall))
 
@@ -755,6 +762,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     cog = ellipse_cog(bands, data, ellipsefit, 1.0, refpixscale,
                       centralindx=centralindx, pool=pool)
     ellipsefit.update(cog)
+    del cog
     print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
 
     pool.close()
