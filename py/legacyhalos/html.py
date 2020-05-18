@@ -309,17 +309,12 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             galaxyid = str(central_galaxy_id)
             filesuffix = 'largegalaxy'
 
-            af = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
-                                 galaxyid=galaxyid, verbose=verbose)
-            if bool(af):
-                ellipsefit = af.tree
-                
+            ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
+                                         galaxyid=galaxyid, verbose=verbose)
+            if len(ellipsefit) > 0:
                 sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
                 if not os.path.isfile(sbprofilefile) or clobber:
                     display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
-                                              sky_ellipsefit={},
-                                              pipeline_ellipsefit={},
-                                              sdss_ellipsefit={},
                                               png=sbprofilefile, verbose=verbose, minerr=0.0)
 
                 cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
