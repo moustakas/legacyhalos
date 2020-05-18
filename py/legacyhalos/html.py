@@ -255,29 +255,18 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
 
     """
     import fitsio
-    import matplotlib.pyplot as plt
+    from legacyhalos.qa import qa_maskbits
 
-    for filesuffix in ('largegalaxy', 'pipeline', 'custom'):
-        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
-        if not os.path.isfile(maskbitsfile) or clobber:
-            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
-            if not os.path.isfile(fitsfile):
-                if verbose:
-                    print('File {} not found!'.format(fitsfile))
-                continue
+    maskbitsfile = os.path.join(htmlgalaxydir, '{}-largegalaxy-maskbits.png'.format(galaxy))
+    if not os.path.isfile(maskbitsfile) or clobber:
+        fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
+        if not os.path.isfile(fitsfile):
+            if verbose:
+                print('File {} not found!'.format(fitsfile))
+            return
+        mask = fitsio.read(fitsfile)
 
-            img = fitsio.read(fitsfile)
-            fig, ax = plt.subplots(figsize=(3, 3))
-            ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
-            ax.get_xaxis().set_visible(False)
-            ax.get_yaxis().set_visible(False)
-            ax.axis('off')
-            ax.autoscale(False)
-
-            #if verbose:
-            print('Writing {}'.format(maskbitsfile))
-            fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
-            plt.close(fig)
+        qa_maskbigs(mask, png=maskbitsfile)
 
 def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                     refband='r', pixscale=0.262, barlen=None, barlabel=None,
@@ -486,6 +475,11 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                 redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
+        # Build the maskbits figure.
+        make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
+
+        pdb.set_trace()
+
         # Build the ellipse plots.
         make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                         pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
@@ -499,10 +493,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
                        radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
                        verbose=verbose)
-
-        # Build the maskbits figure.
-        if False:
-            make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Sersic fiting results
         if False:

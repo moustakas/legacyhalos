@@ -581,7 +581,7 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
     # track the galaxies that are dropped by Tractor and, separately, galaxies
     # which fail ellipse-fitting (or are not ellipse-fit because they're too
     # small).
-    notractor, noellipse, badcenter = [], [], []
+    notractor, noellipse, largeshift = [], [], []
     for igal, lslga_id in enumerate(np.atleast_1d(fullsample['ID'])):
         ellipsefile = os.path.join(galaxydir, '{}-largegalaxy-{}-ellipse.asdf'.format(galaxy, lslga_id))
 
@@ -630,10 +630,10 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
             ellipsefit = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id),
                                          filesuffix='largegalaxy', verbose=True)
 
-            # Objects with "badcenter" shifted positions significantly during
+            # Objects with "largeshift" shifted positions significantly during
             # ellipse-fitting, which *may* point to a problem. Inspect those
             # separately.
-            if ellipse['badcenter']:
+            if ellipse['largeshift']:
                 badcen = Table(fullsample[igal]['ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
                                                'D25_LEDA', 'PA_LEDA', 'BA_LEDA'])
                 badcen['TRACTOR_RA'] = tractor['RA'][match]
@@ -641,7 +641,7 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
                 badcen['TRACTOR_TYPE'] = tractor['TYPE'][match]
                 badcen['FLUX_R'] = tractor['FLUX_R'][match]
                 badcen['SHAPE_R'] = tractor['SHAPE_R'][match]
-                badcenter.append(badcen)
+                largeshift.append(badcen)
 
             # Get the ellipse-derived geometry, which we'll add to the Tractor
             # catalog below.
@@ -721,10 +721,10 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
         notractor = vstack(notractor)
     if len(noellipse) > 0:
         noellipse = vstack(noellipse)
-    if len(badcenter) > 0:
-        badcenter = vstack(badcenter)
+    if len(largeshift) > 0:
+        largeshift = vstack(largeshift)
 
-    return tractor, notractor, noellipse, badcenter, None
+    return tractor, notractor, noellipse, largeshift, None
 
 def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     """Gather all the ellipse-fitting results and build the final LSLGA catalog.
@@ -755,7 +755,7 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
 
     notractorfile = os.path.join(outdir, 'LSLGA-notractor-{}.fits'.format(version))
     noellipsefile = os.path.join(outdir, 'LSLGA-noellipse-{}.fits'.format(version))
-    badcenterfile = os.path.join(outdir, 'LSLGA-badcenter-{}.fits'.format(version))
+    largeshiftfile = os.path.join(outdir, 'LSLGA-largeshift-{}.fits'.format(version))
     nogrzfile = os.path.join(outdir, 'LSLGA-nogrz-{}.fits'.format(version))
 
     mp = multiproc(nthreads=nproc)
@@ -768,7 +768,7 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     cat = list(filter(None, rr[0]))
     notractor = list(filter(None, rr[1]))
     noellipse = list(filter(None, rr[2]))
-    badcenter = list(filter(None, rr[3]))
+    largeshift = list(filter(None, rr[3]))
     nogrz = list(filter(None, rr[4]))
 
     if len(cat) == 0:
@@ -788,12 +788,12 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
         print('Writing {} galaxies not ellipse-fit to {}'.format(len(noellipse), noellipsefile))
         noellipse.write(noellipsefile, overwrite=True)
 
-    if len(badcenter) > 0:
-        badcenter = vstack(badcenter)
-        badcenter = badcenter['GALAXY', 'RA', 'DEC', 'ID', 'D25', 'PA', 'BA']
-        print('Writing {} galaxies with bad ellipse centers to {}'.format(len(badcenter), badcenterfile))
-        badcenter.write(badcenterfile, overwrite=True)
-        del badcenter
+    if len(largeshift) > 0:
+        largeshift = vstack(largeshift)
+        largeshift = largeshift['GALAXY', 'RA', 'DEC', 'ID', 'D25', 'PA', 'BA']
+        print('Writing {} galaxies with bad ellipse centers to {}'.format(len(largeshift), largeshiftfile))
+        largeshift.write(largeshiftfile, overwrite=True)
+        del largeshift
 
     if len(nogrz) > 0:
         nogrz = vstack(nogrz)
@@ -993,29 +993,26 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
             iv = cat['flux_ivar_{}'.format(band)]
             ff = cat['flux_{}'.format(band)]
         elif R24:
-            mag = cat['mag_{}_sb24'.format(band)]
+            mag = cat['{}_mag_sb24'.format(band)]
             #if 'mag_{}_sb24'.format(band) in cat.keys():
             #    mag = cat['mag_{}_sb24'.format(band)]
             #else:
             #    print('Fix me')
             #    mag = -1
         elif R25:
-            mag = cat['mag_{}_sb25'.format(band)]
+            mag = cat['{}_mag_sb25'.format(band)]
             #if 'mag_{}_sb25'.format(band) in cat.keys():
             #    mag = cat['mag_{}_sb25'.format(band)]
             #else:
             #    mag = -1
         elif R26:
-            mag = cat['mag_{}_sb26'.format(band)]
+            mag = cat['{}_mag_sb26'.format(band)]
             #if 'mag_{}_sb26'.format(band) in cat.keys():
             #    mag = cat['mag_{}_sb26'.format(band)]
             #else:
             #    mag = -1
         elif cog:
-            if bool(cat['cog_params_{}'.format(band)]):
-                mag = cat['cog_params_{}'.format(band)]['mtot']
-            else:
-                mag = -1
+            mag = cat['{}_cog_params_mtot'.format(band)]
         else:
             print('Thar be rocks ahead!')
         if mag:
@@ -1074,7 +1071,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
             #html.write('<th>Number</th>\n')
             html.write('<th> </th>\n')
             html.write('<th>Index</th>\n')
-            html.write('<th>LSLGA ID</th>\n')
+            html.write('<th>ID</th>\n')
             html.write('<th>Galaxy</th>\n')
             html.write('<th>RA</th>\n')
             html.write('<th>Dec</th>\n')
@@ -1231,7 +1228,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         html.write('<tr>\n')
         #html.write('<th>Number</th>\n')
         html.write('<th>Index<br />(Primary)</th>\n')
-        html.write('<th>LSLGA ID<br />(Primary)</th>\n')
+        html.write('<th>ID<br />(Primary)</th>\n')
         html.write('<th>Group Name</th>\n')
         html.write('<th>Group RA</th>\n')
         html.write('<th>Group Dec</th>\n')
@@ -1263,7 +1260,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         html.write('<h3>Group Members</h3>\n')
         html.write('<table>\n')
         html.write('<tr>\n')
-        html.write('<th>LSLGA ID</th>\n')
+        html.write('<th>ID</th>\n')
         html.write('<th>Galaxy</th>\n')
         html.write('<th>Morphology</th>\n')
         html.write('<th>RA</th>\n')
@@ -1278,13 +1275,13 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
             html.write('<tr>\n')
             html.write('<td>{}</td>\n'.format(groupgal['ID']))
             html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
-            typ = groupgal['TYPE'].strip()
+            typ = groupgal['MORPHTYPE'].strip()
             if typ == '' or typ == 'nan':
                 typ = '...'
             html.write('<td>{}</td>\n'.format(typ))
             html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
             html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
-            html.write('<td>{:.4f}</td>\n'.format(groupgal['D25']))
+            html.write('<td>{:.4f}</td>\n'.format(groupgal['D25_LEDA']))
             #if np.isnan(groupgal['PA']):
             #    pa = 0.0
             #else:
@@ -1342,12 +1339,12 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         html.write('<table>\n')
         html.write('<tr><th></th>\n')
         html.write('<th colspan="5">Tractor</th>\n')
-        html.write('<th colspan="3">LSLGA</th>\n')
+        html.write('<th colspan="3">ID</th>\n')
         html.write('<th colspan="3">Ellipse Moments</th>\n')
         html.write('<th colspan="5">Ellipse Fitting</th>\n')
         html.write('</tr>\n')
 
-        html.write('<tr><th>LSLGA ID</th>\n')
+        html.write('<tr><th>ID</th>\n')
         html.write('<th>Type</th><th>n</th><th>r(50)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
         html.write('<th>R(25)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
         html.write('<th>Size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
@@ -1369,7 +1366,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
                                                      galaxyid=galaxyid, verbose=False)
             if bool(ellipse):
                 html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                    ellipse['d25_leda']*60/2, ellipse['lslga_pa'], 1-ellipse['lslga_ba']))
+                    ellipse['d25_leda']*60/2, ellipse['pa_leda'], 1-ellipse['ba_leda']))
                 html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
                     ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
 
@@ -1402,7 +1399,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         html.write('<th colspan="3">Integrated</th>\n')
         html.write('</tr>\n')
 
-        html.write('<tr><th>LSLGA ID</th><th>Galaxy</th>\n')
+        html.write('<tr><th>ID</th><th>Galaxy</th>\n')
         html.write('<th>g</th><th>r</th><th>z</th>\n')
         html.write('<th>g</th><th>r</th><th>z</th>\n')
         html.write('<th>g</th><th>r</th><th>z</th>\n')
@@ -1438,7 +1435,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         # Galaxy-specific mosaics--
         for igal in np.arange(len(tractor['ref_id'])):
             galaxyid = str(tractor['ref_id'][igal])
-            html.write('<h4>LSLGA {} - {}</h4>\n'.format(galaxyid, sample['GALAXY'][igal]))
+            html.write('<h4>{} - {}</h4>\n'.format(galaxyid, sample['GALAXY'][igal]))
 
             ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
                                                      galaxyid=galaxyid, verbose=verbose)

@@ -107,6 +107,25 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True):
         print('Writing {}'.format(pngfile))
         im.save(pngfile)
     return pngfile
+
+def qa_maskbits(mask, png=None):
+    """For the LSLGA, display the maskbits image with some additional information
+    about the catalog.
+
+    """
+    fig, ax = plt.subplots(figsize=(3, 3))
+    ax.imshow(mask, origin='lower', cmap='gray_r')#, interpolation='none')
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    ax.axis('off')
+    ax.autoscale(False)
+
+    if png:
+        print('Writing {}'.format(png))
+        fig.savefig(png, bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+    else:
+        plt.show()
     
 def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
                      plot_sbradii=False, verbose=True):
@@ -209,12 +228,16 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     # Plot some threshold radii for the large-galaxy project--
     if plot_sbradii:
         lline, llabel = [], []
+        if ellipsefit['radius_sb24'] > 0: #< xlim[1]:
+            ll = ax.axvline(x=ellipsefit['radius_sb24'], lw=2, color='k', ls='-.')
+            lline.append(ll), llabel.append('R(24)')
+            
         if ellipsefit['radius_sb25'] > 0: #< xlim[1]:
-            ll = ax.axvline(x=ellipsefit['radius_sb25'], lw=2, color='k', ls='-')
+            ll = ax.axvline(x=ellipsefit['radius_sb25'], lw=2, color='k', ls='--')
             lline.append(ll), llabel.append('R(25)')
             
         if ellipsefit['radius_sb26'] > 0: #< xlim[1]:            
-            ll = ax.axvline(x=ellipsefit['radius_sb26'], lw=2, color='k', ls='--')
+            ll = ax.axvline(x=ellipsefit['radius_sb26'], lw=2, color='k', ls='-')
             lline.append(ll), llabel.append('R(26)')
             
         ll = ax.axvline(x=ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
@@ -797,7 +820,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                              maxis, maxis * ellipsefit['ba_leda'],
                                              np.radians(ellipsefit['pa_leda']-90))
-                ellaper.plot(color='blue', lw=3, axes=ax1, alpha=1.0, label='LSLGA geometry')
+                ellaper.plot(color='blue', lw=3, axes=ax1, alpha=1.0, label='Hyperleda geometry')
             #pdb.set_trace()
             ## Visualize the fitted geometry
             #maxis = mge['majoraxis'] * 1.2
@@ -1125,22 +1148,29 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         # Plot some threshold radii for the large-galaxy project--
         if plot_sbradii:
             lline, llabel = [], []
+            if ellipsefit['radius_sb24'] > 0:
+                rr = (ellipsefit['radius_sb24'])**0.25
+                ll, = ax1.plot([rr, rr], [ylim[1], 24], lw=2, color='k', ls='-.')
+                lline.append(ll), llabel.append('R(24)')
+                
             if ellipsefit['radius_sb25'] > 0:
                 rr = (ellipsefit['radius_sb25'])**0.25
                 #ax1.plot([xlim[0], rr], [25, 25], lw=2, color='k', ls='-')
-                ll, = ax1.plot([rr, rr], [ylim[1], 25], lw=2, color='k', ls='-')
+                ll, = ax1.plot([rr, rr], [ylim[1], 25], lw=2, color='k', ls='--')
                 lline.append(ll), llabel.append('R(25)')
                 
             if ellipsefit['radius_sb26'] > 0:
                 rr = (ellipsefit['radius_sb26'])**0.25
                 #ax1.plot([xlim[0], rr], [26, 26], lw=2, color='k', ls='--')
-                ll, = ax1.plot([rr, rr], [ylim[1], 26], lw=2, color='k', ls='--')
+                ll, = ax1.plot([rr, rr], [ylim[1], 26], lw=2, color='k', ls='-')
                 lline.append(ll), llabel.append('R(26)')
 
-            rr = (ellipsefit['majoraxis'] * ellipsefit['refpixscale'])**0.25
-            ll, = ax1.plot([rr, rr], [ylim[1], sbprofile['mu_{}'.format(refband)][0]], lw=2, color='red', ls='dotted')
-            #ll = ax1.axvline(x=rr, lw=2, color='red', ls='dotted')
-            lline.append(ll), llabel.append('Moment Size')
+            if False:
+                rr = (ellipsefit['majoraxis'] * ellipsefit['refpixscale'])**0.25
+                ll, = ax1.plot([rr, rr], [ylim[1], ylim[0]], lw=2, color='red', ls='dotted')
+                #ll, = ax1.plot([rr, rr], [ylim[1], sbprofile['mu_{}'.format(refband)][0]], lw=2, color='red', ls='dotted')
+                #ll = ax1.axvline(x=rr, lw=2, color='red', ls='dotted')
+                lline.append(ll), llabel.append('Moment Size')
 
             leg2 = ax1.legend(lline, llabel, loc='lower left', frameon=False, fontsize=14)
             ax1.add_artist(leg1)

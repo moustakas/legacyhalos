@@ -506,7 +506,7 @@ def _get_ellipse_datamodel(refband='r'):
         ('success', ''),
         ('fitgeometry', ''),
         ('input_ellipse', ''),
-        ('badcenter', ''),
+        ('largeshift', ''),
 
         ('ra_x0', u.degree),
         ('dec_y0', u.degree),
@@ -1190,7 +1190,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             #mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), nblob=1, binning=3, quiet=False, plot=True, level=minsb)
             #plt.savefig('junk.png') ; pdb.set_trace()
             #pdb.set_trace()
-            badcenter = True
+            largeshift = True
             
             ee = np.hypot(tractor.shape_e1[central], tractor.shape_e2[central])
             ba = (1 - ee) / (1 + ee)
@@ -1205,7 +1205,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             mgegalaxy.majoraxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
             print('  r={:.2f} pixels'.format(mgegalaxy.majoraxis))
         else:
-            badcenter = False
+            largeshift = False
 
         #if tractor.ref_id[central] == 474614:
         #    import matplotlib.pyplot as plt
@@ -1215,7 +1215,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             
         radec_med = data['wcs'].pixelToPosition(mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
         radec_peak = data['wcs'].pixelToPosition(mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
-        mge = {'badcenter': badcenter,
+        mge = {'largeshift': largeshift,
             'ra': tractor.ra[central], 'dec': tractor.dec[central],
             'bx': tractor.bx[central], 'by': tractor.by[central],
             'mw_transmission_g': tractor.mw_transmission_g[central],
