@@ -2,13 +2,13 @@
 
 # Shell script for running the various stages of the legacyhalos code using
 # MPI+shifter at NERSC. Required arguments:
-#   {1} stage [largegalaxy-coadds, pipeline-coadds, ellipse, htmlplots]
+#   {1} stage [coadds, pipeline-coadds, ellipse, htmlplots]
 #   {2} ncores [should match the resources requested.]
 
-# Example: build the largegalaxy-coadds using 16 MPI tasks with 8 cores per node (and therefore 16*8/32=4 nodes)
+# Example: build the coadds using 16 MPI tasks with 8 cores per node (and therefore 16*8/32=4 nodes)
 
 #salloc -N 8 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:latest
-#srun -n 64 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh largegalaxy-coadds 4 > coadds.log.1 2>&1 &
+#srun -n 64 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh coadds 4 > coadds.log.1 2>&1 &
 #srun -n 64 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh ellipse 4 > ellipse.log.1 2>&1 &
 
 # Grab the input arguments--
@@ -72,10 +72,10 @@ maxmem=134217728 # Cori/Haswell = 128 GB
 grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
 let usemem=${maxmem}*${ncores}/32
 
-if [ $stage = "largegalaxy-coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose
+if [ $stage = "coadds" ]; then
+    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose
     #echo 'JUST COADDS!'
-    #time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --just-coadds --d25max 20 --d25min 5
+    #time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose --just-coadds --d25max 20 --d25min 5
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
