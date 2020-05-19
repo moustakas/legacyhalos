@@ -106,6 +106,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         if sbprofile['mu_r'].max() < sbcut or sbprofile['mu_r'].min() > sbcut:
             print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
             results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
+            results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
             #for filt in bands:
             #    results['mag_{}_sb{:0g}'.format(filt, sbcut)] = np.float(-1.0)
             continue

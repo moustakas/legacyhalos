@@ -747,7 +747,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     datakeys = datadict.keys()
     for key, unit in _get_ellipse_datamodel(refband=refband):
         if key not in datakeys:
-            raise ValueError('Data model change -- no column {}!'.format(key))
+            raise ValueError('Data model change -- no column {} for galaxy {}!'.format(key, galaxy))
         data = datadict[key]
         if np.isscalar(data):# or len(np.array(data)) > 1:
             data = np.atleast_1d(data)

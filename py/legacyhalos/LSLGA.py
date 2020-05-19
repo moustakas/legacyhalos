@@ -397,8 +397,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
 
-            #bricklist = np.union1d(nbricklist, sbricklist)
-            bricklist = nbricklist
+            bricklist = np.union1d(nbricklist, sbricklist)
+            #bricklist = nbricklist
 
             #rows = np.where([brick in bricklist for brick in brickname])[0]
             brickcut = np.where(np.isin(brickname, bricklist))[0]
