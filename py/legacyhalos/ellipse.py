@@ -744,6 +744,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
         # Loop on the reference band isophotes.
         t0 = time.time()
         #isobandfit = pool.map(_integrate_isophot_one, [(iso, img, pixscalefactor, integrmode, sclip, nclip)
+
+        #print(img[np.int(ellipsefit['x0']), np.int(ellipsefit['y0'])])
         isobandfit = pool.map(_integrate_isophot_one, [(
             img, _sma, ellipsefit['pa'], ellipsefit['eps'], ellipsefit['x0'],
             ellipsefit['y0'], 1.0, integrmode, sclip, nclip) for _sma in sma])

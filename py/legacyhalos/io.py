@@ -1156,8 +1156,18 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         
         #import matplotlib.pyplot as plt ; plt.clf()
         mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
-                                nblob=1, binning=3, level=minsb)#, quiet=not verbose, plot=True)
+                                nblob=1, binning=3, level=minsb)#, plot=True)#, quiet=not verbose
         #plt.savefig('junk.png') ; pdb.set_trace()
+
+        # Above, we used the Tractor positions, so check one more time here with
+        # the light-weighted positions, which may have shifted into a masked
+        # region (e.g., check out the interacting pair PGC052639 & PGC3098317).
+        val = []
+        for xb in box:
+            for yb in box:
+                val.append(newmask[int(xb+mgegalaxy.xmed), int(yb+mgegalaxy.ymed)])
+        if np.any(val):
+            notok = True
 
         # If we fit the geometry by unmasking pixels using the Tractor fit then
         # we're probably sitting inside the mask of a bright star, so call
@@ -1165,7 +1175,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         if notok:
             print('Iteratively unmasking pixels:')
             print('  r={:.2f} pixels'.format(maxis))
-            maxis = 1.5 * mgegalaxy.majoraxis # [pixels]
+            maxis = 1.0 * mgegalaxy.majoraxis # [pixels]
             prevmaxis, iiter, maxiter = 0.0, 0, 4
             while (maxis > prevmaxis) and (iiter < maxiter):
                 #print(prevmaxis, maxis, iiter, maxiter)
@@ -1177,7 +1187,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
                 mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
                                         nblob=1, binning=3, quiet=True, plot=False, level=minsb)
                 prevmaxis = maxis.copy()
-                maxis = 1.5 * mgegalaxy.majoraxis # [pixels]
+                maxis = 1.2 * mgegalaxy.majoraxis # [pixels]
                 iiter += 1
 
         #plt.savefig('junk.png') ; pdb.set_trace()
@@ -1514,8 +1524,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           largegalaxy=largegalaxy)
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
-    ####plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    ######plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
+    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
     #pdb.set_trace()
 
     if return_sample:
