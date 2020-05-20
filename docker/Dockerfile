@@ -3,7 +3,6 @@ FROM legacysurvey/legacypipe:DR9.4.1
 RUN for x in \
     ipython \
     pydl \
-    asdf \
     ; do pip --no-cache-dir install $x; done
 
 # legacyhalos
