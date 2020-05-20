@@ -489,7 +489,7 @@ def _get_diameter(ellipse):
     #elif ellipse['radius_sb24'] > 0:
     #    diam, diamref = 1.5 * ellipse['radius_sb24'] * 2 / 60, 'SB24' # [arcmin]
     else:
-        diam, diamref = 1.2 * ellipse['d25_leda'] / 60, 'LEDA' # [arcmin]
+        diam, diamref = 1.2 * ellipse['d25_leda'], 'LEDA' # [arcmin]
         #diam, diamref = 2 * ellipse['majoraxis'] * ellipse['refpixscale'] / 60, 'WGHT' # [arcmin]
 
     if diam <= 0:
@@ -727,11 +727,12 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
                     tractor[magkey][match] = ellipse[magkey.lower()]
                     tractor['{}_MAG_TOT'.format(filt.upper())][match] = ellipse['{}_cog_params_mtot'.format(filt)]
 
-    # Keep just frozen sources.
+    # Keep just frozen sources. Can be empty (e.g., if a field contains just a
+    # single dropped source, e.g., DR8-2194p447-894).
     keep = np.where(tractor['FREEZE'])[0]
     if len(keep) == 0:
-        raise ValueError('No frozen galaxies in the field of ID={}?!?'.format(onegal['ID']))
-    tractor = tractor[keep]
+        #raise ValueError('No frozen galaxies in the field of ID={}?!?'.format(onegal['ID']))
+        tractor = tractor[keep]
 
     if len(notractor) > 0:
         notractor = vstack(notractor)
@@ -827,7 +828,8 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     print('Read {} galaxies from {}'.format(len(lslga), lslgafile))
 
     # Remove the already-burned LSLGA galaxies so we don't double-count them--
-    rem = np.where(np.isin(lslga['ID'], cat['ID'][ilslga]))[0]
+    ilslga2 = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
+    rem = np.where(np.isin(lslga['ID'], cat['ID'][ilslga2]))[0]
     print('Removing {} pre-burned LSLGA galaxies from the parent catalog, so we do not double-count them.'.format(len(rem)))
     lslga = lslga[np.delete(np.arange(len(lslga)), rem)] # remove duplicates
 
@@ -876,8 +878,9 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
 
     try:
         if not skipfull:
-            chk1 = np.where(np.isin(fullsample['ID'], out['ID']))[0]
-            assert(len(chk1) == len(fullsample))
+            # This may not happen if galaxies are dropped--
+            #chk1 = np.where(np.isin(out['ID'], fullsample['ID']))[0]
+            #assert(len(chk1) == len(fullsample))
             if len(nogrz) > 0:
                 chk2 = np.where(np.isin(out['ID'], nogrz['ID']))[0]
                 assert(len(chk2) == len(nogrz))
@@ -1238,7 +1241,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
             #html.write('<br />\n')
 
         pngfile, thumbfile = '{}-largegalaxy-grz-montage.png'.format(galaxy1), 'thumb-{}-largegalaxy-grz-montage.png'.format(galaxy1)
-        html.write('<p>Large-galaxy preburn (left) data, (middle) model, and (right) residual image mosaic.</p>\n')
+        html.write('<p>Color mosaics showing the data (left panel), model (middle panel), and residuals (right panel).</p>\n')
         html.write('<table width="90%">\n')
         html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
             pngfile, thumbfile))
@@ -1434,7 +1437,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
     def _html_maskbits(html):
         html.write('<h2>Masking Geometry</h2>\n')
         pngfile = '{}-largegalaxy-maskbits.png'.format(galaxy1)
-        html.write('<p>Masking geometry mosaics. The middle panel shows the <i>original</i> maskbits image based on the Hyperleda geometry.</p>\n')
+        html.write('<p>Left panel: color mosaic with the original and final ellipse geometry shown. Middle panel: <i>original</i> maskbits image based on the Hyperleda geometry. Right panel: distribution of all sources and frozen sources (the size of the orange square markers is proportional to the r-band flux).</p>\n')
         html.write('<table width="90%">\n')
         html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(pngfile))
         html.write('</table>\n')

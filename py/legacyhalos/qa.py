@@ -26,6 +26,18 @@ sns, _ = legacyhalos.misc.plot_style()
 fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
 prop = mpl.font_manager.FontProperties(fname=fonttype, size=12)
 
+# color-blind friendly color cycle: 
+# https://twitter.com/rachel_kurchin/status/1229567059694170115
+cb_colors = {'blue': '#377eb8',
+             'orange': '#ff7f00',
+             'green': '#4daf4a',
+             'pink': '#f781bf',
+             'brown': '#a65628',
+             'purple': '#984ea3',
+             'gray': '#999999',
+             'red': '#e41a1c',
+             'yellow': '#dede00'}
+
 def _sbprofile_colors():
     """Return an iterator of colors good for the surface brightness profile plots.
     https://seaborn.pydata.org/generated/seaborn.color_palette.html#seaborn.color_palette
@@ -53,7 +65,7 @@ def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
 
     draw = ImageDraw.ImageDraw(overlay)
     box_corners = (0, 0, overlay_width, overlay_height)
-    draw.ellipse(box_corners, fill=None, outline=color, width=2)
+    draw.ellipse(box_corners, fill=None, outline=color, width=3)
 
     rotated = overlay.rotate(pa, expand=True)
     rotated_width, rotated_height = rotated.size
@@ -160,13 +172,17 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
         minflx, maxflx = np.percentile(tractor['FLUX_R'][inellipse], [50, 95])
         if maxflx > minflx:
             ss = maxmarker * (tractor['FLUX_R'][inellipse] - minflx) / (maxflx - minflx)
-            ss[ss < minmarker] = minmarker
-            ss[ss > maxmarker] = maxmarker
         else:
             ss = np.repeat(maxmarker, len(tractor))
-            
-        ax3.scatter(tractor['BX'][inellipse], tractor['BY'][inellipse], s=ss,
-                    marker='s', edgecolor='k', color='#ff7f00', label='Frozen Sources')
+        ss[ss < minmarker] = minmarker
+        ss[ss > maxmarker] = maxmarker
+
+        if igal == 0:
+            ax3.scatter(tractor['BX'][inellipse], tractor['BY'][inellipse], s=ss,
+                        marker='s', edgecolor='k', color=cb_colors['orange'], label='Frozen Sources')
+        else:
+            ax3.scatter(tractor['BX'][inellipse], tractor['BY'][inellipse], s=ss,
+                        marker='s', edgecolor='k', color=cb_colors['orange'])
 
         # ellipse geometry
         maxis = diam * 60 / ellipsefit['refpixscale'] / 2 # [pixels]
@@ -174,19 +190,19 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
                                      maxis, maxis*(1 - ellipsefit['eps']),
                                      np.radians(ellipsefit['pa']-90))
         if igal == 0:
-            ellaper.plot(color='#377eb8', lw=2, axes=ax2, alpha=0.9, label='R(26)')
+            ellaper.plot(color=cb_colors['blue'], lw=2, axes=ax2, alpha=0.9, label='R(26)')
         else:
-            ellaper.plot(color='#377eb8', lw=2, axes=ax2, alpha=0.9)
-        ellaper.plot(color='#377eb8', lw=2, ls='-', axes=ax3, alpha=0.9)
+            ellaper.plot(color=cb_colors['blue'], lw=2, axes=ax2, alpha=0.9)
+        ellaper.plot(color=cb_colors['blue'], lw=2, ls='-', axes=ax3, alpha=0.9)
 
         draw_ellipse_on_png(colorimg, ellipsefit['x0'], imgsz[1]-ellipsefit['y0'],
                             1-ellipsefit['eps'],
                             ellipsefit['pa'], 2 * maxis * ellipsefit['refpixscale'],
-                            ellipsefit['refpixscale'], color='#377eb8') # '#ffaa33')
+                            ellipsefit['refpixscale'], color=cb_colors['blue']) # '#ffaa33')
         draw_ellipse_on_png(colorimg, ellipsefit['x0'], imgsz[1]-ellipsefit['y0'],
                             ellipsefit['ba_leda'], ellipsefit['pa_leda'],
                             ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
-                            color='#e41a1c')
+                            color=cb_colors['red'])
         
         # Hyperleda geometry
         maxis = ellipsefit['d25_leda'] * 60 / ellipsefit['refpixscale'] / 2 # [pixels]
@@ -194,10 +210,10 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
                                      maxis, maxis * ellipsefit['ba_leda'],
                                      np.radians(ellipsefit['pa_leda']-90))
         if igal == 0:
-            ellaper.plot(color='#e41a1c', lw=2, ls='-', axes=ax2, alpha=1.0, label='Hyperleda')
+            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax2, alpha=1.0, label='Hyperleda')
         else:
-            ellaper.plot(color='#e41a1c', lw=2, ls='-', axes=ax2, alpha=1.0)
-        ellaper.plot(color='#e41a1c', lw=2, ls='-', axes=ax3, alpha=1.0)
+            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax2, alpha=1.0)
+        ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax3, alpha=1.0)
 
     # color mosaic
     draw = ImageDraw.Draw(colorimg)
@@ -213,8 +229,8 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
 
     ax2.legend(loc='lower right', fontsize=12)
     lgnd = ax3.legend(loc='lower right', fontsize=12)
-    lgnd.legendHandles[0]._sizes = [30]
-    lgnd.legendHandles[1]._sizes = [30]    
+    lgnd.legendHandles[0]._sizes = [40]
+    lgnd.legendHandles[1]._sizes = [40]    
 
     fig.subplots_adjust(wspace=0.05, right=0.9)
 
@@ -772,7 +788,11 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     band = data['bands']
     nband = len(band)
 
-    cmap = plt.cm.viridis
+    # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+    #cmap = plt.cm.plasma
+    #cmap = plt.cm.cividis
+    cmap = plt.cm.inferno
+    #cmap = plt.cm.viridis
     stretch = Stretch(a=0.9)
     interval = Interval(contrast=0.5, nsamples=10000)
 
@@ -794,10 +814,10 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         sz = colorimg.size
         draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], ellipsefit['ba_leda'],
                             ellipsefit['pa_leda'], ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
-                            color='#377eb8') # '#3388ff')
+                            color=cb_colors['red']) # '#3388ff')        
         draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
                             ellipsefit['pa'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
-                            ellipsefit['refpixscale'], color='#e41a1c') # '#ffaa33')
+                            ellipsefit['refpixscale'], color=cb_colors['green']) # '#ffaa33')
                             
         if ellipsefit['radius_sb26'] > 0:
             sbr = ellipsefit['radius_sb26']
@@ -807,7 +827,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             sbr = -1
         if sbr > 0:
             draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
-                                ellipsefit['pa'], 2 * sbr, ellipsefit['refpixscale'], color='white')
+                                ellipsefit['pa'], 2 * sbr, ellipsefit['refpixscale'],
+                                color=cb_colors['blue'])
                             
         draw = ImageDraw.Draw(colorimg)
         if barlen and barlabel:
@@ -895,14 +916,15 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                                                2*ellipsefit['{}_sma'.format(filt)][this],
                                                2*ellipsefit['{}_sma'.format(filt)][this]*(1-ellipsefit['{}_eps'.format(filt)][this]),
                                                ellipsefit['{}_pa'.format(filt)][this]-90,
-                                               color='k', lw=1, alpha=0.8, fill=False))#, label='Fitted isophote')
+                                               color='k', lw=3, alpha=1.0, fill=False))#, label='Fitted isophote')
 
             # Visualize the mean geometry
             maxis = ellipsefit['majoraxis'] # [pixels]
             ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                          maxis, maxis*(1 - ellipsefit['eps']),
                                          np.radians(ellipsefit['pa']-90))
-            ellaper.plot(color='#e41a1c', lw=3, axes=ax1, alpha=0.9, label='Mean geometry')
+            ellaper.plot(lw=5, axes=ax1, alpha=1.0, label='Moment geometry',
+                         color=cb_colors['green'])
 
             # Visualize the ellipse-fitted geometry
             maxis = sbr / ellipsefit['refpixscale'] # [pixels]
@@ -910,7 +932,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                              maxis, maxis*(1 - ellipsefit['eps']),
                                              np.radians(ellipsefit['pa']-90))
-                ellaper.plot(color='k', lw=4, axes=ax1, alpha=0.9, label='Ellipse geometry')
+                ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='Ellipse geometry')
 
             # Visualize the LSLGA geometry, if present.
             if ('pa_leda' in ellipsefit.keys()) * ('ba_leda' in ellipsefit.keys()) * ('d25_leda' in ellipsefit.keys()):
@@ -918,7 +940,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                              maxis, maxis * ellipsefit['ba_leda'],
                                              np.radians(ellipsefit['pa_leda']-90))
-                ellaper.plot(color='#377eb8', lw=3, axes=ax1, alpha=1.0, label='Hyperleda geometry')
+                ellaper.plot(color=cb_colors['red'], lw=5, axes=ax1, alpha=1.0, label='Hyperleda geometry')
             #pdb.set_trace()
             ## Visualize the fitted geometry
             #maxis = mge['majoraxis'] * 1.2
@@ -975,7 +997,6 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
     try:
         colors = iter(sns.color_palette())
     except:
-        print('Need seaborn!!!')
         colors = _sbprofile_colors()
 
     if ellipsefit['success']:
