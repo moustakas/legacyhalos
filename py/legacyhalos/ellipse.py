@@ -107,15 +107,19 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
             results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
             results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
-            #for filt in bands:
-            #    results['mag_{}_sb{:0g}'.format(filt, sbcut)] = np.float(-1.0)
             continue
 
         sb = sbprofile['mu_r'] - sbcut
         keep = np.where((sb > -1) * (sb < 1))[0]
-        #coeff = np.polyfit(rr[keep], sb[keep], 1, w=1/sberr[keep])
-        # Monte Carlo to get the radius
+        if len(keep) < 5:
+            keep = np.where((sb > -2) * (sb < 2))[0]
+            if len(keep) < 5:
+                print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
+                results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
+                results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
+                continue
 
+        # Monte Carlo to get the radius
         rcut = []
         for ii in np.arange(20):
             sbfit = rand.normal(sb[keep], sberr[keep])

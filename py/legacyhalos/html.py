@@ -316,34 +316,30 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             if bool(ellipsefit):
                 ellipsefitall.append(ellipsefit)
 
-                print('Skipping ellipse QAplots!!')
-                if False:
+                sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(sbprofilefile) or clobber:
+                    display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
+                                              png=sbprofilefile, verbose=verbose, minerr=0.0)
 
-                    sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
-                    if not os.path.isfile(sbprofilefile) or clobber:
-                        display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
-                                                  png=sbprofilefile, verbose=verbose, minerr=0.0)
+                cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(cogfile) or clobber:
+                    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
+                                     png=cogfile, verbose=verbose)
 
-                    cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
-                    if not os.path.isfile(cogfile) or clobber:
-                        qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
-                                         png=cogfile, verbose=verbose)
+                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+                if not os.path.isfile(multibandfile) or clobber:
+                    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
+                        display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+                                          centralindx=igal, barlen=barlen, barlabel=barlabel,
+                                          png=multibandfile, verbose=verbose, scaledfont=scaledfont)
 
-                    multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-                    thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-                    if not os.path.isfile(multibandfile) or clobber:
-                        with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
-                            display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
-                                              centralindx=igal, barlen=barlen, barlabel=barlabel,
-                                              png=multibandfile, verbose=verbose, scaledfont=scaledfont)
-
-                        # Create a thumbnail.
-                        cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
-                        if os.path.isfile(thumbfile):
-                            os.remove(thumbfile)
-                        print('Writing {}'.format(thumbfile))
-                        subprocess.call(cmd.split())
-
+                    # Create a thumbnail.
+                    cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
+                    if os.path.isfile(thumbfile):
+                        os.remove(thumbfile)
+                    print('Writing {}'.format(thumbfile))
+                    subprocess.call(cmd.split())
 
         # maskbits QA
         maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
@@ -362,9 +358,8 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             mask = fitsio.read(fitsfile)
             tractor = Table(fitsio.read(tractorfile, upper=True))
 
-            qa_maskbits(mask, tractor, ellipsefitall, png=maskbitsfile)
-
-    pdb.set_trace()
+            with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
+                qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=maskbitsfile)
 
     #for filesuffix in ('largegalaxy', 'custom'):
     #    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
