@@ -18,6 +18,45 @@ ELLIPSEBITS = dict(
     largeshift = 2**0, # >10-pixel shift in the flux-weighted center
     )
 
+def LSLGA_version():
+    """Archived versions. We used v2.0 for DR8, v3.0 through v7.0 were originally
+    pre-DR9 test catalogs (now archived), and DR9 will use v3.0.
+
+    version = 'v5.0' # dr9e
+    version = 'v6.0' # dr9f,g
+    version = 'v7.0' # more dr9 testing
+    
+    """
+    version = 'v3.0'  # DR9
+    return version
+
+def LSLGA_dir():
+    if 'LSLGA_DIR' not in os.environ:
+        print('Required ${LSLGA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LSLGA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def LSLGA_data_dir():
+    if 'LSLGA_DATA_DIR' not in os.environ:
+        print('Required ${LSLGA_DATA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LSLGA_DATA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def LSLGA_html_dir():
+    if 'LSLGA_HTML_DIR' not in os.environ:
+        print('Required ${LSLGA_HTML_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LSLGA_HTML_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
 def mpi_args():
     import argparse
 
@@ -145,7 +184,10 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     indices = np.arange(ngal)
 
     mp = multiproc(nthreads=args.nproc)
-    args = [(gal, gdir, filesuffix, dependson, clobber) for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))]
+    args = []
+    for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
+        args.append(gal, gdir, filesuffix, dependson, clobber)
+        
     todo = np.array(mp.map(_missing_files_one, args))
 
     itodo = np.where(todo == 'todo')[0]
@@ -180,45 +222,6 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
 
     return suffix, todo_indices, done_indices, fail_indices
     
-def LSLGA_version():
-    """Archived versions. We used v2.0 for DR8, v3.0 through v7.0 were originally
-    pre-DR9 test catalogs (now archived), and DR9 will use v3.0.
-
-    #version = 'v5.0' # dr9e
-    #version = 'v6.0'  # dr9f,g
-    version = 'v7.0' 
-    
-    """
-    version = 'v3.0'  # DR9
-    return version
-
-def LSLGA_dir():
-    if 'LSLGA_DIR' not in os.environ:
-        print('Required ${LSLGA_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('LSLGA_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
-def LSLGA_data_dir():
-    if 'LSLGA_DATA_DIR' not in os.environ:
-        print('Required ${LSLGA_DATA_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('LSLGA_DATA_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
-def LSLGA_html_dir():
-    if 'LSLGA_HTML_DIR' not in os.environ:
-        print('Required ${LSLGA_HTML_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('LSLGA_HTML_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
 def get_raslice(ra):
     return '{:06d}'.format(int(ra*1000))[:3]
 
@@ -501,7 +504,7 @@ def _build_ellipse_LSLGA_one(args):
     """Wrapper function for the multiprocessing."""
     return build_ellipse_LSLGA_one(*args)
 
-def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
+def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L3'):
     """Gather the ellipse-fitting results for a single galaxy.
 
     """
