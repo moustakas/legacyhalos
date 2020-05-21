@@ -2,13 +2,13 @@
 
 # Shell script for running the various stages of the legacyhalos code using
 # MPI+shifter at NERSC. Required arguments:
-#   {1} stage [largegalaxy-coadds, pipeline-coadds, ellipse, htmlplots]
+#   {1} stage [coadds, pipeline-coadds, ellipse, htmlplots]
 #   {2} ncores [should match the resources requested.]
 
-# Example: build the largegalaxy-coadds using 16 MPI tasks with 8 cores per node (and therefore 16*8/32=4 nodes)
+# Example: build the coadds using 16 MPI tasks with 8 cores per node (and therefore 16*8/32=4 nodes)
 
-#salloc -N 8 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:flagnarg/legacyhalos:latest
-#srun -n 64 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh largegalaxy-coadds 4 > coadds.log.1 2>&1 &
+#salloc -N 8 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=docker:legacysurvey/legacyhalos:v0.0.1
+#srun -n 64 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh coadds 4 > coadds.log.1 2>&1 &
 #srun -n 64 -c 4 shifter --module=mpich-cle6 /global/u2/i/ioannis/repos/git/legacyhalos/bin/LSLGA-mpi.sh ellipse 4 > ellipse.log.1 2>&1 &
 
 # Grab the input arguments--
@@ -23,7 +23,7 @@ ncores=$2
 
 # Set up the needed environment variables dependencies--
 export DUST_DIR=/global/cfs/cdirs/cosmo/data/dust/v0_1
-export UNWISE_COADDS_DIR=/global/cfs/cdirs/cosmo/work/wise/outputs/merge/neo6/fulldepth:/global/cfs/cdirs/cosmo/data/unwise/allwise/unwise-coadds/fulldepth
+export UNWISE_COADDS_DIR=/global/cfs/cdirs/cosmo/data/unwise/neo6/unwise-coadds/fulldepth:/global/cfs/cdirs/cosmo/data/unwise/allwise/unwise-coadds/fulldepth
 export UNWISE_MODEL_SKY_DIR=/global/cfs/cdirs/cosmo/work/wise/unwise_catalog/dr3/mod
 export SKY_TEMPLATE_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/sky-templates
 export GAIA_CAT_DIR=/global/cfs/cdirs/cosmo/work/gaia/chunks-gaia-dr2-astrom-2
@@ -46,8 +46,8 @@ export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/legacyhalos
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 
 export LSLGA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA
-export LSLGA_DATA_DIR=/global/cscratch1/sd/ioannis/LSLGA-data-dr9h
-export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-dr9h
+export LSLGA_DATA_DIR=/global/cscratch1/sd/ioannis/LSLGA-data-dr9i
+export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-dr9i
 #export LSLGA_DATA_DIR=/global/cscratch1/sd/ioannis/LSLGA-data-DR9-1arcmin
 #export LSLGA_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/LSLGA-html-DR9-1arcmin
 #export LSLGA_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/LSLGA-data-DR9-5arcmin
@@ -72,10 +72,10 @@ maxmem=134217728 # Cori/Haswell = 128 GB
 grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
 let usemem=${maxmem}*${ncores}/32
 
-if [ $stage = "largegalaxy-coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose
+if [ $stage = "coadds" ]; then
+    time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose
     #echo 'JUST COADDS!'
-    #time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --largegalaxy-coadds --nproc $ncores --mpi --verbose --just-coadds --d25max 20 --d25min 5
+    #time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --coadds --nproc $ncores --mpi --verbose --just-coadds --d25max 20 --d25min 5
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/LSLGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
