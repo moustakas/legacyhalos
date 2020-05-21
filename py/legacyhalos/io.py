@@ -5,20 +5,37 @@ legacyhalos.io
 Code to read and write the various legacyhalos files.
 
 """
-import os, warnings
-import pickle, pdb
+import os, pdb
 import numpy as np
 import numpy.ma as ma
-from glob import glob
 
 import fitsio
-from astropy.table import Table, hstack
-from astropy.io import fits
-from astrometry.util.fits import fits_table, merge_tables
+import astropy.units as u
+from astropy.table import Table, Column
+from astrometry.util.fits import fits_table
 
-#import legacyhalos.hsc
-import legacyhalos.coadds
+# build out the FITS header
+def legacyhalos_header(hdr=None):
+    """Build a header with code versions, etc.
 
+    """
+    import subprocess
+    import pydl
+    import legacyhalos
+
+    if hdr is None:
+        hdr = fitsio.FITSHDR()
+
+    cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
+    ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
+    hdr.add_record(dict(name='LEGHALOV', value=ver, comment='legacyhalos git version'))
+
+    depvers, headers = [], []
+    for name, pkg in [('pydl', pydl)]:
+        hdr.add_record(dict(name=name, value=pkg.__version__, comment='{} version'.format(name)))
+
+    return hdr
+    
 def missing_files_groups(args, sample, size, htmldir=None):
     """Simple task-specific wrapper on missing_files.
 
@@ -143,9 +160,11 @@ def get_run_ccds(onegal, radius_mosaic, pixscale, log=None): # kdccds_north, kdc
     or the DECaLS CCDs file when running the pipeline.
 
     """
+    from astrometry.util.fits import fits_table, merge_tables
     from astrometry.util.util import Tan
     from astrometry.libkd.spherematch import tree_search_radec
     from legacypipe.survey import ccds_touching_wcs
+    import legacyhalos.coadds
     
     ra, dec = onegal['RA'], onegal['DEC']
     if dec < 25:
@@ -392,20 +411,26 @@ def read_integrated_flux(first=None, last=None, integratedfile=None, verbose=Fal
             
     return results
 
-def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
-                     verbose=False, pickle=False):
+def _write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
+                     verbose=False, use_pickle=False):
     """Write out an ASDF file based on the output of
     legacyhalos.ellipse.ellipse_multiband..
 
-    pickle - write an old-style pickle file
+    use_pickle - write an old-style pickle file
+
+    OBSOLETE - we now use FITS
 
     """
-    import asdf
+    import pickle
+    from astropy.io import fits
+    from asdf import fits_embed
+    #import asdf
     
-    if pickle:
+    if use_pickle:
         suff = '.p'
     else:
-        suff = '.asdf'
+        suff = '.fits'
+        #suff = '.asdf'
 
     if galaxyid.strip() == '':
         galid = ''
@@ -420,20 +445,27 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
-    if pickle:
+    if use_pickle:
         with open(ellipsefitfile, 'wb') as ell:
             pickle.dump(ellipsefit, ell, protocol=2)
     else:
-        af = asdf.AsdfFile(ellipsefit)
+        pdb.set_trace()
+        hdu = fits.HDUList()
+        af = fits_embed.AsdfInFits(hdu, ellipsefit)
         af.write_to(ellipsefitfile)
+        #af = asdf.AsdfFile(ellipsefit)
+        #af.write_to(ellipsefitfile)
 
-def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True, pickle=False):
+def _read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True, use_pickle=False):
     """Read the output of write_ellipsefit.
 
+    OBSOLETE - we now use FITS
+
     """
+    import pickle
     import asdf
     
-    if pickle:
+    if use_pickle:
         suff = '.p'
     else:
         suff = '.asdf'
@@ -450,7 +482,7 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True,
     ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse{}'.format(galaxy, fsuff, galid, suff))
         
     try:
-        if pickle:
+        if use_pickle:
             with open(ellipsefitfile, 'rb') as ell:
                 ellipsefit = pickle.load(ell)
         else:
@@ -459,6 +491,310 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True,
             ellipsefit = asdf.open(ellipsefitfile)
     except:
         #raise IOError
+        if verbose:
+            print('File {} not found!'.format(ellipsefitfile))
+        ellipsefit = dict()
+
+    return ellipsefit
+
+# ellipsefit data model
+def _get_ellipse_datamodel(refband='r'):
+    cols = [
+        ('bands', ''),
+        ('refband', ''),
+        ('refpixscale', u.arcsec / u.pixel),
+        ('success', ''),
+        ('fitgeometry', ''),
+        ('input_ellipse', ''),
+        ('largeshift', ''),
+
+        ('ra_x0', u.degree),
+        ('dec_y0', u.degree),
+        ('x0', u.pixel),
+        ('y0', u.pixel),
+        ('eps', ''),
+        ('pa', u.degree),
+        ('theta', u.degree),
+        ('majoraxis', u.pixel),
+        ('maxsma', u.pixel),
+
+        ('integrmode', ''),
+        ('sclip', ''),
+        ('nclip', ''),
+
+        #('psfsigma_g', u.pixel),
+        #('psfsigma_r', u.pixel),
+        #('psfsigma_z', u.pixel),
+
+        ('psfsize_g', u.arcsec),
+        #('psfsize_min_g', u.arcsec),
+        #('psfsize_max_g', u.arcsec),
+        ('psfsize_r', u.arcsec),
+        #('psfsize_min_r', u.arcsec),
+        #('psfsize_max_r', u.arcsec),
+        ('psfsize_z', u.arcsec),
+        #('psfsize_min_z', u.arcsec),
+        #('psfsize_max_z', u.arcsec),
+
+        ('psfdepth_g', u.mag),
+        #('psfdepth_min_g', u.mag),
+        #('psfdepth_max_g', u.mag),
+        ('psfdepth_r', u.mag),
+        #('psfdepth_min_r', u.mag),
+        #('psfdepth_max_r', u.mag),
+        ('psfdepth_z', u.mag),
+        #('psfdepth_min_z', u.mag),
+        #('psfdepth_max_z', u.mag),
+
+        ('mw_transmission_g', ''),
+        ('mw_transmission_r', ''),
+        ('mw_transmission_z', ''),
+
+        ('{}_width'.format(refband), u.pixel),
+        ('{}_height'.format(refband), u.pixel),
+
+        ('g_sma', u.pixel),
+        ('g_eps', ''),
+        ('g_eps_err', ''),
+        ('g_pa', u.degree),
+        ('g_pa_err', u.degree),
+        ('g_intens', u.maggy/u.arcsec**2),
+        ('g_intens_err', u.maggy/u.arcsec**2),
+        ('g_x0', u.pixel),
+        ('g_x0_err', u.pixel),
+        ('g_y0', u.pixel),
+        ('g_y0_err', u.pixel),
+        ('g_a3', ''), # units?
+        ('g_a3_err', ''),
+        ('g_a4', ''),
+        ('g_a4_err', ''),
+        ('g_rms', u.maggy/u.arcsec**2),
+        ('g_pix_stddev', u.maggy/u.arcsec**2),
+        ('g_stop_code', ''),
+        ('g_ndata', ''),
+        ('g_nflag', ''),
+        ('g_niter', ''),
+
+        ('r_sma', u.pixel),
+        ('r_eps', ''),
+        ('r_eps_err', ''),
+        ('r_pa', u.degree),
+        ('r_pa_err', u.degree),
+        ('r_intens', u.maggy/u.arcsec**2),
+        ('r_intens_err', u.maggy/u.arcsec**2),
+        ('r_x0', u.pixel),
+        ('r_x0_err', u.pixel),
+        ('r_y0', u.pixel),
+        ('r_y0_err', u.pixel),
+        ('r_a3', ''),
+        ('r_a3_err', ''),
+        ('r_a4', ''),
+        ('r_a4_err', ''),
+        ('r_rms', u.maggy/u.arcsec**2),
+        ('r_pix_stddev', u.maggy/u.arcsec**2),
+        ('r_stop_code', ''),
+        ('r_ndata', ''),
+        ('r_nflag', ''),
+        ('r_niter', ''),
+
+        ('z_sma', u.pixel),
+        ('z_eps', ''),
+        ('z_eps_err', ''),
+        ('z_pa', u.degree),
+        ('z_pa_err', u.degree),
+        ('z_intens', u.maggy/u.arcsec**2),
+        ('z_intens_err', u.maggy/u.arcsec**2),
+        ('z_x0', u.pixel),
+        ('z_x0_err', u.pixel),
+        ('z_y0', u.pixel),
+        ('z_y0_err', u.pixel),
+        ('z_a3', ''),
+        ('z_a3_err', ''),
+        ('z_a4', ''),
+        ('z_a4_err', ''),
+        ('z_rms', u.maggy/u.arcsec**2),
+        ('z_pix_stddev', u.maggy/u.arcsec**2),
+        ('z_stop_code', ''),
+        ('z_ndata', ''),
+        ('z_nflag', ''),
+        ('z_niter', ''),
+
+        #('cog_smaunit', ''),
+
+        ('g_cog_sma', u.arcsec),
+        ('g_cog_mag', u.mag),
+        ('g_cog_magerr', u.mag),
+        ('g_cog_params_mtot', u.mag),
+        ('g_cog_params_m0', u.mag),
+        ('g_cog_params_alpha1', ''),
+        ('g_cog_params_alpha2', ''),
+        ('g_cog_params_chi2', ''),
+
+        ('r_cog_sma', u.arcsec),
+        ('r_cog_mag', u.mag),
+        ('r_cog_magerr', u.mag),
+        ('r_cog_params_mtot', u.mag),
+        ('r_cog_params_m0', u.mag),
+        ('r_cog_params_alpha1', ''),
+        ('r_cog_params_alpha2', ''),
+        ('r_cog_params_chi2', ''),
+
+        ('z_cog_sma', u.arcsec),
+        ('z_cog_mag', u.mag),
+        ('z_cog_magerr', u.mag),
+        ('z_cog_params_mtot', u.mag),
+        ('z_cog_params_m0', u.mag),
+        ('z_cog_params_alpha1', ''),
+        ('z_cog_params_alpha2', ''),
+        ('z_cog_params_chi2', ''),
+
+        ('radius_sb23', u.arcsec),
+        ('radius_sb23_err', u.arcsec),
+        ('radius_sb24', u.arcsec),
+        ('radius_sb24_err', u.arcsec),
+        ('radius_sb25', u.arcsec),
+        ('radius_sb25_err', u.arcsec),
+        ('radius_sb25.5', u.arcsec),
+        ('radius_sb25.5_err', u.arcsec),
+        ('radius_sb26', u.arcsec),
+        ('radius_sb26_err', u.arcsec),
+
+        ('g_mag_sb23', u.mag),
+        ('g_mag_sb23_err', u.mag),
+        ('g_mag_sb24', u.mag),
+        ('g_mag_sb24_err', u.mag),
+        ('g_mag_sb25', u.mag),
+        ('g_mag_sb25_err', u.mag),
+        ('g_mag_sb25.5', u.mag),
+        ('g_mag_sb25.5_err', u.mag),
+        ('g_mag_sb26', u.mag),
+        ('g_mag_sb26_err', u.mag),
+
+        ('r_mag_sb23', u.mag),
+        ('r_mag_sb23_err', u.mag),
+        ('r_mag_sb24', u.mag),
+        ('r_mag_sb24_err', u.mag),
+        ('r_mag_sb25', u.mag),
+        ('r_mag_sb25_err', u.mag),
+        ('r_mag_sb25.5', u.mag),
+        ('r_mag_sb25.5_err', u.mag),
+        ('r_mag_sb26', u.mag),
+        ('r_mag_sb26_err', u.mag),
+
+        ('z_mag_sb23', u.mag),
+        ('z_mag_sb23_err', u.mag),
+        ('z_mag_sb24', u.mag),
+        ('z_mag_sb24_err', u.mag),
+        ('z_mag_sb25', u.mag),
+        ('z_mag_sb25_err', u.mag),
+        ('z_mag_sb25.5', u.mag),
+        ('z_mag_sb25.5_err', u.mag),
+        ('z_mag_sb26', u.mag),
+        ('z_mag_sb26_err', u.mag),
+        ]
+    return cols
+
+def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
+                     galaxyinfo=None, refband='r', verbose=False):
+    """Write out a FITS file based on the output of
+    legacyhalos.ellipse.ellipse_multiband..
+
+    ellipsefit - input dictionary
+
+    """
+    from astropy.table import QTable
+    #from astropy.io import fits
+    
+    if galaxyid.strip() == '':
+        galid = ''
+    else:
+        galid = '-{}'.format(galaxyid)
+    if filesuffix.strip() == '':
+        fsuff = ''
+    else:
+        fsuff = '-{}'.format(filesuffix)
+        
+    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse.fits'.format(galaxy, fsuff, galid))
+
+    # Turn the ellipsefit dictionary into a FITS table, starting with the
+    # galaxyinfo dictionary (if provided).
+    out = QTable()
+    if galaxyinfo:
+        for key in galaxyinfo.keys():
+            data = galaxyinfo[key][0]
+            if np.isscalar(data):
+                data = np.atleast_1d(data)
+            else:
+                data = np.atleast_2d(data)
+            unit = galaxyinfo[key][1] # add units
+            if type(unit) is not str:
+                data *= unit
+            col = Column(name=key, data=data)
+            out.add_column(col)
+
+    # First, unpack the nested dictionaries.
+    datadict = {}
+    for key in ellipsefit.keys():
+        #if type(ellipsefit[key]) is dict: # obsolete
+        #    for key2 in ellipsefit[key].keys():
+        #        datadict['{}_{}'.format(key, key2)] = ellipsefit[key][key2]
+        #else:
+        #    datadict[key] = ellipsefit[key]
+        datadict[key] = ellipsefit[key]
+    del ellipsefit
+
+    # Add to the data table
+    datakeys = datadict.keys()
+    for key, unit in _get_ellipse_datamodel(refband=refband):
+        if key not in datakeys:
+            raise ValueError('Data model change -- no column {} for galaxy {}!'.format(key, galaxy))
+        data = datadict[key]
+        if np.isscalar(data):# or len(np.array(data)) > 1:
+            data = np.atleast_1d(data)
+        else:
+            data = np.atleast_2d(data)
+        if type(unit) is not str:
+            data *= unit
+        col = Column(name=key, data=data)
+        out.add_column(col)
+
+    if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
+        raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
+
+    hdr = legacyhalos_header()
+
+    if verbose:
+        print('Writing {}'.format(ellipsefitfile))
+    #out.write(ellipsefitfile, overwrite=True)
+    fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
+
+def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True):
+    """Read the output of write_ellipsefit. Convert the astropy Table into a
+    dictionary so we can use a bunch of legacy code.
+
+    """
+    if galaxyid.strip() == '':
+        galid = ''
+    else:
+        galid = '-{}'.format(galaxyid)
+    if filesuffix.strip() == '':
+        fsuff = ''
+    else:
+        fsuff = '-{}'.format(filesuffix)
+
+    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse.fits'.format(galaxy, fsuff, galid))
+        
+    if os.path.isfile(ellipsefitfile):
+        data = Table.read(ellipsefitfile)
+
+        # Convert (back!) into a dictionary.
+        ellipsefit = {}
+        for key in data.colnames:
+            val = data[key].tolist()[0]
+            if np.logical_not(np.isscalar(val)) and len(val) > 0:
+                val = np.array(val)
+            ellipsefit[key] = val
+    else:
         if verbose:
             print('File {} not found!'.format(ellipsefitfile))
         ellipsefit = dict()
@@ -550,6 +886,8 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
     """Write out the output of legacyhalos-results
 
     """
+    from astropy.io import fits
+    
     lsdir = legacyhalos_dir()
     resultsfile = os.path.join(lsdir, 'legacyhalos-results.fits')
     if not os.path.isfile(resultsfile) or clobber:
@@ -577,7 +915,7 @@ def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
         print('File {} exists.'.format(resultsfile))
 
 def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
-    """Helper function for read_multiband. Compute the average PSF size (in arcsec)
+    """Support function for read_multiband. Compute the average PSF size (in arcsec)
     and depth (in 5-sigma AB mags) in each bandpass based on the Tractor
     catalog.
 
@@ -611,12 +949,12 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
 
         out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
         out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
-        out['psfsize_min_{}'.format(filt)] = np.min(psfsize).astype('f4')
-        out['psfsize_max_{}'.format(filt)] = np.max(psfsize).astype('f4')
+        #out['psfsize_min_{}'.format(filt)] = np.min(psfsize).astype('f4')
+        #out['psfsize_max_{}'.format(filt)] = np.max(psfsize).astype('f4')
 
         out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
-        out['psfdepth_min_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.min(psfdepth)))).astype('f4')
-        out['psfdepth_max_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.max(psfdepth)))).astype('f4')
+        #out['psfdepth_min_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.min(psfdepth)))).astype('f4')
+        #out['psfdepth_max_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.max(psfdepth)))).astype('f4')
         
     return out
 
@@ -666,7 +1004,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         # Cache the reference image header for the next step.
         if filt == refband:
             HH, WW = sz
-            data['shape'] = (HH, WW)
+            data['{}_width'.format(refband)] = np.float32(WW)
+            data['{}_height'.format(refband)] = np.float32(HH)
             refhdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
@@ -802,9 +1141,9 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             print('Central position has been masked, possibly by a star (or saturated core).')
             xmed, ymed = tractor.by[central], tractor.bx[central]
             #if largegalaxy:
-            #    ba = tractor.lslga_ba[central]
-            #    pa = tractor.lslga_pa[central]
-            #    maxis = tractor.lslga_d25[central] * 60 / 2 / filt2pixscale[refband] # [pixels]
+            #    ba = tractor.ba_leda[central]
+            #    pa = tractor.pa_leda[central]
+            #    maxis = tractor.d25_leda[central] * 60 / 2 / filt2pixscale[refband] # [pixels]
             ee = np.hypot(tractor.shape_e1[central], tractor.shape_e2[central])
             ba = (1 - ee) / (1 + ee)
             pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[central], tractor.shape_e1[central]) / 2))
@@ -817,8 +1156,18 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         
         #import matplotlib.pyplot as plt ; plt.clf()
         mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
-                                nblob=1, binning=3, level=minsb)#, quiet=not verbose, plot=True)
+                                nblob=1, binning=3, level=minsb)#, plot=True)#, quiet=not verbose
         #plt.savefig('junk.png') ; pdb.set_trace()
+
+        # Above, we used the Tractor positions, so check one more time here with
+        # the light-weighted positions, which may have shifted into a masked
+        # region (e.g., check out the interacting pair PGC052639 & PGC3098317).
+        val = []
+        for xb in box:
+            for yb in box:
+                val.append(newmask[int(xb+mgegalaxy.xmed), int(yb+mgegalaxy.ymed)])
+        if np.any(val):
+            notok = True
 
         # If we fit the geometry by unmasking pixels using the Tractor fit then
         # we're probably sitting inside the mask of a bright star, so call
@@ -826,7 +1175,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         if notok:
             print('Iteratively unmasking pixels:')
             print('  r={:.2f} pixels'.format(maxis))
-            maxis = 1.5 * mgegalaxy.majoraxis # [pixels]
+            maxis = 1.0 * mgegalaxy.majoraxis # [pixels]
             prevmaxis, iiter, maxiter = 0.0, 0, 4
             while (maxis > prevmaxis) and (iiter < maxiter):
                 #print(prevmaxis, maxis, iiter, maxiter)
@@ -838,7 +1187,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
                 mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), 
                                         nblob=1, binning=3, quiet=True, plot=False, level=minsb)
                 prevmaxis = maxis.copy()
-                maxis = 1.5 * mgegalaxy.majoraxis # [pixels]
+                maxis = 1.2 * mgegalaxy.majoraxis # [pixels]
                 iiter += 1
 
         #plt.savefig('junk.png') ; pdb.set_trace()
@@ -851,7 +1200,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             #mgegalaxy = find_galaxy(ma.masked_array(img/filt2pixscale[refband]**2, newmask), nblob=1, binning=3, quiet=False, plot=True, level=minsb)
             #plt.savefig('junk.png') ; pdb.set_trace()
             #pdb.set_trace()
-            badcenter = True
+            largeshift = True
             
             ee = np.hypot(tractor.shape_e1[central], tractor.shape_e2[central])
             ba = (1 - ee) / (1 + ee)
@@ -866,7 +1215,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             mgegalaxy.majoraxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
             print('  r={:.2f} pixels'.format(mgegalaxy.majoraxis))
         else:
-            badcenter = False
+            largeshift = False
 
         #if tractor.ref_id[central] == 474614:
         #    import matplotlib.pyplot as plt
@@ -876,14 +1225,15 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             
         radec_med = data['wcs'].pixelToPosition(mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
         radec_peak = data['wcs'].pixelToPosition(mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
-        mge = {'badcenter': badcenter,
+        mge = {'largeshift': largeshift,
             'ra': tractor.ra[central], 'dec': tractor.dec[central],
             'bx': tractor.bx[central], 'by': tractor.by[central],
             'mw_transmission_g': tractor.mw_transmission_g[central],
             'mw_transmission_r': tractor.mw_transmission_r[central],
             'mw_transmission_z': tractor.mw_transmission_z[central],
-            'ra_med': radec_med[0], 'dec_med': radec_med[1],
-            'ra_peak': radec_med[0], 'dec_peak': radec_med[1]}
+            'ra_x0': radec_med[0], 'dec_y0': radec_med[1],
+            #'ra_peak': radec_med[0], 'dec_peak': radec_med[1]
+            }
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
             mge[key] = np.float32(getattr(mgegalaxy, key))
             if key == 'pa': # put into range [0-180]
@@ -1033,7 +1383,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     data['failed'] = False # be optimistic!
     data['bands'] = bands
     data['refband'] = refband
-    data['refpixscale'] = pixscale
+    data['refpixscale'] = np.float32(pixscale)
 
     if 'NUV' in bands:
         data['galex_pixscale'] = galex_pixscale
@@ -1094,7 +1444,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         minsize_rex = 5.0 # minimum size for REX [arcsec]
         central_galaxy, reject_galaxy, keep_galaxy = [], [], []
         data['tractor_flags'] = {}
-        for ii, sid in enumerate(sample['LSLGA_ID']):
+        for ii, sid in enumerate(sample['ID']):
             I = np.where((sid == tractor.ref_id) * islslga)[0]
             if len(I) == 0: # dropped by Tractor
                 reject_galaxy.append(ii)
@@ -1135,8 +1485,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         if len(reject_galaxy) > 0:
             reject_galaxy = np.hstack(reject_galaxy)
             for jj, rej in enumerate(reject_galaxy):
-                print('  Dropping {} (LSLGA_ID={}, RA, Dec = {:.7f} {:.7f}): {}'.format(
-                    sample[rej]['GALAXY'], sample[rej]['LSLGA_ID'], sample[rej]['RA'], sample[rej]['DEC'], msg[jj]))
+                print('  Dropping {} (ID={}, RA, Dec = {:.7f} {:.7f}): {}'.format(
+                    sample[rej]['GALAXY'], sample[rej]['ID'], sample[rej]['RA'], sample[rej]['DEC'], msg[jj]))
 
         if len(central_galaxy) > 0:
             keep_galaxy = np.hstack(keep_galaxy)
@@ -1149,15 +1499,15 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             else:
                 return data
 
-        #sample = sample[np.searchsorted(sample['LSLGA_ID'], tractor.ref_id[central_galaxy])]
-        assert(np.all(sample['LSLGA_ID'] == tractor.ref_id[central_galaxy]))
+        #sample = sample[np.searchsorted(sample['ID'], tractor.ref_id[central_galaxy])]
+        assert(np.all(sample['ID'] == tractor.ref_id[central_galaxy]))
         
-        tractor.lslga_d25 = np.zeros(len(tractor), dtype='f4')
-        tractor.lslga_pa = np.zeros(len(tractor), dtype='f4')
-        tractor.lslga_ba = np.zeros(len(tractor), dtype='f4')
-        tractor.lslga_d25[central_galaxy] = sample['D25']
-        tractor.lslga_pa[central_galaxy] = sample['PA']
-        tractor.lslga_ba[central_galaxy] = sample['BA']
+        tractor.d25_leda = np.zeros(len(tractor), dtype='f4')
+        tractor.pa_leda = np.zeros(len(tractor), dtype='f4')
+        tractor.ba_leda = np.zeros(len(tractor), dtype='f4')
+        tractor.d25_leda[central_galaxy] = sample['D25_LEDA']
+        tractor.pa_leda[central_galaxy] = sample['PA_LEDA']
+        tractor.ba_leda[central_galaxy] = sample['BA_LEDA']
         
         # Do we need to take into account the elliptical mask of each source??
         srt = np.argsort(tractor.flux_r[central_galaxy])[::-1]
@@ -1174,8 +1524,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           largegalaxy=largegalaxy)
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
-    ####plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    ######plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
+    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
     #pdb.set_trace()
 
     if return_sample:
@@ -1380,6 +1730,8 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', index=None, satellites=Fal
     """Read the parent redMaPPer cluster catalog and updated photometry.
     
     """
+    from astropy.table import hstack
+    
     if satellites:
         suffix1, suffix2 = '_members', '-members'
     else:

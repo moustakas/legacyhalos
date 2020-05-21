@@ -167,6 +167,8 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
     radius_mosaic in arcsec
 
     """
+    import legacyhalos.coadds
+    
     t0 = time.time()
     if debug:
         _start(galaxy)

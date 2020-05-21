@@ -255,29 +255,27 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
 
     """
     import fitsio
-    import matplotlib.pyplot as plt
+    from legacyhalos.qa import qa_maskbits
 
-    for filesuffix in ('largegalaxy', 'pipeline', 'custom'):
-        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
-        if not os.path.isfile(maskbitsfile) or clobber:
-            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
-            if not os.path.isfile(fitsfile):
-                if verbose:
-                    print('File {} not found!'.format(fitsfile))
-                continue
+    filesuffix = 'largegalaxy'
 
-            img = fitsio.read(fitsfile)
-            fig, ax = plt.subplots(figsize=(3, 3))
-            ax.imshow(img, origin='lower', cmap='gray_r')#, interpolation='none')
-            ax.get_xaxis().set_visible(False)
-            ax.get_yaxis().set_visible(False)
-            ax.axis('off')
-            ax.autoscale(False)
+    maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
+    if not os.path.isfile(maskbitsfile) or clobber:
+        fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
+        tractorfile = os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix))
+        if not os.path.isfile(fitsfile):
+            if verbose:
+                print('File {} not found!'.format(fitsfile))
+            return
+        if not os.path.isfile(tractorfile):
+            if verbose:
+                print('File {} not found!'.format(tractorfile))
+            return
+        
+        mask = fitsio.read(fitsfile)
+        tractor = fitsio.read(tractorfile)
 
-            #if verbose:
-            print('Writing {}'.format(maskbitsfile))
-            fig.savefig(maskbitsfile, bbox_inches='tight', pad_inches=0)
-            plt.close(fig)
+        qa_maskbits(mask, tractor, png=maskbitsfile)
 
 def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                     refband='r', pixscale=0.262, barlen=None, barlabel=None,
@@ -286,10 +284,13 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     """Generate QAplots from the ellipse-fitting.
 
     """
+    import fitsio
     from PIL import Image
+    from astropy.table import Table
     from legacyhalos.io import read_multiband, read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
-                                display_ellipse_sbprofile, qa_curveofgrowth)
+                                display_ellipse_sbprofile, qa_curveofgrowth,
+                                qa_maskbits)
 
     # Read the data--
     data = read_multiband(galaxy, galaxydir, bands=bands,
@@ -298,28 +299,26 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                           largegalaxy=largegalaxy)
     if not bool(data):
         return
-        
+
     if data['failed']: # all galaxies dropped
         return
     
     # One set of QA plots per galaxy.
     if largegalaxy:
+        ellipsefitall = []
         for igal in np.arange(len(data['central_galaxy_id'])):
             central_galaxy_id = data['central_galaxy_id'][igal]
             galaxyid = str(central_galaxy_id)
             filesuffix = 'largegalaxy'
 
-            af = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
-                                 galaxyid=galaxyid, verbose=verbose)
-            if bool(af):
-                ellipsefit = af.tree
-                
+            ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
+                                         galaxyid=galaxyid, verbose=verbose)
+            if bool(ellipsefit):
+                ellipsefitall.append(ellipsefit)
+
                 sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
                 if not os.path.isfile(sbprofilefile) or clobber:
                     display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
-                                              sky_ellipsefit={},
-                                              pipeline_ellipsefit={},
-                                              sdss_ellipsefit={},
                                               png=sbprofilefile, verbose=verbose, minerr=0.0)
 
                 cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
@@ -334,23 +333,33 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                         display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
                                           centralindx=igal, barlen=barlen, barlabel=barlabel,
                                           png=multibandfile, verbose=verbose, scaledfont=scaledfont)
-                        
+
                     # Create a thumbnail.
                     cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
                     if os.path.isfile(thumbfile):
                         os.remove(thumbfile)
                     print('Writing {}'.format(thumbfile))
                     subprocess.call(cmd.split())
-                    
-                #ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
-                #if not os.path.isfile(ellipsefitfile) or clobber:
-                #    display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
 
-                #print('CONTINUING IN QA_ELLIPSE_RESULTS!')
-                #pdb.set_trace()
-                #continue
+        # maskbits QA
+        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
+        if not os.path.isfile(maskbitsfile) or clobber:
+            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
+            tractorfile = os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix))
+            if not os.path.isfile(fitsfile):
+                if verbose:
+                    print('File {} not found!'.format(fitsfile))
+                return
+            if not os.path.isfile(tractorfile):
+                if verbose:
+                    print('File {} not found!'.format(tractorfile))
+                return
 
-                af.close()
+            mask = fitsio.read(fitsfile)
+            tractor = Table(fitsio.read(tractorfile, upper=True))
+
+            with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
+                qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=maskbitsfile)
 
     #for filesuffix in ('largegalaxy', 'custom'):
     #    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
@@ -493,6 +502,9 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                 redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
+        # Build the maskbits figure.
+        #make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
+
         # Build the ellipse plots.
         make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                         pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
@@ -506,10 +518,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
                        radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
                        verbose=verbose)
-
-        # Build the maskbits figure.
-        if False:
-            make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Sersic fiting results
         if False:
