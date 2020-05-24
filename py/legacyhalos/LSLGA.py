@@ -596,6 +596,7 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
     tractor['GROUP_NAME'][:] = onegal['GROUP_NAME']
 
     # add the columns from legacyhalos.ellipse.ellipse_cog
+    put the radii first, then the magnitudes
     radkeys = ['RADIUS_SB{:0g}'.format(sbcut) for sbcut in sbcuts]
     for radkey in radkeys:
         tractor[radkey] = np.zeros(len(tractor), np.float32) - 1
@@ -661,6 +662,8 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
         else:
             ellipse = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id),
                                       filesuffix='largegalaxy', verbose=True)
+
+the columns are all uppercase now
 
             # Objects with "largeshift" shifted positions significantly during
             # ellipse-fitting, which *may* point to a problem. Add a bit--

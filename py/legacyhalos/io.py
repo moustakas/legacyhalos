@@ -758,6 +758,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         col = Column(name=key, data=data)
         out.add_column(col)
 
+uppercase the columns
+
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
 

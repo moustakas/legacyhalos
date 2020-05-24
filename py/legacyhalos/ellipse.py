@@ -17,7 +17,7 @@ from photutils.isophote.fitter import CentralEllipseFitter
 
 import legacyhalos.io
 
-SBTHRESH = [23, 24, 25, 25.5, 26] # surface brightness thresholds
+SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
 
 class CogModel(astropy.modeling.Fittable1DModel):
     """Class to empirically model the curve of growth.
