@@ -550,8 +550,8 @@ def _get_ellipse_datamodel(refband='r'):
         ('mw_transmission_r', ''),
         ('mw_transmission_z', ''),
 
-        ('{}_width'.format(refband), u.pixel),
-        ('{}_height'.format(refband), u.pixel),
+        ('refband_width', u.pixel),
+        ('refband_height', u.pixel),
 
         ('g_sma', u.pixel),
         ('g_eps', ''),
@@ -1004,8 +1004,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         # Cache the reference image header for the next step.
         if filt == refband:
             HH, WW = sz
-            data['{}_width'.format(refband)] = np.float32(WW)
-            data['{}_height'.format(refband)] = np.float32(HH)
+            data['refband_width'] = np.float32(WW)
+            data['refband_height'] = np.float32(HH)
             refhdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
@@ -1280,7 +1280,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             # Convert to surface brightness and 32-bit precision.
             img = (ma.getdata(data[filt]) - model_nocentral) / thispixscale**2 # [nanomaggies/arcsec**2]
             img = ma.masked_array(img.astype('f4'), mask)
-            var = data['{}_var_'.format(filt)] / thispixscale**4 # [nanomaggies/arcsec**4]
+            var = data['{}_var_'.format(filt)] / thispixscale**4 # [nanomaggies**2/arcsec**4]
 
             # Fill with zeros, for fun--
             ma.set_fill_value(img, fill_value)
