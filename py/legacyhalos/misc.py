@@ -375,6 +375,23 @@ def lambda2mhalo(richness, redshift=0.3, Saro=False):
     
     return np.log10(M200c)
 
+def convert_tractor_e1e2(e1, e2):
+    """Convert Tractor epsilon1, epsilon2 values to ellipticity and position angle.
+
+    Taken from tractor.ellipses.EllipseE
+
+    """
+    e = np.hypot(e1, e2)
+    ba = (1 - e) / (1 + e)
+    #e = (ba + 1) / (ba - 1)
+
+    phi = -np.rad2deg(np.arctan2(e2, e1) / 2)
+    #angle = np.deg2rad(-2 * phi)
+    #e1 = e * np.cos(angle)
+    #e2 = e * np.sin(angle)
+
+    return ba, phi
+
 def radec2pix(nside, ra, dec):
     '''Convert `ra`, `dec` to nested pixel number.
 
