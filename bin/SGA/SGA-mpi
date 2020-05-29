@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""MPI wrapper for the Legacy Surveys large galaxies.
+"""MPI wrapper for the Siena Galaxy Atlas project.
 
-LSLGA-mpi --coadds --customsky --count --debug
+SGA-mpi --coadds --customsky --count --debug
 
 """
 import matplotlib
@@ -15,16 +15,16 @@ def main():
 
     """
     import legacyhalos.io
-    import legacyhalos.LSLGA
+    import legacyhalos.SGA
 
     from legacypipe.runs import get_survey
-    from legacyhalos.LSLGA import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
+    from legacyhalos.SGA import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
 
-    basedir = legacyhalos.LSLGA.LSLGA_dir()
-    datadir = legacyhalos.LSLGA.LSLGA_data_dir()
-    htmldir = legacyhalos.LSLGA.LSLGA_html_dir()
+    basedir = legacyhalos.SGA.SGA_dir()
+    datadir = legacyhalos.SGA.SGA_data_dir()
+    htmldir = legacyhalos.SGA.SGA_html_dir()
     
-    args = legacyhalos.LSLGA.mpi_args()
+    args = legacyhalos.SGA.mpi_args()
 
     if args.mpi:
         from mpi4py import MPI
@@ -37,22 +37,22 @@ def main():
     # Read and broadcast the sample.
     sample, fullsample = None, None
     if rank == 0:
-        print('$LSLGA_DIR={}'.format(basedir))
-        print('$LSLGA_DATA_DIR={}'.format(datadir))
-        print('$LSLGA_HTML_DIR={}'.format(htmldir))
-        sample = legacyhalos.LSLGA.read_sample(first=args.first, last=args.last,
-                                               d25min=args.d25min, d25max=args.d25max, 
-                                               galaxylist=args.galaxylist,
-                                               verbose=args.verbose,
-                                               customsky=args.customsky,
-                                               preselect_sample=True)
+        print('$SGA_DIR={}'.format(basedir))
+        print('$SGA_DATA_DIR={}'.format(datadir))
+        print('$SGA_HTML_DIR={}'.format(htmldir))
+        sample = legacyhalos.SGA.read_sample(first=args.first, last=args.last,
+                                             d25min=args.d25min, d25max=args.d25max, 
+                                             galaxylist=args.galaxylist,
+                                             verbose=args.verbose,
+                                             customsky=args.customsky,
+                                             preselect_sample=True)
         if len(sample) == 0:
             return
         # For the custom coadds step we write out the full sample in each mosaic.
-        if args.coadds or args.build_LSLGA:
-            fullsample = legacyhalos.LSLGA.read_sample(verbose=args.verbose,
-                                                       preselect_sample=False,
-                                                       customsky=False)
+        if args.coadds or args.build_SGA:
+            fullsample = legacyhalos.SGA.read_sample(verbose=args.verbose,
+                                                     preselect_sample=False,
+                                                     customsky=False)
             fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
         else:
             fullsample = None
@@ -63,27 +63,27 @@ def main():
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
-    if (args.build_LSLGA or args.htmlindex) and rank == 0:
-        if args.build_LSLGA:
-            _, _, idone, _ = legacyhalos.LSLGA.missing_files(args, sample, size)
+    if (args.build_SGA or args.htmlindex) and rank == 0:
+        if args.build_SGA:
+            _, _, idone, _ = legacyhalos.SGA.missing_files(args, sample, size)
             if len(idone[rank]) == 0:
                 print('No ellipse files found!')
                 return
-            legacyhalos.LSLGA.build_ellipse_LSLGA(sample[idone[rank]], fullsample,
-                                                  nproc=args.nproc, clobber=args.clobber)
+            legacyhalos.SGA.build_ellipse_SGA(sample[idone[rank]], fullsample,
+                                              nproc=args.nproc, clobber=args.clobber)
 
         if args.htmlindex:
-            legacyhalos.LSLGA.make_html(sample, survey=None, pixscale=args.pixscale,
-                                        racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
-                                        zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
-                                        makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                        ccdqa=args.ccdqa, args=args)
+            legacyhalos.SGA.make_html(sample, survey=None, pixscale=args.pixscale,
+                                      racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
+                                      zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+                                      makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                      ccdqa=args.ccdqa, args=args)
         return
     
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
     if rank == 0:
-        suffix, groups, _, fail = legacyhalos.LSLGA.missing_files(args, sample, size)
+        suffix, groups, _, fail = legacyhalos.SGA.missing_files(args, sample, size)
     else:
         groups, suffix = [], ''
 
@@ -110,14 +110,14 @@ def main():
             if args.debug:
                 if len(fail[rank]) > 0:
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
-                    galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[fail[rank]])
+                    galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[fail[rank]])
                     for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
                         print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
 
                 todo = np.hstack(groups)
                 if len(todo) > 0:
                     #print('Galaxies left to do:')
-                    galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(sample[todo])
+                    galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[todo])
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                         print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
             return
@@ -130,7 +130,7 @@ def main():
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
-        galaxy, galaxydir = legacyhalos.LSLGA.get_galaxy_galaxydir(onegal)
+        galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(onegal)
         if not os.path.isdir(galaxydir):
             os.makedirs(galaxydir, exist_ok=True)
 
@@ -205,7 +205,7 @@ def main():
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
                            largegalaxy=True, 
-                           get_galaxy_galaxydir=legacyhalos.LSLGA.get_galaxy_galaxydir)
+                           get_galaxy_galaxydir=legacyhalos.SGA.get_galaxy_galaxydir)
 
     # Wait for all ranks to finish.
     if comm is not None:
@@ -214,7 +214,7 @@ def main():
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups, _, _ = legacyhalos.LSLGA.missing_files(args, sample, size, clobber_overwrite=False)
+        _, groups, _, _ = legacyhalos.SGA.missing_files(args, sample, size, clobber_overwrite=False)
         if len(groups) > 0:
             stilltodo = len(np.hstack(groups))
         else:
