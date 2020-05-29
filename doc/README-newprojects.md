@@ -2,18 +2,22 @@ New Projects
 ============
 
 This README briefly describes how the *legacyhalos* code base can be used on new
-projects.  Every project different, so using this repository will require some
-customized code.
+projects.  Every project is different, so using this repository will require
+some customized code.
 
 In this example let's create a project called 'myproject':
 
 1. Clone the *legacyhalos* repository and set an environment variable pointing
-to your local checkout:
+to your local checkout. Unfortunately we're going to need this environment
+variable outside of any of the *legacyhalos* software, so it's a good idea to
+add this variable to your .bashrc startup file (and the 'bin' subdirectory
+pointing to your project, which we will create in a moment, to your path):
 
   export LEGACYHALOS_CODE_DIR=/path/to/legacyhalos
+  export PATH=${LEGACYHALOS_CODE_DIR}/bin/myproject:${PATH}
 
-2. Create a new directory in '$LEGACYHALOS_CODE_DIR/bin' with the name of your
-project, e.g.:
+2. Next, create a new directory in '$LEGACYHALOS_CODE_DIR/bin' with the name of
+your project, e.g.:
 
   mkdir $LEGACYHALOS_CODE_DIR/bin/myproject
 
@@ -22,8 +26,9 @@ variables; a shell script which has been customized to your project; and a slurm
 script to be used in production, e.g.:
 
   $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi.sh
-  $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi.env
-  $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi.slurm
+  $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi-env
+  $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi-slurm
+  $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-load-shifterimg
 
 [Note: The '-mpi' suffix is historical and not needed.]
 
@@ -47,4 +52,5 @@ ways, as described in more detail below: (1) interactively with a single node;
 1. To run the code interactively with a single node from a clean login, do:
 
   salloc -N 1 -C haswell -A desi -t 04:00:00 --qos interactive -L SCRATCH,cfs
+  
   
