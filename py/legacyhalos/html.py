@@ -12,6 +12,49 @@ import astropy.table
 import legacyhalos.io
 import legacyhalos.misc
 
+def _get_cutouts_one(args):
+    """Wrapper function for the multiprocessing."""
+    return get_cutouts_one(*args)
+
+def get_cutouts_one(group, clobber=False):
+    """Get viewer cutouts for a single galaxy."""
+
+    layer = get_layer(group)
+    groupname = get_groupname(group)
+        
+    diam = group_diameter(group) # [arcmin]
+    size = np.ceil(diam * 60 / PIXSCALE).astype('int') # [pixels]
+
+    imageurl = '{}/?ra={:.8f}&dec={:.8f}&pixscale={:.3f}&size={:g}&layer={}'.format(
+        cutouturl, group['ra'], group['dec'], PIXSCALE, size, layer)
+        
+    jpgfile = os.path.join(jpgdir, '{}.jpg'.format(groupname))
+    cmd = 'wget --continue -O {:s} "{:s}"' .format(jpgfile, imageurl)
+    if os.path.isfile(jpgfile) and not clobber:
+        print('File {} exists...skipping.'.format(jpgfile))
+    else:
+        if os.path.isfile(jpgfile):
+            os.remove(jpgfile)
+        print(cmd)
+        os.system(cmd)
+
+def get_cutouts(groupsample, use_nproc=nproc, clobber=False):
+    """Get viewer cutouts of the whole sample."""
+
+    cutoutargs = list()
+    for gg in groupsample:
+        cutoutargs.append( (gg, clobber) )
+
+    if use_nproc > 1:
+        p = multiprocessing.Pool(nproc)
+        p.map(_get_cutouts_one, cutoutargs)
+        p.close()
+    else:
+        for args in cutoutargs:
+            _get_cutouts_one(args)
+
+    return
+
 def html_javadate():
     """Return a string that embeds a date in a webpage using Javascript.
 

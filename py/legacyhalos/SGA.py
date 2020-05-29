@@ -1,8 +1,8 @@
 """
-legacyhalos.LSLGA
-=================
+legacyhalos.SGA
+===============
 
-Code to deal with the LSLGA sample and project.
+Code to support the SGA sample and project.
 
 """
 import os, shutil, pdb
@@ -17,6 +17,45 @@ DIAMCOLUMN = 'GROUP_DIAMETER'
 ELLIPSEBITS = dict(
     largeshift = 2**0, # >10-pixel shift in the flux-weighted center
     )
+
+def SGA_version():
+    """Archived versions. We used v2.0 for DR8, v3.0 through v7.0 were originally
+    pre-DR9 test catalogs (now archived), and DR9 will use v3.0.
+
+    version = 'v5.0' # dr9e
+    version = 'v6.0' # dr9f,g
+    version = 'v7.0' # more dr9 testing
+    
+    """
+    version = 'v3.0'  # DR9
+    return version
+
+def SGA_dir():
+    if 'SGA_DIR' not in os.environ:
+        print('Required ${SGA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('SGA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def SGA_data_dir():
+    if 'SGA_DATA_DIR' not in os.environ:
+        print('Required ${SGA_DATA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('SGA_DATA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def SGA_html_dir():
+    if 'SGA_HTML_DIR' not in os.environ:
+        print('Required ${SGA_HTML_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('SGA_HTML_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
 
 def mpi_args():
     import argparse
@@ -55,43 +94,14 @@ def mpi_args():
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
 
-    parser.add_argument('--build-LSLGA', action='store_true', help='Build the LSLGA reference catalog.')
+    parser.add_argument('--build-SGA', action='store_true', help='Build the SGA reference catalog.')
     args = parser.parse_args()
 
     return args
 
-def _missing_files_one(args):
-    """Wrapper for the multiprocessing."""
-    return missing_files_one(*args)
-
-def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
-    checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
-    #print('missing_files_one: ', checkfile)
-    if os.path.exists(checkfile) and clobber is False:
-        # Is the stage that this stage depends on done, too?
-        if dependson is not None:
-            dependsfile = os.path.join(galaxydir, '{}{}'.format(galaxy, dependson))
-            if os.path.exists(dependsfile):
-                return 'done'
-            else:
-                return 'todo'
-        else:
-            return 'done'
-    else:
-        #print('missing_files_one: ', checkfile)
-        # Did this object fail?
-        if '.isdone' in checkfile:
-            failfile = checkfile.replace('.isdone', '.isfail')
-            if os.path.exists(failfile):
-                if clobber is False:
-                    return 'fail'
-                else:
-                    os.remove(failfile)
-                    return 'todo'
-        return 'todo'
-    
 def missing_files(args, sample, size=1, clobber_overwrite=None):
     from astrometry.util.multiproc import multiproc
+    from legacyhalos.io import _missing_files_one
 
     dependson = None
     galaxy, galaxydir = get_galaxy_galaxydir(sample)        
@@ -108,8 +118,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         suffix = 'ellipse'
         filesuffix = '-largegalaxy-ellipse.isdone'
         dependson = '-largegalaxy-coadds.isdone'
-    elif args.build_LSLGA:
-        suffix = 'build-LSLGA'
+    elif args.build_SGA:
+        suffix = 'build-SGA'
         filesuffix = '-largegalaxy-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
@@ -127,10 +137,10 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         print('Nothing to do.')
         return
 
-    # Make clobber=False for build_LSLGA and htmlindex because we're not making
+    # Make clobber=False for build_SGA and htmlindex because we're not making
     # the files here, we're just looking for them. The argument args.clobber
     # gets used downstream.
-    if args.htmlindex or args.build_LSLGA:
+    if args.htmlindex or args.build_SGA:
         clobber = False
     else:
         clobber = args.clobber
@@ -145,7 +155,10 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     indices = np.arange(ngal)
 
     mp = multiproc(nthreads=args.nproc)
-    args = [(gal, gdir, filesuffix, dependson, clobber) for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))]
+    args = []
+    for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
+        args.append(gal, gdir, filesuffix, dependson, clobber)
+        
     todo = np.array(mp.map(_missing_files_one, args))
 
     itodo = np.where(todo == 'todo')[0]
@@ -180,45 +193,6 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
 
     return suffix, todo_indices, done_indices, fail_indices
     
-def LSLGA_version():
-    """Archived versions. We used v2.0 for DR8, v3.0 through v7.0 were originally
-    pre-DR9 test catalogs (now archived), and DR9 will use v3.0.
-
-    #version = 'v5.0' # dr9e
-    #version = 'v6.0'  # dr9f,g
-    version = 'v7.0' 
-    
-    """
-    version = 'v3.0'  # DR9
-    return version
-
-def LSLGA_dir():
-    if 'LSLGA_DIR' not in os.environ:
-        print('Required ${LSLGA_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('LSLGA_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
-def LSLGA_data_dir():
-    if 'LSLGA_DATA_DIR' not in os.environ:
-        print('Required ${LSLGA_DATA_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('LSLGA_DATA_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
-def LSLGA_html_dir():
-    if 'LSLGA_HTML_DIR' not in os.environ:
-        print('Required ${LSLGA_HTML_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('LSLGA_HTML_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
 def get_raslice(ra):
     return '{:06d}'.format(int(ra*1000))[:3]
 
@@ -228,9 +202,9 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
 
     """
     if datadir is None:
-        datadir = LSLGA_data_dir()
+        datadir = SGA_data_dir()
     if htmldir is None:
-        htmldir = LSLGA_html_dir()
+        htmldir = SGA_html_dir()
 
     # Handle groups.
     if 'GROUP_NAME' in cat.colnames:
@@ -266,7 +240,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
                 customsky=False, preselect_sample=True, d25min=0.1, d25max=100.0):
-    """Read/generate the parent LSLGA catalog.
+    """Read/generate the parent SGA catalog.
 
     d25min in arcmin
 
@@ -275,10 +249,10 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     """
     import fitsio
-    from legacyhalos.brick import brickname as get_brickname
+    from legacyhalos.desiutil import brickname as get_brickname
             
-    version = LSLGA_version()
-    samplefile = os.path.join(LSLGA_dir(), 'sample', version, 'LSLGA-{}.fits'.format(version))
+    version = SGA_version()
+    samplefile = os.path.join(SGA_dir(), 'sample', version, 'SGA-{}.fits'.format(version))
 
     if first and last:
         if first > last:
@@ -307,7 +281,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         
     elif preselect_sample:
         cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_MULT',
-                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'ID', 'GALAXY', 'RA', 'DEC']
+                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'SGA_ID', 'GALAXY', 'RA', 'DEC']
         sample = fitsio.read(samplefile, columns=cols)
         rows = np.arange(len(sample))
 
@@ -320,7 +294,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
         brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
 
-        if False: # LSLGA-data-DR9-test3 sample
+        if False: # SGA-data-DR9-test3 sample
             # Select galaxies containing DR8-supplemented sources
             #ww = []
             #w1 = np.where(sample['GROUP_MULT'] > 1)[0]
@@ -331,9 +305,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(['DR8-' in nn for nn in sample['GROUP_NAME'][samplecut]])[0]
             rows = rows[these]
             
-        if False: # LSLGA-data-DR9-test2 sample
+        if False: # SGA-data-DR9-test2 sample
             #bb = [692770, 232869, 51979, 405760, 1319700, 1387188, 519486, 145096]
-            #ww = np.where(np.isin(sample['ID'], bb))[0]
+            #ww = np.where(np.isin(sample['SGA_ID'], bb))[0]
             #ff = get_brickname(sample['GROUP_RA'][ww], sample['GROUP_DEC'][ww])
             
             # Test sample-- 1 deg2 patch of sky
@@ -362,7 +336,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             rows = rows[brickcut]
 
         if False: # largest galaxies which may need reprocessing (just the north)
-            #bricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
+            #bricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             #brickcut = np.where(np.isin(brickname, bricklist))[0]
             #rows = rows[brickcut]
             m1 = sample['GROUP_DEC'][samplecut] > 30 # 32.375
@@ -370,8 +344,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             
         if False: # SAGA host galaxies
             from astrometry.libkd.spherematch import match_radec
-            saga = astropy.table.Table.read(os.path.join(LSLGA_dir(), 'sample', 'saga_hosts.csv'))
-            #fullsample = legacyhalos.LSLGA.read_sample(preselect_sample=False)
+            saga = astropy.table.Table.read(os.path.join(SGA_dir(), 'sample', 'saga_hosts.csv'))
+            #fullsample = legacyhalos.SGA.read_sample(preselect_sample=False)
             m1, m2, d12 = match_radec(sample['RA'][samplecut], sample['DEC'][samplecut],
                                       saga['RA'], saga['DEC'], 5/3600.0, nearest=True)
             #ww = np.where(np.isin(sample['GROUP_ID'], fullsample['GROUP_ID'][m1]))[0]
@@ -379,8 +353,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             rows = rows[m1]
 
         if False: # test fitting of all the DR8 candidates
-            fullsample = read_sample(preselect_sample=False, columns=['ID', 'GALAXY', 'GROUP_ID', 'GROUP_NAME', 'GROUP_DIAMETER', 'IN_DESI'])
-            ww = np.where(fullsample['ID'] >= 6e6)[0]
+            fullsample = read_sample(preselect_sample=False, columns=['SGA_ID', 'GALAXY', 'GROUP_ID', 'GROUP_NAME', 'GROUP_DIAMETER', 'IN_DESI'])
+            ww = np.where(fullsample['SGA_ID'] >= 5e6)[0]
             #galaxylist = np.unique(fullsample['GROUP_NAME'][ww])
             #print(len(ww), len(set(fullsample['GROUP_ID'][ww])))
             #for gid in set(fullsample['GROUP_ID'][ww]):
@@ -393,13 +367,13 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             rows = rows[these]
             
         if True: # DR9 bricklist
-            nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')
+            nbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
+            sbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')
             
-            #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
-            #nbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.join(LSLGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
+            #nbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
+            #sbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
+            #nbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
+            #sbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
 
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
@@ -497,11 +471,11 @@ def _get_diameter(ellipse):
 
     return diam, diamref
 
-def _build_ellipse_LSLGA_one(args):
+def _build_ellipse_SGA_one(args):
     """Wrapper function for the multiprocessing."""
-    return build_ellipse_LSLGA_one(*args)
+    return build_ellipse_SGA_one(*args)
 
-def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
+def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
     """Gather the ellipse-fitting results for a single galaxy.
 
     """
@@ -520,7 +494,7 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
 
     tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
     # These galaxies are missing because we don't have grz coverage. We want to
-    # keep them in the LSLGA catalog, though, so don't add them to the `reject`
+    # keep them in the SGA catalog, though, so don't add them to the `reject`
     # list here.
     if not os.path.isfile(tractorfile):
         print('Tractor catalog missing: {}'.format(tractorfile))
@@ -547,13 +521,13 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
         tractor = tractor[notgaia]
     assert('G2' not in set(tractor['REF_CAT']))
 
-    # Also remove LSLGA sources which do not belong to this group, because they
+    # Also remove SGA sources which do not belong to this group, because they
     # will be handled when we deal with *that* group. (E.g., PGC2190838 is in
     # the *mosaic* of NGC5899 but does not belong to the NGC5899 "group").
     ilslga = np.where(tractor['REF_CAT'] == refcat)[0]
     if len(ilslga) == 0:
-        raise ValueError('No LSLGA sources in the field of ID={}?!?'.format(onegal['ID']))
-    toss = np.where(np.logical_not(np.isin(tractor['REF_ID'][ilslga], fullsample['ID'])))[0]
+        raise ValueError('No SGA sources in the field of ID={}?!?'.format(onegal['SGA_ID']))
+    toss = np.where(np.logical_not(np.isin(tractor['REF_ID'][ilslga], fullsample['SGA_ID'])))[0]
     if len(toss) > 0:
         for tt in toss:
             print('  Removing non-primary ID={}'.format(tractor[ilslga][tt]['REF_ID']))
@@ -566,14 +540,14 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
     # sources are re-detected in production then so be it.
     keep = np.where(np.logical_or(tractor['TYPE'] == 'PSF', tractor['SHAPE_R'] > 0.1))[0]
     if len(keep) == 0:
-        raise ValueError('No Tractor sources left in the field of ID={}?!?'.format(onegal['ID']))
+        raise ValueError('No Tractor sources left in the field of ID={}?!?'.format(onegal['SGA_ID']))
     tractor = tractor[keep]
 
     # Next, add all the (new) columns we will need to the Tractor catalog. This
     # is a little wasteful because the non-frozen Tractor sources will be tossed
     # out at the end, but it's much easier and cleaner to do it this way.
-    onegal.rename_column('RA', 'LSLGA_RA')
-    onegal.rename_column('DEC', 'LSLGA_DEC')
+    onegal.rename_column('RA', 'SGA_RA')
+    onegal.rename_column('DEC', 'SGA_DEC')
     onegal.remove_column('INDEX')
     lslgacols = onegal.colnames
     tractorcols = tractor.colnames
@@ -606,14 +580,14 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
         tractor['{}_MAG_TOT'.format(filt.upper())] = np.zeros(len(tractor), np.float32) - 1
 
     tractor['PREBURNED'] = np.ones(len(tractor), bool)  # Everything was preburned but we only want to freeze the...
-    tractor['FREEZE'] = np.zeros(len(tractor), bool)    # ...LSLGA galaxies and sources in that galaxy's ellipse.
+    tractor['FREEZE'] = np.zeros(len(tractor), bool)    # ...SGA galaxies and sources in that galaxy's ellipse.
 
     # Next, gather up all the ellipse files, which *define* the sample. Also
     # track the galaxies that are dropped by Tractor and, separately, galaxies
     # which fail ellipse-fitting (or are not ellipse-fit because they're too
     # small).
     notractor, noellipse, largeshift = [], [], []
-    for igal, lslga_id in enumerate(np.atleast_1d(fullsample['ID'])):
+    for igal, lslga_id in enumerate(np.atleast_1d(fullsample['SGA_ID'])):
         ellipsefile = os.path.join(galaxydir, '{}-largegalaxy-{}-ellipse.fits'.format(galaxy, lslga_id))
 
         # Find this object in the Tractor catalog. If it's not here, it was
@@ -621,12 +595,12 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
         # Add it to the 'notractor' catalog.
         match = np.where((tractor['REF_CAT'] == refcat) * (tractor['REF_ID'] == lslga_id))[0]
         if len(match) > 1:
-            raise ValueError('Multiple matches should never happen but it did in the field of ID={}?!?'.format(onegal['ID']))
+            raise ValueError('Multiple matches should never happen but it did in the field of ID={}?!?'.format(onegal['SGA_ID']))
     
         if not os.path.isfile(ellipsefile):
             if len(match) == 0:
                 print('Tractor reject & not ellipse-fit: {} (ID={})'.format(fullsample['GALAXY'][igal], lslga_id))
-                notrac = Table(fullsample[igal]['ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
+                notrac = Table(fullsample[igal]['SGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
                                                 'D25_LEDA', 'PA_LEDA', 'BA_LEDA'])
                 notractor.append(notrac)
             else:
@@ -650,7 +624,7 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
                 # Also write out a separate catalog of these objects (including
                 # some info from the original Tractor catalog) so we can test
                 # and verify that all's well.
-                noell = Table(fullsample[igal]['ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
+                noell = Table(fullsample[igal]['SGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
                                                'D25_LEDA', 'PA_LEDA', 'BA_LEDA'])
                 noell['TRACTOR_RA'] = tractor['RA'][match]
                 noell['TRACTOR_DEC'] = tractor['DEC'][match]
@@ -667,7 +641,7 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
             if ellipse['largeshift']:
                 tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['largeshift']
                 
-                #badcen = Table(fullsample[igal]['ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
+                #badcen = Table(fullsample[igal]['SGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
                 #                               'D25_LEDA', 'PA_LEDA', 'BA_LEDA'])
                 #badcen['TRACTOR_RA'] = tractor['RA'][match]
                 #badcen['TRACTOR_DEC'] = tractor['DEC'][match]
@@ -699,17 +673,17 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
                 #plt.savefig('junk.png')
                 #plt.scatter(tractor['ra'][bb], tractor['dec'][bb], s=50, color='k')
 
-            # This should never happen since the LSLGA galaxy itself is in the ellipse!
+            # This should never happen since the SGA galaxy itself is in the ellipse!
             if len(inellipse) == 0:
-                raise ValueError('No galaxies in the ellipse-of-influence in the field of ID={}?!?'.format(onegal['ID']))
+                raise ValueError('No galaxies in the ellipse-of-influence in the field of ID={}?!?'.format(onegal['SGA_ID']))
 
             #print('Freezing the Tractor parameters of {} objects in the ellipse of ID={}.'.format(len(inellipse), lslga_id))
             tractor['FREEZE'][inellipse] = True
 
             # Populate the output catalog--
             thisgal = Table(fullsample[igal])
-            thisgal.rename_column('RA', 'LSLGA_RA')
-            thisgal.rename_column('DEC', 'LSLGA_DEC')
+            thisgal.rename_column('RA', 'SGA_RA')
+            thisgal.rename_column('DEC', 'SGA_DEC')
             thisgal.remove_column('INDEX')
             for col in thisgal.colnames:
                 tractor[col][match] = thisgal[col]
@@ -731,7 +705,7 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
     # single dropped source, e.g., DR8-2194p447-894).
     keep = np.where(tractor['FREEZE'])[0]
     if len(keep) == 0:
-        #raise ValueError('No frozen galaxies in the field of ID={}?!?'.format(onegal['ID']))
+        #raise ValueError('No frozen galaxies in the field of ID={}?!?'.format(onegal['SGA_ID']))
         tractor = tractor[keep]
 
     if len(notractor) > 0:
@@ -741,8 +715,8 @@ def build_ellipse_LSLGA_one(onegal, fullsample, refcat='L7'):
 
     return tractor, notractor, noellipse, None
 
-def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
-    """Gather all the ellipse-fitting results and build the final LSLGA catalog.
+def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False):
+    """Gather all the ellipse-fitting results and build the final SGA catalog.
 
     """
     import fitsio
@@ -752,7 +726,7 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     from legacypipe.reference import get_large_galaxy_version
         
     # This is a little fragile.
-    version = LSLGA_version()
+    version = SGA_version()
     refcat, _ = get_large_galaxy_version(os.getenv('LARGEGALAXIES_CAT'))
     lslgafile = os.getenv('LARGEGALAXIES_CAT')
     print('Using LARGEGALAXIES_CAT={}'.format(lslgafile))
@@ -762,21 +736,21 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    outdir = LSLGA_data_dir()
-    outfile = os.path.join(outdir, 'LSLGA-ellipse-{}.fits'.format(version))
+    outdir = SGA_data_dir()
+    outfile = os.path.join(outdir, 'SGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
         return
 
-    notractorfile = os.path.join(outdir, 'LSLGA-notractor-{}.fits'.format(version))
-    noellipsefile = os.path.join(outdir, 'LSLGA-noellipse-{}.fits'.format(version))
-    nogrzfile = os.path.join(outdir, 'LSLGA-nogrz-{}.fits'.format(version))
+    notractorfile = os.path.join(outdir, 'SGA-notractor-{}.fits'.format(version))
+    noellipsefile = os.path.join(outdir, 'SGA-noellipse-{}.fits'.format(version))
+    nogrzfile = os.path.join(outdir, 'SGA-nogrz-{}.fits'.format(version))
 
     mp = multiproc(nthreads=nproc)
     args = []
     for onegal in sample:
         args.append((onegal, fullsample[fullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat))
-    rr = mp.map(_build_ellipse_LSLGA_one, args)
+    rr = mp.map(_build_ellipse_SGA_one, args)
     rr = list(zip(*rr))
 
     cat = list(filter(None, rr[0]))
@@ -812,7 +786,7 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     #        print(d1, d2)
     print('Gathered {} pre-burned and frozen galaxies.'.format(len(cat)))
     print('  Frozen (all): {}'.format(np.sum(cat['FREEZE'])))
-    print('  Frozen (LSLGA): {}'.format(np.sum(cat['FREEZE'] * (cat['REF_CAT'] == refcat))))
+    print('  Frozen (SGA): {}'.format(np.sum(cat['FREEZE'] * (cat['REF_CAT'] == refcat))))
     print('  Pre-burned: {}'.format(np.sum(cat['PREBURNED'])))
 
     # We only have frozen galaxies here, but whatever--
@@ -820,35 +794,35 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     ilslga = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
 
     cat = cat[ifreeze]
-    print('Keeping {} frozen galaxies, of which {} are LSLGA.'.format(len(ifreeze), len(ilslga)))
+    print('Keeping {} frozen galaxies, of which {} are SGA.'.format(len(ifreeze), len(ilslga)))
 
-    # Read the full parent LSLGA catalog and add all the Tractor columns.
+    # Read the full parent SGA catalog and add all the Tractor columns.
     lslga, hdr = fitsio.read(lslgafile, header=True)
     lslga = Table(lslga)
     print('Read {} galaxies from {}'.format(len(lslga), lslgafile))
 
-    # Remove the already-burned LSLGA galaxies so we don't double-count them--
+    # Remove the already-burned SGA galaxies so we don't double-count them--
     ilslga2 = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
-    rem = np.where(np.isin(lslga['ID'], cat['ID'][ilslga2]))[0]
-    print('Removing {} pre-burned LSLGA galaxies from the parent catalog, so we do not double-count them.'.format(len(rem)))
+    rem = np.where(np.isin(lslga['SGA_ID'], cat['SGA_ID'][ilslga2]))[0]
+    print('Removing {} pre-burned SGA galaxies from the parent catalog, so we do not double-count them.'.format(len(rem)))
     lslga = lslga[np.delete(np.arange(len(lslga)), rem)] # remove duplicates
 
     # Next, remove galaxies that were either dropped by Tractor in pre-burning
     # or which were not ellipse-fit (the latter are in the Tractor catalog but
     # with REF_CAT='').
     if len(notractor) > 0:
-        print('Removing {} LSLGA galaxies dropped by Tractor.'.format(len(notractor)))
-        rem = np.where(np.isin(lslga['ID'], notractor['ID']))[0]
+        print('Removing {} SGA galaxies dropped by Tractor.'.format(len(notractor)))
+        rem = np.where(np.isin(lslga['SGA_ID'], notractor['SGA_ID']))[0]
         assert(len(rem) == len(notractor))
         lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
     if len(noellipse) > 0:
-        print('Removing {} LSLGA galaxies not ellipse-fit.'.format(len(noellipse)))
-        rem = np.where(np.isin(lslga['ID'], noellipse['ID']))[0]
+        print('Removing {} SGA galaxies not ellipse-fit.'.format(len(noellipse)))
+        rem = np.where(np.isin(lslga['SGA_ID'], noellipse['SGA_ID']))[0]
         assert(len(rem) == len(noellipse))
         lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
 
-    lslga.rename_column('RA', 'LSLGA_RA')
-    lslga.rename_column('DEC', 'LSLGA_DEC')
+    lslga.rename_column('RA', 'SGA_RA')
+    lslga.rename_column('DEC', 'SGA_DEC')
     for col in cat.colnames:
         if col in lslga.colnames:
             #print('  Skipping existing column {}'.format(col))
@@ -863,40 +837,40 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
                     lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)
                 else:
                     lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)-1
-    lslga['RA'][:] = lslga['LSLGA_RA']
-    lslga['DEC'][:] = lslga['LSLGA_DEC']
+    lslga['RA'][:] = lslga['SGA_RA']
+    lslga['DEC'][:] = lslga['SGA_DEC']
 
     # Stack!
     skipfull = False
     if skipfull:
-        print('Temporarily leaving off the original LSLGA!')
+        print('Temporarily leaving off the original SGA!')
     else:
         out = vstack((lslga, cat))
     del lslga, cat
-    out = out[np.argsort(out['ID'])]
-    out = vstack((out[out['ID'] != -1], out[out['ID'] == -1]))
+    out = out[np.argsort(out['SGA_ID'])]
+    out = vstack((out[out['SGA_ID'] != -1], out[out['SGA_ID'] == -1]))
 
     try:
         if not skipfull:
             # This may not happen if galaxies are dropped--
-            #chk1 = np.where(np.isin(out['ID'], fullsample['ID']))[0]
+            #chk1 = np.where(np.isin(out['SGA_ID'], fullsample['SGA_ID']))[0]
             #assert(len(chk1) == len(fullsample))
             if len(nogrz) > 0:
-                chk2 = np.where(np.isin(out['ID'], nogrz['ID']))[0]
+                chk2 = np.where(np.isin(out['SGA_ID'], nogrz['SGA_ID']))[0]
                 assert(len(chk2) == len(nogrz))
             if len(notractor) > 0:
-                chk3 = np.where(np.isin(out['ID'], notractor['ID']))[0]
+                chk3 = np.where(np.isin(out['SGA_ID'], notractor['SGA_ID']))[0]
                 assert(len(chk3) == 0)
             if len(noellipse) > 0:
-                chk4 = np.where(np.isin(out['ID'], noellipse['ID']))[0]
+                chk4 = np.where(np.isin(out['SGA_ID'], noellipse['SGA_ID']))[0]
                 assert(len(chk4) == 0)
             if len(nogrz) > 0 and len(notractor) > 0:            
-                chk5 = np.where(np.isin(notractor['ID'], nogrz['ID']))[0]
+                chk5 = np.where(np.isin(notractor['SGA_ID'], nogrz['SGA_ID']))[0]
                 assert(len(chk5) == 0)
         assert(np.all(out['RA'] > 0))
         assert(np.all(np.isfinite(out['PA'])))
         assert(np.all(np.isfinite(out['BA'])))
-        ww = np.where(out['ID'] != -1)[0]
+        ww = np.where(out['SGA_ID'] != -1)[0]
         assert(np.all((out['PA'][ww] >= 0) * (out['PA'][ww] <= 180)))
         assert(np.all((out['BA'][ww] > 0) * (out['BA'][ww] <= 1.0)))
     except:
@@ -904,7 +878,7 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
 
     print('Writing {} galaxies to {}'.format(len(out), outfile))
     hdrversion = 'L{}-ELLIPSE'.format(version[1:2]) # fragile!
-    hdr['LSLGAVER'] = hdrversion
+    hdr['SGAVER'] = hdrversion
     fitsio.write(outfile, out.as_array(), header=hdr, clobber=True)
 
     # Write the KD-tree version
@@ -913,7 +887,7 @@ def build_ellipse_LSLGA(sample, fullsample, nproc=1, clobber=False):
     print(cmd)
     _ = os.system(cmd)
 
-    cmd = 'modhead {} LSLGAVER {}'.format(kdoutfile, hdrversion)
+    cmd = 'modhead {} SGAVER {}'.format(kdoutfile, hdrversion)
     print(cmd)
     _ = os.system(cmd)
 
@@ -981,7 +955,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
         html.write('</style>\n')
 
-        html.write('<h1>Legacy Surveys Large Galaxy Atlas (LSLGA)</h1>\n')
+        html.write('<h1>Siena Galaxy Atlas 2020 (SGA-2020)</h1>\n')
         if maketrends:
             html.write('<p>\n')
             html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
@@ -1018,10 +992,10 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
 
                 html.write('<tr>\n')
                 #html.write('<td>{:g}</td>\n'.format(count))
-                #print(gal['INDEX'], gal['LSLGA_ID'], gal['GALAXY'])
+                #print(gal['INDEX'], gal['SGA_ID'], gal['GALAXY'])
                 html.write('<td><a href="{0}"><img src="{1}" height="auto" width="100%"></a></td>\n'.format(pngfile1, thumbfile1))
                 html.write('<td>{}</td>\n'.format(gal['INDEX']))
-                html.write('<td>{}</td>\n'.format(gal['ID']))
+                html.write('<td>{}</td>\n'.format(gal['SGA_ID']))
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
                 html.write('<td>{:.7f}</td>\n'.format(ra1))
                 html.write('<td>{:.7f}</td>\n'.format(dec1))
@@ -1123,7 +1097,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
             # We just care about the galaxies in our sample
             if prefix == 'largegalaxy':
                 wt, ws = [], []
-                for ii, sid in enumerate(sample['ID']):
+                for ii, sid in enumerate(sample['SGA_ID']):
                     ww = np.where(tractor['ref_id'] == sid)[0]
                     if len(ww) > 0:
                         wt.append(ww)
@@ -1139,7 +1113,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
                     srt = np.argsort(tractor['flux_r'])[::-1]
                     tractor = tractor[srt]
                     sample = sample[srt]
-                    assert(np.all(tractor['ref_id'] == sample['ID']))
+                    assert(np.all(tractor['ref_id'] == sample['SGA_ID']))
 
         return nccds, tractor, sample
 
@@ -1169,9 +1143,9 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
 
         html.write('<tr>\n')
         #html.write('<td>{:g}</td>\n'.format(ii))
-        #print(gal['INDEX'], gal['LSLGA_ID'], gal['GALAXY'])
+        #print(gal['INDEX'], gal['SGA_ID'], gal['GALAXY'])
         html.write('<td>{}</td>\n'.format(gal['INDEX']))
-        html.write('<td>{}</td>\n'.format(gal['ID']))
+        html.write('<td>{}</td>\n'.format(gal['SGA_ID']))
         html.write('<td>{}</td>\n'.format(gal['GROUP_NAME']))
         html.write('<td>{:.7f}</td>\n'.format(ra1))
         html.write('<td>{:.7f}</td>\n'.format(dec1))
@@ -1201,7 +1175,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
             #if '031705' in gal['GALAXY']:
             #    print(groupgal['GALAXY'])
             html.write('<tr>\n')
-            html.write('<td>{}</td>\n'.format(groupgal['ID']))
+            html.write('<td>{}</td>\n'.format(groupgal['SGA_ID']))
             html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
             typ = groupgal['MORPHTYPE'].strip()
             if typ == '' or typ == 'nan':
@@ -1510,8 +1484,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     import legacyhalos.io
     from legacyhalos.coadds import _mosaic_width
 
-    datadir = LSLGA_data_dir()
-    htmldir = LSLGA_html_dir()
+    datadir = SGA_data_dir()
+    htmldir = SGA_html_dir()
     if not os.path.exists(htmldir):
         os.makedirs(htmldir)
 

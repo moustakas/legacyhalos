@@ -662,7 +662,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 
     # This is fragile, but copy over a specific set of keys from the data dictionary--
     copykeys = ['bands', 'refband', 'refpixscale',
-                '{}_width'.format(refband), '{}_height'.format(refband),
+                'refband_width', 'refband_height',
                 #'psfsigma_g', 'psfsigma_r', 'psfsigma_z',
                 'psfsize_g', #'psfsize_min_g', 'psfsize_max_g',
                 'psfdepth_g', #'psfdepth_min_g', 'psfdepth_max_g', 
