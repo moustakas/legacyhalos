@@ -252,7 +252,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     from legacyhalos.desiutil import brickname as get_brickname
             
     version = SGA_version()
-    samplefile = os.path.join(SGA_dir(), 'sample', version, 'SGA-{}.fits'.format(version))
+    samplefile = os.path.join(SGA_dir(), 'sample', version, 'SGA-parent-{}.fits'.format(version))
 
     if first and last:
         if first > last:
