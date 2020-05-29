@@ -1,8 +1,8 @@
 """
-legacyhalos.LSLGA
-=================
+legacyhalos.SGA
+===============
 
-Code to deal with the LSLGA sample and project.
+Code to support the SGA sample and project.
 
 """
 import os, shutil, pdb
@@ -99,38 +99,9 @@ def mpi_args():
 
     return args
 
-def _missing_files_one(args):
-    """Wrapper for the multiprocessing."""
-    return missing_files_one(*args)
-
-def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
-    checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
-    #print('missing_files_one: ', checkfile)
-    if os.path.exists(checkfile) and clobber is False:
-        # Is the stage that this stage depends on done, too?
-        if dependson is not None:
-            dependsfile = os.path.join(galaxydir, '{}{}'.format(galaxy, dependson))
-            if os.path.exists(dependsfile):
-                return 'done'
-            else:
-                return 'todo'
-        else:
-            return 'done'
-    else:
-        #print('missing_files_one: ', checkfile)
-        # Did this object fail?
-        if '.isdone' in checkfile:
-            failfile = checkfile.replace('.isdone', '.isfail')
-            if os.path.exists(failfile):
-                if clobber is False:
-                    return 'fail'
-                else:
-                    os.remove(failfile)
-                    return 'todo'
-        return 'todo'
-    
 def missing_files(args, sample, size=1, clobber_overwrite=None):
     from astrometry.util.multiproc import multiproc
+    from legacyhalos.io import _missing_files_one
 
     dependson = None
     galaxy, galaxydir = get_galaxy_galaxydir(sample)        

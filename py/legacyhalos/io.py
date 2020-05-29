@@ -36,91 +36,36 @@ def legacyhalos_header(hdr=None):
 
     return hdr
     
-def missing_files_groups(args, sample, size, htmldir=None):
-    """Simple task-specific wrapper on missing_files.
+def _missing_files_one(args):
+    """Wrapper for the multiprocessing."""
+    return missing_files_one(*args)
 
-    """
-    if args.coadds:
-        if args.sdss:
-            suffix = 'sdss-coadds'
+def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
+    checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
+    #print('missing_files_one: ', checkfile)
+    if os.path.exists(checkfile) and clobber is False:
+        # Is the stage that this stage depends on done, too?
+        if dependson is not None:
+            dependsfile = os.path.join(galaxydir, '{}{}'.format(galaxy, dependson))
+            if os.path.exists(dependsfile):
+                return 'done'
+            else:
+                return 'todo'
         else:
-            suffix = 'coadds'
-    elif args.custom_coadds:
-        if args.sdss:
-            suffix = 'sdss-custom-coadds'
-        else:
-            suffix = 'custom-coadds'
-    elif args.ellipse:
-        if args.sdss:
-            suffix = 'sdss-ellipse'
-        else:
-            suffix = 'ellipse'
-    elif args.sersic:
-        suffix = 'sersic'
-    elif args.sky:
-        suffix = 'sky'
-    elif args.htmlplots:
-        suffix = 'html'
+            return 'done'
     else:
-        suffix = ''        
-
-    if suffix != '':
-        groups = missing_files(sample, filetype=suffix, size=size, sdss=args.sdss,
-                               clobber=args.clobber, htmldir=htmldir)
-    else:
-        groups = []        
-
-    return suffix, groups
-
-def missing_files(sample, filetype='coadds', size=1, htmldir=None,
-                  sdss=False, clobber=False):
-    """Find missing data of a given filetype."""    
-
-    if filetype == 'coadds':
-        filesuffix = '-pipeline-resid-grz.jpg'
-    elif filetype == 'custom-coadds':
-        filesuffix = '-custom-resid-grz.jpg'
-    elif filetype == 'ellipse':
-        filesuffix = '-ellipsefit.p'
-    elif filetype == 'sersic':
-        filesuffix = '-sersic-single.p'
-    elif filetype == 'html':
-        filesuffix = '-ccdpos.png'
-        #filesuffix = '-sersic-exponential-nowavepower.png'
-    elif filetype == 'sdss-coadds':
-        filesuffix = '-sdss-image-gri.jpg'
-    elif filetype == 'sdss-custom-coadds':
-        filesuffix = '-sdss-resid-gri.jpg'
-    elif filetype == 'sdss-ellipse':
-        filesuffix = '-sdss-ellipsefit.p'
-    else:
-        print('Unrecognized file type!')
-        raise ValueError
-
-    if type(sample) is astropy.table.row.Row:
-        ngal = 1
-    else:
-        ngal = len(sample)
-    indices = np.arange(ngal)
-    todo = np.ones(ngal, dtype=bool)
-
-    if filetype == 'html':
-        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir, html=True)
-    else:
-        galaxy, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir)
-
-    for ii, (gal, gdir) in enumerate( zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)) ):
-        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
-        if os.path.exists(checkfile) and clobber is False:
-            todo[ii] = False
-
-    if np.sum(todo) == 0:
-        return list()
-    else:
-        indices = indices[todo]
-        
-    return np.array_split(indices, size)
-
+        #print('missing_files_one: ', checkfile)
+        # Did this object fail?
+        if '.isdone' in checkfile:
+            failfile = checkfile.replace('.isdone', '.isfail')
+            if os.path.exists(failfile):
+                if clobber is False:
+                    return 'fail'
+                else:
+                    os.remove(failfile)
+                    return 'todo'
+        return 'todo'
+    
 def read_all_ccds(dr='dr9'):
     """Read the CCDs files, treating DECaLS and BASS+MzLS separately.
 
