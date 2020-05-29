@@ -278,7 +278,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     """
     import fitsio
-    from legacyhalos.brick import brickname as get_brickname
+    from legacyhalos.desiutil import brickname as get_brickname
             
     version = LSLGA_version()
     samplefile = os.path.join(LSLGA_dir(), 'sample', version, 'LSLGA-{}.fits'.format(version))
