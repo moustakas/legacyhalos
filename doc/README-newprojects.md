@@ -1,5 +1,4 @@
-New Projects
-============
+# New Projects
 
 This README briefly describes how the *legacyhalos* code base can be used on new
 projects.  Every project is different, so using this repository will require
@@ -13,8 +12,10 @@ variable outside of any of the *legacyhalos* software, so it's a good idea to
 add this variable to your .bashrc startup file (and the 'bin' subdirectory
 pointing to your project, which we will create in a moment, to your path):
 
-  export LEGACYHALOS_CODE_DIR=/path/to/legacyhalos
-  export PATH=${LEGACYHALOS_CODE_DIR}/bin/myproject:${PATH}
+```bash
+export LEGACYHALOS_CODE_DIR=/path/to/legacyhalos
+export PATH=${LEGACYHALOS_CODE_DIR}/bin/myproject:${PATH}
+```
 
 2. Next, create a new directory in '$LEGACYHALOS_CODE_DIR/bin' with the name of
 your project, e.g.:
