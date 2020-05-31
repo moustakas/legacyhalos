@@ -51,6 +51,7 @@ ways, as described in more detail below: (1) interactively with a single node;
 
 1. To run the code interactively with a single node from a clean login, do:
 
-  salloc -N 1 -C haswell -A desi -t 04:00:00 --qos interactive -L SCRATCH,cfs
+  salloc -N 1 -C haswell -A ACCOUNT -t 01:00:00 --qos interactive -L SCRATCH,cfs
+  
   
   

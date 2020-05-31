@@ -1,6 +1,10 @@
 #! /bin/bash
 # Shell script to set the environment variables for SGA project.
 
+# For a power-user / testing.
+export LEGACYPIPE_CODE_DIR=/global/homes/i/ioannis/repos/git/legacypipe
+export PYTHONPATH=$LEGACYPIPE_DIR/py:$PYTHONPATH
+
 # Specifiy the location of the input and output data.
 export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/SGA
 export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/SGA-data-dr8candidates
@@ -10,10 +14,6 @@ export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/SGA-html-dr
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 export PATH=$LEGACYHALOS_CODE_DIR/bin:$PATH
 export PYTHONPATH=$LEGACYHALOS_CODE_DIR/py:$PYTHONPATH
-
-# For a power-user:
-export LEGACYPIPE_CODE_DIR=/global/homes/i/ioannis/repos/git/legacypipe
-export PYTHONPATH=$LEGACYPIPE_DIR/py:$PYTHONPATH
 
 # Pipeline variables---only change these if you know what you're doing!
 export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9

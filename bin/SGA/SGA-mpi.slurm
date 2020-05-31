@@ -15,6 +15,9 @@
 
 # sbatch SGA-mpi.slurm
 
+echo $LEGACYHALOS_CODE_DIR
+time srun -N 1 -n 1 -c 1 shifter $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh bob 1
+
 # coadds
 #time srun -N 64 -n 512 -c 4 shifter /global/u2/i/ioannis/repos/git/legacyhalos/bin/SGA/SGA-mpi.sh
-time srun -N 1 -n 1 -c 1 shifter /global/u2/i/ioannis/repos/git/legacyhalos/bin/SGA/SGA-mpi.sh
+#time srun -N 1 -n 1 -c 1 shifter /global/u2/i/ioannis/repos/git/legacyhalos/bin/SGA/SGA-mpi.sh
