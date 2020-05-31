@@ -9,7 +9,7 @@ In this example let's create a project called 'myproject':
 1. Clone the *legacyhalos* repository and set an environment variable pointing
 to your local checkout. Unfortunately we're going to need this environment
 variable outside of any of the *legacyhalos* software, so it's a good idea to
-add this variable to your .bashrc startup file (and the 'bin' subdirectory
+add this variable to your *.bashrc* startup file (and the 'bin' subdirectory
 pointing to your project, which we will create in a moment, to your path):
 
 ```bash
@@ -20,23 +20,29 @@ export PATH=${LEGACYHALOS_CODE_DIR}/bin/myproject:${PATH}
 2. Next, create a new directory in '$LEGACYHALOS_CODE_DIR/bin' with the name of
 your project, e.g.:
 
-  mkdir $LEGACYHALOS_CODE_DIR/bin/myproject
+```bash
+mkdir $LEGACYHALOS_CODE_DIR/bin/myproject
+```
 
 In this directory we'll need three files: a file containing various environment
 variables; a shell script which has been customized to your project; and a slurm
 script to be used in production, e.g.:
 
-  $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi.sh
-  $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi-env
-  $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi-slurm
-  $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-load-shifterimg
+```bash
+$LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi.sh
+$LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi-env
+$LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi-slurm
+$LEGACYHALOS_CODE_DIR/bin/myproject/myproject-load-shifterimg
+```
 
-[Note: The '-mpi' suffix is historical and not needed.]
+[Note: The `-mpi` suffix is historical and not needed.]
 
 3. Create a module in '$LEGACYHALOS_CODE_DIR/py/legacyhalos' which will contain
 the custom code for your project, e.g.:
 
-  $LEGACYHALOS_CODE_DIR/py/legacyhalos/myproject.py
+```bash
+$LEGACYHALOS_CODE_DIR/py/legacyhalos/myproject.py
+```
 
 This module can contain whatever you want, but at minimum it will need to
 contain functions to:
