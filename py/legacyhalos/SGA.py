@@ -527,11 +527,11 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
     # the *mosaic* of NGC5899 but does not belong to the NGC5899 "group").
     ilslga = np.where(tractor['REF_CAT'] == refcat)[0]
     if len(ilslga) == 0:
-        raise ValueError('No SGA sources in the field of ID={}?!?'.format(onegal['SGA_ID']))
+        raise ValueError('No SGA sources in the field of SGA_ID={}?!?'.format(onegal['SGA_ID']))
     toss = np.where(np.logical_not(np.isin(tractor['REF_ID'][ilslga], fullsample['SGA_ID'])))[0]
     if len(toss) > 0:
         for tt in toss:
-            print('  Removing non-primary ID={}'.format(tractor[ilslga][tt]['REF_ID']))
+            print('  Removing non-primary SGA_ID={}'.format(tractor[ilslga][tt]['REF_ID']))
         keep = np.delete(np.arange(len(tractor)), ilslga[toss])
         tractor = tractor[keep]
 
@@ -541,7 +541,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
     # sources are re-detected in production then so be it.
     keep = np.where(np.logical_or(tractor['TYPE'] == 'PSF', tractor['SHAPE_R'] > 0.1))[0]
     if len(keep) == 0:
-        raise ValueError('No Tractor sources left in the field of ID={}?!?'.format(onegal['SGA_ID']))
+        raise ValueError('No Tractor sources left in the field of SGA_ID={}?!?'.format(onegal['SGA_ID']))
     tractor = tractor[keep]
 
     # Next, add all the (new) columns we will need to the Tractor catalog. This
@@ -957,7 +957,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
         html.write('</style>\n')
 
-        html.write('<h1>Siena Galaxy Atlas 2020 (SGA-2020)</h1>\n')
+        html.write('<h1>Siena Galaxy Atlas 2020 (SGA 2020)</h1>\n')
         if maketrends:
             html.write('<p>\n')
             html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
@@ -1270,18 +1270,18 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
                                                      galaxyid=galaxyid, verbose=False)
             if bool(ellipse):
                 html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                    ellipse['D25_LEDA']*60/2, ellipse['PA_LEDA'], 1-ellipse['BA_LEDA']))
+                    ellipse['d25_leda']*60/2, ellipse['pa_leda'], 1-ellipse['ba_leda']))
                 html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                    ellipse['MAJORAXIS']*ellipse['REFPIXSCALE'], ellipse['PA'], ellipse['EPS']))
+                    ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
 
                 rr = []
-                for rad in [ellipse['RADIUS_SB24'], ellipse['RADIUS_SB25'], ellipse['RADIUS_SB26']]:
+                for rad in [ellipse['radius_sb24'], ellipse['radius_sb25'], ellipse['radius_sb26']]:
                     if rad < 0:
                         rr.append('...')
                     else:
                         rr.append('{:.3f}'.format(rad))
                 html.write('<td>{}</td><td>{}</td><td>{}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                    rr[0], rr[1], rr[2], ellipse['PA'], ellipse['EPS']))
+                    rr[0], rr[1], rr[2], ellipse['pa'], ellipse['eps']))
             else:
                 html.write('<td>...</td><td>...</td><td>...</td>\n')
                 html.write('<td>...</td><td>...</td><td>...</td>\n')
