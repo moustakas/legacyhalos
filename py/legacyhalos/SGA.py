@@ -296,7 +296,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
         brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
 
-        if False: # SGA-data-DR9-test3 sample
+        if True: # SGA-data-DR9-dr8candidates
             # Select galaxies containing DR8-supplemented sources
             #ww = []
             #w1 = np.where(sample['GROUP_MULT'] > 1)[0]
@@ -368,7 +368,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
             
-        if True: # DR9 bricklist
+        if False: # DR9 bricklist
             nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
             sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')            
             #nbricklist = np.loadtxt(os.path.joinlegacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
@@ -457,14 +457,14 @@ def _get_diameter(ellipse):
     diam in arcmin
 
     """
-    if ellipse['RADIUS_SB26'] > 0:
-        diam, diamref = 2 * ellipse['RADIUS_SB26'] / 60, 'SB26' # [arcmin]
-    elif ellipse['RADIUS_SB25'] > 0:
-        diam, diamref = 1.2 * 2 * ellipse['RADIUS_SB25'] / 60, 'SB25' # [arcmin]
+    if ellipse['radius_sb26'] > 0:
+        diam, diamref = 2 * ellipse['radius_sb26'] / 60, 'SB26' # [arcmin]
+    elif ellipse['radius_sb25'] > 0:
+        diam, diamref = 1.2 * 2 * ellipse['radius_sb25'] / 60, 'SB25' # [arcmin]
     #elif ellipse['radius_sb24'] > 0:
     #    diam, diamref = 1.5 * ellipse['radius_sb24'] * 2 / 60, 'SB24' # [arcmin]
     else:
-        diam, diamref = 1.2 * ellipse['D25_LEDA'], 'LEDA' # [arcmin]
+        diam, diamref = 1.2 * ellipse['d25_leda'], 'LEDA' # [arcmin]
         #diam, diamref = 2 * ellipse['majoraxis'] * ellipse['refpixscale'] / 60, 'WGHT' # [arcmin]
 
     if diam <= 0:
@@ -640,7 +640,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
 
             # Objects with "largeshift" shifted positions significantly during
             # ellipse-fitting, which *may* point to a problem. Add a bit--
-            if ellipse['LARGESHIFT']:
+            if ellipse['largeshift']:
                 tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['largeshift']
                 
                 #badcen = Table(fullsample[igal]['SGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
@@ -654,7 +654,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
 
             # Get the ellipse-derived geometry, which we'll add to the Tractor
             # catalog below.
-            pa, ba = ellipse['PA'], 1 - ellipse['EPS']
+            pa, ba = ellipse['pa'], 1 - ellipse['eps']
             diam, diamref = _get_diameter(ellipse)
             
             # Next find all the objects in the "ellipse-of-influence" of this
@@ -697,11 +697,11 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
             tractor['DIAM_REF'][match] = diamref
 
             for radkey in radkeys:
-                tractor[radkey][match] = ellipse[radkey]
+                tractor[radkey][match] = ellipse[radkey.lower()]
                 for filt in ['G', 'R', 'Z']:
                     magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt))
-                    tractor[magkey][match] = ellipse[magkey]
-                    tractor['{}_MAG_TOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt)]
+                    tractor[magkey][match] = ellipse[magkey.lower()]
+                    tractor['{}_MAG_TOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt).lower()]
 
     # Keep just frozen sources. Can be empty (e.g., if a field contains just a
     # single dropped source, e.g., DR8-2194p447-894).

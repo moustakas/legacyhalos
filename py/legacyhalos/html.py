@@ -38,7 +38,7 @@ def get_cutouts_one(group, clobber=False):
         print(cmd)
         os.system(cmd)
 
-def get_cutouts(groupsample, use_nproc=nproc, clobber=False):
+def get_cutouts(groupsample, use_nproc=1, clobber=False):
     """Get viewer cutouts of the whole sample."""
 
     cutoutargs = list()
@@ -52,7 +52,6 @@ def get_cutouts(groupsample, use_nproc=nproc, clobber=False):
     else:
         for args in cutoutargs:
             _get_cutouts_one(args)
-
     return
 
 def html_javadate():

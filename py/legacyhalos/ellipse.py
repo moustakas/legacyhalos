@@ -383,12 +383,12 @@ def _unpack_isofit(ellipsefit, filt, isofit):
     """
     ellipsefit.update({
         '{}_sma'.format(filt): isofit.sma.astype('f4'),
+        '{}_intens'.format(filt): isofit.intens.astype('f4'),
+        '{}_intens_err'.format(filt): isofit.int_err.astype('f4'),
         '{}_eps'.format(filt): isofit.eps.astype('f4'),
         '{}_eps_err'.format(filt): isofit.ellip_err.astype('f4'),
         '{}_pa'.format(filt): isofit.pa.astype('f4'),
         '{}_pa_err'.format(filt): isofit.pa_err.astype('f4'),
-        '{}_intens'.format(filt): isofit.intens.astype('f4'),
-        '{}_intens_err'.format(filt): isofit.int_err.astype('f4'),
         '{}_x0'.format(filt): isofit.x0.astype('f4'),
         '{}_x0_err'.format(filt): isofit.x0_err.astype('f4'),
         '{}_y0'.format(filt): isofit.y0.astype('f4'),
@@ -828,6 +828,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                                  largegalaxy=largegalaxy,
                                                  return_sample=True)
 
+
     if bool(data):
         if data['failed']: # all galaxies dropped
             return 1, filesuffix
@@ -839,8 +840,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             if largegalaxy:
                 maxsma = 2 * data['mge'][igal]['majoraxis'] # [pixels]
                 # Supplement the fit results dictionary with some additional info.
-                samp = sample[sample['ID'] == central_galaxy_id]
-                galaxyinfo = {'id': (central_galaxy_id, ''),
+                samp = sample[sample['SGA_ID'] == central_galaxy_id]
+                galaxyinfo = {'sga_id': (central_galaxy_id, ''),
                               'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
                 for key, unit in zip(['ra', 'dec', 'pgc', 'pa_leda', 'ba_leda', 'd25_leda'],
                                      [u.deg, u.deg, '', u.deg, '', u.arcmin]):
