@@ -4,12 +4,14 @@ This README briefly describes how the `legacyhalos` code base can be used on new
 projects.  Every project is different, so using this repository will require
 some customized code.
 
+## Initial Setup
+
 In this example let's create a project called 'myproject':
 
 1. Clone the `legacyhalos` repository and set an environment variable pointing
 to your local checkout. Unfortunately we're going to need this environment
 variable outside of any of the `legacyhalos` software, so it's a good idea to
-add this variable to your *.bashrc* startup file (and the `bin` subdirectory
+add this variable to your `.bashrc` startup file (as well as the `bin` subdirectory
 pointing to your project, which we will create in a moment, to your path):
 
 ```bash
@@ -51,6 +53,8 @@ contain functions to:
   - find missing/completed files;
   - specify the command-line arguments for your wrapper script; and
   - generate the HTML output.
+
+## Running the code
 
 Once all these pieces are in place you can process the sample three different
 ways, as described in more detail below: (1) interactively with a single node;
