@@ -14,6 +14,33 @@ import astropy.units as u
 from astropy.table import Table, Column
 from astrometry.util.fits import fits_table
 
+def legacyhalos_dir():
+    if 'LEGACYHALOS_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def legacyhalos_data_dir():
+    if 'LEGACYHALOS_DATA_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_DATA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DATA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def legacyhalos_html_dir():
+    if 'LEGACYHALOS_HTML_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_HTML_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_HTML_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
 # build out the FITS header
 def legacyhalos_header(hdr=None):
     """Build a header with code versions, etc.
@@ -134,12 +161,12 @@ def _get_ellipse_datamodel(refband='r'):
         ('refband_height', u.pixel),
 
         ('g_sma', u.pixel),
+        ('g_intens', u.maggy/u.arcsec**2),
+        ('g_intens_err', u.maggy/u.arcsec**2),
         ('g_eps', ''),
         ('g_eps_err', ''),
         ('g_pa', u.degree),
         ('g_pa_err', u.degree),
-        ('g_intens', u.maggy/u.arcsec**2),
-        ('g_intens_err', u.maggy/u.arcsec**2),
         ('g_x0', u.pixel),
         ('g_x0_err', u.pixel),
         ('g_y0', u.pixel),
@@ -156,12 +183,12 @@ def _get_ellipse_datamodel(refband='r'):
         ('g_niter', ''),
 
         ('r_sma', u.pixel),
+        ('r_intens', u.maggy/u.arcsec**2),
+        ('r_intens_err', u.maggy/u.arcsec**2),
         ('r_eps', ''),
         ('r_eps_err', ''),
         ('r_pa', u.degree),
         ('r_pa_err', u.degree),
-        ('r_intens', u.maggy/u.arcsec**2),
-        ('r_intens_err', u.maggy/u.arcsec**2),
         ('r_x0', u.pixel),
         ('r_x0_err', u.pixel),
         ('r_y0', u.pixel),
@@ -178,12 +205,12 @@ def _get_ellipse_datamodel(refband='r'):
         ('r_niter', ''),
 
         ('z_sma', u.pixel),
+        ('z_intens', u.maggy/u.arcsec**2),
+        ('z_intens_err', u.maggy/u.arcsec**2),
         ('z_eps', ''),
         ('z_eps_err', ''),
         ('z_pa', u.degree),
         ('z_pa_err', u.degree),
-        ('z_intens', u.maggy/u.arcsec**2),
-        ('z_intens_err', u.maggy/u.arcsec**2),
         ('z_x0', u.pixel),
         ('z_x0_err', u.pixel),
         ('z_y0', u.pixel),
@@ -228,10 +255,18 @@ def _get_ellipse_datamodel(refband='r'):
         ('z_cog_params_alpha2', ''),
         ('z_cog_params_chi2', ''),
 
+        ('radius_sb22', u.arcsec),
+        ('radius_sb22_err', u.arcsec),
+        ('radius_sb22.5', u.arcsec),
+        ('radius_sb22.5_err', u.arcsec),
         ('radius_sb23', u.arcsec),
         ('radius_sb23_err', u.arcsec),
+        ('radius_sb23.5', u.arcsec),
+        ('radius_sb23.5_err', u.arcsec),
         ('radius_sb24', u.arcsec),
         ('radius_sb24_err', u.arcsec),
+        ('radius_sb24.5', u.arcsec),
+        ('radius_sb24.5_err', u.arcsec),
         ('radius_sb25', u.arcsec),
         ('radius_sb25_err', u.arcsec),
         ('radius_sb25.5', u.arcsec),
@@ -239,10 +274,18 @@ def _get_ellipse_datamodel(refband='r'):
         ('radius_sb26', u.arcsec),
         ('radius_sb26_err', u.arcsec),
 
+        ('g_mag_sb22', u.mag),
+        ('g_mag_sb22_err', u.mag),
+        ('g_mag_sb22.5', u.mag),
+        ('g_mag_sb22.5_err', u.mag),
         ('g_mag_sb23', u.mag),
         ('g_mag_sb23_err', u.mag),
+        ('g_mag_sb23.5', u.mag),
+        ('g_mag_sb23.5_err', u.mag),
         ('g_mag_sb24', u.mag),
         ('g_mag_sb24_err', u.mag),
+        ('g_mag_sb24.5', u.mag),
+        ('g_mag_sb24.5_err', u.mag),
         ('g_mag_sb25', u.mag),
         ('g_mag_sb25_err', u.mag),
         ('g_mag_sb25.5', u.mag),
@@ -250,10 +293,18 @@ def _get_ellipse_datamodel(refband='r'):
         ('g_mag_sb26', u.mag),
         ('g_mag_sb26_err', u.mag),
 
+        ('r_mag_sb22', u.mag),
+        ('r_mag_sb22_err', u.mag),
+        ('r_mag_sb22.5', u.mag),
+        ('r_mag_sb22.5_err', u.mag),
         ('r_mag_sb23', u.mag),
         ('r_mag_sb23_err', u.mag),
+        ('r_mag_sb23.5', u.mag),
+        ('r_mag_sb23.5_err', u.mag),
         ('r_mag_sb24', u.mag),
         ('r_mag_sb24_err', u.mag),
+        ('r_mag_sb24.5', u.mag),
+        ('r_mag_sb24.5_err', u.mag),
         ('r_mag_sb25', u.mag),
         ('r_mag_sb25_err', u.mag),
         ('r_mag_sb25.5', u.mag),
@@ -261,10 +312,18 @@ def _get_ellipse_datamodel(refband='r'):
         ('r_mag_sb26', u.mag),
         ('r_mag_sb26_err', u.mag),
 
+        ('z_mag_sb22', u.mag),
+        ('z_mag_sb22_err', u.mag),
+        ('z_mag_sb22.5', u.mag),
+        ('z_mag_sb22.5_err', u.mag),
         ('z_mag_sb23', u.mag),
         ('z_mag_sb23_err', u.mag),
+        ('z_mag_sb23.5', u.mag),
+        ('z_mag_sb23.5_err', u.mag),
         ('z_mag_sb24', u.mag),
         ('z_mag_sb24_err', u.mag),
+        ('z_mag_sb24.5', u.mag),
+        ('z_mag_sb24.5_err', u.mag),
         ('z_mag_sb25', u.mag),
         ('z_mag_sb25_err', u.mag),
         ('z_mag_sb25.5', u.mag),
@@ -339,7 +398,12 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         out.add_column(col)
 
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
+        pdb.set_trace()
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
+
+    # uppercase!
+    for col in out.colnames:
+        out.rename_column(col, col.upper())
 
     hdr = legacyhalos_header()
 
@@ -373,7 +437,7 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True)
             val = data[key].tolist()[0]
             if np.logical_not(np.isscalar(val)) and len(val) > 0:
                 val = np.array(val)
-            ellipsefit[key] = val
+            ellipsefit[key.lower()] = val # lowercase!
     else:
         if verbose:
             print('File {} not found!'.format(ellipsefitfile))
@@ -441,40 +505,42 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
 
     """
     out = {}
+
+    # Optionally choose sources in the center of the field.
+    H = np.max(tractor.bx) - np.min(tractor.bx)
+    W = np.max(tractor.by) - np.min(tractor.by)
+    if incenter:
+        dH = 0.1 * H
+        these = np.where((tractor.bx >= np.int(H / 2 - dH)) * (tractor.bx <= np.int(H / 2 + dH)) *
+                         (tractor.by >= np.int(H / 2 - dH)) * (tractor.by <= np.int(H / 2 + dH)))[0]
+    else:
+        #these = np.where(tractor.get(psfdepthcol) > 0)[0]
+        these = np.arange(len(tractor))
     
     # Get the average PSF size and depth in each bandpass.
     for filt in bands:
         psfsizecol = 'psfsize_{}'.format(filt.lower())
         psfdepthcol = 'psfdepth_{}'.format(filt.lower())
-        
-        # Optionally choose sources in the center of the field.
-        H = np.max(tractor.bx) - np.min(tractor.bx)
-        W = np.max(tractor.by) - np.min(tractor.by)
-        if incenter:
-            dH = 0.1 * H
-            these = np.where((tractor.bx >= np.int(H / 2 - dH)) * (tractor.bx <= np.int(H / 2 + dH)) *
-                             (tractor.by >= np.int(H / 2 - dH)) * (tractor.by <= np.int(H / 2 + dH)) *
-                             (tractor.get(psfdepthcol) > 0))[0]
+        good = np.where(tractor.get(psfsizecol)[these] > 0)[0]
+        if len(good) == 0:
+            print('  No good measurements of the PSF size in band {}!'.format(filt))
+            out['psfsigma_{}'.format(filt)] = np.float32(0.0)
+            out['psfsize_{}'.format(filt)] = np.float32(0.0)
         else:
-            these = np.where(tractor.get(psfdepthcol) > 0)[0]
+            # Get the PSF size and image depth.
+            psfsize = tractor.get(psfsizecol)[these][good]   # [FWHM, arcsec]
+            psfsigma = psfsize / np.sqrt(8 * np.log(2)) / pixscale # [sigma, pixels]
+
+            out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
+            out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
             
-        if len(these) == 0:
-            print('No sources at the center of the field, unable to get PSF size!')
-            continue
-
-        # Get the PSF size and image depth.
-        psfsize = tractor.get(psfsizecol)[these]   # [FWHM, arcsec]
-        psfdepth = tractor.get(psfdepthcol)[these] # [AB mag, 5-sigma]
-        psfsigma = psfsize / np.sqrt(8 * np.log(2)) / pixscale # [sigma, pixels]
-
-        out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
-        out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
-        #out['psfsize_min_{}'.format(filt)] = np.min(psfsize).astype('f4')
-        #out['psfsize_max_{}'.format(filt)] = np.max(psfsize).astype('f4')
-
-        out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
-        #out['psfdepth_min_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.min(psfdepth)))).astype('f4')
-        #out['psfdepth_max_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.max(psfdepth)))).astype('f4')
+        good = np.where(tractor.get(psfdepthcol)[these] > 0)[0]
+        if len(good) == 0:
+            print('  No good measurements of the PSF depth in band {}!'.format(filt))
+            out['psfdepth_{}'.format(filt)] = np.float32(0.0)
+        else:
+            psfdepth = tractor.get(psfdepthcol)[these][good] # [AB mag, 5-sigma]
+            out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
         
     return out
 
@@ -964,7 +1030,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         minsize_rex = 5.0 # minimum size for REX [arcsec]
         central_galaxy, reject_galaxy, keep_galaxy = [], [], []
         data['tractor_flags'] = {}
-        for ii, sid in enumerate(sample['ID']):
+        for ii, sid in enumerate(sample['SGA_ID']):
             I = np.where((sid == tractor.ref_id) * islslga)[0]
             if len(I) == 0: # dropped by Tractor
                 reject_galaxy.append(ii)
@@ -1005,8 +1071,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         if len(reject_galaxy) > 0:
             reject_galaxy = np.hstack(reject_galaxy)
             for jj, rej in enumerate(reject_galaxy):
-                print('  Dropping {} (ID={}, RA, Dec = {:.7f} {:.7f}): {}'.format(
-                    sample[rej]['GALAXY'], sample[rej]['ID'], sample[rej]['RA'], sample[rej]['DEC'], msg[jj]))
+                print('  Dropping {} (SGA_ID={}, RA, Dec = {:.7f} {:.7f}): {}'.format(
+                    sample[rej]['GALAXY'], sample[rej]['SGA_ID'], sample[rej]['RA'], sample[rej]['DEC'], msg[jj]))
 
         if len(central_galaxy) > 0:
             keep_galaxy = np.hstack(keep_galaxy)
@@ -1019,8 +1085,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             else:
                 return data
 
-        #sample = sample[np.searchsorted(sample['ID'], tractor.ref_id[central_galaxy])]
-        assert(np.all(sample['ID'] == tractor.ref_id[central_galaxy]))
+        #sample = sample[np.searchsorted(sample['SGA_ID'], tractor.ref_id[central_galaxy])]
+        assert(np.all(sample['SGA_ID'] == tractor.ref_id[central_galaxy]))
         
         tractor.d25_leda = np.zeros(len(tractor), dtype='f4')
         tractor.pa_leda = np.zeros(len(tractor), dtype='f4')

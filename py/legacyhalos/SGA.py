@@ -9,6 +9,8 @@ import os, shutil, pdb
 import numpy as np
 import astropy
 
+import legacyhalos.io
+
 ZCOLUMN = 'Z'
 RACOLUMN = 'GROUP_RA'
 DECCOLUMN = 'GROUP_DEC'
@@ -30,32 +32,32 @@ def SGA_version():
     version = 'v3.0'  # DR9
     return version
 
-def SGA_dir():
-    if 'SGA_DIR' not in os.environ:
-        print('Required ${SGA_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('SGA_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
-def SGA_data_dir():
-    if 'SGA_DATA_DIR' not in os.environ:
-        print('Required ${SGA_DATA_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('SGA_DATA_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
-def SGA_html_dir():
-    if 'SGA_HTML_DIR' not in os.environ:
-        print('Required ${SGA_HTML_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('SGA_HTML_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
+#def SGA_dir():
+#    if 'SGA_DIR' not in os.environ:
+#        print('Required ${SGA_DIR environment variable not set.')
+#        raise EnvironmentError
+#    ldir = os.path.abspath(os.getenv('SGA_DIR'))
+#    if not os.path.isdir(ldir):
+#        os.makedirs(ldir, exist_ok=True)
+#    return ldir
+#
+#def legacyhalos.io.legacyhalos_data_dir():
+#    if 'SGA_DATA_DIR' not in os.environ:
+#        print('Required ${SGA_DATA_DIR environment variable not set.')
+#        raise EnvironmentError
+#    ldir = os.path.abspath(os.getenv('SGA_DATA_DIR'))
+#    if not os.path.isdir(ldir):
+#        os.makedirs(ldir, exist_ok=True)
+#    return ldir
+#
+#def legacyhalos.io.legacyhalos_html_dir():
+#    if 'SGA_HTML_DIR' not in os.environ:
+#        print('Required ${SGA_HTML_DIR environment variable not set.')
+#        raise EnvironmentError
+#    ldir = os.path.abspath(os.getenv('SGA_HTML_DIR'))
+#    if not os.path.isdir(ldir):
+#        os.makedirs(ldir, exist_ok=True)
+#    return ldir
 
 def mpi_args():
     import argparse
@@ -157,7 +159,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     mp = multiproc(nthreads=args.nproc)
     args = []
     for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
-        args.append(gal, gdir, filesuffix, dependson, clobber)
+        args.append([gal, gdir, filesuffix, dependson, clobber])
         
     todo = np.array(mp.map(_missing_files_one, args))
 
@@ -202,9 +204,9 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
 
     """
     if datadir is None:
-        datadir = SGA_data_dir()
+        datadir = legacyhalos.io.legacyhalos_data_dir()
     if htmldir is None:
-        htmldir = SGA_html_dir()
+        htmldir = legacyhalos.io.legacyhalos_html_dir()
 
     # Handle groups.
     if 'GROUP_NAME' in cat.colnames:
@@ -252,7 +254,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     from legacyhalos.desiutil import brickname as get_brickname
             
     version = SGA_version()
-    samplefile = os.path.join(SGA_dir(), 'sample', version, 'SGA-{}.fits'.format(version))
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', version, 'SGA-parent-{}.fits'.format(version))
 
     if first and last:
         if first > last:
@@ -294,7 +296,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
         brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
 
-        if False: # SGA-data-DR9-test3 sample
+        if True: # SGA-data-DR9-dr8candidates
             # Select galaxies containing DR8-supplemented sources
             #ww = []
             #w1 = np.where(sample['GROUP_MULT'] > 1)[0]
@@ -336,7 +338,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             rows = rows[brickcut]
 
         if False: # largest galaxies which may need reprocessing (just the north)
-            #bricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
+            #bricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             #brickcut = np.where(np.isin(brickname, bricklist))[0]
             #rows = rows[brickcut]
             m1 = sample['GROUP_DEC'][samplecut] > 30 # 32.375
@@ -344,7 +346,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             
         if False: # SAGA host galaxies
             from astrometry.libkd.spherematch import match_radec
-            saga = astropy.table.Table.read(os.path.join(SGA_dir(), 'sample', 'saga_hosts.csv'))
+            saga = astropy.table.Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'saga_hosts.csv'))
             #fullsample = legacyhalos.SGA.read_sample(preselect_sample=False)
             m1, m2, d12 = match_radec(sample['RA'][samplecut], sample['DEC'][samplecut],
                                       saga['RA'], saga['DEC'], 5/3600.0, nearest=True)
@@ -366,14 +368,13 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
             
-        if True: # DR9 bricklist
-            nbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')
-            
-            #nbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
-            #nbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.join(SGA_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
+        if False: # DR9 bricklist
+            nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
+            sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')            
+            #nbricklist = np.loadtxt(os.path.joinlegacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
+            #sbricklist = np.loadtxt(os.path.joinlegacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
+            #nbricklist = np.loadtxt(os.path.joinlegacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
+            #sbricklist = np.loadtxt(os.path.joinlegacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
 
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
@@ -526,11 +527,11 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
     # the *mosaic* of NGC5899 but does not belong to the NGC5899 "group").
     ilslga = np.where(tractor['REF_CAT'] == refcat)[0]
     if len(ilslga) == 0:
-        raise ValueError('No SGA sources in the field of ID={}?!?'.format(onegal['SGA_ID']))
+        raise ValueError('No SGA sources in the field of SGA_ID={}?!?'.format(onegal['SGA_ID']))
     toss = np.where(np.logical_not(np.isin(tractor['REF_ID'][ilslga], fullsample['SGA_ID'])))[0]
     if len(toss) > 0:
         for tt in toss:
-            print('  Removing non-primary ID={}'.format(tractor[ilslga][tt]['REF_ID']))
+            print('  Removing non-primary SGA_ID={}'.format(tractor[ilslga][tt]['REF_ID']))
         keep = np.delete(np.arange(len(tractor)), ilslga[toss])
         tractor = tractor[keep]
 
@@ -540,7 +541,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
     # sources are re-detected in production then so be it.
     keep = np.where(np.logical_or(tractor['TYPE'] == 'PSF', tractor['SHAPE_R'] > 0.1))[0]
     if len(keep) == 0:
-        raise ValueError('No Tractor sources left in the field of ID={}?!?'.format(onegal['SGA_ID']))
+        raise ValueError('No Tractor sources left in the field of SGA_ID={}?!?'.format(onegal['SGA_ID']))
     tractor = tractor[keep]
 
     # Next, add all the (new) columns we will need to the Tractor catalog. This
@@ -573,11 +574,12 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
     radkeys = ['RADIUS_SB{:0g}'.format(sbcut) for sbcut in sbcuts]
     for radkey in radkeys:
         tractor[radkey] = np.zeros(len(tractor), np.float32) - 1
-        for filt in ['g', 'r', 'z']:
-            magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt.upper()))
+    for radkey in radkeys:
+        for filt in ['G', 'R', 'Z']:
+            magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt))
             tractor[magkey] = np.zeros(len(tractor), np.float32) - 1
-    for filt in ['g', 'r', 'z']:
-        tractor['{}_MAG_TOT'.format(filt.upper())] = np.zeros(len(tractor), np.float32) - 1
+    for filt in ['G', 'R', 'Z']:
+        tractor['{}_MAG_TOT'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
 
     tractor['PREBURNED'] = np.ones(len(tractor), bool)  # Everything was preburned but we only want to freeze the...
     tractor['FREEZE'] = np.zeros(len(tractor), bool)    # ...SGA galaxies and sources in that galaxy's ellipse.
@@ -696,10 +698,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
 
             for radkey in radkeys:
                 tractor[radkey][match] = ellipse[radkey.lower()]
-                for filt in ['g', 'r', 'z']:
-                    magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt.upper()))
+                for filt in ['G', 'R', 'Z']:
+                    magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt))
                     tractor[magkey][match] = ellipse[magkey.lower()]
-                    tractor['{}_MAG_TOT'.format(filt.upper())][match] = ellipse['{}_cog_params_mtot'.format(filt)]
+                    tractor['{}_MAG_TOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt).lower()]
 
     # Keep just frozen sources. Can be empty (e.g., if a field contains just a
     # single dropped source, e.g., DR8-2194p447-894).
@@ -736,7 +738,7 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False):
     
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
-    outdir = SGA_data_dir()
+    outdir = legacyhalos.io.legacyhalos_data_dir()
     outfile = os.path.join(outdir, 'SGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
@@ -955,7 +957,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
         html.write('</style>\n')
 
-        html.write('<h1>Siena Galaxy Atlas 2020 (SGA-2020)</h1>\n')
+        html.write('<h1>Siena Galaxy Atlas 2020 (SGA 2020)</h1>\n')
         if maketrends:
             html.write('<p>\n')
             html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
@@ -1484,8 +1486,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     import legacyhalos.io
     from legacyhalos.coadds import _mosaic_width
 
-    datadir = SGA_data_dir()
-    htmldir = SGA_html_dir()
+    datadir = legacyhalos.io.legacyhalos_data_dir()
+    htmldir = legacyhalos.io.legacyhalos_html_dir()
     if not os.path.exists(htmldir):
         os.makedirs(htmldir)
 

@@ -326,7 +326,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         print('Write me!')
         pdb.set_trace()
 
-    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_DIR'), galaxy=galaxy,
+    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_CODE_DIR'), galaxy=galaxy,
                      ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
                      galaxydir=survey.output_dir, survey_dir=survey.survey_dir, run=run,
