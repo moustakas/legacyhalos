@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """MPI wrapper for the Siena Galaxy Atlas project.
 
-SGA-mpi --coadds --customsky --count --debug
+SGA-mpi --coadds
 
 """
 import matplotlib
@@ -20,9 +20,9 @@ def main():
     from legacypipe.runs import get_survey
     from legacyhalos.SGA import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
 
-    basedir = legacyhalos.SGA.SGA_dir()
-    datadir = legacyhalos.SGA.SGA_data_dir()
-    htmldir = legacyhalos.SGA.SGA_html_dir()
+    basedir = legacyhalos.io.legacyhalos_dir()
+    datadir = legacyhalos.io.legacyhalos_data_dir()
+    htmldir = legacyhalos.io.legacyhalos_html_dir()
     
     args = legacyhalos.SGA.mpi_args()
 
@@ -37,9 +37,9 @@ def main():
     # Read and broadcast the sample.
     sample, fullsample = None, None
     if rank == 0:
-        print('$SGA_DIR={}'.format(basedir))
-        print('$SGA_DATA_DIR={}'.format(datadir))
-        print('$SGA_HTML_DIR={}'.format(htmldir))
+        print('$LEGACYHALOS_DIR={}'.format(basedir))
+        print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
+        print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
         sample = legacyhalos.SGA.read_sample(first=args.first, last=args.last,
                                              d25min=args.d25min, d25max=args.d25max, 
                                              galaxylist=args.galaxylist,

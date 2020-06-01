@@ -14,6 +14,33 @@ import astropy.units as u
 from astropy.table import Table, Column
 from astrometry.util.fits import fits_table
 
+def legacyhalos_dir():
+    if 'LEGACYHALOS_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def legacyhalos_data_dir():
+    if 'LEGACYHALOS_DATA_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_DATA_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DATA_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
+def legacyhalos_html_dir():
+    if 'LEGACYHALOS_HTML_DIR' not in os.environ:
+        print('Required ${LEGACYHALOS_HTML_DIR environment variable not set.')
+        raise EnvironmentError
+    ldir = os.path.abspath(os.getenv('LEGACYHALOS_HTML_DIR'))
+    if not os.path.isdir(ldir):
+        os.makedirs(ldir, exist_ok=True)
+    return ldir
+
 # build out the FITS header
 def legacyhalos_header(hdr=None):
     """Build a header with code versions, etc.
@@ -338,7 +365,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         col = Column(name=key, data=data)
         out.add_column(col)
 
-uppercase the columns
+    print('uppercase the columns!!!')
+    pdb.set_trace()
 
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')

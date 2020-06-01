@@ -13,33 +13,6 @@ RACOLUMN = 'RA'
 DECCOLUMN = 'DEC'
 DIAMCOLUMN = 'TBD'
 
-def legacyhalos_dir():
-    if 'LEGACYHALOS_DIR' not in os.environ:
-        print('Required ${LEGACYHALOS_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
-def legacyhalos_data_dir():
-    if 'LEGACYHALOS_DATA_DIR' not in os.environ:
-        print('Required ${LEGACYHALOS_DATA_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('LEGACYHALOS_DATA_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
-def legacyhalos_html_dir():
-    if 'LEGACYHALOS_HTML_DIR' not in os.environ:
-        print('Required ${LEGACYHALOS_HTML_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('LEGACYHALOS_HTML_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
-
 def sample_dir():
     sdir = os.path.join(legacyhalos_dir(), 'sample')
     if not os.path.isdir(sdir):
