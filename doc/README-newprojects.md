@@ -25,7 +25,7 @@ the name of your project:
 mkdir -p $LEGACYHALOS_CODE_DIR/bin/myproject
 ```
 
-  In this directory we'll need a handful of files, each of which are described
+    In this directory we'll need a handful of files, each of which are described
 in more detail below:
 
 ```bash
@@ -36,7 +36,7 @@ $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi-slurm
 $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-shifter
 ```
 
-  (Note: the `-mpi` suffix is historical and not required.)
+    (Note: the `-mpi` suffix is historical and not required.)
 
 3. Next, create a Python module in `$LEGACYHALOS_CODE_DIR/py/legacyhalos` which
 will contain the custom code for your project:
@@ -45,7 +45,7 @@ will contain the custom code for your project:
 $LEGACYHALOS_CODE_DIR/py/legacyhalos/myproject.py
 ```
 
-  This module can contain whatever code you want, but at minimum it will need to
+    This module can contain whatever code you want, but at minimum it will need to
 contain functions to:
 
   - read your galaxy sample;
@@ -70,7 +70,7 @@ myproject-mpi --help
 
 2. To leverage the `MPI` capabilities of the code we'll need to use the
 `myproject-mpi.sh` script and load the shifter image when we request the
-resources. In this example, we execute `n=32` MPI tasks across `N=2` cori nodes
+resources. In this example, we execute `n=64` MPI tasks across `N=2` cori nodes
 and `c=1` core per task:
 
 ```bash
@@ -80,7 +80,7 @@ srun -n 64 -c 1 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/myproject/
 
 3. Finally, in production you can use the `SLURM` script and any of the
 available NERSC queues. For example, to execute the same example as in the
-previous use case just do:
+previous use case using the `debug` queue, do:
 
 ```
 sbatch $LEGACYHALOS_CODE_DIR/bin/myproject/myproject-mpi.slurm
