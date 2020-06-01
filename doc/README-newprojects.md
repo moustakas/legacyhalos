@@ -62,10 +62,10 @@ ways, as described in more detail below: (1) interactively with a single node;
 salloc -N 1 -C haswell -A ACCOUNT -t 01:00:00 --qos interactive -L SCRATCH,cfs
 myproject-shifter
 source myproject-env 
-myproject-mpi -h
+myproject-mpi --help
 ```
 
-2. 
+2. To use the `MPI` capabilities of the code, 
 
 
 a file containing various

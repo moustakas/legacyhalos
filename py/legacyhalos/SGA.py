@@ -159,7 +159,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     mp = multiproc(nthreads=args.nproc)
     args = []
     for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
-        args.append(gal, gdir, filesuffix, dependson, clobber)
+        args.append([gal, gdir, filesuffix, dependson, clobber])
         
     todo = np.array(mp.map(_missing_files_one, args))
 
