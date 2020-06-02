@@ -760,8 +760,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         # find_galaxy a couple more times to try to grow the "unmasking".
         if notok:
             print('Iteratively unmasking pixels:')
-            print('  r={:.2f} pixels'.format(maxis))
             maxis = 1.0 * mgegalaxy.majoraxis # [pixels]
+            print('  r={:.2f} pixels'.format(maxis))
             prevmaxis, iiter, maxiter = 0.0, 0, 4
             while (maxis > prevmaxis) and (iiter < maxiter):
                 #print(prevmaxis, maxis, iiter, maxiter)

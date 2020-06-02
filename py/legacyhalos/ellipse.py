@@ -209,9 +209,10 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             results['{}_cog_params_m0'.format(filt)] = np.float32(-1)
             results['{}_cog_params_alpha1'.format(filt)] = np.float32(-1)
             results['{}_cog_params_alpha2'.format(filt)] = np.float32(-1)
-            results['{}_cog_params_mtot'.format(filt)] = np.float32(1e6)
+            results['{}_cog_params_chi2'.format(filt)] = np.float32(1e6)
             for sbcut in SBTHRESH:
                 results['{}_mag_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
+                results['{}_mag_sb{:0g}_err'.format(filt, sbcut)] = np.float32(-1)
             continue
 
         sma_arcsec = sma[ok] * pixscale             # [arcsec]
