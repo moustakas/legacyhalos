@@ -105,7 +105,7 @@ def get_run(onegal):
     return run
 
 # ellipsefit data model
-def _get_ellipse_datamodel(refband='r'):
+def _get_ellipse_datamodel():
     cols = [
         ('bands', ''),
         ('refband', ''),
@@ -384,17 +384,22 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
 
     # Add to the data table
     datakeys = datadict.keys()
-    for key, unit in _get_ellipse_datamodel(refband=refband):
+    for key, unit in _get_ellipse_datamodel():
         if key not in datakeys:
             raise ValueError('Data model change -- no column {} for galaxy {}!'.format(key, galaxy))
         data = datadict[key]
         if np.isscalar(data):# or len(np.array(data)) > 1:
             data = np.atleast_1d(data)
+        #elif len(data) == 0:
+        #    data = np.atleast_1d(data)
         else:
             data = np.atleast_2d(data)
         if type(unit) is not str:
             data *= unit
         col = Column(name=key, data=data)
+        #if 'z_cog' in key:
+        #    print(key)
+        #    pdb.set_trace()
         out.add_column(col)
 
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
@@ -800,6 +805,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             mgegalaxy.theta = (270 - pa) % 180
             mgegalaxy.majoraxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
             print('  r={:.2f} pixels'.format(mgegalaxy.majoraxis))
+            fixmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed,
+                                   mgegalaxy.majoraxis, mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
+                                   np.radians(mgegalaxy.theta-90), xobj, yobj)
+            newmask[fixmask] = ma.nomask
         else:
             largeshift = False
 
@@ -857,6 +866,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             _residual_mask = residual_mask.copy()
             _residual_mask[central_mask] = ma.nomask
             mask = ma.mask_or(_residual_mask, newmask, shrink=False)
+
+            #import matplotlib.pyplot as plt
+            #plt.clf() ; plt.imshow(central_mask, origin='lower') ; plt.savefig('junk2.png')
+            #pdb.set_trace()
 
             # Need to be smarter about the srcs list...
             srcs = tractor.copy()
@@ -1109,9 +1122,9 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           starmask=starmask, verbose=verbose,
                           largegalaxy=largegalaxy)
     #import matplotlib.pyplot as plt
-    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
-    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    #plt.clf() ; plt.imshow(np.log10(data['g_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
+    ##plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
+    ##plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
     #pdb.set_trace()
 
     if return_sample:
