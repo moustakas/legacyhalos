@@ -290,7 +290,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         samplecut = np.where(
             (sample['GROUP_DIAMETER'] > d25min) *
             (sample['GROUP_DIAMETER'] < d25max) *
-            (np.array(['DR8' not in gg for gg in sample['GALAXY']])) *
+            #(np.array(['DR8' not in gg for gg in sample['GALAXY']])) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
         rows = rows[samplecut]
@@ -377,8 +377,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
 
-            bricklist = np.union1d(nbricklist, sbricklist)
-            #bricklist = nbricklist
+            #bricklist = np.union1d(nbricklist, sbricklist)
+            bricklist = sbricklist
 
             #rows = np.where([brick in bricklist for brick in brickname])[0]
             brickcut = np.where(np.isin(brickname, bricklist))[0]
