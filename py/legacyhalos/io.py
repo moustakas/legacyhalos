@@ -549,26 +549,28 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
     for filt in bands:
         psfsizecol = 'psfsize_{}'.format(filt.lower())
         psfdepthcol = 'psfdepth_{}'.format(filt.lower())
-        good = np.where(tractor.get(psfsizecol)[these] > 0)[0]
-        if len(good) == 0:
-            print('  No good measurements of the PSF size in band {}!'.format(filt))
-            out['psfsigma_{}'.format(filt)] = np.float32(0.0)
-            out['psfsize_{}'.format(filt)] = np.float32(0.0)
-        else:
-            # Get the PSF size and image depth.
-            psfsize = tractor.get(psfsizecol)[these][good]   # [FWHM, arcsec]
-            psfsigma = psfsize / np.sqrt(8 * np.log(2)) / pixscale # [sigma, pixels]
+        if psfsizecol in tractor.columns():
+            good = np.where(tractor.get(psfsizecol)[these] > 0)[0]
+            if len(good) == 0:
+                print('  No good measurements of the PSF size in band {}!'.format(filt))
+                out['psfsigma_{}'.format(filt)] = np.float32(0.0)
+                out['psfsize_{}'.format(filt)] = np.float32(0.0)
+            else:
+                # Get the PSF size and image depth.
+                psfsize = tractor.get(psfsizecol)[these][good]   # [FWHM, arcsec]
+                psfsigma = psfsize / np.sqrt(8 * np.log(2)) / pixscale # [sigma, pixels]
 
-            out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
-            out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
+                out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
+                out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
             
-        good = np.where(tractor.get(psfdepthcol)[these] > 0)[0]
-        if len(good) == 0:
-            print('  No good measurements of the PSF depth in band {}!'.format(filt))
-            out['psfdepth_{}'.format(filt)] = np.float32(0.0)
-        else:
-            psfdepth = tractor.get(psfdepthcol)[these][good] # [AB mag, 5-sigma]
-            out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
+        if psfsizecol in tractor.columns():
+            good = np.where(tractor.get(psfdepthcol)[these] > 0)[0]
+            if len(good) == 0:
+                print('  No good measurements of the PSF depth in band {}!'.format(filt))
+                out['psfdepth_{}'.format(filt)] = np.float32(0.0)
+            else:
+                psfdepth = tractor.get(psfdepthcol)[these][good] # [AB mag, 5-sigma]
+                out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
         
     return out
 
@@ -967,12 +969,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         for band in ['FUV', 'NUV']:
             bands = bands + tuple([band])
             filt2pixscale.update({band: galex_pixscale})
-            filt2imfile.update({band: {'image': 'image', 'model': 'model', 'invvar': 'invvar'}})
+            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(prefix), 'invvar': 'invvar'}})
     if unwise:
         for band in ['W1', 'W2', 'W3', 'W4']:
             bands = bands + tuple([band])
             filt2pixscale.update({band: unwise_pixscale})
-            filt2imfile.update({band: {'image': 'image', 'model': 'model', 'invvar': 'invvar'}})
+            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(prefix), 'invvar': 'invvar'}})
 
     # Do all the files exist? If not, bail!
     found_data = True
