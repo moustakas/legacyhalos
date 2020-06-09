@@ -106,10 +106,10 @@ def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
                     return 'todo'
         return 'todo'
     
-def get_run(onegal):
+def get_run(onegal, racolumn='RA', deccolumn='DEC'):
     """Get the run based on a simple declination cut."""
-    if onegal['DEC'] > 32.375:
-        if onegal['RA'] < 45 or onegal['RA'] > 315:
+    if onegal[deccolumn] > 32.375:
+        if onegal[racolumn] < 45 or onegal[racolumn] > 315:
             run = 'south'
         else:
             run = 'north'
@@ -925,6 +925,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, return_sample=False,
+                   galex=False, unwise=False, 
                    #central_galaxy_id=None,
                    sdss=False, largegalaxy=False, pipeline=False, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
@@ -961,23 +962,17 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                             'sample': '{}-sample'.format(prefix),
                             'maskbits': '{}-maskbits'.format(prefix)})
 
-    # Add GALEX and unWISE - fix me.
-    #filt2imfile.update({
-    #    'FUV': ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'NUV': ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'W1':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'W2':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'W3':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'W4':  ['image', 'model-nocentral', 'custom-model', 'invvar']
-    #    })
-    #filt2pixscale.update({
-    #    'FUV': galex_pixscale,
-    #    'NUV': galex_pixscale,
-    #    'W1':  unwise_pixscale,
-    #    'W2':  unwise_pixscale,
-    #    'W3':  unwise_pixscale,
-    #    'W4':  unwise_pixscale
-    #    })
+    # Add GALEX and unWISE--
+    if galex:
+        for band in ['FUV', 'NUV']:
+            bands = bands + tuple([band])
+            filt2pixscale.update({band: galex_pixscale})
+            filt2imfile.update({band: {'image': 'image', 'model': 'model', 'invvar': 'invvar'}})
+    if unwise:
+        for band in ['W1', 'W2', 'W3', 'W4']:
+            bands = bands + tuple([band])
+            filt2pixscale.update({band: unwise_pixscale})
+            filt2imfile.update({band: {'image': 'image', 'model': 'model', 'invvar': 'invvar'}})
 
     # Do all the files exist? If not, bail!
     found_data = True

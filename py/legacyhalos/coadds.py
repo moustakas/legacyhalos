@@ -21,7 +21,7 @@ def _mosaic_width(radius_mosaic, pixscale):
     return width
 
 def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
-                     unwise=True, cleanup=False, just_coadds=False,
+                     unwise=True, galex=False, cleanup=False, just_coadds=False,
                      clobber=False, require_grz=True):
     """Move (rename) files into the desired output directory and clean up.
 
@@ -200,6 +200,34 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if not ok:
                 return ok
 
+    if galex:
+        for band in ('FUV', 'NUV'):
+            for imtype in ('image', 'invvar'):
+                ok = _copyfile(
+                    os.path.join(output_dir, 'coadd', 'cus', brickname,
+                                 'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                    os.path.join(output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)),
+                    clobber=clobber)
+                if not ok:
+                    return ok
+
+            ok = _copyfile(
+                os.path.join(output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-model-{}.fits.fz'.format(brickname, band)),
+                os.path.join(output_dir, '{}-{}-model-{}.fits.fz'.format(galaxy, stagesuffix, band)),
+                    clobber=clobber)
+            if not ok:
+                return ok
+
+        for imtype, suffix in zip(('galex', 'galexmodel'), ('image', 'model')):
+            ok = _copyfile(
+                os.path.join(output_dir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
+                os.path.join(output_dir, '{}-{}-FUVNUV.jpg'.format(galaxy, suffix)),
+                    clobber=clobber)
+            if not ok:
+                return ok
+
     if cleanup:
         _do_cleanup()
 
@@ -226,7 +254,7 @@ def get_ccds(survey, ra, dec, pixscale, width):
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC', 
                   largegalaxy=False, pipeline=False, custom=True,
-                  log=None, apodize=False, unwise=True, force=False,
+                  log=None, apodize=False, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True,
                   write_all_pickles=False, no_splinesky=False, customsky=False,
                   just_coadds=False, require_grz=True, no_gaia=False, no_tycho=False):
@@ -298,6 +326,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--stage image_coadds --early-coadds '
     if not unwise:
         cmd += '--no-unwise-coadds --no-wise '
+    if galex:
+        cmd += '--galex '
     if apodize:
         cmd += '--apodize '
     if no_gaia:
@@ -323,8 +353,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--fit-on-coadds --saddle-fraction 0.2 --saddle-min 4.0 '
         #cmd += '--nsigma 10 '
     if custom:
-        print('Write me!')
-        pdb.set_trace()
+        cmd += '--fit-on-coadds '
+        #print('Write me!')
+        #pdb.set_trace()
 
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_CODE_DIR'), galaxy=galaxy,
                      ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
@@ -340,7 +371,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         # Move (rename) files into the desired output directory and clean up.
         ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
-                              run, unwise=unwise, cleanup=cleanup,
+                              run, unwise=unwise, galex=galex, cleanup=cleanup,
                               just_coadds=just_coadds, clobber=force,
                               require_grz=require_grz)
         return ok, stagesuffix

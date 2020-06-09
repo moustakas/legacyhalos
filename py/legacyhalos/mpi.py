@@ -38,7 +38,7 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
                  debug=False, logfile=None, input_ellipse=None, zcolumn=None,
                  sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
-                 largegalaxy=False, pipeline=True):
+                 galex=False, galex_pixscale=1.5, largegalaxy=False, pipeline=True):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -58,6 +58,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
             verbose=verbose, debug=debug,
             sdss=sdss, sdss_pixscale=sdss_pixscale,
             unwise=unwise, unwise_pixscale=unwise_pixscale,
+            galex=galex, galex_pixscale=galex_pixscale,
             largegalaxy=largegalaxy, pipeline=pipeline)
         _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix)
     else:
@@ -71,6 +72,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                     verbose=verbose, debug=debug,
                     sdss=sdss, sdss_pixscale=sdss_pixscale,
                     unwise=unwise, unwise_pixscale=unwise_pixscale,
+                    galex=galex, galex_pixscale=galex_pixscale,
                     largegalaxy=largegalaxy, pipeline=pipeline)
                 _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix, log=log)
 
@@ -156,7 +158,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
 def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                        pixscale=0.262, racolumn='RA', deccolumn='DEC',
                        largegalaxy=False, pipeline=False, custom=True,
-                       apodize=False, unwise=True, force=False, plots=False,
+                       apodize=False, unwise=True, galex=False, force=False, plots=False,
                        verbose=False, cleanup=True, write_all_pickles=False,
                        no_splinesky=False, customsky=False,
                        just_coadds=False, require_grz=True, 
@@ -177,7 +179,7 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
             radius_mosaic=radius_mosaic, nproc=nproc, 
             pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn,
             largegalaxy=largegalaxy, pipeline=pipeline, custom=custom,
-            run=run, apodize=apodize, unwise=unwise, force=force, plots=plots,
+            run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
             verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
             no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
             require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
@@ -191,7 +193,7 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                     radius_mosaic=radius_mosaic, nproc=nproc, 
                     pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, 
                     largegalaxy=largegalaxy, pipeline=pipeline, custom=custom,
-                    run=run, apodize=apodize, unwise=unwise, force=force, plots=plots,
+                    run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
                     verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
                     no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
                     require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,

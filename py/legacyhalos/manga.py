@@ -12,11 +12,11 @@ import astropy
 import legacyhalos.io
 
 ZCOLUMN = 'Z'
-RACOLUMN = 'RA'
-DECCOLUMN = 'DEC'
-GALAXYCOLUMN = 'MANGAID'
+RACOLUMN = 'OBJRA'
+DECCOLUMN = 'OBJDEC'
+GALAXYCOLUMN = 'PLATEIFU'
 
-RADIUSFACTOR = 10
+RADIUSFACTOR = 1.5 # 10
 MANGA_RADIUS = 36.75 # / 2 # [arcsec]
 
 ELLIPSEBITS = dict(
@@ -140,17 +140,18 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
 
     if len(itodo) > 0:
         _todo_indices = indices[itodo]
+        todo_indices = np.array_split(_todo_indices, size) # unweighted
 
-        # Assign the sample to ranks to make the D25 distribution per rank ~flat.
-
-        # https://stackoverflow.com/questions/33555496/split-array-into-equally-weighted-chunks-based-on-order
-        weight = np.atleast_1d(sample[DIAMCOLUMN])[_todo_indices]
-        cumuweight = weight.cumsum() / weight.sum()
-        idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
-        if len(idx) < size: # can happen in corner cases
-            todo_indices = np.array_split(_todo_indices, size) # unweighted
-        else:
-            todo_indices = np.array_split(_todo_indices, idx) # weighted
+        ## Assign the sample to ranks to make the D25 distribution per rank ~flat.
+        #
+        ## https://stackoverflow.com/questions/33555496/split-array-into-equally-weighted-chunks-based-on-order
+        #weight = np.atleast_1d(sample[DIAMCOLUMN])[_todo_indices]
+        #cumuweight = weight.cumsum() / weight.sum()
+        #idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
+        #if len(idx) < size: # can happen in corner cases
+        #    todo_indices = np.array_split(_todo_indices, size) # unweighted
+        #else:
+        #    todo_indices = np.array_split(_todo_indices, idx) # weighted
     else:
         todo_indices = [np.array([])]
 
@@ -158,6 +159,9 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     
 def get_raslice(ra):
     return '{:06d}'.format(int(ra*1000))[:3]
+
+def get_plate(plate):
+    return '{:05d}'.format(plate)
 
 def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     """Retrieve the galaxy name and the (nested) directory.
@@ -170,16 +174,16 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
-        galaxy = [cat[galcolumn]]
-        ra = [cat[RACOLUMN]]
+        galaxy = [cat[GALAXYCOLUMN]]
+        plate = [cat['PLATE']]
     else:
         ngal = len(cat)
-        galaxy = cat[galcolumn]
-        ra = cat[RACOLUMN]
+        galaxy = cat[GALAXYCOLUMN]
+        plate = cat['PLATE']
 
-    galaxydir = np.array([os.path.join(datadir, get_raslice(ra), gal) for gal, ra in zip(galaxy, ra)])
+    galaxydir = np.array([os.path.join(datadir, get_plate(plt), gal) for gal, plt in zip(galaxy, plate)])
     if html:
-        htmlgalaxydir = np.array([os.path.join(htmldir, get_raslice(ra), gal) for gal, ra in zip(galaxy, ra)])
+        htmlgalaxydir = np.array([os.path.join(htmldir, get_plate(plt), gal) for gal, plt in zip(galaxy, plate)])
 
     if ngal == 1:
         galaxy = galaxy[0]
@@ -208,7 +212,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     ext = 1
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
-    rows = None
+
+    # Immediately toss out Apogee--
+    nsaid = fitsio.read(samplefile, columns='NSA_NSAID')
+    rows = np.where(nsaid != -9999)[0]
+    nrows = len(rows)
+    #rows = None
 
     if first is None:
         first = 0
@@ -248,7 +257,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     if galaxylist is not None:
         if verbose:
             print('Selecting specific galaxies.')
-        these = np.isin(sample[galcolumn], galaxylist)
+        these = np.isin(sample[GALAXYCOLUMN], galaxylist)
         if np.count_nonzero(these) == 0:
             print('No matching galaxies!')
             return astropy.table.Table()
