@@ -290,13 +290,33 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         samplecut = np.where(
             (sample['GROUP_DIAMETER'] > d25min) *
             (sample['GROUP_DIAMETER'] < d25max) *
+            ## custom reductions
+            #(sample['GALAXY'] != 'NGC3034') * 
+            #(sample['GALAXY'] != 'NGC3077') * # maybe?
+            #(sample['GALAXY'] != 'NGC3726') * # maybe?
+            #(sample['GALAXY'] != 'NGC3953') * # maybe?
+            #(sample['GALAXY'] != 'NGC3992') *
+            #(sample['GALAXY'] != 'NGC4051') *
+            #(sample['GALAXY'] != 'NGC4096') * # maybe?
+            #(sample['GALAXY'] != 'NGC4125') *
+            #(sample['GALAXY'] != 'UGC07698') *
+            #(sample['GALAXY'] != 'NGC4736') *
+            #(sample['GALAXY'] != 'NGC5055') *
+            #(sample['GALAXY'] != 'NGC5194') *
+            #(sample['GALAXY'] != 'NGC5322') *
+            #(sample['GALAXY'] != 'NGC5354') *
+            #(sample['GALAXY'] != 'NGC5866') *
+            #(sample['GALAXY'] != 'NGC4258') *
+            #(sample['GALAXY'] != 'NGC3031') *
+            #(sample['GALAXY'] != 'NGC5457') *
+            #(sample['GALAXY'] != 'NGC0598') * 
             #(np.array(['DR8' not in gg for gg in sample['GALAXY']])) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
         rows = rows[samplecut]
 
         brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
-
+        
         if False: # SGA-data-DR9-dr8candidates
             # Select galaxies containing DR8-supplemented sources
             #ww = []
@@ -368,6 +388,30 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #    pdb.set_trace()
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
+
+        if False:
+            vetolist = [
+                'NGC3034',
+                'NGC3077', # maybe?
+                'NGC3726', # maybe?
+                'NGC3953', # maybe?
+                'NGC3992',
+                'NGC4051',
+                'NGC4096', # maybe?
+                'NGC4125',
+                'UGC07698',
+                'NGC4736',
+                'NGC5055',
+                'NGC5194',
+                'NGC5322',
+                'NGC5354',
+                'NGC5866',
+                'NGC4258',
+                'NGC3031',
+                'NGC5457',
+                'NGC0598']
+            these = np.where(np.isin(sample['GALAXY'][samplecut], vetolist))[0]
+            rows = rows[these]
             
         if True: # DR9 bricklist
             #nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
@@ -377,8 +421,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
 
-            #bricklist = np.union1d(nbricklist, sbricklist)
-            bricklist = sbricklist
+            bricklist = np.union1d(nbricklist, sbricklist)
+            #bricklist = nbricklist
 
             #rows = np.where([brick in bricklist for brick in brickname])[0]
             brickcut = np.where(np.isin(brickname, bricklist))[0]

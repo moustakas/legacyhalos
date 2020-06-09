@@ -47,19 +47,32 @@ def legacyhalos_header(hdr=None):
 
     """
     import subprocess
+    from astropy.io import fits
     import pydl
     import legacyhalos
 
-    if hdr is None:
-        hdr = fitsio.FITSHDR()
+    if False:
+        if hdr is None:
+            hdr = fitsio.FITSHDR()
 
-    cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
-    ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
-    hdr.add_record(dict(name='LEGHALOV', value=ver, comment='legacyhalos git version'))
+        cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
+        ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
+        hdr.add_record(dict(name='LEGHALOV', value=ver, comment='legacyhalos git version'))
 
-    depvers, headers = [], []
-    for name, pkg in [('pydl', pydl)]:
-        hdr.add_record(dict(name=name, value=pkg.__version__, comment='{} version'.format(name)))
+        depvers, headers = [], []
+        for name, pkg in [('pydl', pydl)]:
+            hdr.add_record(dict(name=name, value=pkg.__version__, comment='{} version'.format(name)))
+    else:
+        if hdr is None:
+            hdr = fits.header.Header()
+
+        cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
+        ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
+        hdr['LEGHALOV'] = (ver, 'legacyhalos git version')
+
+        depvers, headers = [], []
+        for name, pkg in [('pydl', pydl)]:
+            hdr[name] = (pkg.__version__, '{} version'.format(name))
 
     return hdr
     
@@ -341,6 +354,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     ellipsefit - input dictionary
 
     """
+    from astropy.io import fits
     from astropy.table import QTable
     #from astropy.io import fits
     
@@ -367,7 +381,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
                 data = np.atleast_2d(data)
             unit = galaxyinfo[key][1] # add units
             if type(unit) is not str:
-                data *= unit
+                #data *= unit
+                data = u.Quantity(value=data, unit=unit, dtype=data.dtype)
             col = Column(name=key, data=data)
             out.add_column(col)
 
@@ -395,7 +410,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         else:
             data = np.atleast_2d(data)
         if type(unit) is not str:
-            data *= unit
+            data = u.Quantity(value=data, unit=unit, dtype=data.dtype)
         col = Column(name=key, data=data)
         #if 'z_cog' in key:
         #    print(key)
@@ -403,7 +418,6 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
         out.add_column(col)
 
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
-        pdb.set_trace()
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
 
     # uppercase!
@@ -412,10 +426,19 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
 
     hdr = legacyhalos_header()
 
+    hdu = fits.convenience.table_to_hdu(out)
+    hdu.header['EXTNAME'] = 'ELLIPSE'
+    hdu.header.update(hdr)
+    hdu.add_checksum()
+
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
+    hdu0 = fits.PrimaryHDU()
+    hdu0.header['EXTNAME'] = 'PRIMARY'
+    hx = fits.HDUList([hdu0, hdu])
+    hx.writeto(ellipsefitfile, overwrite=True, checksum=True)
     #out.write(ellipsefitfile, overwrite=True)
-    fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
+    #fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
 def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True):
     """Read the output of write_ellipsefit. Convert the astropy Table into a
@@ -595,8 +618,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         # Cache the reference image header for the next step.
         if filt == refband:
             HH, WW = sz
-            data['refband_width'] = np.float32(WW)
-            data['refband_height'] = np.float32(HH)
+            data['refband_width'] = np.int16(WW)
+            data['refband_height'] = np.int16(HH)
             refhdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.

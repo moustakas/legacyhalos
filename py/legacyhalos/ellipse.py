@@ -390,7 +390,7 @@ def _unpack_isofit(ellipsefit, filt, isofit, failed=False):
     """
     if failed:
         ellipsefit.update({
-            '{}_sma'.format(filt): np.array([-1]).astype('f4'),
+            '{}_sma'.format(filt): np.array([-1]).astype(np.int16),
             '{}_intens'.format(filt): np.array([-1]).astype('f4'),
             '{}_intens_err'.format(filt): np.array([-1]).astype('f4'),
             '{}_eps'.format(filt): np.array([-1]).astype('f4'),
@@ -413,7 +413,7 @@ def _unpack_isofit(ellipsefit, filt, isofit, failed=False):
             '{}_niter'.format(filt): np.array([-1]).astype(np.int16)})
     else:
         ellipsefit.update({
-            '{}_sma'.format(filt): isofit.sma.astype('f4'),
+            '{}_sma'.format(filt): isofit.sma.astype(np.int16),
             '{}_intens'.format(filt): isofit.intens.astype('f4'),
             '{}_intens_err'.format(filt): isofit.int_err.astype('f4'),
             '{}_eps'.format(filt): isofit.eps.astype('f4'),
