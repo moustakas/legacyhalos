@@ -626,9 +626,9 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
         if starmask is not None:
-            if sz != starmask.shape:
+            if starmask.shape != mask.shape:
                 from skimage.transform import resize
-                _starmask = resize(starmask, sz, mode='reflect')
+                _starmask = resize(starmask, mask.shape, mode='reflect')
                 mask = np.logical_or(mask, _starmask)
             else:
                 mask = np.logical_or(mask, starmask)
@@ -640,7 +640,13 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         if residual_mask is None:
             residual_mask = np.abs(resid) > 5*sig
         else:
-            residual_mask = np.logical_or(residual_mask, np.abs(resid) > 5*sig)
+            _residual_mask = np.abs(resid) > 5*sig
+            if _residual_mask.shape != residual_mask.shape:
+                _residual_mask = resize(_residual_mask, residual_mask.shape, mode='reflect')
+            try:
+                residual_mask = np.logical_or(residual_mask, _residual_mask)
+            except:
+                pdb.set_trace()                
 
         # Dilate the mask, mask out a 10% border, and pack into a dictionary.
         mask = binary_dilation(mask, iterations=2)
