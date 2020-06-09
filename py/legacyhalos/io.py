@@ -47,19 +47,32 @@ def legacyhalos_header(hdr=None):
 
     """
     import subprocess
+    from astropy.io import fits
     import pydl
     import legacyhalos
 
-    if hdr is None:
-        hdr = fitsio.FITSHDR()
+    if False:
+        if hdr is None:
+            hdr = fitsio.FITSHDR()
 
-    cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
-    ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
-    hdr.add_record(dict(name='LEGHALOV', value=ver, comment='legacyhalos git version'))
+        cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
+        ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
+        hdr.add_record(dict(name='LEGHALOV', value=ver, comment='legacyhalos git version'))
 
-    depvers, headers = [], []
-    for name, pkg in [('pydl', pydl)]:
-        hdr.add_record(dict(name=name, value=pkg.__version__, comment='{} version'.format(name)))
+        depvers, headers = [], []
+        for name, pkg in [('pydl', pydl)]:
+            hdr.add_record(dict(name=name, value=pkg.__version__, comment='{} version'.format(name)))
+    else:
+        if hdr is None:
+            hdr = fits.header.Header()
+
+        cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
+        ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
+        hdr['LEGHALOV'] = (ver, 'legacyhalos git version')
+
+        depvers, headers = [], []
+        for name, pkg in [('pydl', pydl)]:
+            hdr[name] = (pkg.__version__, '{} version'.format(name))
 
     return hdr
     
@@ -105,7 +118,7 @@ def get_run(onegal):
     return run
 
 # ellipsefit data model
-def _get_ellipse_datamodel(refband='r'):
+def _get_ellipse_datamodel():
     cols = [
         ('bands', ''),
         ('refband', ''),
@@ -341,6 +354,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
     ellipsefit - input dictionary
 
     """
+    from astropy.io import fits
     from astropy.table import QTable
     #from astropy.io import fits
     
@@ -367,7 +381,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
                 data = np.atleast_2d(data)
             unit = galaxyinfo[key][1] # add units
             if type(unit) is not str:
-                data *= unit
+                #data *= unit
+                data = u.Quantity(value=data, unit=unit, dtype=data.dtype)
             col = Column(name=key, data=data)
             out.add_column(col)
 
@@ -384,21 +399,25 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
 
     # Add to the data table
     datakeys = datadict.keys()
-    for key, unit in _get_ellipse_datamodel(refband=refband):
+    for key, unit in _get_ellipse_datamodel():
         if key not in datakeys:
             raise ValueError('Data model change -- no column {} for galaxy {}!'.format(key, galaxy))
         data = datadict[key]
         if np.isscalar(data):# or len(np.array(data)) > 1:
             data = np.atleast_1d(data)
+        #elif len(data) == 0:
+        #    data = np.atleast_1d(data)
         else:
             data = np.atleast_2d(data)
         if type(unit) is not str:
-            data *= unit
+            data = u.Quantity(value=data, unit=unit, dtype=data.dtype)
         col = Column(name=key, data=data)
+        #if 'z_cog' in key:
+        #    print(key)
+        #    pdb.set_trace()
         out.add_column(col)
 
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
-        pdb.set_trace()
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
 
     # uppercase!
@@ -407,10 +426,19 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
 
     hdr = legacyhalos_header()
 
+    hdu = fits.convenience.table_to_hdu(out)
+    hdu.header['EXTNAME'] = 'ELLIPSE'
+    hdu.header.update(hdr)
+    hdu.add_checksum()
+
     if verbose:
         print('Writing {}'.format(ellipsefitfile))
+    hdu0 = fits.PrimaryHDU()
+    hdu0.header['EXTNAME'] = 'PRIMARY'
+    hx = fits.HDUList([hdu0, hdu])
+    hx.writeto(ellipsefitfile, overwrite=True, checksum=True)
     #out.write(ellipsefitfile, overwrite=True)
-    fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
+    #fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
 def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxyid='', verbose=True):
     """Read the output of write_ellipsefit. Convert the astropy Table into a
@@ -590,8 +618,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         # Cache the reference image header for the next step.
         if filt == refband:
             HH, WW = sz
-            data['refband_width'] = np.float32(WW)
-            data['refband_height'] = np.float32(HH)
+            data['refband_width'] = np.int16(WW)
+            data['refband_height'] = np.int16(HH)
             refhdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
@@ -760,8 +788,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         # find_galaxy a couple more times to try to grow the "unmasking".
         if notok:
             print('Iteratively unmasking pixels:')
-            print('  r={:.2f} pixels'.format(maxis))
             maxis = 1.0 * mgegalaxy.majoraxis # [pixels]
+            print('  r={:.2f} pixels'.format(maxis))
             prevmaxis, iiter, maxiter = 0.0, 0, 4
             while (maxis > prevmaxis) and (iiter < maxiter):
                 #print(prevmaxis, maxis, iiter, maxiter)
@@ -800,6 +828,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             mgegalaxy.theta = (270 - pa) % 180
             mgegalaxy.majoraxis = 2 * tractor.shape_r[central] / filt2pixscale[refband] # [pixels]
             print('  r={:.2f} pixels'.format(mgegalaxy.majoraxis))
+            fixmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed,
+                                   mgegalaxy.majoraxis, mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
+                                   np.radians(mgegalaxy.theta-90), xobj, yobj)
+            newmask[fixmask] = ma.nomask
         else:
             largeshift = False
 
@@ -857,6 +889,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             _residual_mask = residual_mask.copy()
             _residual_mask[central_mask] = ma.nomask
             mask = ma.mask_or(_residual_mask, newmask, shrink=False)
+
+            #import matplotlib.pyplot as plt
+            #plt.clf() ; plt.imshow(central_mask, origin='lower') ; plt.savefig('junk2.png')
+            #pdb.set_trace()
 
             # Need to be smarter about the srcs list...
             srcs = tractor.copy()
@@ -1109,9 +1145,9 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           starmask=starmask, verbose=verbose,
                           largegalaxy=largegalaxy)
     #import matplotlib.pyplot as plt
-    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
-    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
-    #plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
+    #plt.clf() ; plt.imshow(np.log10(data['g_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
+    ##plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
+    ##plt.clf() ; plt.imshow(np.log10(data['r_masked'][2]), origin='lower') ; plt.savefig('junk3.png')
     #pdb.set_trace()
 
     if return_sample:

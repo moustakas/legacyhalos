@@ -70,7 +70,8 @@ def main():
                 print('No ellipse files found!')
                 return
             legacyhalos.SGA.build_ellipse_SGA(sample[idone[rank]], fullsample,
-                                              nproc=args.nproc, clobber=args.clobber)
+                                              nproc=args.nproc, clobber=args.clobber,
+                                              debug=args.debug)
 
         if args.htmlindex:
             legacyhalos.SGA.make_html(sample, survey=None, pixscale=args.pixscale,

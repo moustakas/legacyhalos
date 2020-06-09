@@ -11,8 +11,8 @@ export PYTHONPATH=$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
 
 # Specifiy the location of the input and output data.
 export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/$project
-export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr8candidates
-export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr8candidates
+export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9alpha
+export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr9alpha
 
 # Use a local checkout of the code even though it's in the Docker container.
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
