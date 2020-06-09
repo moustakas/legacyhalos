@@ -3,6 +3,7 @@ FROM legacysurvey/legacypipe:DR9.5.1
 RUN for x in \
     ipython \
     pydl \
+    scikit-image \
     ; do pip --no-cache-dir install $x; done
 
 # legacyhalos
