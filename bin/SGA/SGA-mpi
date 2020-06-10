@@ -149,7 +149,10 @@ def main():
         if args.customsky:
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
         else:
-            radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
+            if onegal[DIAMCOLUMN] > 30: # NGC0598=M33 is 62 arcmin in diameter!
+                radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
+            else:
+                radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
 
         run = legacyhalos.io.get_run(onegal)
         survey = get_survey(run, output_dir=galaxydir)

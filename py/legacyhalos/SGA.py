@@ -391,8 +391,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
 
-        if False:
-            vetolist = [
+        if True:
+            customgals = [
                 'NGC3034',
                 'NGC3077', # maybe?
                 'NGC3726', # maybe?
@@ -412,10 +412,10 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
                 'NGC3031',
                 'NGC5457',
                 'NGC0598']
-            these = np.where(np.isin(sample['GALAXY'][samplecut], vetolist))[0]
+            these = np.where(np.isin(sample['GALAXY'][samplecut], customgals))[0]
             rows = rows[these]
             
-        if True: # DR9 bricklist
+        if False: # DR9 bricklist
             #nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')            
             nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
