@@ -103,11 +103,18 @@ def mpi_args():
     return args
 
 def missing_files(args, sample, size=1, clobber_overwrite=None):
-    from astrometry.util.multiproc import multiproc
+    import multiprocessing
     from legacyhalos.io import _missing_files_one
 
     dependson = None
-    galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+    if args.htmlplots is False and args.htmlindex is False:
+        if args.verbose:
+            t0 = time.time()
+            print('Getting galaxy names and directories...', end='')
+        galaxy, galaxydir = get_galaxy_galaxydir(sample)
+        if args.verbose:
+            print('...took {:.3f} sec'.format(time.time() - t0))
+        
     if args.coadds:
         suffix = 'coadds'
         filesuffix = '-largegalaxy-coadds.isdone'
@@ -157,12 +164,22 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         ngal = len(sample)
     indices = np.arange(ngal)
 
-    mp = multiproc(nthreads=args.nproc)
-    args = []
+    pool = multiprocessing.Pool(args.nproc)
+    missargs = []
     for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
-        args.append([gal, gdir, filesuffix, dependson, clobber])
-        
-    todo = np.array(mp.map(_missing_files_one, args))
+        #missargs.append([gal, gdir, filesuffix, dependson, clobber])
+        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+        if dependson:
+            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+        else:
+            missargs.append([checkfile, None, clobber])
+
+    if args.verbose:
+        t0 = time.time()
+        print('Finding missing files...', end='')
+    todo = np.array(pool.map(_missing_files_one, missargs))
+    if args.verbose:
+        print('...took {:.3f} min'.format((time.time() - t0)/60))
 
     itodo = np.where(todo == 'todo')[0]
     idone = np.where(todo == 'done')[0]
@@ -287,7 +304,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         
     elif preselect_sample:
         cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_MULT',
-                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'SGA_ID', 'GALAXY', 'RA', 'DEC']
+                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'SGA_ID', 'GALAXY', 'RA', 'DEC',
+                'BRICKNAME']
         sample = fitsio.read(samplefile, columns=cols)
         rows = np.arange(len(sample))
 
@@ -391,7 +409,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
 
-        if True:
+        if False:
             customgals = [
                 'NGC3034',
                 'NGC3077', # maybe?
@@ -415,7 +433,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(np.isin(sample['GALAXY'][samplecut], customgals))[0]
             rows = rows[these]
             
-        if False: # DR9 bricklist
+        if True: # DR9 bricklist
             #nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')            
             nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
@@ -426,18 +444,21 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
 
-            # parallelize this!
-            import multiprocessing
-
-            pool = multiprocessing.Pool(nproc)
-            args = []
-            for ra, dec in zip(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut]):
-                args.append((ra, dec))
-            brickname = np.array(pool.map(_get_brickname_one, args))
-            #brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
+            #import multiprocessing
+            #pool = multiprocessing.Pool(nproc)
+            #if verbose:
+            #    t0 = time.time()
+            #    print('Building brickname...', end='')
+            #args = []
+            #for ra, dec in zip(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut]):
+            #    args.append((ra, dec))
+            #brickname = np.array(pool.map(_get_brickname_one, args))
+            ##brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
+            #if verbose:
+            #    print('...took {:.3f} min'.format((time.time() - t0)/60))
 
             #rows = np.where([brick in bricklist for brick in brickname])[0]
-            brickcut = np.where(np.isin(brickname, bricklist))[0]
+            brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]
 
         nrows = len(rows)
@@ -835,8 +856,6 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False, debug=False):
         print('Something went wrong and no galaxies were fitted.')
         return
     cat = vstack(cat)
-    #print(cat[cat['REF_ID'] == 393385])
-    #pdb.set_trace()
 
     if len(notractor) > 0:
         notractor = vstack(notractor)
@@ -853,9 +872,6 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False, debug=False):
         print('Writing {} galaxies with no grz coverage to {}'.format(len(nogrz), nogrzfile))
         nogrz.write(nogrzfile, overwrite=True)
 
-    #for d1, d2 in zip(cat[0].dtype.descr, cat[1].dtype.descr):
-    #    if d1 != d2:
-    #        print(d1, d2)
     print('Gathered {} pre-burned and frozen galaxies.'.format(len(cat)))
     print('  Frozen (all): {}'.format(np.sum(cat['FREEZE'])))
     print('  Frozen (SGA): {}'.format(np.sum(cat['FREEZE'] * (cat['REF_CAT'] == refcat))))

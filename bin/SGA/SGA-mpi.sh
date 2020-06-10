@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 # Shell script for running the various stages of the legacyhalos code using
 # MPI+shifter at NERSC. Required arguments:
@@ -28,13 +28,13 @@ let usemem=${maxmem}*${ncores}/32
 if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --help
 elif [ $stage = "coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --d25max 3 --first 50000 --last 100000
 elif [ $stage = "pipeline-coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --pipeline-coadds --nproc ${ncores} --mpi --verbose
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --ellipse --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --ellipse --nproc ${ncores} --mpi --verbose
 elif [ $stage = "htmlplots" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --htmlplots --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --htmlplots --nproc ${ncores} --mpi --verbose
 else
     echo "Unrecognized stage "$stage
 fi

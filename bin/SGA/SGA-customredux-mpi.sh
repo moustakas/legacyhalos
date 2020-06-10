@@ -18,17 +18,12 @@
 stage=$1
 ncores=$2
 
-#source $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-customredux-env
-source /global/cscratch1/sd/ioannis/largegalaxies-customredux/SGA-customredux-env # hack
-
-maxmem=134217728 # Cori/Haswell = 128 GB (limit the memory per job).
-grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
-let usemem=${maxmem}*${ncores}/32
+source $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-customredux-env
 
 if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --help
 elif [ $stage = "coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc $ncores --mpi --verbose --d25max 17.0
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc $ncores --mpi --verbose --d25max 30.0
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
