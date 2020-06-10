@@ -45,6 +45,7 @@ def main():
                                              galaxylist=args.galaxylist,
                                              verbose=args.verbose,
                                              customsky=args.customsky,
+                                             nproc=args.nproc,
                                              preselect_sample=True)
         if len(sample) == 0:
             return

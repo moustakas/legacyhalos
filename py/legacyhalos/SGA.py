@@ -5,10 +5,11 @@ legacyhalos.SGA
 Code to support the SGA sample and project.
 
 """
-import os, shutil, pdb
+import os, shutil, time, pdb
 import numpy as np
 import astropy
 
+from legacyhalos.desiutil import brickname as get_brickname
 import legacyhalos.io
 
 ZCOLUMN = 'Z'
@@ -240,8 +241,12 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
+def _get_brickname_one(args):
+    """Wrapper function for the multiprocessing."""
+    return get_brickname(*args)
+
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                customsky=False, preselect_sample=True, d25min=0.1, d25max=100.0):
+                customsky=False, preselect_sample=True, nproc=1, d25min=0.1, d25max=100.0):
     """Read/generate the parent SGA catalog.
 
     d25min in arcmin
@@ -251,7 +256,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     """
     import fitsio
-    from legacyhalos.desiutil import brickname as get_brickname
             
     version = SGA_version()
     samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', version, 'SGA-parent-{}.fits'.format(version))
@@ -315,8 +319,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             (sample['IN_DESI']))[0]
         rows = rows[samplecut]
 
-        brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
-        
         if False: # SGA-data-DR9-dr8candidates
             # Select galaxies containing DR8-supplemented sources
             #ww = []
@@ -424,6 +426,16 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
 
+            # parallelize this!
+            import multiprocessing
+
+            pool = multiprocessing.Pool(nproc)
+            args = []
+            for ra, dec in zip(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut]):
+                args.append((ra, dec))
+            brickname = np.array(pool.map(_get_brickname_one, args))
+            #brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
+
             #rows = np.where([brick in bricklist for brick in brickname])[0]
             brickcut = np.where(np.isin(brickname, bricklist))[0]
             rows = rows[brickcut]
@@ -466,12 +478,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #tt = tt[tt['D25'] > 1]
     #galaxylist = tt['GALAXY'].data
 
-    # strip whitespace
-    if 'GALAXY' in sample.colnames:
-        sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
-    if 'GROUP_NAME' in sample.colnames:
-        galcolumn = 'GROUP_NAME'
-        sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
+    ## strip whitespace
+    #t0 = time.time()
+    #if 'GALAXY' in sample.colnames:
+    #    sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
+    #if 'GROUP_NAME' in sample.colnames:
+    #    galcolumn = 'GROUP_NAME'
+    #    sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
+    #print(time.time() - t0)
 
     #print('Gigantic hack!!')
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/junk', dtype=str)
