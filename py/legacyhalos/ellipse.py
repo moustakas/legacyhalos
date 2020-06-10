@@ -876,10 +876,10 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                                  refband=refband, pixscale=pixscale,
                                                  galex_pixscale=galex_pixscale,
                                                  unwise_pixscale=unwise_pixscale,
+                                                 galex=galex, unwise=unwise, sdss=sdss,
                                                  verbose=verbose,
                                                  largegalaxy=largegalaxy,
                                                  return_sample=True)
-
 
     if bool(data):
         if data['failed']: # all galaxies dropped

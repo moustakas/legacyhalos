@@ -186,6 +186,7 @@ def main():
             from legacyhalos.mpi import call_ellipse
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                          nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                         unwise=False,
                          logfile=logfile, largegalaxy=True, pipeline=False)
                              
         if args.htmlplots:

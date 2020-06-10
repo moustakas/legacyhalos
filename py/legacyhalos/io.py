@@ -106,10 +106,10 @@ def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
                     return 'todo'
         return 'todo'
     
-def get_run(onegal):
+def get_run(onegal, racolumn='RA', deccolumn='DEC'):
     """Get the run based on a simple declination cut."""
-    if onegal['DEC'] > 32.375:
-        if onegal['RA'] < 45 or onegal['RA'] > 315:
+    if onegal[deccolumn] > 32.375:
+        if onegal[racolumn] < 45 or onegal[racolumn] > 315:
             run = 'south'
         else:
             run = 'north'
@@ -549,26 +549,28 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
     for filt in bands:
         psfsizecol = 'psfsize_{}'.format(filt.lower())
         psfdepthcol = 'psfdepth_{}'.format(filt.lower())
-        good = np.where(tractor.get(psfsizecol)[these] > 0)[0]
-        if len(good) == 0:
-            print('  No good measurements of the PSF size in band {}!'.format(filt))
-            out['psfsigma_{}'.format(filt)] = np.float32(0.0)
-            out['psfsize_{}'.format(filt)] = np.float32(0.0)
-        else:
-            # Get the PSF size and image depth.
-            psfsize = tractor.get(psfsizecol)[these][good]   # [FWHM, arcsec]
-            psfsigma = psfsize / np.sqrt(8 * np.log(2)) / pixscale # [sigma, pixels]
+        if psfsizecol in tractor.columns():
+            good = np.where(tractor.get(psfsizecol)[these] > 0)[0]
+            if len(good) == 0:
+                print('  No good measurements of the PSF size in band {}!'.format(filt))
+                out['psfsigma_{}'.format(filt)] = np.float32(0.0)
+                out['psfsize_{}'.format(filt)] = np.float32(0.0)
+            else:
+                # Get the PSF size and image depth.
+                psfsize = tractor.get(psfsizecol)[these][good]   # [FWHM, arcsec]
+                psfsigma = psfsize / np.sqrt(8 * np.log(2)) / pixscale # [sigma, pixels]
 
-            out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
-            out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
+                out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
+                out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
             
-        good = np.where(tractor.get(psfdepthcol)[these] > 0)[0]
-        if len(good) == 0:
-            print('  No good measurements of the PSF depth in band {}!'.format(filt))
-            out['psfdepth_{}'.format(filt)] = np.float32(0.0)
-        else:
-            psfdepth = tractor.get(psfdepthcol)[these][good] # [AB mag, 5-sigma]
-            out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
+        if psfsizecol in tractor.columns():
+            good = np.where(tractor.get(psfdepthcol)[these] > 0)[0]
+            if len(good) == 0:
+                print('  No good measurements of the PSF depth in band {}!'.format(filt))
+                out['psfdepth_{}'.format(filt)] = np.float32(0.0)
+            else:
+                psfdepth = tractor.get(psfdepthcol)[these][good] # [AB mag, 5-sigma]
+                out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
         
     return out
 
@@ -624,9 +626,9 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
         if starmask is not None:
-            if sz != starmask.shape:
+            if starmask.shape != mask.shape:
                 from skimage.transform import resize
-                _starmask = resize(starmask, sz, mode='reflect')
+                _starmask = resize(starmask, mask.shape, mode='reflect')
                 mask = np.logical_or(mask, _starmask)
             else:
                 mask = np.logical_or(mask, starmask)
@@ -638,7 +640,10 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         if residual_mask is None:
             residual_mask = np.abs(resid) > 5*sig
         else:
-            residual_mask = np.logical_or(residual_mask, np.abs(resid) > 5*sig)
+            _residual_mask = np.abs(resid) > 5*sig
+            if _residual_mask.shape != residual_mask.shape:
+                _residual_mask = resize(_residual_mask, residual_mask.shape, mode='reflect')
+                residual_mask = np.logical_or(residual_mask, _residual_mask)
 
         # Dilate the mask, mask out a 10% border, and pack into a dictionary.
         mask = binary_dilation(mask, iterations=2)
@@ -925,6 +930,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, return_sample=False,
+                   galex=False, unwise=False, 
                    #central_galaxy_id=None,
                    sdss=False, largegalaxy=False, pipeline=False, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
@@ -961,23 +967,17 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                             'sample': '{}-sample'.format(prefix),
                             'maskbits': '{}-maskbits'.format(prefix)})
 
-    # Add GALEX and unWISE - fix me.
-    #filt2imfile.update({
-    #    'FUV': ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'NUV': ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'W1':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'W2':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'W3':  ['image', 'model-nocentral', 'custom-model', 'invvar'],
-    #    'W4':  ['image', 'model-nocentral', 'custom-model', 'invvar']
-    #    })
-    #filt2pixscale.update({
-    #    'FUV': galex_pixscale,
-    #    'NUV': galex_pixscale,
-    #    'W1':  unwise_pixscale,
-    #    'W2':  unwise_pixscale,
-    #    'W3':  unwise_pixscale,
-    #    'W4':  unwise_pixscale
-    #    })
+    # Add GALEX and unWISE--
+    if galex:
+        for band in ['FUV', 'NUV']:
+            bands = bands + tuple([band])
+            filt2pixscale.update({band: galex_pixscale})
+            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(prefix), 'invvar': 'invvar'}})
+    if unwise:
+        for band in ['W1', 'W2', 'W3', 'W4']:
+            bands = bands + tuple([band])
+            filt2pixscale.update({band: unwise_pixscale})
+            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(prefix), 'invvar': 'invvar'}})
 
     # Do all the files exist? If not, bail!
     found_data = True
