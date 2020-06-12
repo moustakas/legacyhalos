@@ -273,7 +273,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         cog = ellipsefit['{}_cog_mag'.format(filt)]
         cogerr = ellipsefit['{}_cog_magerr'.format(filt)]
         chi2 = ellipsefit['{}_cog_params_chi2'.format(filt)]
-        if len(cog) == 0 or chi2 == 1e6: # no measurement, or failed
+        if np.atleast_1d(cog)[0] == -1 or chi2 == 1e6: # no measurement, or failed
             continue
         magtot = ellipsefit['{}_cog_params_mtot'.format(filt)]
         m0 = ellipsefit['{}_cog_params_m0'.format(filt)]

@@ -11,16 +11,16 @@ export PYTHONPATH=$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
 
 # Specifiy the location of the input and output data.
 export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/$project
-export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9alpha
-export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr9alpha
+export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/SGA-customredux-data # hack
+export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/SGA-customredux-html # hack
 
 # Use a local checkout of the code even though it's in the Docker container.
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
-export PATH=$LEGACYHALOS_CODE_DIR/bin/$project:$PATH
+export PATH=$LEGACYHALOS_CODE_DIR/bin/SGA:$PATH # hack!
 export PYTHONPATH=$LEGACYHALOS_CODE_DIR/py:$PYTHONPATH
 
 # Pipeline variables---only change these if you know what you're doing!
-export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
+export LEGACY_SURVEY_DIR=/global/cscratch1/sd/ioannis/largegalaxies-customredux
 export GAIA_CAT_VER=2
 export GAIA_CAT_DIR=/global/cfs/cdirs/cosmo/work/gaia/chunks-gaia-dr2-astrom-2
 export UNWISE_COADDS_DIR=/global/cfs/cdirs/cosmo/data/unwise/neo6/unwise-coadds/fulldepth:/global/cfs/cdirs/cosmo/data/unwise/allwise/unwise-coadds/fulldepth

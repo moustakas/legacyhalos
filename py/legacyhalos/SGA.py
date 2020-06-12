@@ -5,10 +5,11 @@ legacyhalos.SGA
 Code to support the SGA sample and project.
 
 """
-import os, shutil, pdb
+import os, shutil, time, pdb
 import numpy as np
 import astropy
 
+from legacyhalos.desiutil import brickname as get_brickname
 import legacyhalos.io
 
 ZCOLUMN = 'Z'
@@ -85,6 +86,7 @@ def mpi_args():
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
+    parser.add_argument('--customredux', action='store_true', help='Process the custom reductions of the largest galaxies.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
 
     parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
@@ -102,11 +104,18 @@ def mpi_args():
     return args
 
 def missing_files(args, sample, size=1, clobber_overwrite=None):
-    from astrometry.util.multiproc import multiproc
+    import multiprocessing
     from legacyhalos.io import _missing_files_one
 
     dependson = None
-    galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+    if args.htmlplots is False and args.htmlindex is False:
+        if args.verbose:
+            t0 = time.time()
+            print('Getting galaxy names and directories...', end='')
+        galaxy, galaxydir = get_galaxy_galaxydir(sample)
+        if args.verbose:
+            print('...took {:.3f} sec'.format(time.time() - t0))
+        
     if args.coadds:
         suffix = 'coadds'
         filesuffix = '-largegalaxy-coadds.isdone'
@@ -156,12 +165,22 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         ngal = len(sample)
     indices = np.arange(ngal)
 
-    mp = multiproc(nthreads=args.nproc)
-    args = []
+    pool = multiprocessing.Pool(args.nproc)
+    missargs = []
     for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
-        args.append([gal, gdir, filesuffix, dependson, clobber])
-        
-    todo = np.array(mp.map(_missing_files_one, args))
+        #missargs.append([gal, gdir, filesuffix, dependson, clobber])
+        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+        if dependson:
+            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+        else:
+            missargs.append([checkfile, None, clobber])
+
+    if args.verbose:
+        t0 = time.time()
+        print('Finding missing files...', end='')
+    todo = np.array(pool.map(_missing_files_one, missargs))
+    if args.verbose:
+        print('...took {:.3f} min'.format((time.time() - t0)/60))
 
     itodo = np.where(todo == 'todo')[0]
     idone = np.where(todo == 'done')[0]
@@ -240,8 +259,13 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
+def _get_brickname_one(args):
+    """Wrapper function for the multiprocessing."""
+    return get_brickname(*args)
+
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                customsky=False, preselect_sample=True, d25min=0.1, d25max=100.0):
+                customsky=False, preselect_sample=True, customredux=False, nproc=1,
+                d25min=0.1, d25max=100.0):
     """Read/generate the parent SGA catalog.
 
     d25min in arcmin
@@ -251,7 +275,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     """
     import fitsio
-    from legacyhalos.desiutil import brickname as get_brickname
             
     version = SGA_version()
     samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', version, 'SGA-parent-{}.fits'.format(version))
@@ -271,7 +294,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
         samplecut = np.where(
             #(sample['GROUP_DIAMETER'] > 5) * 
-            #(sample['GROUP_DIAMETER'] > 5) * (sample['GROUP_DIAMETER'] < 25) *
+            (sample['GROUP_DIAMETER'] > 5) * (sample['GROUP_DIAMETER'] < 25) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
         #this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
@@ -281,69 +304,104 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         nrows = len(rows)
         print('Selecting {} custom sky galaxies.'.format(nrows))
         
+    elif customredux:
+        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+        rows = np.arange(len(sample))
+
+        samplecut = np.where(
+            (sample['GROUP_PRIMARY'] == True) *
+            (sample['IN_DESI']))[0]
+        rows = rows[samplecut]
+        
+        customgals = [
+            'NGC3034_GROUP',
+            'NGC3077', # maybe?
+            'NGC3726', # maybe?
+            'NGC3953_GROUP', # maybe?
+            'NGC3992_GROUP',
+            'NGC4051',
+            'NGC4096', # maybe?
+            'NGC4125_GROUP',
+            'UGC07698',
+            'NGC4736_GROUP',
+            'NGC5055_GROUP',
+            'NGC5194_GROUP',
+            'NGC5322_GROUP',
+            'NGC5354_GROUP',
+            'NGC5866_GROUP',
+            'NGC4258',
+            'NGC3031_GROUP',
+            'NGC5457',
+            'NGC0598_GROUP']
+
+        these = np.where(np.isin(sample['GROUP_NAME'][samplecut], customgals))[0]
+        rows = rows[these]
+        nrows = len(rows)
+
+        print('Selecting {} galaxies with custom reductions.'.format(nrows))
+        
     elif preselect_sample:
         cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_MULT',
-                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'SGA_ID', 'GALAXY', 'RA', 'DEC']
+                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'SGA_ID', 'GALAXY', 'RA', 'DEC',
+                'BRICKNAME']
         sample = fitsio.read(samplefile, columns=cols)
         rows = np.arange(len(sample))
 
         samplecut = np.where(
             (sample['GROUP_DIAMETER'] > d25min) *
             (sample['GROUP_DIAMETER'] < d25max) *
+            ### custom reductions
+            #(np.array(['DR8' not in gg for gg in sample['GALAXY']])) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
         rows = rows[samplecut]
 
-        brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
+        if True: # DR9 bricklist
+            nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
+            sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
 
-        if True: # SGA-data-DR9-dr8candidates
-            # Select galaxies containing DR8-supplemented sources
-            #ww = []
-            #w1 = np.where(sample['GROUP_MULT'] > 1)[0]
-            #for I, gid in zip(w1, sample['GROUP_ID'][w1[:50]]):
-            #    w2 = np.where(sample['GROUP_ID'] == gid)[0]
-            #    if np.any(['DR8-' in nn for nn in sample['GALAXY'][w2]]):
-            #        ww.append(I)
-            these = np.where(['DR8-' in nn for nn in sample['GROUP_NAME'][samplecut]])[0]
-            rows = rows[these]
+            bricklist = np.union1d(nbricklist, sbricklist)
+            #bricklist = nbricklist
+            bricklist = sbricklist
+
+            brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
+            rows = rows[brickcut]
             
-        if False: # SGA-data-DR9-test2 sample
+        if False:
             #bb = [692770, 232869, 51979, 405760, 1319700, 1387188, 519486, 145096]
             #ww = np.where(np.isin(sample['SGA_ID'], bb))[0]
             #ff = get_brickname(sample['GROUP_RA'][ww], sample['GROUP_DEC'][ww])
+
+            # Testing subtracting galaxy halos before sky-fitting---in Virgo!
+            bricklist = ['1877p122', '1877p125', '1875p122', '1875p125',
+                         '2211p017', '2213p017', '2211p020', '2213p020']
             
-            # Test sample-- 1 deg2 patch of sky
-            #bricklist = ['0343p012']
-            bricklist = ['1948p280', '1951p280', # Coma
-                         '1914p307', # NGC4676/Mice
-                         '2412p205', # NGC6052=PGC200329
-                         '1890p112', # NGC4568 - overlapping spirals in Virgo
-                         '0211p037', # NGC520 - train wreck
-                         # random galaxies around bright stars
-                         '0836m285', '3467p137',
-                         '0228m257', '1328m022',
-                         '3397m057', '0159m047',
-                         '3124m097', '3160p097',
-                         # 1 square degree of test bricks--
-                         '0341p007', '0341p010', '0341p012', '0341p015', '0343p007', '0343p010',
-                         '0343p012', '0343p015', '0346p007', '0346p010', '0346p012', '0346p015',
-                         '0348p007', '0348p010', '0348p012', '0348p015',
-                         # NGC4448 bricks
-                         '1869p287', '1872p285', '1869p285'
-                         # NGC2146 bricks
-                         '0943p785', '0948p782'
-                         ]
+            ## Test sample-- 1 deg2 patch of sky
+            ##bricklist = ['0343p012']
+            #bricklist = ['1948p280', '1951p280', # Coma
+            #             '1914p307', # NGC4676/Mice
+            #             '2412p205', # NGC6052=PGC200329
+            #             '1890p112', # NGC4568 - overlapping spirals in Virgo
+            #             '0211p037', # NGC520 - train wreck
+            #             # random galaxies around bright stars
+            #             '0836m285', '3467p137',
+            #             '0228m257', '1328m022',
+            #             '3397m057', '0159m047',
+            #             '3124m097', '3160p097',
+            #             # 1 square degree of test bricks--
+            #             '0341p007', '0341p010', '0341p012', '0341p015', '0343p007', '0343p010',
+            #             '0343p012', '0343p015', '0346p007', '0346p010', '0346p012', '0346p015',
+            #             '0348p007', '0348p010', '0348p012', '0348p015',
+            #             # NGC4448 bricks
+            #             '1869p287', '1872p285', '1869p285'
+            #             # NGC2146 bricks
+            #             '0943p785', '0948p782'
+            #             ]
+            
             #rows = np.where([brick in bricklist for brick in brickname])[0]
-            brickcut = np.where(np.isin(brickname, bricklist))[0]
+            brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]
 
-        if False: # largest galaxies which may need reprocessing (just the north)
-            #bricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
-            #brickcut = np.where(np.isin(brickname, bricklist))[0]
-            #rows = rows[brickcut]
-            m1 = sample['GROUP_DEC'][samplecut] > 30 # 32.375
-            rows = rows[m1]
-            
         if False: # SAGA host galaxies
             from astrometry.libkd.spherematch import match_radec
             saga = astropy.table.Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'saga_hosts.csv'))
@@ -357,31 +415,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         if False: # test fitting of all the DR8 candidates
             fullsample = read_sample(preselect_sample=False, columns=['SGA_ID', 'GALAXY', 'GROUP_ID', 'GROUP_NAME', 'GROUP_DIAMETER', 'IN_DESI'])
             ww = np.where(fullsample['SGA_ID'] >= 5e6)[0]
-            #galaxylist = np.unique(fullsample['GROUP_NAME'][ww])
-            #print(len(ww), len(set(fullsample['GROUP_ID'][ww])))
-            #for gid in set(fullsample['GROUP_ID'][ww]):
-            #    ii = np.where(gid == sample['GROUP_ID'][samplecut])[0]
-            #    jj = np.where(gid == fullsample['GROUP_ID'])[0]
-            #    print(astropy.table.Table(sample[samplecut][ii]))
-            #    print(fullsample[jj])
-            #    pdb.set_trace()
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
-            
-        if False: # DR9 bricklist
-            nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')            
-            #nbricklist = np.loadtxt(os.path.joinlegacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.joinlegacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
-            #nbricklist = np.loadtxt(os.path.joinlegacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.joinlegacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
-
-            bricklist = np.union1d(nbricklist, sbricklist)
-            #bricklist = nbricklist
-
-            #rows = np.where([brick in bricklist for brick in brickname])[0]
-            brickcut = np.where(np.isin(brickname, bricklist))[0]
-            rows = rows[brickcut]
 
         nrows = len(rows)
         print('Selecting {} galaxies in the DR9 footprint.'.format(nrows))
@@ -421,17 +456,20 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #tt = tt[tt['D25'] > 1]
     #galaxylist = tt['GALAXY'].data
 
-    # strip whitespace
-    if 'GALAXY' in sample.colnames:
-        sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
-    if 'GROUP_NAME' in sample.colnames:
-        galcolumn = 'GROUP_NAME'
-        sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
+    ## strip whitespace
+    #t0 = time.time()
+    #if 'GALAXY' in sample.colnames:
+    #    sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
+    #if 'GROUP_NAME' in sample.colnames:
+    #    galcolumn = 'GROUP_NAME'
+    #    sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
+    #print(time.time() - t0)
 
     #print('Gigantic hack!!')
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/junk', dtype=str)
     
     if galaxylist is not None:
+        galcolumn = 'GROUP_NAME'
         if verbose:
             print('Selecting specific galaxies.')
         these = np.isin(sample[galcolumn], galaxylist)
@@ -520,6 +558,9 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
     notgaia = np.where(tractor['REF_CAT'] != 'G2')[0]
     if len(notgaia) > 0:
         tractor = tractor[notgaia]
+    if len(tractor) == 0: # can happen in small fields
+        print('Warning: All Tractor sources are Gaia stars in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+        return None, None, None, onegal
     assert('G2' not in set(tractor['REF_CAT']))
 
     # Also remove SGA sources which do not belong to this group, because they
@@ -527,7 +568,9 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
     # the *mosaic* of NGC5899 but does not belong to the NGC5899 "group").
     ilslga = np.where(tractor['REF_CAT'] == refcat)[0]
     if len(ilslga) == 0:
-        raise ValueError('No SGA sources in the field of SGA_ID={}?!?'.format(onegal['SGA_ID']))
+        print('Warning: No SGA sources in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+        return None, None, None, onegal
+        
     toss = np.where(np.logical_not(np.isin(tractor['REF_ID'][ilslga], fullsample['SGA_ID'])))[0]
     if len(toss) > 0:
         for tt in toss:
@@ -541,12 +584,15 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
     # sources are re-detected in production then so be it.
     keep = np.where(np.logical_or(tractor['TYPE'] == 'PSF', tractor['SHAPE_R'] > 0.1))[0]
     if len(keep) == 0:
-        raise ValueError('No Tractor sources left in the field of SGA_ID={}?!?'.format(onegal['SGA_ID']))
+        print('All Tractor sources have been dropped in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+        return None, None, None, onegal
     tractor = tractor[keep]
 
     # Next, add all the (new) columns we will need to the Tractor catalog. This
     # is a little wasteful because the non-frozen Tractor sources will be tossed
-    # out at the end, but it's much easier and cleaner to do it this way.
+    # out at the end, but it's much easier and cleaner to do it this way. Also
+    # remove the duplicate BRICKNAME column from the Tractor catalog.
+    tractor.remove_column('BRICKNAME') # of the form custom-BRICKNAME
     onegal.rename_column('RA', 'SGA_RA')
     onegal.rename_column('DEC', 'SGA_DEC')
     onegal.remove_column('INDEX')
@@ -717,16 +763,17 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
 
     return tractor, notractor, noellipse, None
 
-def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False):
+def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False, debug=False):
     """Gather all the ellipse-fitting results and build the final SGA catalog.
 
     """
     import fitsio
+    from contextlib import redirect_stdout, redirect_stderr
     from astropy.table import Table, vstack, join
     from pydl.pydlutils.spheregroup import spheregroup
     from astrometry.util.multiproc import multiproc
     from legacypipe.reference import get_large_galaxy_version
-        
+
     # This is a little fragile.
     version = SGA_version()
     refcat, _ = get_large_galaxy_version(os.getenv('LARGEGALAXIES_CAT'))
@@ -744,6 +791,11 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False):
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
         return
 
+    #if not debug:
+    #    logfile = os.path.join(datadir, '{}-{}.log'.format(galaxy, suffix))
+    #    with open(logfile, 'a') as log:
+    #        with redirect_stdout(log), redirect_stderr(log):
+                
     notractorfile = os.path.join(outdir, 'SGA-notractor-{}.fits'.format(version))
     noellipsefile = os.path.join(outdir, 'SGA-noellipse-{}.fits'.format(version))
     nogrzfile = os.path.join(outdir, 'SGA-nogrz-{}.fits'.format(version))
@@ -764,8 +816,6 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False):
         print('Something went wrong and no galaxies were fitted.')
         return
     cat = vstack(cat)
-    #print(cat[cat['REF_ID'] == 393385])
-    #pdb.set_trace()
 
     if len(notractor) > 0:
         notractor = vstack(notractor)
@@ -781,11 +831,7 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False):
         nogrz = vstack(nogrz)
         print('Writing {} galaxies with no grz coverage to {}'.format(len(nogrz), nogrzfile))
         nogrz.write(nogrzfile, overwrite=True)
-        del nogrz
 
-    #for d1, d2 in zip(cat[0].dtype.descr, cat[1].dtype.descr):
-    #    if d1 != d2:
-    #        print(d1, d2)
     print('Gathered {} pre-burned and frozen galaxies.'.format(len(cat)))
     print('  Frozen (all): {}'.format(np.sum(cat['FREEZE'])))
     print('  Frozen (SGA): {}'.format(np.sum(cat['FREEZE'] * (cat['REF_CAT'] == refcat))))
@@ -852,31 +898,28 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False):
     out = out[np.argsort(out['SGA_ID'])]
     out = vstack((out[out['SGA_ID'] != -1], out[out['SGA_ID'] == -1]))
 
-    try:
-        if not skipfull:
-            # This may not happen if galaxies are dropped--
-            #chk1 = np.where(np.isin(out['SGA_ID'], fullsample['SGA_ID']))[0]
-            #assert(len(chk1) == len(fullsample))
-            if len(nogrz) > 0:
-                chk2 = np.where(np.isin(out['SGA_ID'], nogrz['SGA_ID']))[0]
-                assert(len(chk2) == len(nogrz))
-            if len(notractor) > 0:
-                chk3 = np.where(np.isin(out['SGA_ID'], notractor['SGA_ID']))[0]
-                assert(len(chk3) == 0)
-            if len(noellipse) > 0:
-                chk4 = np.where(np.isin(out['SGA_ID'], noellipse['SGA_ID']))[0]
-                assert(len(chk4) == 0)
-            if len(nogrz) > 0 and len(notractor) > 0:            
-                chk5 = np.where(np.isin(notractor['SGA_ID'], nogrz['SGA_ID']))[0]
-                assert(len(chk5) == 0)
-        assert(np.all(out['RA'] > 0))
-        assert(np.all(np.isfinite(out['PA'])))
-        assert(np.all(np.isfinite(out['BA'])))
-        ww = np.where(out['SGA_ID'] != -1)[0]
-        assert(np.all((out['PA'][ww] >= 0) * (out['PA'][ww] <= 180)))
-        assert(np.all((out['BA'][ww] > 0) * (out['BA'][ww] <= 1.0)))
-    except:
-        pdb.set_trace()
+    if not skipfull:
+        # This may not happen if galaxies are dropped--
+        #chk1 = np.where(np.isin(out['SGA_ID'], fullsample['SGA_ID']))[0]
+        #assert(len(chk1) == len(fullsample))
+        if len(nogrz) > 0:
+            chk2 = np.where(np.isin(out['SGA_ID'], nogrz['SGA_ID']))[0]
+            assert(len(chk2) == len(nogrz))
+        if len(notractor) > 0:
+            chk3 = np.where(np.isin(out['SGA_ID'], notractor['SGA_ID']))[0]
+            assert(len(chk3) == 0)
+        if len(noellipse) > 0:
+            chk4 = np.where(np.isin(out['SGA_ID'], noellipse['SGA_ID']))[0]
+            assert(len(chk4) == 0)
+        if len(nogrz) > 0 and len(notractor) > 0:            
+            chk5 = np.where(np.isin(notractor['SGA_ID'], nogrz['SGA_ID']))[0]
+            assert(len(chk5) == 0)
+    assert(np.all(out['RA'] > 0))
+    assert(np.all(np.isfinite(out['PA'])))
+    assert(np.all(np.isfinite(out['BA'])))
+    ww = np.where(out['SGA_ID'] != -1)[0]
+    assert(np.all((out['PA'][ww] >= 0) * (out['PA'][ww] <= 180)))
+    assert(np.all((out['BA'][ww] > 0) * (out['BA'][ww] <= 1.0)))
 
     print('Writing {} galaxies to {}'.format(len(out), outfile))
     hdrversion = 'L{}-ELLIPSE'.format(version[1:2]) # fragile!
