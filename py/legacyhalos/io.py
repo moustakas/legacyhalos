@@ -705,8 +705,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         nocentral = np.delete(np.arange(len(tractor)), central)
         srcs = tractor.copy()
         srcs.cut(nocentral)
-        model_nocentral = srcs2image(srcs, twcs, band=refband.lower(), pixelized_psf=psf,
-                                     allbands=''.join(bands).lower())
+        model_nocentral = srcs2image(srcs, twcs, band=refband.lower(), pixelized_psf=psf)
 
         # Mask all previous (brighter) central galaxies, if any.
         img, newmask = ma.getdata(data[refband]) - model_nocentral, ma.getmask(data[refband])
@@ -903,8 +902,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             # Need to be smarter about the srcs list...
             srcs = tractor.copy()
             srcs.cut(nocentral)
-            model_nocentral = srcs2image(srcs, twcs, band=filt.lower(), pixelized_psf=psf,
-                                         allbands=''.join(bands).lower())
+            model_nocentral = srcs2image(srcs, twcs, band=filt.lower(), pixelized_psf=psf)
 
             # Convert to surface brightness and 32-bit precision.
             img = (ma.getdata(data[filt]) - model_nocentral) / thispixscale**2 # [nanomaggies/arcsec**2]
@@ -1035,6 +1033,10 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                 'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
                 'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
                 'psfsize_g', 'psfsize_r', 'psfsize_z']
+        if galex:
+            cols = cols+['flux_fuv', 'flux_nuv']
+        if unwise:
+            cols = cols+['flux_w1', 'flux_w1', 'flux_w1', 'flux_w1']
         tractor = fits_table(tractorfile, columns=cols)
         hdr = fitsio.read_header(tractorfile)
         if verbose:
