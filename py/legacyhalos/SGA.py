@@ -86,6 +86,7 @@ def mpi_args():
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
+    parser.add_argument('--customredux', action='store_true', help='Process the custom reductions of the largest galaxies.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
 
     parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
@@ -263,7 +264,8 @@ def _get_brickname_one(args):
     return get_brickname(*args)
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                customsky=False, preselect_sample=True, nproc=1, d25min=0.1, d25max=100.0):
+                customsky=False, preselect_sample=True, customredux=False, nproc=1,
+                d25min=0.1, d25max=100.0):
     """Read/generate the parent SGA catalog.
 
     d25min in arcmin
@@ -292,7 +294,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
         samplecut = np.where(
             #(sample['GROUP_DIAMETER'] > 5) * 
-            #(sample['GROUP_DIAMETER'] > 5) * (sample['GROUP_DIAMETER'] < 25) *
+            (sample['GROUP_DIAMETER'] > 5) * (sample['GROUP_DIAMETER'] < 25) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
         #this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
@@ -301,6 +303,42 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         rows = rows[samplecut]
         nrows = len(rows)
         print('Selecting {} custom sky galaxies.'.format(nrows))
+        
+    elif customredux:
+        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+        rows = np.arange(len(sample))
+
+        samplecut = np.where(
+            (sample['GROUP_PRIMARY'] == True) *
+            (sample['IN_DESI']))[0]
+        rows = rows[samplecut]
+        
+        customgals = [
+            'NGC3034_GROUP',
+            'NGC3077', # maybe?
+            'NGC3726', # maybe?
+            'NGC3953_GROUP', # maybe?
+            'NGC3992_GROUP',
+            'NGC4051',
+            'NGC4096', # maybe?
+            'NGC4125_GROUP',
+            'UGC07698',
+            'NGC4736_GROUP',
+            'NGC5055_GROUP',
+            'NGC5194_GROUP',
+            'NGC5322_GROUP',
+            'NGC5354_GROUP',
+            'NGC5866_GROUP',
+            'NGC4258',
+            'NGC3031_GROUP',
+            'NGC5457',
+            'NGC0598_GROUP']
+
+        these = np.where(np.isin(sample['GROUP_NAME'][samplecut], customgals))[0]
+        rows = rows[these]
+        nrows = len(rows)
+
+        print('Selecting {} galaxies with custom reductions.'.format(nrows))
         
     elif preselect_sample:
         cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_MULT',
@@ -313,40 +351,21 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             (sample['GROUP_DIAMETER'] > d25min) *
             (sample['GROUP_DIAMETER'] < d25max) *
             ### custom reductions
-            #(sample['GROUP_NAME'] != 'NGC3034_GROUP') * 
-            #(sample['GROUP_NAME'] != 'NGC3077') * # maybe?
-            #(sample['GROUP_NAME'] != 'NGC3726') * # maybe?
-            #(sample['GROUP_NAME'] != 'NGC3953_GROUP') * # maybe?
-            #(sample['GROUP_NAME'] != 'NGC3992_GROUP') *
-            #(sample['GROUP_NAME'] != 'NGC4051') *
-            #(sample['GROUP_NAME'] != 'NGC4096') * # maybe?
-            #(sample['GROUP_NAME'] != 'NGC4125_GROUP') *
-            #(sample['GROUP_NAME'] != 'UGC07698') *
-            #(sample['GROUP_NAME'] != 'NGC4736_GROUP') *
-            #(sample['GROUP_NAME'] != 'NGC5055_GROUP') *
-            #(sample['GROUP_NAME'] != 'NGC5194_GROUP') *
-            #(sample['GROUP_NAME'] != 'NGC5322_GROUP') *
-            #(sample['GROUP_NAME'] != 'NGC5354_GROUP') *
-            #(sample['GROUP_NAME'] != 'NGC5866_GROUP') *
-            #(sample['GROUP_NAME'] != 'NGC4258') *
-            #(sample['GROUP_NAME'] != 'NGC3031_GROUP') *
-            #(sample['GROUP_NAME'] != 'NGC5457') *
-            #(sample['GROUP_NAME'] != 'NGC0598_GROUP') * 
             #(np.array(['DR8' not in gg for gg in sample['GALAXY']])) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
         rows = rows[samplecut]
 
-        if False: # SGA-data-DR9-dr8candidates
-            # Select galaxies containing DR8-supplemented sources
-            #ww = []
-            #w1 = np.where(sample['GROUP_MULT'] > 1)[0]
-            #for I, gid in zip(w1, sample['GROUP_ID'][w1[:50]]):
-            #    w2 = np.where(sample['GROUP_ID'] == gid)[0]
-            #    if np.any(['DR8-' in nn for nn in sample['GALAXY'][w2]]):
-            #        ww.append(I)
-            these = np.where(['DR8-' in nn for nn in sample['GROUP_NAME'][samplecut]])[0]
-            rows = rows[these]
+        if True: # DR9 bricklist
+            nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
+            sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
+
+            bricklist = np.union1d(nbricklist, sbricklist)
+            #bricklist = nbricklist
+            bricklist = sbricklist
+
+            brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
+            rows = rows[brickcut]
             
         if False:
             #bb = [692770, 232869, 51979, 405760, 1319700, 1387188, 519486, 145096]
@@ -383,13 +402,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]
 
-        if False: # largest galaxies which may need reprocessing (just the north)
-            #bricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
-            #brickcut = np.where(np.isin(brickname, bricklist))[0]
-            #rows = rows[brickcut]
-            m1 = sample['GROUP_DEC'][samplecut] > 30 # 32.375
-            rows = rows[m1]
-            
         if False: # SAGA host galaxies
             from astrometry.libkd.spherematch import match_radec
             saga = astropy.table.Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'saga_hosts.csv'))
@@ -403,69 +415,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         if False: # test fitting of all the DR8 candidates
             fullsample = read_sample(preselect_sample=False, columns=['SGA_ID', 'GALAXY', 'GROUP_ID', 'GROUP_NAME', 'GROUP_DIAMETER', 'IN_DESI'])
             ww = np.where(fullsample['SGA_ID'] >= 5e6)[0]
-            #galaxylist = np.unique(fullsample['GROUP_NAME'][ww])
-            #print(len(ww), len(set(fullsample['GROUP_ID'][ww])))
-            #for gid in set(fullsample['GROUP_ID'][ww]):
-            #    ii = np.where(gid == sample['GROUP_ID'][samplecut])[0]
-            #    jj = np.where(gid == fullsample['GROUP_ID'])[0]
-            #    print(astropy.table.Table(sample[samplecut][ii]))
-            #    print(fullsample[jj])
-            #    pdb.set_trace()
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
-
-        if True:
-            customgals = [
-                'NGC3034',
-                'NGC3077', # maybe?
-                'NGC3726', # maybe?
-                'NGC3953', # maybe?
-                'NGC3992',
-                'NGC4051',
-                'NGC4096', # maybe?
-                'NGC4125',
-                'UGC07698',
-                'NGC4736',
-                'NGC5055',
-                'NGC5194',
-                'NGC5322',
-                'NGC5354',
-                'NGC5866',
-                'NGC4258',
-                'NGC3031',
-                'NGC5457',
-                'NGC0598']
-            these = np.where(np.isin(sample['GALAXY'][samplecut], customgals))[0]
-            rows = rows[these]
-            
-        if False: # DR9 bricklist
-            #nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')            
-            nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
-            sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
-            #nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-north.txt'), dtype='str')
-            #sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-DR9SV-south.txt'), dtype='str')
-
-            bricklist = np.union1d(nbricklist, sbricklist)
-            #bricklist = nbricklist
-            #bricklist = sbricklist
-
-            #import multiprocessing
-            #pool = multiprocessing.Pool(nproc)
-            #if verbose:
-            #    t0 = time.time()
-            #    print('Building brickname...', end='')
-            #args = []
-            #for ra, dec in zip(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut]):
-            #    args.append((ra, dec))
-            #brickname = np.array(pool.map(_get_brickname_one, args))
-            ##brickname = get_brickname(sample['GROUP_RA'][samplecut], sample['GROUP_DEC'][samplecut])
-            #if verbose:
-            #    print('...took {:.3f} min'.format((time.time() - t0)/60))
-
-            #rows = np.where([brick in bricklist for brick in brickname])[0]
-            brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
-            rows = rows[brickcut]
 
         nrows = len(rows)
         print('Selecting {} galaxies in the DR9 footprint.'.format(nrows))
@@ -639,7 +590,9 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3'):
 
     # Next, add all the (new) columns we will need to the Tractor catalog. This
     # is a little wasteful because the non-frozen Tractor sources will be tossed
-    # out at the end, but it's much easier and cleaner to do it this way.
+    # out at the end, but it's much easier and cleaner to do it this way. Also
+    # remove the duplicate BRICKNAME column from the Tractor catalog.
+    tractor.remove_column('BRICKNAME') # of the form custom-BRICKNAME
     onegal.rename_column('RA', 'SGA_RA')
     onegal.rename_column('DEC', 'SGA_DEC')
     onegal.remove_column('INDEX')
@@ -820,7 +773,7 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False, debug=False):
     from pydl.pydlutils.spheregroup import spheregroup
     from astrometry.util.multiproc import multiproc
     from legacypipe.reference import get_large_galaxy_version
-        
+
     # This is a little fragile.
     version = SGA_version()
     refcat, _ = get_large_galaxy_version(os.getenv('LARGEGALAXIES_CAT'))

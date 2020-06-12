@@ -24,7 +24,7 @@ source $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-customredux-env
 if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --help
 elif [ $stage = "coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc $ncores --mpi --customredux --verbose
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
