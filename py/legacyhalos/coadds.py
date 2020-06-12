@@ -256,8 +256,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   largegalaxy=False, pipeline=False, custom=True,
                   log=None, apodize=False, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True,
-                  write_all_pickles=False, no_splinesky=False, customsky=False,
-                  just_coadds=False, require_grz=True, no_gaia=False, no_tycho=False):
+                  write_all_pickles=False, no_splinesky=False, skymask_radius=None,
+                  customsky=False, just_coadds=False, require_grz=True, no_gaia=False,
+                  no_tycho=False):
     """Build a custom set of large-galaxy coadds
 
     radius_mosaic in arcsec
@@ -342,6 +343,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             os.remove(checkpointfile)
     if no_splinesky:
         cmd += '--no-splinesky '
+        if skymask_radius:
+            cmd += '--skymask-radius {} '.format(skymask_radius) # [arcsec]
     if customsky:
         print('Skipping custom sky')
         #cmd += '--largegalaxy-skysub '

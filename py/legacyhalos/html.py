@@ -191,7 +191,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
     
     Image.MAX_IMAGE_PIXELS = None
 
-    for filesuffix in ['largegalaxy']:
+    for filesuffix in ['largegalaxy', 'custom']:
     #for filesuffix in ['largegalaxy', 'pipeline', 'custom']:
         montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, filesuffix))
         thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
@@ -199,8 +199,8 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
         if not os.path.isfile(montagefile) or clobber:
             if filesuffix == 'custom':
                 coaddfiles = ('{}-image-grz'.format(filesuffix),
-                              '{}-model-nocentral-grz'.format(filesuffix),
-                              '{}-image-central-grz'.format(filesuffix))
+                              '{}-model-grz'.format(filesuffix),
+                              '{}-resid-grz'.format(filesuffix))
             else:
                 coaddfiles = ('{}-image-grz'.format(filesuffix),
                               '{}-model-grz'.format(filesuffix),
