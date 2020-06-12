@@ -6,8 +6,8 @@ docker pull legacysurvey/legacypipe:DR9.5.1
 docker build . -t legacysurvey/legacyhalos
 docker push legacysurvey/legacyhalos:latest
 
-docker tag legacysurvey/legacyhalos:latest legacysurvey/legacyhalos:v0.0.2
-docker push legacysurvey/legacyhalos:v0.0.2
+docker tag legacysurvey/legacyhalos:latest legacysurvey/legacyhalos:v0.0.3
+docker push legacysurvey/legacyhalos:v0.0.3
 ```
 
 To enter the container (with a shell prompt) on a laptop do:
