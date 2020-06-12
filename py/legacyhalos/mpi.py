@@ -38,7 +38,7 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
                  debug=False, logfile=None, input_ellipse=None, zcolumn=None,
                  sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
-                 largegalaxy=False, pipeline=True):
+                 galex=False, galex_pixscale=1.5, largegalaxy=False, pipeline=True):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -58,6 +58,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
             verbose=verbose, debug=debug,
             sdss=sdss, sdss_pixscale=sdss_pixscale,
             unwise=unwise, unwise_pixscale=unwise_pixscale,
+            galex=galex, galex_pixscale=galex_pixscale,
             largegalaxy=largegalaxy, pipeline=pipeline)
         _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix)
     else:
@@ -71,6 +72,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                     verbose=verbose, debug=debug,
                     sdss=sdss, sdss_pixscale=sdss_pixscale,
                     unwise=unwise, unwise_pixscale=unwise_pixscale,
+                    galex=galex, galex_pixscale=galex_pixscale,
                     largegalaxy=largegalaxy, pipeline=pipeline)
                 _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix, log=log)
 
@@ -156,7 +158,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
 def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                        pixscale=0.262, racolumn='RA', deccolumn='DEC',
                        largegalaxy=False, pipeline=False, custom=True,
-                       apodize=False, unwise=True, force=False, plots=False,
+                       apodize=False, unwise=True, galex=False, force=False, plots=False,
                        verbose=False, cleanup=True, write_all_pickles=False,
                        no_splinesky=False, customsky=False,
                        just_coadds=False, require_grz=True, 
@@ -177,7 +179,7 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
             radius_mosaic=radius_mosaic, nproc=nproc, 
             pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn,
             largegalaxy=largegalaxy, pipeline=pipeline, custom=custom,
-            run=run, apodize=apodize, unwise=unwise, force=force, plots=plots,
+            run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
             verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
             no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
             require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
@@ -191,50 +193,9 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                     radius_mosaic=radius_mosaic, nproc=nproc, 
                     pixscale=pixscale, racolumn=racolumn, deccolumn=deccolumn, 
                     largegalaxy=largegalaxy, pipeline=pipeline, custom=custom,
-                    run=run, apodize=apodize, unwise=unwise, force=force, plots=plots,
+                    run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
                     verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
                     no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
                     require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,
                     log=log)
                 _done(galaxy, survey.output_dir, err, t0, 'coadds', filesuffix, log=log)
-
-def mpi_args():
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--nproc', default=1, type=int, help='number of multiprocessing processes per MPI rank.')
-    parser.add_argument('--mpi', action='store_true', help='Use MPI parallelism')
-
-    parser.add_argument('--sdss', action='store_true', help='Analyze the SDSS galaxies.')
-
-    parser.add_argument('--first', type=int, help='Index of first object to process.')
-    parser.add_argument('--last', type=int, help='Index of last object to process.')
-    parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
-
-    parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
-    parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py.')
-    parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
-
-    parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
-    parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
-    parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
-    parser.add_argument('--sky', action='store_true', help='Estimate the sky variance.')
-
-    parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
-    parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
-    parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
-    
-    parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
-    parser.add_argument('--sdss-pixscale', default=0.396, type=float, help='SDSS pixel scale (arcsec/pix).')
-    
-    parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
-    parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
-    parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
-    parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
-
-    parser.add_argument('--debug', action='store_true', help='Log to STDOUT and build debugging plots.')
-    parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
-    parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
-    args = parser.parse_args()
-
-    return args

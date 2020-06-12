@@ -110,7 +110,7 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True):
     return pngfile
 
 def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
-    """For the LSLGA, display the maskbits image with some additional information
+    """For the SGA, display the maskbits image with some additional information
     about the catalog.
 
     colorblind-friendly colors are from
@@ -122,7 +122,7 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
 
     from tractor.ellipses import EllipseE
     from legacypipe.reference import get_large_galaxy_version
-    from legacyhalos.LSLGA import _get_diameter
+    from legacyhalos.SGA import _get_diameter
     from legacyhalos.misc import is_in_ellipse
 
     imgsz = colorimg.size
@@ -273,7 +273,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         cog = ellipsefit['{}_cog_mag'.format(filt)]
         cogerr = ellipsefit['{}_cog_magerr'.format(filt)]
         chi2 = ellipsefit['{}_cog_params_chi2'.format(filt)]
-        if len(cog) == 0 or chi2 == 1e6: # no measurement, or failed
+        if np.atleast_1d(cog)[0] == -1 or chi2 == 1e6: # no measurement, or failed
             continue
         magtot = ellipsefit['{}_cog_params_mtot'.format(filt)]
         m0 = ellipsefit['{}_cog_params_m0'.format(filt)]
