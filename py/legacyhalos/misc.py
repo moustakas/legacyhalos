@@ -73,8 +73,15 @@ def srcs2image(cat, wcs, band='r', pixelized_psf=None, psf_sigma=1.0):
     else:
         psf = pixelized_psf
 
+    if band == 'FUV':
+        _band = 'f'
+    elif band == 'NUV':
+        _band = 'n'
+    else:
+        _band = band
+
     tim = tractor.Image(model, invvar=invvar, wcs=wcs, psf=psf,
-                        photocal=tractor.basics.LinearPhotoCal(1.0, band=band),
+                        photocal=tractor.basics.LinearPhotoCal(1.0, band=_band),
                         sky=tractor.sky.ConstantSky(0.0),
                         name='model-{}'.format(band))
 

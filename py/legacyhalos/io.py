@@ -643,7 +643,14 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             _residual_mask = np.abs(resid) > 5*sig
             if _residual_mask.shape != residual_mask.shape:
                 _residual_mask = resize(_residual_mask, residual_mask.shape, mode='reflect')
+<<<<<<< HEAD
+            try:
                 residual_mask = np.logical_or(residual_mask, _residual_mask)
+            except:
+                pdb.set_trace()                
+=======
+                residual_mask = np.logical_or(residual_mask, _residual_mask)
+>>>>>>> master
 
         # Dilate the mask, mask out a 10% border, and pack into a dictionary.
         mask = binary_dilation(mask, iterations=2)
