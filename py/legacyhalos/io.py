@@ -80,25 +80,25 @@ def _missing_files_one(args):
     """Wrapper for the multiprocessing."""
     return missing_files_one(*args)
 
-def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
-    checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
+def missing_files_one(checkfile, dependsfile, clobber):
+#def missing_files_one(galaxy, galaxydir, filesuffix, dependson, clobber):
+    #checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
     #print('missing_files_one: ', checkfile)
-    if os.path.exists(checkfile) and clobber is False:
+    if os.path.isfile(checkfile) and clobber == False:
         # Is the stage that this stage depends on done, too?
-        if dependson is not None:
-            dependsfile = os.path.join(galaxydir, '{}{}'.format(galaxy, dependson))
-            if os.path.exists(dependsfile):
+        if dependsfile is None:
+            return 'done'
+        else:
+            if os.path.isfile(dependsfile):
                 return 'done'
             else:
                 return 'todo'
-        else:
-            return 'done'
     else:
         #print('missing_files_one: ', checkfile)
         # Did this object fail?
-        if '.isdone' in checkfile:
-            failfile = checkfile.replace('.isdone', '.isfail')
-            if os.path.exists(failfile):
+        if checkfile[-6:] == 'isdone':
+            failfile = checkfile[:-6]+'isfail'
+            if os.path.isfile(failfile):
                 if clobber is False:
                     return 'fail'
                 else:
@@ -643,10 +643,14 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             _residual_mask = np.abs(resid) > 5*sig
             if _residual_mask.shape != residual_mask.shape:
                 _residual_mask = resize(_residual_mask, residual_mask.shape, mode='reflect')
+<<<<<<< HEAD
             try:
                 residual_mask = np.logical_or(residual_mask, _residual_mask)
             except:
                 pdb.set_trace()                
+=======
+                residual_mask = np.logical_or(residual_mask, _residual_mask)
+>>>>>>> master
 
         # Dilate the mask, mask out a 10% border, and pack into a dictionary.
         mask = binary_dilation(mask, iterations=2)

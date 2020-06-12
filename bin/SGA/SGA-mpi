@@ -45,6 +45,8 @@ def main():
                                              galaxylist=args.galaxylist,
                                              verbose=args.verbose,
                                              customsky=args.customsky,
+                                             customredux=args.customredux,
+                                             nproc=args.nproc,
                                              preselect_sample=True)
         if len(sample) == 0:
             return
@@ -148,7 +150,10 @@ def main():
         if args.customsky:
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
         else:
-            radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
+            if onegal[DIAMCOLUMN] > 30: # NGC0598=M33 is 62 arcmin in diameter!
+                radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
+            else:
+                radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
@@ -186,6 +191,7 @@ def main():
             from legacyhalos.mpi import call_ellipse
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                          nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                         unwise=False,
                          logfile=logfile, largegalaxy=True, pipeline=False)
                              
         if args.htmlplots:

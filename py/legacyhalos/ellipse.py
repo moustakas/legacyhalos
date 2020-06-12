@@ -880,7 +880,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                                  verbose=verbose,
                                                  largegalaxy=largegalaxy,
                                                  return_sample=True)
-    pdb.set_trace()
 
     if bool(data):
         if data['failed']: # all galaxies dropped
