@@ -8,7 +8,7 @@ SHIFTER=docker:legacysurvey/legacyhalos:v0.0.3
 
 echo 'Updating and loading the shifter image '$SHIFTER
 echo 'Load the environment with: '
-echo '  source '$LEGACYHALOS_CODE_DIR' SGA/SGA-env'
+echo '  source '$LEGACYHALOS_CODE_DIR'/bin/SGA/SGA-env'
 
 shifterimg pull $SHIFTER
 shifter --image $SHIFTER bash
