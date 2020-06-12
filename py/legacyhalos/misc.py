@@ -51,7 +51,7 @@ def imagetool_inspect(cat, group=False):
                     gal = 'galaxy'
             ff.write('{} {:.6f} {:.6f}\n'.format(gal, ra, dec))
 
-def srcs2image(cat, wcs, band='r', pixelized_psf=None, psf_sigma=1.0):
+def srcs2image(cat, wcs, band='r', allbands='grz', pixelized_psf=None, psf_sigma=1.0):
     """Build a model image from a Tractor catalog or a list of sources.
 
     issrcs - if True, then cat is already a list of sources.
@@ -73,21 +73,21 @@ def srcs2image(cat, wcs, band='r', pixelized_psf=None, psf_sigma=1.0):
     else:
         psf = pixelized_psf
 
-    if band == 'FUV':
-        _band = 'f'
-    elif band == 'NUV':
-        _band = 'n'
+    if 'UV' in band:
+        _band = band[0].lower()
+    elif 'W' in band:
+        _band = band[0].lower()
     else:
         _band = band
 
     tim = tractor.Image(model, invvar=invvar, wcs=wcs, psf=psf,
-                        photocal=tractor.basics.LinearPhotoCal(1.0, band=_band),
+                        photocal=tractor.basics.LinearPhotoCal(1.0, band=band),
                         sky=tractor.sky.ConstantSky(0.0),
                         name='model-{}'.format(band))
 
     # Do we have a tractor catalog or a list of sources?
     if type(cat) is astrometry.util.fits.tabledata:
-        srcs = legacypipe.catalog.read_fits_catalog(cat)
+        srcs = legacypipe.catalog.read_fits_catalog(cat, bands=band, allbands=allbands)
     else:
         srcs = cat
 

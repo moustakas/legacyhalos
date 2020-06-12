@@ -705,7 +705,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         nocentral = np.delete(np.arange(len(tractor)), central)
         srcs = tractor.copy()
         srcs.cut(nocentral)
-        model_nocentral = srcs2image(srcs, twcs, band=refband, pixelized_psf=psf)
+        model_nocentral = srcs2image(srcs, twcs, band=refband.lower(), pixelized_psf=psf,
+                                     allbands=''.join(bands).lower())
 
         # Mask all previous (brighter) central galaxies, if any.
         img, newmask = ma.getdata(data[refband]) - model_nocentral, ma.getmask(data[refband])
@@ -902,7 +903,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             # Need to be smarter about the srcs list...
             srcs = tractor.copy()
             srcs.cut(nocentral)
-            model_nocentral = srcs2image(srcs, twcs, band=filt, pixelized_psf=psf)
+            model_nocentral = srcs2image(srcs, twcs, band=filt.lower(), pixelized_psf=psf,
+                                         allbands=''.join(bands).lower())
 
             # Convert to surface brightness and 32-bit precision.
             img = (ma.getdata(data[filt]) - model_nocentral) / thispixscale**2 # [nanomaggies/arcsec**2]
@@ -1137,6 +1139,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         print('Sort by flux! ', tractor.flux_r[central_galaxy])
         central_galaxy_id = tractor.ref_id[central_galaxy]
     else:
+        sample = None
         central_galaxy, central_galaxy_id = None, None
 
     data = _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale,
