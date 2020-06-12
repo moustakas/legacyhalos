@@ -22,7 +22,7 @@ def main():
     import legacyhalos.streams
 
     from legacypipe.runs import get_survey
-    from legacyhalos.streams import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, RADIUSFACTOR, MANGA_RADIUS
+    from legacyhalos.streams import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, DIAMCOLUMN, MASKCOLUMN
 
     basedir = legacyhalos.io.legacyhalos_dir()
     datadir = legacyhalos.io.legacyhalos_data_dir()
@@ -95,14 +95,14 @@ def main():
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
                     galaxy, galaxydir = legacyhalos.streams.get_galaxy_galaxydir(sample[fail[rank]])
                     for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
-                        print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                        print('  {} {} (D={:.3f})'.format(ii, dd, diam))
 
                 todo = np.hstack(groups)
                 if len(todo) > 0:
                     #print('Galaxies left to do:')
                     galaxy, galaxydir = legacyhalos.streams.get_galaxy_galaxydir(sample[todo])
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
-                        print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                        print('  {} {} (D={:.3f})'.format(ii, dd, diam))
             return
         
     # Loop on the remaining objects.
@@ -126,8 +126,9 @@ def main():
         else:
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
-        # Need the object "radius" to build the coadds.
-        radius_mosaic_arcsec = MANGA_RADIUS * RADIUSFACTOR # [arcsec]
+        # Mosaic diameter--
+        radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60. / 2. # [arcsec]
+        radius_mask_arcsec = onegal[MASKCOLUMN] * 60.        # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
@@ -137,9 +138,9 @@ def main():
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=False, custom=True,
-                               apodize=False, unwise=True, galex=True, force=args.force, plots=False,
+                               apodize=False, unwise=True, galex=False, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=True, write_all_pickles=True,
-                               no_splinesky=False, customsky=args.customsky,
+                               no_splinesky=False, skymask_radius=radius_mask_arcsec,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile)
 

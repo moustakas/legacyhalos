@@ -19,22 +19,24 @@
 stage=$1
 ncores=$2
 
-source $LEGACYHALOS_CODE_DIR/bin/manga/manga-env
+project=legacystreams
+
+source $LEGACYHALOS_CODE_DIR/bin/${project}/${project}-env
 
 maxmem=134217728 # Cori/Haswell = 128 GB (limit the memory per job).
 grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
 let usemem=${maxmem}*${ncores}/32
 
 if [ $stage = "test" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --help
+    time python $LEGACYHALOS_CODE_DIR/bin/${project}/${project}-mpi --help
 elif [ $stage = "coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --coadds --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/${project}/${project}-mpi --coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "pipeline-coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/${project}/${project}-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --ellipse --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/${project}/${project}-mpi --ellipse --nproc $ncores --mpi --verbose
 elif [ $stage = "htmlplots" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --htmlplots --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/${project}/${project}-mpi --htmlplots --nproc $ncores --mpi --verbose
 else
     echo "Unrecognized stage "$stage
 fi

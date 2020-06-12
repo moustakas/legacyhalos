@@ -161,6 +161,7 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                        apodize=False, unwise=True, galex=False, force=False, plots=False,
                        verbose=False, cleanup=True, write_all_pickles=False,
                        no_splinesky=False, customsky=False,
+                       skymask_radius=None,
                        just_coadds=False, require_grz=True, 
                        no_gaia=False, no_tycho=False,
                        debug=False, logfile=None):
@@ -181,7 +182,8 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
             largegalaxy=largegalaxy, pipeline=pipeline, custom=custom,
             run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
             verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
-            no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
+            no_splinesky=no_splinesky, skymask_radius=skymask_radius,
+            customsky=customsky, just_coadds=just_coadds,
             require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
         _done(galaxy, survey.output_dir, err, t0, 'coadds', filesuffix)
     else:
@@ -195,7 +197,8 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                     largegalaxy=largegalaxy, pipeline=pipeline, custom=custom,
                     run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
                     verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
-                    no_splinesky=no_splinesky, customsky=customsky, just_coadds=just_coadds,
+                    no_splinesky=no_splinesky, skymask_radius=skymask_radius,
+                    customsky=customsky, just_coadds=just_coadds,
                     require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,
                     log=log)
                 _done(galaxy, survey.output_dir, err, t0, 'coadds', filesuffix, log=log)

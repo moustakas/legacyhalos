@@ -1,14 +1,11 @@
 #!/bin/bash
-
-# Load the legacyhalos Docker container using shifter; unfortunately I can't
-# source the environment file in this script. (Passing the --env-file works OK,
-# but $PATH and $PYTHONPATH get overwritten.)
+# Load the legacyhalos Docker container using shifter.
 
 SHIFTER=docker:legacysurvey/legacyhalos:v0.0.3
 
 echo 'Updating and loading the shifter image '$SHIFTER
 echo 'Load the environment with: '
-echo '  source manga-env'
+echo '  source '$LEGACYHALOS_CODE_DIR'/bin/legacystreams/legacystreams-env'
 
 shifterimg pull $SHIFTER
 shifter --image $SHIFTER bash
