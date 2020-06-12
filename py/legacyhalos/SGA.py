@@ -312,26 +312,26 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         samplecut = np.where(
             (sample['GROUP_DIAMETER'] > d25min) *
             (sample['GROUP_DIAMETER'] < d25max) *
-            ## custom reductions
-            #(sample['GALAXY'] != 'NGC3034') * 
-            #(sample['GALAXY'] != 'NGC3077') * # maybe?
-            #(sample['GALAXY'] != 'NGC3726') * # maybe?
-            #(sample['GALAXY'] != 'NGC3953') * # maybe?
-            #(sample['GALAXY'] != 'NGC3992') *
-            #(sample['GALAXY'] != 'NGC4051') *
-            #(sample['GALAXY'] != 'NGC4096') * # maybe?
-            #(sample['GALAXY'] != 'NGC4125') *
-            #(sample['GALAXY'] != 'UGC07698') *
-            #(sample['GALAXY'] != 'NGC4736') *
-            #(sample['GALAXY'] != 'NGC5055') *
-            #(sample['GALAXY'] != 'NGC5194') *
-            #(sample['GALAXY'] != 'NGC5322') *
-            #(sample['GALAXY'] != 'NGC5354') *
-            #(sample['GALAXY'] != 'NGC5866') *
-            #(sample['GALAXY'] != 'NGC4258') *
-            #(sample['GALAXY'] != 'NGC3031') *
-            #(sample['GALAXY'] != 'NGC5457') *
-            #(sample['GALAXY'] != 'NGC0598') * 
+            ### custom reductions
+            #(sample['GROUP_NAME'] != 'NGC3034_GROUP') * 
+            #(sample['GROUP_NAME'] != 'NGC3077') * # maybe?
+            #(sample['GROUP_NAME'] != 'NGC3726') * # maybe?
+            #(sample['GROUP_NAME'] != 'NGC3953_GROUP') * # maybe?
+            #(sample['GROUP_NAME'] != 'NGC3992_GROUP') *
+            #(sample['GROUP_NAME'] != 'NGC4051') *
+            #(sample['GROUP_NAME'] != 'NGC4096') * # maybe?
+            #(sample['GROUP_NAME'] != 'NGC4125_GROUP') *
+            #(sample['GROUP_NAME'] != 'UGC07698') *
+            #(sample['GROUP_NAME'] != 'NGC4736_GROUP') *
+            #(sample['GROUP_NAME'] != 'NGC5055_GROUP') *
+            #(sample['GROUP_NAME'] != 'NGC5194_GROUP') *
+            #(sample['GROUP_NAME'] != 'NGC5322_GROUP') *
+            #(sample['GROUP_NAME'] != 'NGC5354_GROUP') *
+            #(sample['GROUP_NAME'] != 'NGC5866_GROUP') *
+            #(sample['GROUP_NAME'] != 'NGC4258') *
+            #(sample['GROUP_NAME'] != 'NGC3031_GROUP') *
+            #(sample['GROUP_NAME'] != 'NGC5457') *
+            #(sample['GROUP_NAME'] != 'NGC0598_GROUP') * 
             #(np.array(['DR8' not in gg for gg in sample['GALAXY']])) *
             (sample['GROUP_PRIMARY'] == True) *
             (sample['IN_DESI']))[0]
@@ -348,34 +348,39 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(['DR8-' in nn for nn in sample['GROUP_NAME'][samplecut]])[0]
             rows = rows[these]
             
-        if False: # SGA-data-DR9-test2 sample
+        if False:
             #bb = [692770, 232869, 51979, 405760, 1319700, 1387188, 519486, 145096]
             #ww = np.where(np.isin(sample['SGA_ID'], bb))[0]
             #ff = get_brickname(sample['GROUP_RA'][ww], sample['GROUP_DEC'][ww])
+
+            # Testing subtracting galaxy halos before sky-fitting---in Virgo!
+            bricklist = ['1877p122', '1877p125', '1875p122', '1875p125',
+                         '2211p017', '2213p017', '2211p020', '2213p020']
             
-            # Test sample-- 1 deg2 patch of sky
-            #bricklist = ['0343p012']
-            bricklist = ['1948p280', '1951p280', # Coma
-                         '1914p307', # NGC4676/Mice
-                         '2412p205', # NGC6052=PGC200329
-                         '1890p112', # NGC4568 - overlapping spirals in Virgo
-                         '0211p037', # NGC520 - train wreck
-                         # random galaxies around bright stars
-                         '0836m285', '3467p137',
-                         '0228m257', '1328m022',
-                         '3397m057', '0159m047',
-                         '3124m097', '3160p097',
-                         # 1 square degree of test bricks--
-                         '0341p007', '0341p010', '0341p012', '0341p015', '0343p007', '0343p010',
-                         '0343p012', '0343p015', '0346p007', '0346p010', '0346p012', '0346p015',
-                         '0348p007', '0348p010', '0348p012', '0348p015',
-                         # NGC4448 bricks
-                         '1869p287', '1872p285', '1869p285'
-                         # NGC2146 bricks
-                         '0943p785', '0948p782'
-                         ]
+            ## Test sample-- 1 deg2 patch of sky
+            ##bricklist = ['0343p012']
+            #bricklist = ['1948p280', '1951p280', # Coma
+            #             '1914p307', # NGC4676/Mice
+            #             '2412p205', # NGC6052=PGC200329
+            #             '1890p112', # NGC4568 - overlapping spirals in Virgo
+            #             '0211p037', # NGC520 - train wreck
+            #             # random galaxies around bright stars
+            #             '0836m285', '3467p137',
+            #             '0228m257', '1328m022',
+            #             '3397m057', '0159m047',
+            #             '3124m097', '3160p097',
+            #             # 1 square degree of test bricks--
+            #             '0341p007', '0341p010', '0341p012', '0341p015', '0343p007', '0343p010',
+            #             '0343p012', '0343p015', '0346p007', '0346p010', '0346p012', '0346p015',
+            #             '0348p007', '0348p010', '0348p012', '0348p015',
+            #             # NGC4448 bricks
+            #             '1869p287', '1872p285', '1869p285'
+            #             # NGC2146 bricks
+            #             '0943p785', '0948p782'
+            #             ]
+            
             #rows = np.where([brick in bricklist for brick in brickname])[0]
-            brickcut = np.where(np.isin(brickname, bricklist))[0]
+            brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]
 
         if False: # largest galaxies which may need reprocessing (just the north)
@@ -409,7 +414,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
 
-        if False:
+        if True:
             customgals = [
                 'NGC3034',
                 'NGC3077', # maybe?
@@ -433,7 +438,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             these = np.where(np.isin(sample['GALAXY'][samplecut], customgals))[0]
             rows = rows[these]
             
-        if True: # DR9 bricklist
+        if False: # DR9 bricklist
             #nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-north.txt'), dtype='str')
             #sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9h-south.txt'), dtype='str')            
             nbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-north.txt'), dtype='str')
@@ -443,6 +448,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
+            #bricklist = sbricklist
 
             #import multiprocessing
             #pool = multiprocessing.Pool(nproc)
@@ -512,6 +518,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/junk', dtype=str)
     
     if galaxylist is not None:
+        galcolumn = 'GROUP_NAME'
         if verbose:
             print('Selecting specific galaxies.')
         these = np.isin(sample[galcolumn], galaxylist)
