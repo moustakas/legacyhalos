@@ -78,7 +78,6 @@ def mpi_args():
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipeline coadds.')
     parser.add_argument('--customsky', action='store_true', help='Build the largest large-galaxy coadds with custom sky-subtraction.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
-    #parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
 
@@ -89,8 +88,8 @@ def mpi_args():
     parser.add_argument('--customredux', action='store_true', help='Process the custom reductions of the largest galaxies.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
 
+    parser.add_argument('--no-cleanup', action='store_false', dest='cleanup', help='Do not clean up legacypipe files after coadds.')
     parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
-    parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
 
     parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
     parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
@@ -362,7 +361,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
-            bricklist = sbricklist
+            #bricklist = sbricklist
 
             brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]
