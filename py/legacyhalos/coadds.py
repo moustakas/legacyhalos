@@ -42,12 +42,13 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
 
     def _do_cleanup():
         import shutil
+        from glob import glob
         shutil.rmtree(os.path.join(output_dir, 'coadd'), ignore_errors=True)
         shutil.rmtree(os.path.join(output_dir, 'metrics'), ignore_errors=True)
         shutil.rmtree(os.path.join(output_dir, 'tractor'), ignore_errors=True)
         shutil.rmtree(os.path.join(output_dir, 'tractor-i'), ignore_errors=True)
-        for stage in ('srcs', 'tims', 'checkpoint'):
-            picklefile = os.path.join(output_dir, '{}-{}-{}.p'.format(galaxy, stagesuffix, stage))
+        picklefiles = glob(os.path.join(output_dir, '{}-{}-*.p'.format(galaxy, stagesuffix)))
+        for picklefile in picklefiles:
             if os.path.isfile(picklefile):
                 os.remove(picklefile)
 
@@ -64,10 +65,14 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     allbands = fitsio.read(ccdsfile, columns='filter')
     bands = list(sorted(set(allbands)))
 
-    ## For objects on the edge of the footprint we can sometimes lose 3-band
-    ## coverage if one of the bands is fully masked. Check here and write out all
-    ## the files except a 
-    #if require_grz:
+    # For objects on the edge of the footprint we can sometimes lose 3-band
+    # coverage if one of the bands is fully masked. Check here and write out all
+    # the files except a 
+    if require_grz and ('g' not in bands or 'r' not in bands or 'z' not in bands):
+        print('Lost grz coverage and require_grz=True.')
+        if cleanup:
+            _do_cleanup()
+        return 1
 
     # image coadds (FITS + JPG)
     for band in bands:
@@ -316,7 +321,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} --run {run} '
     if write_all_pickles:
-        cmd += '--write-stage tims --write-stage srcs '
+        pass
+        #cmd += '--write-stage tims --write-stage srcs '
     else:
         cmd += '--write-stage srcs '
     cmd += '--skip-calibs '
@@ -357,8 +363,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         #cmd += '--nsigma 10 '
     if custom:
         cmd += '--fit-on-coadds '
-        #print('Write me!')
-        #pdb.set_trace()
 
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_CODE_DIR'), galaxy=galaxy,
                      ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
@@ -368,6 +372,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print(cmd, flush=True, file=log)
 
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
+
     if err != 0:
         print('Something went wrong; please check the logfile.')
         return 0, stagesuffix
