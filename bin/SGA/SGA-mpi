@@ -111,8 +111,8 @@ def main():
                 print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
                 galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[fail[rank]])
                 for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
-                    print('\rm {}/*'.format(dd))
-                    #print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                    #print('\rm {}/*'.format(dd))
+                    print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
         return
     else:
         print(' Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
@@ -122,11 +122,12 @@ def main():
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[fail[rank]])
                     for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
-                        print('\rm {}/*'.format(dd))
-                        #print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                        #print('\rm {}/*'.format(dd))
+                        print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
 
                 todo = np.hstack(groups)
                 if len(todo) > 0:
+                    print('{} todo: {} / {}'.format(suffix.upper(), len(todo), len(sample)), flush=True)
                     #print('Galaxies left to do:')
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[todo])
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):

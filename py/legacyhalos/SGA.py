@@ -360,7 +360,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             sbricklist = np.loadtxt(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'dr9', 'bricklist-dr9-south.txt'), dtype='str')
 
             bricklist = np.union1d(nbricklist, sbricklist)
-            bricklist = nbricklist
+            #bricklist = nbricklist
             #bricklist = sbricklist
 
             brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
