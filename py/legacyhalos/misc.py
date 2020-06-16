@@ -73,10 +73,10 @@ def srcs2image(cat, wcs, band='r', allbands='grz', pixelized_psf=None, psf_sigma
     else:
         psf = pixelized_psf
 
-    if 'UV' in band:
+    if 'W' in band:
         _band = band[0].lower()
-    elif 'W' in band:
-        _band = band[0].lower()
+    #elif 'UV' in band:
+    #    _band = band[0].lower()
     else:
         _band = band
 
@@ -87,7 +87,7 @@ def srcs2image(cat, wcs, band='r', allbands='grz', pixelized_psf=None, psf_sigma
 
     # Do we have a tractor catalog or a list of sources?
     if type(cat) is astrometry.util.fits.tabledata:
-        srcs = legacypipe.catalog.read_fits_catalog(cat, bands=band, allbands=allbands)
+        srcs = legacypipe.catalog.read_fits_catalog(cat, bands=band)
     else:
         srcs = cat
 
