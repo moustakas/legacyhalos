@@ -29,8 +29,8 @@ if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --help
 elif [ $stage = "coadds" ]; then
     #time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --no-cleanup --galaxylist NGC1316_GROUP NGC4236_GROUP --clobber
-    #time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --no-cleanup --galaxylist NGC4565_GROUP NGC4406_GROUP NGC5194_GROUP --clobber
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --d25min 14 --no-cleanup --d25max 30
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --no-cleanup --galaxylist NGC0247_GROUP NGC3031_GROUP NGC0055_GROUP NGC0300_GROUP --clobber
+    #time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --d25max 10
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --pipeline-coadds --nproc ${ncores} --mpi --verbose
 elif [ $stage = "ellipse" ]; then

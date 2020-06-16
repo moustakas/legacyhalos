@@ -106,8 +106,10 @@ def missing_files_one(checkfile, dependsfile, clobber):
                     return 'todo'
         return 'todo'
     
-def get_run(onegal, racolumn='RA', deccolumn='DEC'):
+def get_run(onegal, racolumn='RA', deccolumn='DEC', M33=False):
     """Get the run based on a simple declination cut."""
+    if M33: # special run for the SGA project
+        return 'm33'
     if onegal[deccolumn] > 32.375:
         if onegal[racolumn] < 45 or onegal[racolumn] > 315:
             run = 'south'

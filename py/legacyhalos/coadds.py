@@ -364,8 +364,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     if custom:
         cmd += '--fit-on-coadds '
 
-    cmd += '--stage fitblobs '
+    #cmd += '--stage srcs '
+    #cmd += '--stage fitblobs '
     #cmd += '--stage coadds '
+    #cmd += '--stage wise_forced '
 
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_CODE_DIR'), galaxy=galaxy,
                      ra=onegal[racolumn], dec=onegal[deccolumn], width=width,

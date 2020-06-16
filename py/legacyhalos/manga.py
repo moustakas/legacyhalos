@@ -118,11 +118,16 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     indices = np.arange(ngal)
 
     mp = multiproc(nthreads=args.nproc)
-    args = []
+    missargs = []
     for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
-        args.append([gal, gdir, filesuffix, dependson, clobber])
+        #missargs.append([gal, gdir, filesuffix, dependson, clobber])
+        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+        if dependson:
+            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+        else:
+            missargs.append([checkfile, None, clobber])
         
-    todo = np.array(mp.map(_missing_files_one, args))
+    todo = np.array(mp.map(_missing_files_one, missargs))
 
     itodo = np.where(todo == 'todo')[0]
     idone = np.where(todo == 'done')[0]

@@ -164,7 +164,7 @@ def main():
             else:
                 radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
 
-        run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
+        run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN, M33=args.M33)
         survey = get_survey(run, output_dir=galaxydir)
 
         if args.coadds:
