@@ -587,6 +587,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
     """
     from scipy.ndimage.filters import gaussian_filter
     from scipy.ndimage.morphology import binary_dilation
+    from skimage.transform import resize
     from astropy.stats import sigma_clipped_stats
 
     from tractor.psf import PixelizedPSF
@@ -609,6 +610,12 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         model = fitsio.read(filt2imfile[filt]['model'])
         sz = image.shape
 
+        # GALEX, unWISE need to be resized.
+        if starmask.shape == sz:
+            doresize = False
+        else:
+            doresize = True
+
         # Initialize the mask based on the inverse variance
         if 'invvar' in filt2imfile[filt].keys():
             if verbose:
@@ -627,13 +634,11 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             refhdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
-        if starmask is not None:
-            if starmask.shape != mask.shape:
-                from skimage.transform import resize
-                _starmask = resize(starmask, mask.shape, mode='reflect')
-                mask = np.logical_or(mask, _starmask)
-            else:
-                mask = np.logical_or(mask, starmask)
+        if doresize:
+            _starmask = resize(starmask, mask.shape, mode='reflect')
+            mask = np.logical_or(mask, _starmask)
+        else:
+            mask = np.logical_or(mask, starmask)
 
         # Flag significant residual pixels after subtracting *all* the models
         # (we will restore the pixels of the galaxies of interest below).
@@ -643,7 +648,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             residual_mask = np.abs(resid) > 5*sig
         else:
             _residual_mask = np.abs(resid) > 5*sig
-            if _residual_mask.shape != residual_mask.shape:
+            if doresize:
                 _residual_mask = resize(_residual_mask, residual_mask.shape, mode='reflect')
             residual_mask = np.logical_or(residual_mask, _residual_mask)
 
@@ -907,6 +912,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             model_nocentral = srcs2image(srcs, twcs, band=filt.lower(), pixelized_psf=psf)
 
             # Convert to surface brightness and 32-bit precision.
+            pdb.set_trace()
             img = (ma.getdata(data[filt]) - model_nocentral) / thispixscale**2 # [nanomaggies/arcsec**2]
             img = ma.masked_array(img.astype('f4'), mask)
             var = data['{}_var_'.format(filt)] / thispixscale**4 # [nanomaggies**2/arcsec**4]
@@ -939,6 +945,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     masked array suitable for ellipse-fitting.
 
     """
+    from legacypipe.bits import MASKBITS
+
     # Dictionary mapping between optical filter and filename coded up in
     # coadds.py, galex.py, and unwise.py, which depends on the project.
     filt2imfile, filt2pixscale = {}, {}
@@ -972,12 +980,12 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     # Add GALEX and unWISE--
     if galex:
         for band in ['FUV', 'NUV']:
-            bands = bands + tuple([band])
+            #bands = bands + tuple([band])
             filt2pixscale.update({band: galex_pixscale})
             filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(prefix), 'invvar': 'invvar'}})
     if unwise:
         for band in ['W1', 'W2', 'W3', 'W4']:
-            bands = bands + tuple([band])
+            #bands = bands + tuple([band])
             filt2pixscale.update({band: unwise_pixscale})
             filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(prefix), 'invvar': 'invvar'}})
 
@@ -1021,43 +1029,41 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         if verbose:
             print('Read {} galaxy(ies) from {}'.format(len(sample), samplefile))
 
+    # We ~have~ to read using fits_table because we will turn these catalog
+    # entries into Tractor sources later.
     tractorfile = os.path.join(galaxydir, '{}-{}.fits'.format(galaxy, filt2imfile['tractor']))
-    if os.path.isfile(tractorfile):
-        # We ~have~ to read using fits_table because we will turn these catalog
-        # entries into Tractor sources later.
-        #cols = ['BX', 'BY', 'TYPE', 'REF_CAT', 'REF_ID', 'SERSIC', 'SHAPE_R', 'FLUX_G', 'FLUX_R', 'FLUX_Z',
-        #        'PSFDEPTH_G', 'PSFDEPTH_R', 'PSFDEPTH_Z', 'PSFSIZE_G', 'PSFSIZE_R', 'PSFSIZE_Z']
-        #tractor = Table(fitsio.read(tractorfile, columns=cols, upper=True))
-        cols = ['ra', 'dec', 'bx', 'by', 'type', 'ref_cat', 'ref_id',
-                'sersic', 'shape_r', 'shape_e1', 'shape_e2',
-                'flux_g', 'flux_r', 'flux_z',
-                'nobs_g', 'nobs_r', 'nobs_z',
-                'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
-                'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
-                'psfsize_g', 'psfsize_r', 'psfsize_z']
-        if galex:
-            cols = cols+['flux_fuv', 'flux_nuv']
-        if unwise:
-            cols = cols+['flux_w1', 'flux_w1', 'flux_w1', 'flux_w1']
-        tractor = fits_table(tractorfile, columns=cols)
-        hdr = fitsio.read_header(tractorfile)
-        if verbose:
-            print('Read {} sources from {}'.format(len(tractor), tractorfile))
-        data.update(_get_psfsize_and_depth(tractor, bands, pixscale, incenter=False))
+    if verbose:
+        print('Reading {}'.format(tractorfile))
+        
+    #cols = ['BX', 'BY', 'TYPE', 'REF_CAT', 'REF_ID', 'SERSIC', 'SHAPE_R', 'FLUX_G', 'FLUX_R', 'FLUX_Z',
+    #        'PSFDEPTH_G', 'PSFDEPTH_R', 'PSFDEPTH_Z', 'PSFSIZE_G', 'PSFSIZE_R', 'PSFSIZE_Z']
+    #tractor = Table(fitsio.read(tractorfile, columns=cols, upper=True))
+    cols = ['ra', 'dec', 'bx', 'by', 'type', 'ref_cat', 'ref_id',
+            'sersic', 'shape_r', 'shape_e1', 'shape_e2',
+            'flux_g', 'flux_r', 'flux_z',
+            'nobs_g', 'nobs_r', 'nobs_z',
+            'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
+            'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
+            'psfsize_g', 'psfsize_r', 'psfsize_z']
+    if galex:
+        cols = cols+['flux_fuv', 'flux_nuv']
+    if unwise:
+        cols = cols+['flux_w1', 'flux_w1', 'flux_w1', 'flux_w1']
+    tractor = fits_table(tractorfile, columns=cols)
+    hdr = fitsio.read_header(tractorfile)
+    if verbose:
+        print('Read {} sources from {}'.format(len(tractor), tractorfile))
+    data.update(_get_psfsize_and_depth(tractor, bands, pixscale, incenter=False))
 
     # Read the maskbits image and build the starmask.
     maskbitsfile = os.path.join(galaxydir, '{}-{}.fits.fz'.format(galaxy, filt2imfile['maskbits']))
-    if os.path.isfile(maskbitsfile):
-        from legacypipe.bits import MASKBITS
-        if verbose:
-            print('Reading {}'.format(maskbitsfile))
-        maskbits = fitsio.read(maskbitsfile)
-        # initialize the mask using the maskbits image
-        starmask = ( (maskbits & MASKBITS['BRIGHT'] != 0) | (maskbits & MASKBITS['MEDIUM'] != 0) |
-                     (maskbits & MASKBITS['CLUSTER'] != 0) | (maskbits & MASKBITS['ALLMASK_G'] != 0) |
-                     (maskbits & MASKBITS['ALLMASK_R'] != 0) | (maskbits & MASKBITS['ALLMASK_Z'] != 0) )
-    else:
-        starmask = None
+    if verbose:
+        print('Reading {}'.format(maskbitsfile))
+    maskbits = fitsio.read(maskbitsfile)
+    # initialize the mask using the maskbits image
+    starmask = ( (maskbits & MASKBITS['BRIGHT'] != 0) | (maskbits & MASKBITS['MEDIUM'] != 0) |
+                 (maskbits & MASKBITS['CLUSTER'] != 0) | (maskbits & MASKBITS['ALLMASK_G'] != 0) |
+                 (maskbits & MASKBITS['ALLMASK_R'] != 0) | (maskbits & MASKBITS['ALLMASK_Z'] != 0) )
 
     # Read the data. For the large-galaxy project, iterate on LSLGA galaxies in
     # the field, otherwise, take the object closest to the center of the mosaic
@@ -1151,6 +1157,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           central_galaxy_id=central_galaxy_id,
                           starmask=starmask, verbose=verbose,
                           largegalaxy=largegalaxy)
+    pdb.set_trace()
+    
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['g_masked'][0]), origin='lower') ; plt.savefig('junk1.png')
     ##plt.clf() ; plt.imshow(np.log10(data['r_masked'][1]), origin='lower') ; plt.savefig('junk2.png')
