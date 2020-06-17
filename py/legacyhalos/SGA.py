@@ -331,8 +331,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             'NGC5866_GROUP',
             'NGC4258',
             'NGC3031_GROUP',
-            'NGC5457',
-            'NGC0598_GROUP']
+            #'NGC0598_GROUP',
+            'NGC5457'
+            ]
 
         these = np.where(np.isin(sample['GROUP_NAME'][samplecut], customgals))[0]
         rows = rows[these]
@@ -362,7 +363,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
-            #bricklist = sbricklist
+            bricklist = sbricklist
 
             brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]

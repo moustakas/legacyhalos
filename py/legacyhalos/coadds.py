@@ -261,7 +261,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   largegalaxy=False, pipeline=False, custom=True,
                   log=None, apodize=False, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True,
-                  write_all_pickles=False, no_splinesky=False, skymask_radius=None,
+                  write_all_pickles=False, no_subsky=False, subsky_radii=None,
                   customsky=False, just_coadds=False, require_grz=True, no_gaia=False,
                   no_tycho=False):
     """Build a custom set of large-galaxy coadds
@@ -347,10 +347,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             galaxydir=survey.output_dir, galaxy=galaxy, stagesuffix=stagesuffix)
         if os.path.isfile(checkpointfile):
             os.remove(checkpointfile)
-    if no_splinesky:
-        cmd += '--no-splinesky '
-        if skymask_radius:
-            cmd += '--skymask-radius {} '.format(skymask_radius) # [arcsec]
+    if no_subsky and subsky_radii:
+        if len(subsky_radii) != 3:
+            print('subsky_radii must be a 3-element vector')
+        cmd += '--no-subsky --subsky-radii {} {} {} '.format(subsky_radii[0], subsky_radii[1], subsky_radii[2]) # [arcsec]
     if customsky:
         print('Skipping custom sky')
         #cmd += '--largegalaxy-skysub '

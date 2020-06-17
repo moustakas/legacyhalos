@@ -180,7 +180,7 @@ def main():
                                largegalaxy=True, pipeline=False, custom=False,
                                apodize=False, unwise=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
-                               no_splinesky=False, customsky=args.customsky,
+                               customsky=args.customsky,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile)
 
@@ -193,7 +193,7 @@ def main():
                                largegalaxy=False, pipeline=True, custom=False,
                                apodize=False, unwise=False, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
-                               no_splinesky=False, just_coadds=args.just_coadds,
+                               just_coadds=args.just_coadds,
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
@@ -220,7 +220,7 @@ def main():
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
-                           largegalaxy=True, 
+                           largegalaxy=True, just_coadds=args.just_coadds,
                            get_galaxy_galaxydir=legacyhalos.SGA.get_galaxy_galaxydir)
 
     # Wait for all ranks to finish.

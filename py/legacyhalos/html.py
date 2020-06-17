@@ -179,8 +179,9 @@ def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     if not os.path.isfile(ccdposfile) or clobber:
         display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
-def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
-                        barlabel=None, clobber=False, verbose=False):
+def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, 
+                        barlabel=None, just_coadds=False, clobber=False,
+                        verbose=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
@@ -188,7 +189,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
     """
     from legacyhalos.qa import addbar_to_png, fonttype
     from PIL import Image, ImageDraw, ImageFont
-    
+
     Image.MAX_IMAGE_PIXELS = None
 
     for filesuffix in ['largegalaxy', 'custom']:
@@ -210,7 +211,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
             barpngfile = os.path.join(htmlgalaxydir, '{}-{}.png'.format(galaxy, coaddfiles[0]))
                 
             # Make sure all the files exist.
-            check, just_coadds = True, False
+            check, _just_coadds = True, just_coadds
             jpgfile = []
             for suffix in coaddfiles:
                 _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
@@ -219,17 +220,21 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     if verbose:
                         print('File {} not found!'.format(_jpgfile))
                     check = False
+                #print(check, _jpgfile)
 
             # Check for just the image coadd.
             if check is False:
                 if os.path.isfile(np.atleast_1d(jpgfile)[0]):
-                    just_coadds = True
+                    _just_coadds = True
+                else:
+                    continue
 
-            if check or just_coadds:
+            if check or _just_coadds:
                 with Image.open(np.atleast_1d(jpgfile)[0]) as im:
                     sz = im.size
                 if sz[0] > 4096 and sz[0] < 8192:
-                    resize = '-resize 2048x2048 '
+                    resize = '-resize 1024x1024 '
+                    #resize = '-resize 2048x2048 '
                 elif sz[0] > 8192:
                     resize = '-resize 1024x1024 '
                     #resize = '-resize 4096x4096 '
@@ -244,7 +249,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 subprocess.call(cmd.split())
                     
                 # Add a bar and label to the first image.
-                if just_coadds:
+                if _just_coadds:
                     cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
                     #cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 -resize 4096x4096\> '
                     if barlen:
@@ -269,6 +274,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     else:
                         thumbsz = sz[0]*3
                 cmd = cmd+' {}'.format(montagefile)
+                print(cmd)
 
                 #if verbose:
                 print('Writing {}'.format(montagefile))
@@ -496,7 +502,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                nproc=1, barlen=None, barlabel=None,
                radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
-               largegalaxy=False, scaledfont=False):
+               largegalaxy=False, just_coadds=False, scaledfont=False):
     """Make QA plots.
 
     """
@@ -548,13 +554,15 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         #make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Build the ellipse plots.
-        make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
-                        pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
-                        verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
+        if not just_coadds:
+            make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
+                            pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
+                            verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
 
         # Build the montage coadds.
         make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
-                            barlabel=barlabel, clobber=clobber, verbose=verbose)
+                            barlabel=barlabel, clobber=clobber, verbose=verbose,
+                            just_coadds=just_coadds)
 
         # CCD positions
         make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,

@@ -912,7 +912,6 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             model_nocentral = srcs2image(srcs, twcs, band=filt.lower(), pixelized_psf=psf)
 
             # Convert to surface brightness and 32-bit precision.
-            pdb.set_trace()
             img = (ma.getdata(data[filt]) - model_nocentral) / thispixscale**2 # [nanomaggies/arcsec**2]
             img = ma.masked_array(img.astype('f4'), mask)
             var = data['{}_var_'.format(filt)] / thispixscale**4 # [nanomaggies**2/arcsec**4]
@@ -1157,7 +1156,6 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                           central_galaxy_id=central_galaxy_id,
                           starmask=starmask, verbose=verbose,
                           largegalaxy=largegalaxy)
-    pdb.set_trace()
     
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['g_masked'][0]), origin='lower') ; plt.savefig('junk1.png')

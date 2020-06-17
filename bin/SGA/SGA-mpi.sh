@@ -28,13 +28,11 @@ source $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-env
 if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --help
 elif [ $stage = "coadds" ]; then
-    #time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --no-cleanup --galaxylist NGC1316_GROUP NGC4236_GROUP --clobber
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --no-cleanup --galaxylist NGC0247_GROUP NGC3031_GROUP NGC0055_GROUP NGC0300_GROUP --clobber
-    #time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --d25max 10
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --d25max 10
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --pipeline-coadds --nproc ${ncores} --mpi --verbose
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --ellipse --nproc ${ncores} --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --ellipse --nproc ${ncores} --mpi --verbose --d25max 2
 elif [ $stage = "htmlplots" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --htmlplots --nproc ${ncores} --mpi --verbose
 else

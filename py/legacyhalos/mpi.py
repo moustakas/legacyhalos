@@ -122,7 +122,7 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
 def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1, 
                    verbose=False, debug=False, clobber=False, ccdqa=False,
                    logfile=None, zcolumn='Z', datadir=None, htmldir=None, 
-                   largegalaxy=False, 
+                   largegalaxy=False, just_coadds=False,
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                    get_galaxy_galaxydir=None):
     """Wrapper script to build the pipeline coadds."""
@@ -137,7 +137,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
             radius_mosaic_arcsec=radius_mosaic_arcsec,
             maketrends=False, ccdqa=ccdqa,
             clobber=clobber, verbose=verbose, 
-            largegalaxy=largegalaxy, 
+            largegalaxy=largegalaxy, just_coadds=just_coadds,
             get_galaxy_galaxydir=get_galaxy_galaxydir)
         _done(galaxy, survey.output_dir, err, t0, 'html')
     else:
@@ -151,7 +151,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                     radius_mosaic_arcsec=radius_mosaic_arcsec,
                     maketrends=False, ccdqa=ccdqa,
                     clobber=clobber, verbose=verbose,
-                    largegalaxy=largegalaxy, 
+                    largegalaxy=largegalaxy, just_coadds=just_coadds,
                     get_galaxy_galaxydir=get_galaxy_galaxydir)
                 _done(galaxy, survey.output_dir, err, t0, 'html')
 
@@ -160,8 +160,8 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                        largegalaxy=False, pipeline=False, custom=True,
                        apodize=False, unwise=True, galex=False, force=False, plots=False,
                        verbose=False, cleanup=True, write_all_pickles=False,
-                       no_splinesky=False, customsky=False,
-                       skymask_radius=None,
+                       no_subsky=False, subsky_radii=None,
+                       customsky=False,
                        just_coadds=False, require_grz=True, 
                        no_gaia=False, no_tycho=False,
                        debug=False, logfile=None):
@@ -182,7 +182,7 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
             largegalaxy=largegalaxy, pipeline=pipeline, custom=custom,
             run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
             verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
-            no_splinesky=no_splinesky, skymask_radius=skymask_radius,
+            no_subsky=no_subsky, subsky_radii=subsky_radii,
             customsky=customsky, just_coadds=just_coadds,
             require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
         _done(galaxy, survey.output_dir, err, t0, 'coadds', filesuffix)
@@ -197,7 +197,7 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                     largegalaxy=largegalaxy, pipeline=pipeline, custom=custom,
                     run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
                     verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
-                    no_splinesky=no_splinesky, skymask_radius=skymask_radius,
+                    no_subsky=no_subsky, subsky_radii=subsky_radii,
                     customsky=customsky, just_coadds=just_coadds,
                     require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,
                     log=log)
