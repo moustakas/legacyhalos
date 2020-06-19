@@ -363,19 +363,21 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
             bricklist = np.union1d(nbricklist, sbricklist)
             #bricklist = nbricklist
-            bricklist = sbricklist
+            #bricklist = sbricklist
 
-            brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
-            rows = rows[brickcut]
-            
-        if False:
+            # Test by Dustin--
+            #bricklist = np.array([
+            #    '2221p000', '2221p002', '2221p005', '2221p007', '2223p000', '2223p002',
+            #    '2223p005', '2223p007', '2226p000', '2226p002', '2226p005', '2226p007',
+            #    '2228p000', '2228p002', '2228p005', '2228p007'])
+
             #bb = [692770, 232869, 51979, 405760, 1319700, 1387188, 519486, 145096]
             #ww = np.where(np.isin(sample['SGA_ID'], bb))[0]
             #ff = get_brickname(sample['GROUP_RA'][ww], sample['GROUP_DEC'][ww])
 
-            # Testing subtracting galaxy halos before sky-fitting---in Virgo!
-            bricklist = ['1877p122', '1877p125', '1875p122', '1875p125',
-                         '2211p017', '2213p017', '2211p020', '2213p020']
+            ## Testing subtracting galaxy halos before sky-fitting---in Virgo!
+            #bricklist = ['1877p122', '1877p125', '1875p122', '1875p125',
+            #             '2211p017', '2213p017', '2211p020', '2213p020']
             
             ## Test sample-- 1 deg2 patch of sky
             ##bricklist = ['0343p012']
@@ -399,7 +401,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             #             '0943p785', '0948p782'
             #             ]
             
-            #rows = np.where([brick in bricklist for brick in brickname])[0]
             brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]
 
@@ -999,22 +1000,60 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
+        html.write('p {display: inline-block;;}\n')
         html.write('</style>\n')
 
         html.write('<h1>Siena Galaxy Atlas 2020 (SGA 2020)</h1>\n')
+
+        html.write('<p style="width: 75%">\n')
+        html.write("""The Siena Galaxy Atlas (SGA) is an angular diameter-limited sample of
+                   galaxies constructed as part of the <a href="http://legacysurvey.org/">DESI Legacy Imaging
+                   Surveys.</a> It provides custom, wide-area, optical and infrared
+                   mosaics (in grz and W1-W4), azimuthally averaged surface
+                   brightness profiles, and both aperture and integrated
+                   photometry for a sample of approximately 400,000 galaxies
+                   over 20,000 square degrees.</p>\n""")
+         
+        html.write('<p>The web-page visualizations are organized by one-degree slices of right ascension.</p><br />\n')
+        
         if maketrends:
             html.write('<p>\n')
             html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
             html.write('<a href="https://github.com/moustakas/legacyhalos">Code and documentation</a>\n')
             html.write('</p>\n')
 
+        html.write('<table>\n')
+        html.write('<tr><th>RA Slice</th><th>Number of Galaxies</th></tr>\n')
         for raslice in sorted(set(raslices)):
             inslice = np.where(raslice == raslices)[0]
-            galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample[inslice], html=True)
+            html.write('<tr><td><a href="RA{0}.html"><h3>{0}</h3></a></td><td>{1}</td></tr>\n'.format(raslice, len(inslice)))
+        html.write('</table>\n')
 
+        html.write('<br /><br />\n')
+        html.write('<b><i>Last updated {}</b></i>\n'.format(js))
+        html.write('</html></body>\n')
+
+    if fix_permissions:
+        shutil.chown(homehtmlfile, group='cosmo')
+
+    # Now build the individual pages (one per RA slice).
+    for raslice in sorted(set(raslices)):
+        inslice = np.where(raslice == raslices)[0]
+        galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample[inslice], html=True)
+
+        slicefile = os.path.join(htmldir, 'RA{}.html'.format(raslice))
+        print('Building {}'.format(slicefile))
+        
+        with open(slicefile, 'w') as html:
+            html.write('<html><body>\n')
+            html.write('<style type="text/css">\n')
+            html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
+            html.write('p {width: "75%";}\n')
+            html.write('</style>\n')
+            
             html.write('<h3>RA Slice {}</h3>\n'.format(raslice))
-            html.write('<table>\n')
 
+            html.write('<table>\n')
             html.write('<tr>\n')
             #html.write('<th>Number</th>\n')
             html.write('<th> </th>\n')
@@ -1055,9 +1094,9 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
             html.write('</table>\n')
             #count += 1
 
-        html.write('<br /><br />\n')
-        html.write('<b><i>Last updated {}</b></i>\n'.format(js))
-        html.write('</html></body>\n')
+            html.write('<br /><br />\n')
+            html.write('<b><i>Last updated {}</b></i>\n'.format(js))
+            html.write('</html></body>\n')
 
     if fix_permissions:
         shutil.chown(homehtmlfile, group='cosmo')
