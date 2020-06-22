@@ -677,6 +677,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 
     """
     import multiprocessing
+
+    print('Starting ellipsefit_multiband with {} cores.'.format(nproc))
     
     bands, refband, refpixscale = data['bands'], data['refband'], data['refpixscale']
     

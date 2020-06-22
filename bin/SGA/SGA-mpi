@@ -159,7 +159,9 @@ def main():
         if args.customsky:
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
         else:
-            if onegal[DIAMCOLUMN] > 14: # NGC0598=M33 is 62 arcmin in diameter!
+            if onegal[DIAMCOLUMN] > 30: # NGC0598=M33 is 61 arcmin in diameter!
+                radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 0.7 # [arcsec]
+            elif onegal[DIAMCOLUMN] > 14 and onegal[DIAMCOLUMN] < 30:
                 radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.0 # [arcsec]
             else:
                 radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]

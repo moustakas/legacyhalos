@@ -139,6 +139,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         else:
             filesuffix = '-ccdpos.png'
             #filesuffix = '-largegalaxy-maskbits.png'
+            dependson = '-largegalaxy-ellipse.isdone'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
         suffix = 'htmlindex'
