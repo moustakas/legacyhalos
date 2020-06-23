@@ -218,8 +218,27 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
+    # Select unique galaxies--
+    # https://www.sdss.org/dr16/manga/manga-tutorials/drpall/#py-uniq-gals
+
+    tbdata = fitsio.read(samplefile, lower=True, columns='mangaid')
+    pdb.set_trace()
+    
+    # Find all datacubes 
+    cube_bools = (tbdata['mngtarg1'] != 0) | (tbdata['mngtarg3'] != 0)
+    cubes = tbdata[cube_bools]
+
+    # Find galaxies excluding those from the Coma, IC342, M31 ancillary programs (bits 19,20,21)
+    targ3 = tbdata['mngtarg3']
+    galaxies = tbdata[cube_bools & ((targ3 & 1<<19) == 0) & ((targ3 & 1<<20) == 0) & ((targ3 & 1<<21) == 0)]
+    print('Number of galaxies', len(galaxies))
+
+    # Get unique galaxies
+    uniq_vals, uniq_idx=np.unique(galaxies['mangaid'], return_index=True)
+    uniq_galaxies = galaxies[uniq_idx]
+    print('Unique galaxies', len(uniq_galaxies))
+
     # Immediately toss out Apogee--
-    nsaid = fitsio.read(samplefile, columns='NSA_NSAID')
     rows = np.where(nsaid != -9999)[0]
     nrows = len(rows)
     #rows = None

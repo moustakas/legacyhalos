@@ -131,7 +131,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         dependson = '-largegalaxy-coadds.isdone'
     elif args.build_SGA:
         suffix = 'build-SGA'
-        filesuffix = '-largegalaxy-ellipse.isdone'
+        filesuffix = '-largegalaxy-SGA.isdone'
+        dependson = '-largegalaxy-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
         if args.just_coadds:
@@ -206,10 +207,13 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         weight = np.atleast_1d(sample[DIAMCOLUMN])[_todo_indices]
         cumuweight = weight.cumsum() / weight.sum()
         idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
-        if len(idx) < size: # can happen in corner cases
+        if len(idx) < size: # can happen in corner cases or with 1 rank
             todo_indices = np.array_split(_todo_indices, size) # unweighted
         else:
             todo_indices = np.array_split(_todo_indices, idx) # weighted
+        for ii in range(size): # sort by weight
+            srt = np.argsort(sample[DIAMCOLUMN][todo_indices[ii]])
+            todo_indices[ii] = todo_indices[ii][srt]
     else:
         todo_indices = [np.array([])]
 

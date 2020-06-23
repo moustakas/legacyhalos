@@ -14,10 +14,10 @@ def main():
     """Top-level wrapper.
 
     """
+    from legacypipe.runs import get_survey
     import legacyhalos.io
     import legacyhalos.SGA
 
-    from legacypipe.runs import get_survey
     from legacyhalos.SGA import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
 
     basedir = legacyhalos.io.legacyhalos_dir()
@@ -65,16 +65,16 @@ def main():
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
-    if (args.build_SGA or args.htmlindex) and rank == 0:
-        if args.build_SGA:
-            _, _, idone, _ = legacyhalos.SGA.missing_files(args, sample, size)
-            if len(idone[rank]) == 0:
-                print('No ellipse files found!')
-                return
-            legacyhalos.SGA.build_ellipse_SGA(sample[idone[rank]], fullsample,
-                                              nproc=args.nproc, clobber=args.clobber,
-                                              debug=args.debug)
-
+    #if (args.build_SGA or args.htmlindex) and rank == 0:
+    if args.htmlindex and rank == 0:
+        #if args.build_SGA:
+        #    _, _, idone, _ = legacyhalos.SGA.missing_files(args, sample, size)
+        #    if len(idone[rank]) == 0:
+        #        print('No ellipse files found!')
+        #        return
+        #    legacyhalos.SGA.build_ellipse_SGA(sample[idone[rank]], fullsample,
+        #                                      nproc=args.nproc, clobber=args.clobber,
+        #                                      debug=args.debug)
         if args.htmlindex:
             legacyhalos.SGA.make_html(sample, survey=None, pixscale=args.pixscale,
                                       racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
@@ -155,6 +155,12 @@ def main():
         else:
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
+            # No unwise here (we do it in --coadds) and don't care about the
+            # model images.
+
+            run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN, M33=args.M33)
+            survey = get_survey(run, output_dir=galaxydir)
+            
         # Need the object "radius" to build the coadds.
         if args.customsky:
             radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
@@ -171,6 +177,7 @@ def main():
 
         if args.coadds:
             from legacyhalos.mpi import call_custom_coadds
+
             # Write out the individual galaxies for this mosaic.
             thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
             samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
@@ -190,6 +197,7 @@ def main():
             from legacyhalos.mpi import call_custom_coadds
             # No unwise here (we do it in --coadds) and don't care about the
             # model images.
+
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=True, custom=False,
@@ -225,6 +233,13 @@ def main():
                            largegalaxy=True, just_coadds=args.just_coadds,
                            get_galaxy_galaxydir=legacyhalos.SGA.get_galaxy_galaxydir)
 
+        if args.build_SGA:
+            pdb.set_trace()
+            call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
+                         nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                         unwise=False,
+                         logfile=logfile, largegalaxy=True, pipeline=False)
+                             
     # Wait for all ranks to finish.
     if comm is not None:
         comm.barrier()
