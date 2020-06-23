@@ -131,6 +131,7 @@ def main():
                     #print('Galaxies left to do:')
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[todo])
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
+                        #print('{}'.format(dd))
                         print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
             return
         
