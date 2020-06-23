@@ -678,8 +678,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     """
     import multiprocessing
 
-    print('Starting ellipsefit_multiband with {} cores.'.format(nproc))
-    
     bands, refband, refpixscale = data['bands'], data['refband'], data['refpixscale']
     
     # If fitgeometry=True then fit for the geometry as a function of semimajor
@@ -890,14 +888,14 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         for igal in np.arange(len(data['central_galaxy_id'])):
             central_galaxy_id = data['central_galaxy_id'][igal]
             galaxyid = str(central_galaxy_id)
-            print('Starting ellipse-fitting for galaxy {}'.format(galaxyid))
+            print('Starting ellipse-fitting for galaxy {} with {} core(s)'.format(galaxyid, nproc))
             if largegalaxy:
                 maxis = data['mge'][igal]['majoraxis'] # [pixels]
                 maxsma = 2 * maxis # [pixels]
                 delta_sma = 0.002 * maxsma
                 if delta_sma < 1:
                     delta_sma = 1.0
-                print('maxis={:.3f}, maxsma={:.3f} pixels, delta_sma={:.2f}'.format(maxis, maxsma, delta_sma))
+                print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))
                 # Supplement the fit results dictionary with some additional info.
                 samp = sample[sample['SGA_ID'] == central_galaxy_id]
                 galaxyinfo = {'sga_id': (central_galaxy_id, ''),
