@@ -139,6 +139,7 @@ def main():
     # Build the SGA and return--
     if args.build_SGA:
         if rank == 0:
+            tall = time.time()
             from legacyhalos.SGA import _init_ellipse_SGA, _write_ellipse_SGA
             buildit, filenames, refcat = _init_ellipse_SGA(clobber=args.clobber)
         else:
@@ -161,17 +162,13 @@ def main():
                 buildargs.append((onegal, rankfullsample[rankfullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat, args.verbose))
             results = mp.map(_build_ellipse_SGA_one, buildargs)
             results = list(zip(*results))
-            
+
+            # Unpack the array of lists into a list of arrays--
             cat = list(filter(None, results[0]))
             notractor = list(filter(None, results[1]))
             noellipse = list(filter(None, results[2]))
             nogrz = list(filter(None, results[3]))
-            #rr = list(zip(*rr))
-            #
-            #cat = list(filter(None, rr[0]))
-            #notractor = list(filter(None, rr[1]))
-            #noellipse = list(filter(None, rr[2]))
-            #nogrz = list(filter(None, rr[3]))
+            
             print('Rank {}: N(sample)={}, N(fullsample)={}, N(cat)={}, N(notractor)={}, N(noellipse)={}, N(nogrz)={}'.format(
                 rank, len(ranksample), len(rankfullsample), len(cat), len(notractor), len(noellipse), len(nogrz)))
 
@@ -215,6 +212,7 @@ def main():
                 outfile, notractorfile, noellipsefile, nogrzfile = filenames
                 _write_ellipse_SGA(cat, notractor, noellipse, nogrz, outfile, notractorfile,
                                    noellipsefile, nogrzfile, refcat, skipfull=False)
+                print('Finished {} after {:.3f} minutes'.format(suffix.upper(), (time.time() - tall) / 60))
                 
         return
     

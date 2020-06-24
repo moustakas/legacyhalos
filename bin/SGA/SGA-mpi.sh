@@ -16,6 +16,7 @@
 #salloc -N 8 -C haswell -A desi -L cfs,SCRATCH -t 08:00:00 --qos realtime --image=legacysurvey/legacyhalos:v0.0.3 --exclusive
 #srun -n 10 -c 32 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh coadds 1 > coadds.log.1 2>&1 &
 #srun -n 80 -c 4 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh ellipse 4 > ellipse.log.1 2>&1 &
+#srun -n 320 -c 1 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh buildSGA 1 > buildSGA.log.2 2>&1 &
 
 # Grab the input arguments--
 stage=$1
@@ -38,7 +39,7 @@ elif [ $stage = "ellipse" ]; then
 elif [ $stage = "htmlplots" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --htmlplots --nproc ${ncores} --mpi --verbose
 elif [ $stage = "buildSGA" ]; then
-    python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --build-SGA --nproc ${ncores} --mpi --verbose --clobber
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --build-SGA --nproc ${ncores} --mpi --verbose --clobber
 else
     echo "Unrecognized stage "$stage
 fi
