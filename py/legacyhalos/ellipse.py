@@ -811,7 +811,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
             ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
         
         print('...{:.3f} sec'.format(time.time() - t0))
-    print('Time for all images = {:.3f} sec'.format(time.time()-tall))
+    print('Time for all images = {:.3f} min'.format((time.time()-tall)/60))
 
     ellipsefit['success'] = True
     
@@ -880,7 +880,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                                  verbose=verbose,
                                                  largegalaxy=largegalaxy,
                                                  return_sample=True)
-
     if bool(data):
         if data['failed']: # all galaxies dropped
             return 1, filesuffix
@@ -892,7 +891,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             if largegalaxy:
                 maxis = data['mge'][igal]['majoraxis'] # [pixels]
                 maxsma = 2 * maxis # [pixels]
-                delta_sma = 0.002 * maxsma
+                delta_sma = 0.0015 * maxsma
                 if delta_sma < 1:
                     delta_sma = 1.0
                 print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))

@@ -12,8 +12,8 @@ import astropy
 import legacyhalos.io
 
 ZCOLUMN = 'Z'
-RACOLUMN = 'OBJRA'
-DECCOLUMN = 'OBJDEC'
+RACOLUMN = 'RA'
+DECCOLUMN = 'DEC'
 GALAXYCOLUMN = 'PLATEIFU'
 
 RADIUSFACTOR = 1.5 # 10
@@ -293,6 +293,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         else:
             sample = sample[these]
 
+    sample.rename_column('OBJRA', 'RA')
+    sample.rename_column('OBJDEC', 'DEC')
+
     return sample
 
 def _get_diameter(ellipse):
@@ -353,7 +356,7 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
     return res
 
 def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
-                   racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
+                   racolumn='GROUP_RA', deccolumn='GROUP_DEC', #diamcolumn='GROUP_DIAMETER',
                    maketrends=False, fix_permissions=True):
     """Build the home (index.html) page and, optionally, the trends.html top-level
     page.
@@ -891,7 +894,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
 
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
-              racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
+              racolumn='GROUP_RA', deccolumn='GROUP_DEC', #diamcolumn='GROUP_DIAMETER',
               first=None, last=None, galaxylist=None,
               nproc=1, survey=None, makeplots=False,
               clobber=False, verbose=True, maketrends=False, ccdqa=False,

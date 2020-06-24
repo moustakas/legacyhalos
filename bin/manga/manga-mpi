@@ -52,11 +52,11 @@ def main():
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
     if args.htmlindex and rank == 0:
-        legacyhalos.SGA.make_html(sample, survey=None, pixscale=args.pixscale,
-                                  racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn=DIAMCOLUMN,
-                                  zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
-                                  makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                  ccdqa=args.ccdqa, args=args)
+        legacyhalos.manga.make_html(sample, survey=None, pixscale=args.pixscale,
+                                    racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn=DIAMCOLUMN,
+                                    zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+                                    makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                    ccdqa=args.ccdqa, args=args)
         return
     
     # Determine how many more galaxies we need to analyze and divide them across
