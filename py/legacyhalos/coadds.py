@@ -52,7 +52,16 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if os.path.isfile(picklefile):
                 os.remove(picklefile)
 
-    # Move the CCDs table and pull out the final set of bands used in the fitting.
+    # If we made it here and there is no CCDs file it's because legacypipe
+    # exited cleanly with "No photometric CCDs touching brick."
+    ccdsfile = os.path.join(output_dir, 'coadd', 'cus', brickname,
+                            'legacysurvey-{}-ccds.fits'.format(brickname))
+    if not os.path.isfile(ccdsfile):
+        print('No photometric CCDs touching brick.')
+        if cleanup:
+            _do_cleanup()
+        return 1
+    
     ok = _copyfile(
         os.path.join(output_dir, 'coadd', 'cus', brickname,
                      'legacysurvey-{}-ccds.fits'.format(brickname)),

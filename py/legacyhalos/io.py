@@ -900,7 +900,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
                                         np.radians(mgegalaxy.theta-90), xobj, yobj)
             if np.sum(central_mask) == 0:
                 print('No pixels belong to the central galaxy---this is bad!')
-                pdb.set_trace()
+                data['failed'] = True
+                break
 
             # Build the mask from the (cumulative) residual-image mask and the
             # inverse variance mask for this galaxy, but then "unmask" the

@@ -744,7 +744,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     if len(tractor) == 0: # can happen in small fields
         print('Warning: All Tractor sources are Gaia stars in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
         return None, None, None, onegal
-    assert('G2' not in set(tractor['REF_CAT']))
+    try:
+        assert('G2' not in set(tractor['REF_CAT']))
+    except:
+        print('Failed G2 assert in {}'.format(galaxy))
 
     # Also remove SGA sources which do not belong to this group, because they
     # will be handled when we deal with *that* group. (E.g., PGC2190838 is in

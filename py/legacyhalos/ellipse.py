@@ -272,17 +272,17 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 if len(these) > 5: # this is bad if we don't have at least 5 points!
                     if sma_arcsec[these[0]] < (refellipsefit['majoraxis'] * pixscale * pixscalefactor):
                         these = np.where(sma_arcsec < refellipsefit['majoraxis'] * pixscale * pixscalefactor)[0]
+                    if len(these) > 5: # can happen in corner cases (e.g., PGC155984)
+                        ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
+                                            maxiter=100, weights=1/cogmagerr[these])
+                        bestfit = ballfit(sma_arcsec)
 
-                    ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
-                                        maxiter=100, weights=1/cogmagerr[these])
-                    bestfit = ballfit(sma_arcsec)
-
-                    chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
-                    if cogfitter.fit_info['param_cov'] is None: # failed
-                        if False:
-                            print(jj, cogfitter.fit_info['message'], chi2[jj])
-                    else:
-                        params[:, jj] = ballfit.parameters # update
+                        chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
+                        if cogfitter.fit_info['param_cov'] is None: # failed
+                            if False:
+                                print(jj, cogfitter.fit_info['message'], chi2[jj])
+                        else:
+                            params[:, jj] = ballfit.parameters # update
 
         # if at least one fit succeeded, re-evaluate the model at the chi2
         # minimum.
