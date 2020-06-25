@@ -892,11 +892,16 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         #                                 geometry.sma*(1 - geometry.eps), geometry.pa)
         #    ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.75)
 
-        if ellipsefit and ellipsefit['success']:
-            nfit = len(ellipsefit['{}_sma'.format(filt)])
-            nplot = np.rint(0.05*nfit).astype('int')
-            if nplot < 10:
-                nplot = 10
+        if ellipsefit and ellipsefit['success'] and np.atleast_1d(ellipsefit['{}_sma'.format(filt)])[0] != -1:
+            #nfit = len(ellipsefit['{}_sma'.format(filt)])
+            #nplot = np.rint(0.01*nfit).astype('int')
+            nplot = 10
+            sma_lw = 1
+            sma_alpha = 0.7
+            #if nplot < 10:
+            #    nplot = 10
+            #    sma_lw = 3
+            #    sma_alpha = 1.0
             smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)][indx].max(), nplot)
 
             #smas = ellipsefit[filt].sma
@@ -916,7 +921,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                                                2*ellipsefit['{}_sma'.format(filt)][this],
                                                2*ellipsefit['{}_sma'.format(filt)][this]*(1-ellipsefit['{}_eps'.format(filt)][this]),
                                                ellipsefit['{}_pa'.format(filt)][this]-90,
-                                               color='k', lw=3, alpha=1.0, fill=False))#, label='Fitted isophote')
+                                               color='k', lw=sma_lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
 
             # Visualize the mean geometry
             maxis = ellipsefit['majoraxis'] # [pixels]

@@ -272,17 +272,17 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 if len(these) > 5: # this is bad if we don't have at least 5 points!
                     if sma_arcsec[these[0]] < (refellipsefit['majoraxis'] * pixscale * pixscalefactor):
                         these = np.where(sma_arcsec < refellipsefit['majoraxis'] * pixscale * pixscalefactor)[0]
+                    if len(these) > 5: # can happen in corner cases (e.g., PGC155984)
+                        ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
+                                            maxiter=100, weights=1/cogmagerr[these])
+                        bestfit = ballfit(sma_arcsec)
 
-                    ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
-                                        maxiter=100, weights=1/cogmagerr[these])
-                    bestfit = ballfit(sma_arcsec)
-
-                    chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
-                    if cogfitter.fit_info['param_cov'] is None: # failed
-                        if False:
-                            print(jj, cogfitter.fit_info['message'], chi2[jj])
-                    else:
-                        params[:, jj] = ballfit.parameters # update
+                        chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
+                        if cogfitter.fit_info['param_cov'] is None: # failed
+                            if False:
+                                print(jj, cogfitter.fit_info['message'], chi2[jj])
+                        else:
+                            params[:, jj] = ballfit.parameters # update
 
         # if at least one fit succeeded, re-evaluate the model at the chi2
         # minimum.
@@ -662,8 +662,8 @@ def _fitgeometry_refband(ellipsefit, geometry0, majoraxis, refband='r', verbose=
 
 def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
                          filesuffix='', refband='r', maxsma=None, nproc=1,
-                         integrmode='median', nclip=2, sclip=3, galaxyinfo=None,
-                         input_ellipse=None, fitgeometry=False,
+                         integrmode='median', nclip=2, sclip=3, delta_sma=1.0,
+                         galaxyinfo=None, input_ellipse=None, fitgeometry=False,
                          nowrite=False, verbose=False):
     """Multi-band ellipse-fitting, broadly based on--
     https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
@@ -677,7 +677,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 
     """
     import multiprocessing
-    
+
     bands, refband, refpixscale = data['bands'], data['refband'], data['refpixscale']
     
     # If fitgeometry=True then fit for the geometry as a function of semimajor
@@ -770,7 +770,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
         maxsma = 0.95 * (data['{}_width'.format(refband)]/2) / np.cos(geometry.pa % (np.pi/4))
     ellipsefit['maxsma'] = np.float32(maxsma) # [pixels]
 
-    sma = np.arange(np.ceil(maxsma)).astype('f4')
+    sma = np.arange(0, np.ceil(maxsma), delta_sma).astype('f4')
     #ellipsefit['sma'] = np.arange(np.ceil(maxsma)).astype('f4')
 
     nbox = 3
@@ -811,7 +811,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
             ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
         
         print('...{:.3f} sec'.format(time.time() - t0))
-    print('Time for all images = {:.3f} sec'.format(time.time()-tall))
+    print('Time for all images = {:.3f} min'.format((time.time()-tall)/60))
 
     ellipsefit['success'] = True
     
@@ -880,7 +880,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                                  verbose=verbose,
                                                  largegalaxy=largegalaxy,
                                                  return_sample=True)
-
     if bool(data):
         if data['failed']: # all galaxies dropped
             return 1, filesuffix
@@ -888,9 +887,14 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         for igal in np.arange(len(data['central_galaxy_id'])):
             central_galaxy_id = data['central_galaxy_id'][igal]
             galaxyid = str(central_galaxy_id)
-            print('Starting ellipse-fitting for galaxy {}'.format(galaxyid))
+            print('Starting ellipse-fitting for galaxy {} with {} core(s)'.format(galaxyid, nproc))
             if largegalaxy:
-                maxsma = 2 * data['mge'][igal]['majoraxis'] # [pixels]
+                maxis = data['mge'][igal]['majoraxis'] # [pixels]
+                maxsma = 2 * maxis # [pixels]
+                delta_sma = 0.0015 * maxsma
+                if delta_sma < 1:
+                    delta_sma = 1.0
+                print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))
                 # Supplement the fit results dictionary with some additional info.
                 samp = sample[sample['SGA_ID'] == central_galaxy_id]
                 galaxyinfo = {'sga_id': (central_galaxy_id, ''),
@@ -899,13 +903,14 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                                      [u.deg, u.deg, '', u.deg, '', u.arcmin]):
                     galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
             else:
-                maxsma, galaxyid = None, None
+                maxsma, galaxyid, delta_sma = None, None, 1.0                
                 galaxyinfo = {'redshift': (redshift, '')}
 
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, centralindx=igal,
                                               galaxyid=galaxyid, filesuffix=filesuffix,
                                               refband=refband, nproc=nproc, integrmode=integrmode,
                                               nclip=nclip, sclip=sclip, verbose=verbose,
+                                              delta_sma=delta_sma,
                                               input_ellipse=input_ellipse, maxsma=maxsma,
                                               fitgeometry=False, galaxyinfo=galaxyinfo)
         return 1, filesuffix

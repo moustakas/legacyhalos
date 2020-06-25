@@ -42,16 +42,26 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
 
     def _do_cleanup():
         import shutil
+        from glob import glob
         shutil.rmtree(os.path.join(output_dir, 'coadd'), ignore_errors=True)
         shutil.rmtree(os.path.join(output_dir, 'metrics'), ignore_errors=True)
         shutil.rmtree(os.path.join(output_dir, 'tractor'), ignore_errors=True)
         shutil.rmtree(os.path.join(output_dir, 'tractor-i'), ignore_errors=True)
-        for stage in ('srcs', 'tims', 'checkpoint'):
-            picklefile = os.path.join(output_dir, '{}-{}-{}.p'.format(galaxy, stagesuffix, stage))
+        picklefiles = glob(os.path.join(output_dir, '{}-{}-*.p'.format(galaxy, stagesuffix)))
+        for picklefile in picklefiles:
             if os.path.isfile(picklefile):
                 os.remove(picklefile)
 
-    # Move the CCDs table and pull out the final set of bands used in the fitting.
+    # If we made it here and there is no CCDs file it's because legacypipe
+    # exited cleanly with "No photometric CCDs touching brick."
+    ccdsfile = os.path.join(output_dir, 'coadd', 'cus', brickname,
+                            'legacysurvey-{}-ccds.fits'.format(brickname))
+    if not os.path.isfile(ccdsfile):
+        print('No photometric CCDs touching brick.')
+        if cleanup:
+            _do_cleanup()
+        return 1
+    
     ok = _copyfile(
         os.path.join(output_dir, 'coadd', 'cus', brickname,
                      'legacysurvey-{}-ccds.fits'.format(brickname)),
@@ -64,10 +74,14 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     allbands = fitsio.read(ccdsfile, columns='filter')
     bands = list(sorted(set(allbands)))
 
-    ## For objects on the edge of the footprint we can sometimes lose 3-band
-    ## coverage if one of the bands is fully masked. Check here and write out all
-    ## the files except a 
-    #if require_grz:
+    # For objects on the edge of the footprint we can sometimes lose 3-band
+    # coverage if one of the bands is fully masked. Check here and write out all
+    # the files except a 
+    if require_grz and ('g' not in bands or 'r' not in bands or 'z' not in bands):
+        print('Lost grz coverage and require_grz=True.')
+        if cleanup:
+            _do_cleanup()
+        return 1
 
     # image coadds (FITS + JPG)
     for band in bands:
@@ -256,8 +270,9 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   largegalaxy=False, pipeline=False, custom=True,
                   log=None, apodize=False, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True,
-                  write_all_pickles=False, no_splinesky=False, customsky=False,
-                  just_coadds=False, require_grz=True, no_gaia=False, no_tycho=False):
+                  write_all_pickles=False, no_subsky=False, subsky_radii=None,
+                  customsky=False, just_coadds=False, require_grz=True, no_gaia=False,
+                  no_tycho=False):
     """Build a custom set of large-galaxy coadds
 
     radius_mosaic in arcsec
@@ -315,7 +330,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd += '--threads {threads} --outdir {outdir} '
     cmd += '--survey-dir {survey_dir} --run {run} '
     if write_all_pickles:
-        cmd += '--write-stage tims --write-stage srcs '
+        pass
+        #cmd += '--write-stage tims --write-stage srcs '
     else:
         cmd += '--write-stage srcs '
     cmd += '--skip-calibs '
@@ -340,8 +356,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             galaxydir=survey.output_dir, galaxy=galaxy, stagesuffix=stagesuffix)
         if os.path.isfile(checkpointfile):
             os.remove(checkpointfile)
-    if no_splinesky:
-        cmd += '--no-splinesky '
+    if no_subsky and subsky_radii:
+        if len(subsky_radii) != 3:
+            print('subsky_radii must be a 3-element vector')
+        cmd += '--no-subsky --subsky-radii {} {} {} '.format(subsky_radii[0], subsky_radii[1], subsky_radii[2]) # [arcsec]
     if customsky:
         print('Skipping custom sky')
         #cmd += '--largegalaxy-skysub '
@@ -354,8 +372,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         #cmd += '--nsigma 10 '
     if custom:
         cmd += '--fit-on-coadds '
-        #print('Write me!')
-        #pdb.set_trace()
+
+    #cmd += '--stage srcs '
+    #cmd += '--stage fitblobs '
+    #cmd += '--stage coadds '
+    #cmd += '--stage wise_forced '
 
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_CODE_DIR'), galaxy=galaxy,
                      ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
@@ -365,6 +386,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print(cmd, flush=True, file=log)
 
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
+
     if err != 0:
         print('Something went wrong; please check the logfile.')
         return 0, stagesuffix

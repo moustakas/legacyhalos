@@ -8,12 +8,15 @@
 # Example: build the coadds using 16 MPI tasks with 8 cores per node (and therefore 16*8/32=4 nodes)
 
 #salloc -N 8 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v0.0.3
-#srun -n 64 -c 4 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh coadds 4 > coadds.log.1 2>&1 &
-#srun -n 64 -c 4 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh ellipse 4 > ellipse.log.1 2>&1 &
-#srun -n 64 -c 1 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh htmlplots 1 > htmlplots.log.1 2>&1 &
+#srun -n 64 -c 4 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh coadds 4 > coadds.log.1 2>&1 &
+#srun -n 64 -c 4 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh ellipse 4 > ellipse.log.1 2>&1 &
+#srun -n 64 -c 1 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh htmlplots 1 > htmlplots.log.1 2>&1 &
+#srun -n 64 -c 1 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh buildSGA 1 > buildSGA.log.1 2>&1 &
 
 #salloc -N 10 -C haswell -A desi -L cfs,SCRATCH -t 08:00:00 --qos realtime --image=legacysurvey/legacyhalos:v0.0.3 --exclusive
-#srun -n 20 -c 16 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh coadds 16 > coadds.log.1 2>&1 &
+#srun -n 10 -c 32 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh coadds 1 > coadds.log.1 2>&1 &
+#srun -n 80 -c 4 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh ellipse 4 > ellipse.log.1 2>&1 &
+#srun -n 320 -c 1 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi.sh buildSGA 1 > buildSGA.log.2 2>&1 &
 
 # Grab the input arguments--
 stage=$1
@@ -28,13 +31,15 @@ source $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-env
 if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --help
 elif [ $stage = "coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose --galaxylist --d25min 3 --d25max 20
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --coadds --nproc ${ncores} --mpi --verbose
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --pipeline-coadds --nproc ${ncores} --mpi --verbose
 elif [ $stage = "ellipse" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --ellipse --nproc ${ncores} --mpi --verbose
 elif [ $stage = "htmlplots" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --htmlplots --nproc ${ncores} --mpi --verbose
+elif [ $stage = "buildSGA" ]; then
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --build-SGA --nproc ${ncores} --mpi --verbose --clobber
 else
     echo "Unrecognized stage "$stage
 fi

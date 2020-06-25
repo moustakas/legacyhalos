@@ -12,8 +12,8 @@ import astropy
 import legacyhalos.io
 
 ZCOLUMN = 'Z'
-RACOLUMN = 'OBJRA'
-DECCOLUMN = 'OBJDEC'
+RACOLUMN = 'RA'
+DECCOLUMN = 'DEC'
 GALAXYCOLUMN = 'PLATEIFU'
 
 RADIUSFACTOR = 1.5 # 10
@@ -118,11 +118,16 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     indices = np.arange(ngal)
 
     mp = multiproc(nthreads=args.nproc)
-    args = []
+    missargs = []
     for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
-        args.append([gal, gdir, filesuffix, dependson, clobber])
+        #missargs.append([gal, gdir, filesuffix, dependson, clobber])
+        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+        if dependson:
+            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+        else:
+            missargs.append([checkfile, None, clobber])
         
-    todo = np.array(mp.map(_missing_files_one, args))
+    todo = np.array(mp.map(_missing_files_one, missargs))
 
     itodo = np.where(todo == 'todo')[0]
     idone = np.where(todo == 'done')[0]
@@ -213,12 +218,36 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
-    # Immediately toss out Apogee--
-    nsaid = fitsio.read(samplefile, columns='NSA_NSAID')
-    rows = np.where(nsaid != -9999)[0]
-    nrows = len(rows)
-    #rows = None
+    # See here to select unique Manga galaxies--
+    # https://www.sdss.org/dr16/manga/manga-tutorials/drpall/#py-uniq-gals
+    tbdata = fitsio.read(samplefile, lower=True, columns=['mngtarg1', 'mngtarg3', 'mangaid'])
+    
+    rows = np.arange(nrows)
+    keep = np.where(
+        np.logical_and(
+            np.logical_or((tbdata['mngtarg1'] != 0), (tbdata['mngtarg3'] != 0)),
+            ((tbdata['mngtarg3'] & 1<<19) == 0) * ((tbdata['mngtarg3'] & 1<<20) == 0) * ((tbdata['mngtarg3'] & 1<<21) == 0)
+            ))[0]
+    rows = rows[keep]
+    
+    _, uindx = np.unique(tbdata['mangaid'][rows], return_index=True)
+    rows = rows[uindx]
+    
+    ## Find galaxies excluding those from the Coma, IC342, M31 ancillary programs (bits 19,20,21)
+    #cube_bools = (tbdata['mngtarg1'] != 0) | (tbdata['mngtarg3'] != 0)
+    #cubes = tbdata[cube_bools]
+    #
+    #targ3 = tbdata['mngtarg3']
+    #galaxies = tbdata[cube_bools & ((targ3 & 1<<19) == 0) & ((targ3 & 1<<20) == 0) & ((targ3 & 1<<21) == 0)]
+    #
+    #uniq_vals, uniq_idx = np.unique(galaxies['mangaid'], return_index=True)
+    #uniq_galaxies = galaxies[uniq_idx]
 
+    #for ii in np.arange(len(rows)):
+    #    print(tbdata['mangaid'][rows[ii]], uniq_galaxies['mangaid'][ii])
+
+    nrows = len(rows)
+    
     if first is None:
         first = 0
     if last is None:
@@ -263,6 +292,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             return astropy.table.Table()
         else:
             sample = sample[these]
+
+    sample.rename_column('OBJRA', 'RA')
+    sample.rename_column('OBJDEC', 'DEC')
 
     return sample
 
@@ -324,7 +356,7 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
     return res
 
 def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
-                   racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
+                   racolumn='GROUP_RA', deccolumn='GROUP_DEC', #diamcolumn='GROUP_DIAMETER',
                    maketrends=False, fix_permissions=True):
     """Build the home (index.html) page and, optionally, the trends.html top-level
     page.
@@ -862,7 +894,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
 
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
-              racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
+              racolumn='GROUP_RA', deccolumn='GROUP_DEC', #diamcolumn='GROUP_DIAMETER',
               first=None, last=None, galaxylist=None,
               nproc=1, survey=None, makeplots=False,
               clobber=False, verbose=True, maketrends=False, ccdqa=False,
