@@ -106,9 +106,9 @@ def main():
                 print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
                 galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[fail[rank]])
                 for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
-                    print('\\rm {}/{}-largegalaxy-{}.isfail'.format(dd, os.path.basename(dd), suffix.lower()))
+                    #print('\\rm {}/{}-largegalaxy-{}.isfail'.format(dd, os.path.basename(dd), suffix.lower()))
                     #print('\rm {}/{}-largegalaxy-coadds.isfile'.format(dd))
-                    #print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                    print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
         return
     else:
         if not args.build_SGA:
@@ -119,9 +119,9 @@ def main():
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[fail[rank]])
                     for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
-                        print('\\rm {}/{}-largegalaxy-{}.isfail'.format(dd, os.path.basename(dd), suffix.lower()))
+                        #print('\\rm {}/{}-largegalaxy-{}.isfail'.format(dd, os.path.basename(dd), suffix.lower()))
                         #print('\rm {}/*'.format(dd))
-                        #print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                        print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
 
                 todo = np.hstack(groups)
                 if len(todo) > 0:
