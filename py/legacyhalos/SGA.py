@@ -549,12 +549,12 @@ def _init_ellipse_SGA(clobber=False):
 
     notractorfile = os.path.join(outdir, 'SGA-notractor-{}.fits'.format(version))
     noellipsefile = os.path.join(outdir, 'SGA-noellipse-{}.fits'.format(version))
-    nogrzfile = os.path.join(outdir, 'SGA-nogrz-{}.fits'.format(version))
+    missingfile = os.path.join(outdir, 'SGA-missing-{}.fits'.format(version))
 
-    return True, (outfile, notractorfile, noellipsefile, nogrzfile), refcat
+    return True, (outfile, notractorfile, noellipsefile, missingfile), refcat
 
-def _write_ellipse_SGA(cat, notractor, noellipse, nogrz, outfile, notractorfile,
-                       noellipsefile, nogrzfile, refcat, skipfull=False):
+def _write_ellipse_SGA(cat, notractor, noellipse, missing, outfile, notractorfile,
+                       noellipsefile, missingfile, refcat, skipfull=False):
     import shutil
     import fitsio
     from contextlib import redirect_stdout, redirect_stderr
@@ -578,10 +578,10 @@ def _write_ellipse_SGA(cat, notractor, noellipse, nogrz, outfile, notractorfile,
         print('Writing {} galaxies not ellipse-fit to {}'.format(len(noellipse), noellipsefile))
         noellipse.write(noellipsefile, overwrite=True)
 
-    if len(nogrz) > 0:
-        nogrz = vstack(nogrz)
-        print('Writing {} galaxies with no grz coverage to {}'.format(len(nogrz), nogrzfile))
-        nogrz.write(nogrzfile, overwrite=True)
+    if len(missing) > 0:
+        missing = vstack(missing)
+        print('Writing {} galaxies with no grz coverage to {}'.format(len(missing), missingfile))
+        missing.write(missingfile, overwrite=True)
 
     print('Gathered {} pre-burned and frozen galaxies.'.format(len(cat)))
     print('  Frozen (all): {}'.format(np.sum(cat['FREEZE'])))
@@ -654,17 +654,17 @@ def _write_ellipse_SGA(cat, notractor, noellipse, nogrz, outfile, notractorfile,
         # This may not happen if galaxies are dropped--
         #chk1 = np.where(np.isin(out['SGA_ID'], fullsample['SGA_ID']))[0]
         #assert(len(chk1) == len(fullsample))
-        if len(nogrz) > 0:
-            chk2 = np.where(np.isin(out['SGA_ID'], nogrz['SGA_ID']))[0]
-            assert(len(chk2) == len(nogrz))
+        if len(missing) > 0:
+            chk2 = np.where(np.isin(out['SGA_ID'], missing['SGA_ID']))[0]
+            assert(len(chk2) == len(missing))
         if len(notractor) > 0:
             chk3 = np.where(np.isin(out['SGA_ID'], notractor['SGA_ID']))[0]
             assert(len(chk3) == 0)
         if len(noellipse) > 0:
             chk4 = np.where(np.isin(out['SGA_ID'], noellipse['SGA_ID']))[0]
             assert(len(chk4) == 0)
-        if len(nogrz) > 0 and len(notractor) > 0:            
-            chk5 = np.where(np.isin(notractor['SGA_ID'], nogrz['SGA_ID']))[0]
+        if len(missing) > 0 and len(notractor) > 0:            
+            chk5 = np.where(np.isin(notractor['SGA_ID'], missing['SGA_ID']))[0]
             assert(len(chk5) == 0)
     assert(np.all(out['RA'] > 0))
     assert(np.all(np.isfinite(out['PA'])))
@@ -721,7 +721,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # list here.
     if not os.path.isfile(tractorfile):
         print('Tractor catalog missing: {}'.format(tractorfile))
-        return None, onegal, None, None
+        return None, None, None, onegal
 
     # Note: for galaxies on the edge of the footprint we can also sometimes
     # lose 3-band coverage if one or more of the bands is fully masked
@@ -987,7 +987,7 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False, debug=False):
                 
     notractorfile = os.path.join(outdir, 'SGA-notractor-{}.fits'.format(version))
     noellipsefile = os.path.join(outdir, 'SGA-noellipse-{}.fits'.format(version))
-    nogrzfile = os.path.join(outdir, 'SGA-nogrz-{}.fits'.format(version))
+    missingfile = os.path.join(outdir, 'SGA-missing-{}.fits'.format(version))
 
     mp = multiproc(nthreads=nproc)
     args = []
@@ -999,7 +999,7 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False, debug=False):
     cat = list(filter(None, rr[0]))
     notractor = list(filter(None, rr[1]))
     noellipse = list(filter(None, rr[2]))
-    nogrz = list(filter(None, rr[3]))
+    missing = list(filter(None, rr[3]))
 
     if len(cat) == 0:
         print('Something went wrong and no galaxies were fitted.')
@@ -1016,10 +1016,10 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False, debug=False):
         print('Writing {} galaxies not ellipse-fit to {}'.format(len(noellipse), noellipsefile))
         noellipse.write(noellipsefile, overwrite=True)
 
-    if len(nogrz) > 0:
-        nogrz = vstack(nogrz)
-        print('Writing {} galaxies with no grz coverage to {}'.format(len(nogrz), nogrzfile))
-        nogrz.write(nogrzfile, overwrite=True)
+    if len(missing) > 0:
+        missing = vstack(missing)
+        print('Writing {} galaxies with no grz coverage to {}'.format(len(missing), missingfile))
+        missing.write(missingfile, overwrite=True)
 
     print('Gathered {} pre-burned and frozen galaxies.'.format(len(cat)))
     print('  Frozen (all): {}'.format(np.sum(cat['FREEZE'])))
@@ -1091,17 +1091,17 @@ def build_ellipse_SGA(sample, fullsample, nproc=1, clobber=False, debug=False):
         # This may not happen if galaxies are dropped--
         #chk1 = np.where(np.isin(out['SGA_ID'], fullsample['SGA_ID']))[0]
         #assert(len(chk1) == len(fullsample))
-        if len(nogrz) > 0:
-            chk2 = np.where(np.isin(out['SGA_ID'], nogrz['SGA_ID']))[0]
-            assert(len(chk2) == len(nogrz))
+        if len(missing) > 0:
+            chk2 = np.where(np.isin(out['SGA_ID'], missing['SGA_ID']))[0]
+            assert(len(chk2) == len(missing))
         if len(notractor) > 0:
             chk3 = np.where(np.isin(out['SGA_ID'], notractor['SGA_ID']))[0]
             assert(len(chk3) == 0)
         if len(noellipse) > 0:
             chk4 = np.where(np.isin(out['SGA_ID'], noellipse['SGA_ID']))[0]
             assert(len(chk4) == 0)
-        if len(nogrz) > 0 and len(notractor) > 0:            
-            chk5 = np.where(np.isin(notractor['SGA_ID'], nogrz['SGA_ID']))[0]
+        if len(missing) > 0 and len(notractor) > 0:            
+            chk5 = np.where(np.isin(notractor['SGA_ID'], missing['SGA_ID']))[0]
             assert(len(chk5) == 0)
     assert(np.all(out['RA'] > 0))
     assert(np.all(np.isfinite(out['PA'])))
