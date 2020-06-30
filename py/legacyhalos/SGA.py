@@ -721,7 +721,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # list here.
     if not os.path.isfile(tractorfile):
         print('Tractor catalog missing: {}'.format(tractorfile))
-        return None, None, None, onegal
+        return None, onegal, None, None
 
     # Note: for galaxies on the edge of the footprint we can also sometimes
     # lose 3-band coverage if one or more of the bands is fully masked
