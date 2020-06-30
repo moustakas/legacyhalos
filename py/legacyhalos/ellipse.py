@@ -890,8 +890,12 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             print('Starting ellipse-fitting for galaxy {} with {} core(s)'.format(galaxyid, nproc))
             if largegalaxy:
                 maxis = data['mge'][igal]['majoraxis'] # [pixels]
-                maxsma = 2 * maxis # [pixels]
-                delta_sma = 0.0015 * maxsma
+                if galaxyid == '1237406': # NGC5457
+                    maxsma = 1.5 * maxis # [pixels]
+                    delta_sma = 0.002 * maxsma
+                else:
+                    maxsma = 2 * maxis # [pixels]
+                    delta_sma = 0.0015 * maxsma
                 if delta_sma < 1:
                     delta_sma = 1.0
                 print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))

@@ -338,7 +338,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             'NGC5866_GROUP',
             'NGC4258',
             'NGC3031_GROUP',
-            #'NGC0598_GROUP',
+            'NGC0598_GROUP',
             'NGC5457'
             ]
 
@@ -476,6 +476,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     #print('Gigantic hack!!')
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/junk', dtype=str)
+    #galaxylist = fitsio.read('/global/cscratch1/sd/dstn/sga-gather/SGA-nogrz-v3.0.fits', columns='GROUP_NAME')
     
     if galaxylist is not None:
         galcolumn = 'GROUP_NAME'
