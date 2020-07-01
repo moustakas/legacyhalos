@@ -340,6 +340,8 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                 display_ellipse_sbprofile, qa_curveofgrowth,
                                 qa_maskbits)
 
+    Image.MAX_IMAGE_PIXELS = None
+    
     # Read the data--
     data = read_multiband(galaxy, galaxydir, bands=bands,
                           refband=refband, pixscale=pixscale,

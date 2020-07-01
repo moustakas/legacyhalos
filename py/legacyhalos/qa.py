@@ -56,6 +56,8 @@ def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
 
     """
     from PIL import Image, ImageDraw, ImageFont
+
+    Image.MAX_IMAGE_PIXELS = None
     
     minor_axis_diameter_arcsec = major_axis_diameter_arcsec * ba
 
@@ -78,6 +80,9 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True):
 
     """
     from PIL import Image, ImageDraw, ImageFont
+
+    Image.MAX_IMAGE_PIXELS = None
+
     with Image.open(jpgfile) as im:
         draw = ImageDraw.Draw(im)
         sz = im.size
@@ -118,13 +123,14 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
 
     """
     from photutils import EllipticalAperture
-    from PIL import ImageDraw
+    from PIL import ImageDraw, Image
 
     from tractor.ellipses import EllipseE
     from legacypipe.reference import get_large_galaxy_version
     from legacyhalos.SGA import _get_diameter
     from legacyhalos.misc import is_in_ellipse
 
+    Image.MAX_IMAGE_PIXELS = None
     imgsz = colorimg.size
     
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(5*3, 5), sharey=True)
@@ -785,6 +791,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     from astropy.visualization import ZScaleInterval as Interval
     #from astropy.visualization import PercentileInterval as Interval
 
+    Image.MAX_IMAGE_PIXELS = None
+
     band = data['bands']
     nband = len(band)
 
@@ -895,9 +903,9 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         if ellipsefit and ellipsefit['success'] and np.atleast_1d(ellipsefit['{}_sma'.format(filt)])[0] != -1:
             #nfit = len(ellipsefit['{}_sma'.format(filt)])
             #nplot = np.rint(0.01*nfit).astype('int')
-            nplot = 10
+            nplot = 12
             sma_lw = 1
-            sma_alpha = 0.7
+            sma_alpha = 0.8
             #if nplot < 10:
             #    nplot = 10
             #    sma_lw = 3

@@ -147,8 +147,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         filesuffix = '-largegalaxy-grz-montage.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
-        print('Nothing to do.')
-        return
+        raise ValueError('Need at least one keyword argument.')
 
     # Make clobber=False for build_SGA and htmlindex because we're not making
     # the files here, we're just looking for them. The argument args.clobber
@@ -532,7 +531,7 @@ def _init_ellipse_SGA(clobber=False):
     print('Using LARGEGALAXIES_CAT={}'.format(lslgafile))
     if 'ellipse' in lslgafile:
         print('Warning: Cannot use $LARGEGALAXIES_CAT with ellipse-fitting results!')
-        return False, None, None
+        return None
 
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
@@ -540,7 +539,7 @@ def _init_ellipse_SGA(clobber=False):
     outfile = os.path.join(outdir, 'SGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
-        return False, None, None
+        return None
 
     #if not debug:
     #    logfile = os.path.join(datadir, '{}-{}.log'.format(galaxy, suffix))
@@ -551,10 +550,10 @@ def _init_ellipse_SGA(clobber=False):
     noellipsefile = os.path.join(outdir, 'SGA-noellipse-{}.fits'.format(version))
     missingfile = os.path.join(outdir, 'SGA-missing-{}.fits'.format(version))
 
-    return True, (outfile, notractorfile, noellipsefile, missingfile), refcat
+    return outfile, notractorfile, noellipsefile, missingfile, refcat
 
 def _write_ellipse_SGA(cat, notractor, noellipse, missing, outfile, notractorfile,
-                       noellipsefile, missingfile, refcat, skipfull=False):
+                       noellipsefile, missingfile, refcat, skipfull=False, writekd=True):
     import shutil
     import fitsio
     from contextlib import redirect_stdout, redirect_stderr
@@ -679,20 +678,22 @@ def _write_ellipse_SGA(cat, notractor, noellipse, missing, outfile, notractorfil
     fitsio.write(outfile, out.as_array(), header=hdr, clobber=True)
 
     # Write the KD-tree version
-    kdoutfile = outfile.replace('.fits', '.kd.fits') # fragile
-    cmd = 'startree -i {} -o {} -T -P -k -n largegals'.format(outfile, kdoutfile)
-    print(cmd)
-    _ = os.system(cmd)
+    if writekd:
+        kdoutfile = outfile.replace('.fits', '.kd.fits') # fragile
+        cmd = 'startree -i {} -o {} -T -P -k '.format(outfile, kdoutfile)
+        print(cmd)
+        _ = os.system(cmd)
 
-    cmd = 'modhead {} SGAVER {}'.format(kdoutfile, hdrversion)
-    print(cmd)
-    _ = os.system(cmd)
+        cmd = 'modhead {} SGAVER {}'.format(kdoutfile, hdrversion)
+        print(cmd)
+        _ = os.system(cmd)
 
-    fix_permissions = True
-    if fix_permissions:
-        print('Fixing group permissions.')
-        shutil.chown(outfile, group='cosmo')
-        shutil.chown(kdoutfile, group='cosmo')
+    #fix_permissions = True
+    #if fix_permissions:
+    #    #print('Fixing group permissions.')
+    #    shutil.chown(outfile, group='cosmo')
+    #    if writekd:
+    #        shutil.chown(kdoutfile, group='cosmo')
 
 def _build_ellipse_SGA_one(args):
     """Wrapper function for the multiprocessing."""

@@ -889,16 +889,6 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             galaxyid = str(central_galaxy_id)
             print('Starting ellipse-fitting for galaxy {} with {} core(s)'.format(galaxyid, nproc))
             if largegalaxy:
-                maxis = data['mge'][igal]['majoraxis'] # [pixels]
-                if galaxyid == '1237406': # NGC5457
-                    maxsma = 1.5 * maxis # [pixels]
-                    delta_sma = 0.002 * maxsma
-                else:
-                    maxsma = 2 * maxis # [pixels]
-                    delta_sma = 0.0015 * maxsma
-                if delta_sma < 1:
-                    delta_sma = 1.0
-                print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))
                 # Supplement the fit results dictionary with some additional info.
                 samp = sample[sample['SGA_ID'] == central_galaxy_id]
                 galaxyinfo = {'sga_id': (central_galaxy_id, ''),
@@ -906,6 +896,17 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                 for key, unit in zip(['ra', 'dec', 'pgc', 'pa_leda', 'ba_leda', 'd25_leda'],
                                      [u.deg, u.deg, '', u.deg, '', u.arcmin]):
                     galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
+                # Specify the fitting range
+                maxis = data['mge'][igal]['majoraxis'] # [pixels]
+                if samp['D25_LEDA'] > 10: # e.g., NGC5457
+                    maxsma = 1.5 * maxis # [pixels]
+                    delta_sma = 0.003 * maxsma
+                else:
+                    maxsma = 2 * maxis # [pixels]
+                    delta_sma = 0.0015 * maxsma
+                if delta_sma < 1:
+                    delta_sma = 1.0
+                print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))
             else:
                 maxsma, galaxyid, delta_sma = None, None, 1.0                
                 galaxyinfo = {'redshift': (redshift, '')}

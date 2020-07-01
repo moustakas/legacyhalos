@@ -57,8 +57,6 @@ def main():
                                                      preselect_sample=False,
                                                      customsky=False)
             fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
-        else:
-            fullsample = None
 
     if comm:
         sample = comm.bcast(sample, root=0)
@@ -78,8 +76,10 @@ def main():
     # ranks.
     if rank == 0:
         if args.build_SGA:
-            suffix, fail = 'build-SGA', []
-            groups = np.array_split(np.arange(len(sample)), size)
+            # Build the final catalog in chunks of 1000 (primary) galaxies.
+            suffix, chunksize, fail = 'build-SGA', 1000, []
+            nchunks = np.ceil(len(sample) / chunksize).astype(np.int)
+            groups = np.array_split(np.arange(len(sample)), nchunks)
         else:
             suffix, groups, _, fail = legacyhalos.SGA.missing_files(args, sample, size)
     else:
@@ -138,88 +138,74 @@ def main():
         comm.barrier()
 
     # Loop on the remaining objects.
-    print('Starting {} {} on rank {} with {} cores on {}'.format(
-        len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
-        flush=True)
+    if not args.build_SGA:
+        print('Starting {} {} on rank {} with {} cores on {}'.format(
+            len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
+            flush=True)
 
-    # Build the SGA and return--
-    if args.build_SGA:
-        if rank == 0:
-            tall = time.time()
-            from legacyhalos.SGA import _init_ellipse_SGA, _write_ellipse_SGA
-            buildit, filenames, refcat = _init_ellipse_SGA(clobber=args.clobber)
-        else:
-            buildit, filenames, refcat = None, None, None
-            
-        if comm:
-            buildit = comm.bcast(buildit, root=0)
-            refcat = comm.bcast(refcat, root=0)
+    # Build the SGA only on rank 0 in order to avoid memory problems--
+    if args.build_SGA and rank == 0:
+        from legacyhalos.SGA import _init_ellipse_SGA, _write_ellipse_SGA
+        from legacyhalos.SGA import _build_ellipse_SGA_one
+        from astrometry.util.multiproc import multiproc
+        
+        tall = time.time()
+        _init = _init_ellipse_SGA(clobber=args.clobber)
+        if _init is None:
+            return
+        outfile, notractorfile, noellipsefile, missingfile, refcat = _init
 
-        if buildit:
-            from legacyhalos.SGA import _build_ellipse_SGA_one
-            from astrometry.util.multiproc import multiproc
-            
-            ranksample = sample[groups[rank]]
-            rankfullsample = fullsample[np.isin(fullsample['GROUP_ID'], ranksample['GROUP_ID'])]
+        chunkdatadir = os.path.join(datadir, 'chunks')
 
-            mp = multiproc(nthreads=args.nproc)
+        mp = multiproc(nthreads=args.nproc)
+        for ichunk, chunk in enumerate(groups):
+            print('Working on chunk {:03d}/{:03d}'.format(ichunk, nchunks))
+            tchunk = time.time()
+
+            chunkdir = os.path.join(chunkdatadir, '{:03d}'.format(ichunk))
+            if not os.path.isdir(chunkdir):
+                os.makedirs(chunkdir, exist_ok=True)
+
+            chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
+            chunknotractorfile = os.path.join(chunkdir, os.path.basename(notractorfile))
+            chunknoellipsefile = os.path.join(chunkdir, os.path.basename(noellipsefile))
+            chunkmissingfile = os.path.join(chunkdir, os.path.basename(missingfile))
+
+            donechunk = False
+            for ff in (chunkoutfile, chunknotractorfile, chunknoellipsefile, chunkmissingfile):
+                if os.path.isfile(ff) and not args.clobber:
+                    print('Skipping existing chunkfile {}'.format(chunkoutfile))
+            if donechunk:
+                continue
+
+            # Do it!
+            chunksample = sample[chunk]
+            chunkfullsample = fullsample[np.isin(fullsample['GROUP_ID'], chunksample['GROUP_ID'])]
+
             buildargs = []
-            for onegal in ranksample:
-                buildargs.append((onegal, rankfullsample[rankfullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat, args.verbose))
+            for onegal in chunksample:
+                buildargs.append((onegal, chunkfullsample[chunkfullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat, args.verbose))
             results = mp.map(_build_ellipse_SGA_one, buildargs)
             results = list(zip(*results))
 
-            # Unpack the array of lists into a list of arrays--
             cat = list(filter(None, results[0]))
             notractor = list(filter(None, results[1]))
             noellipse = list(filter(None, results[2]))
-            nogrz = list(filter(None, results[3]))
-            
-            print('Rank {}: N(sample)={}, N(fullsample)={}, N(cat)={}, N(notractor)={}, N(noellipse)={}, N(nogrz)={}'.format(
-                rank, len(ranksample), len(rankfullsample), len(cat), len(notractor), len(noellipse), len(nogrz)))
+            missing = list(filter(None, results[3]))
 
-            if comm is not None:
-                cat = comm.gather(cat, root=0)
-                notractor = comm.gather(notractor, root=0)
-                noellipse = comm.gather(noellipse, root=0)
-                nogrz = comm.gather(nogrz, root=0)
+            print('Chunk {}: N(sample)={}, N(fullsample)={}, N(cat)={}, N(notractor)={}, N(noellipse)={}, N(missing)={}'.format(
+                ichunk, len(chunksample), len(chunkfullsample), len(cat), len(notractor), len(noellipse), len(missing)))
 
-            if rank == 0:
-                # We need to unpack the lists we get from comm.gather--
-                if args.mpi:
-                    from astropy.table import vstack
-                    if len(cat) > 0:
-                        newcat = []
-                        for cc in cat:
-                            if len(cc) > 0:
-                                newcat.append(vstack(cc))
-                        cat = newcat
-                    if len(notractor) > 0:
-                        newnotractor = []
-                        for cc in notractor:
-                            if len(cc) > 0:
-                                newnotractor.append(vstack(cc))
-                        notractor = newnotractor
-                    if len(noellipse) > 0:
-                        newnoellipse = []
-                        for cc in noellipse:
-                            if len(cc) > 0:
-                                newnoellipse.append(vstack(cc))
-                        noellipse = newnoellipse
-                    if len(nogrz) > 0:
-                        newnogrz = []
-                        for cc in nogrz:
-                            if len(cc) > 0:
-                                newnogrz.append(vstack(cc))
-                        nogrz = newnogrz
-                    
-                print('Rank {}: N(sample)={}, N(fullsample)={}, N(cat)={}, N(notractor)={}, N(noellipse)={}, N(nogrz)={}'.format(
-                    rank, len(sample), len(fullsample), len(cat), len(notractor), len(noellipse), len(nogrz)))
-                outfile, notractorfile, noellipsefile, nogrzfile = filenames
-                _write_ellipse_SGA(cat, notractor, noellipse, nogrz, outfile, notractorfile,
-                                   noellipsefile, nogrzfile, refcat, skipfull=False)
-                print('Finished {} after {:.3f} minutes'.format(suffix.upper(), (time.time() - tall) / 60))
+            _write_ellipse_SGA(cat, notractor, noellipse, missing, chunkoutfile, chunknotractorfile,
+                               chunknoellipsefile, chunkmissingfile, refcat, skipfull=True, writekd=False)
+            print('Finished chunk {:03d}/{:03d} after {:.3f} minutes'.format(ichunk, nchunks, (time.time() - tchunk) / 60))
                 
+        print('Finished all {:03d} chunks after {:.3f} minutes'.format(nchunks, (time.time() - tall) / 60))
+
+        # Now gather up all the chunks and write out!
+        # be sure to write out the KD file
+        pdb.set_trace()
+
         return
     
     tall = time.time()
