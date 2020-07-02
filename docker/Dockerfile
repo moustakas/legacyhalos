@@ -1,10 +1,14 @@
-FROM legacysurvey/legacypipe:DR9.5.3
+FROM legacysurvey/legacypipe:DR9.5.4
 
 RUN for x in \
     ipython \
     pydl \
     scikit-image \
     ; do pip --no-cache-dir install $x; done
+
+# Remove the policy.xml file so we do not get an 'exhausted cache resources'
+# error when we build mosaics for very large systems.
+RUN echo '<policymap></policymap>' > /etc/ImageMagick-6/policy.xml
 
 # legacyhalos
 WORKDIR /src
