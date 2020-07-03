@@ -80,6 +80,7 @@ def main():
             # into a *fixed* number of bigchunks, distributed to all the
             # available ranks.
             suffix, fail, bigchunksize = 'build-SGA', [], 1024
+            sample = sample[np.argsort(sample['GROUP_ID'])] # sort by group_id
             nbigchunks = np.ceil(len(sample) / bigchunksize).astype(np.int)
             bigchunks = np.array_split(np.arange(len(sample)), nbigchunks)
             groups = np.array_split(bigchunks, size)
@@ -186,8 +187,8 @@ def main():
         #nchunks = np.ceil(len(groups[rank]) / chunksize).astype(np.int)
         #chunks = np.array_split(np.arange(len(groups[rank])), nchunks)
 
-        chunkdatadir = os.path.join(datadir, 'chunks')
-        #chunkdatadir = os.path.join(datadir, 'test-chunks')
+        #chunkdatadir = os.path.join(datadir, 'chunks')
+        chunkdatadir = os.path.join(datadir, 'test-chunks')
 
         mp = multiproc(nthreads=args.nproc)
         for ichunk, chunk in enumerate(groups[rank]):
@@ -235,6 +236,9 @@ def main():
                 
         if comm:
             comm.barrier() # wait
+
+        print('HERE!!!!!!!!!!')
+        pdb.set_trace()
 
         # Now gather up all the chunks and write out!
         if rank == 0:

@@ -19,7 +19,6 @@ DIAMCOLUMN = 'GROUP_DIAMETER'
 
 ELLIPSEBITS = dict(
     largeshift = 2**0,       # >10-pixel shift in the flux-weighted center
-    #nogrz = 2**1,            # nobs_g == 0 | nobs_r == 0 | nobs_z == 0
     rex_toosmall = 2**1,     # type == REX & shape_r < 5
     anytype_toosmall = 2**2, # type != REX & shape_r < 2
     failed = 2**3,           # ellipse-fitting failed
@@ -716,6 +715,12 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # OK, now keep going!    
     tractor = Table(fitsio.read(tractorfile, upper=True))
 
+    # Annoying hack. Leo I had unWISE time-resolved photometry, which we don't
+    # need or want; remove it here.
+    for col in tractor.colnames:
+        if 'LC_' in col:
+            tractor.remove_column(col)
+
     # Remove Gaia stars from the Tractor catalog immediately, so they're not
     # double-counted. If this step removes everything, then it means the galaxy
     # is not a galaxy, so return it in the "notractor" catalog.
@@ -890,8 +895,11 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     thisgal.rename_column('DEC', 'SGA_DEC')
                     thisgal.remove_column('INDEX')
                     for col in thisgal.colnames:
-                        tractor[col][match] = thisgal[col]
-
+                        if col in tractor.colnames:
+                            #print('  Skipping existing column {}'.format(col))
+                            pass
+                        else:
+                            tractor[col][match] = thisgal[col]
         else:
             ellipse = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id),
                                       filesuffix='largegalaxy', verbose=True)
@@ -912,17 +920,6 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             ragal, decgal = tractor['RA'][match], tractor['DEC'][match]
             reff, e1, e2 = EllipseE.fromRAbPhi(diam*60/2, ba, 180-pa) # note the 180 rotation
             inellipse = np.where(is_in_ellipse(tractor['RA'], tractor['DEC'], ragal, decgal, reff, e1, e2))[0]
-
-            #if lslga_id == 278781:
-            #    pdb.set_trace()
-            #if len(these) > 10:
-                #bb = np.where(tractor['objid'] == 33)[0]
-                #import matplotlib.pyplot as plt
-                #plt.clf()
-                #plt.scatter(tractor['ra'], tractor['dec'], s=5)
-                #plt.scatter(tractor['ra'][these], tractor['dec'][these], s=5, color='red')
-                #plt.savefig('junk.png')
-                #plt.scatter(tractor['ra'][bb], tractor['dec'][bb], s=50, color='k')
 
             # This should never happen since the SGA galaxy itself is in the ellipse!
             if len(inellipse) == 0:
@@ -961,7 +958,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
     if len(dropcat) > 0:
         dropcat = vstack(dropcat)
-
+        
     return tractor, dropcat
 
 def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
