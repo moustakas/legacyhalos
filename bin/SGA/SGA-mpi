@@ -187,8 +187,8 @@ def main():
         #nchunks = np.ceil(len(groups[rank]) / chunksize).astype(np.int)
         #chunks = np.array_split(np.arange(len(groups[rank])), nchunks)
 
-        #chunkdatadir = os.path.join(datadir, 'chunks')
-        chunkdatadir = os.path.join(datadir, 'test-chunks')
+        chunkdatadir = os.path.join(datadir, 'chunks')
+        #chunkdatadir = os.path.join(datadir, 'test-chunks')
 
         mp = multiproc(nthreads=args.nproc)
         for ichunk, chunk in enumerate(groups[rank]):
@@ -233,12 +233,9 @@ def main():
                                exclude_full_sga=True, writekd=False)
             print('Finished chunk {:03d}/{:03d} after {:.3f} minutes'.format(
                 ichunk, len(groups[rank])-1, (time.time() - tchunk) / 60))
-                
+
         if comm:
             comm.barrier() # wait
-
-        print('HERE!!!!!!!!!!')
-        pdb.set_trace()
 
         # Now gather up all the chunks and write out!
         if rank == 0:
@@ -247,7 +244,7 @@ def main():
             tfinal = time.time()
             cat, dropcat = [], []
             for ichunk, chunk in enumerate(np.hstack(groups)):
-                print('Gathering chunk {:03d}/{:03d}'.format(ichunk, len(np.hstack(groups)-1)))
+                print('Gathering chunk {:03d}/{:03d}'.format(ichunk, len(np.hstack(groups))-1))
                 
                 mingroup = np.min(sample['GROUP_ID'][chunk])
                 maxgroup = np.max(sample['GROUP_ID'][chunk])
@@ -262,10 +259,19 @@ def main():
                 if os.path.isfile(chunkdropfile):
                     dropcat.append(Table(fitsio.read(chunkdropfile)))
 
+            #from astropy.table import vstack
+            #bb = vstack(cat)
+            #ww = np.where((bb['SGA_ID'] == -1) * (bb['ELLIPSEBIT'] == 8))[0]
+            #bb[ww]
+            #pdb.set_trace()
+
             _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
                                exclude_full_sga=False, writekd=True)
             print('Gathering and writing out final files took {:.3f} minutes'.format(
                 (time.time() - tfinal) / 60))
+        else:
+            return
+        
         return
     
     tall = time.time()

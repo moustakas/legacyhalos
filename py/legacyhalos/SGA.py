@@ -18,11 +18,11 @@ DECCOLUMN = 'GROUP_DEC'
 DIAMCOLUMN = 'GROUP_DIAMETER'
 
 ELLIPSEBITS = dict(
-    largeshift = 2**0,       # >10-pixel shift in the flux-weighted center
-    rex_toosmall = 2**1,     # type == REX & shape_r < 5
-    anytype_toosmall = 2**2, # type != REX & shape_r < 2
-    failed = 2**3,           # ellipse-fitting failed
-    notfit = 2**4,           # not ellipse-fit
+    largeshift = 2**0,      # >10-pixel shift in the flux-weighted center
+    rex_toosmall = 2**1,    # type == REX & shape_r < 5
+    notrex_toosmall = 2**2, # type != REX & shape_r < 2
+    failed = 2**3,          # ellipse-fitting failed
+    notfit = 2**4,          # not ellipse-fit
     )
 
 DROPBITS = dict(
@@ -589,13 +589,13 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
     # large) in some fashion.
     print('Found {} SGA galaxies in the dropcat catalog.'.format(len(dropcat)))
     if len(dropcat) > 0:
-        keep = np.where(
-                np.logical_or((dropcat['DROPBIT'] & DROPBITS['notfit'] == 0),
-                              (dropcat['DROPBIT'] & DROPBITS['nogrz'] == 0))
-                )[0]
-        if len(keep) > 0:
-            print('Keeping {} dropped SGA galaxies that were not fit or lack grz imaging.'.format(len(keep)))
-            dropcat = dropcat[keep]
+        ignore = np.where(
+            np.logical_or((dropcat['DROPBIT'] & DROPBITS['notfit'] == 0),
+                          (dropcat['DROPBIT'] & DROPBITS['nogrz'] == 0))
+            )[0]
+        if len(ignore) > 0:
+            print('Ignoring {} dropped SGA galaxies that were not fit or lack grz imaging.'.format(len(ignore)))
+            dropcat = dropcat[np.delete(np.arange(len(dropcat)), ignore)] # remove duplicates
         if len(dropcat) > 0:
             print('Removing {} SGA dropped galaxies.'.format(len(dropcat)))
             rem = np.where(np.isin(lslga['SGA_ID'], dropcat['SGA_ID']))[0]
@@ -724,14 +724,14 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # Remove Gaia stars from the Tractor catalog immediately, so they're not
     # double-counted. If this step removes everything, then it means the galaxy
     # is not a galaxy, so return it in the "notractor" catalog.
-    notgaia = np.where(tractor['REF_CAT'] != 'G2')[0]
-    if len(notgaia) > 0:
-        tractor = tractor[notgaia]
-    if len(tractor) == 0: # can happen in small fields
-        print('Warning: All Tractor sources are Gaia stars in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
-        onegal['DROPBIT'] |= DROPBITS['allGaia']
-        return None, onegal
-    assert('G2' not in set(tractor['REF_CAT']))
+    isgaia = np.where(tractor['REF_CAT'] == 'G2')[0]
+    if len(isgaia) > 0:
+        tractor = tractor[np.delete(np.arange(len(tractor)), isgaia)]
+        if len(tractor) == 0: # can happen in small fields
+            print('Warning: All Tractor sources are Gaia stars in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+            onegal['DROPBIT'] |= DROPBITS['allGaia']
+            return None, onegal
+        assert('G2' not in set(tractor['REF_CAT']))
 
     # Make sure we have at least one SGA in this field; if not, it means the
     # galaxy is spurious (or *all* the galaxies, in the case of a galaxy group),
@@ -871,17 +871,20 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     # If either of these files exist (but there's not
                     # ellipse.fits catalog) then something has gone wrong. If
                     # *neither* file exists, then this galaxy was never fit!
-                    if os.path.isfile(isdonefile) or os.path.isfile(isfailfile):
+                    if os.path.isfile(isdonefile) and not os.path.isfile(isfailfile):
+                        if typ == 'REX' and r50 < 5.0:
+                            tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['rex_toosmall']
+                        elif typ != 'REX' and typ != 'PSF' and r50 < 2.0:
+                            tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notrex_toosmall']
+                        else:
+                            pass
+                    elif os.path.isfile(isdonefile) and os.path.isfile(isfailfile):
                         tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['failed']
                     elif not os.path.isfile(isdonefile) and not os.path.isfile(isfailfile):
                         tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notfit']
-                    elif typ == 'REX' and r50 < 5.0:
-                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['rex_toosmall']
-                    elif typ != 'REX' and typ != 'PSF' and r50 < 2.0:
-                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['anytype_toosmall']
                     else:
-                        raise ValueError('This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
-                        #print('This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
+                        #raise ValueError('This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
+                        print('Problem: This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
                         #pdb.set_trace()
 
                     # Populate the output catalog--
@@ -895,7 +898,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     thisgal.rename_column('DEC', 'SGA_DEC')
                     thisgal.remove_column('INDEX')
                     for col in thisgal.colnames:
-                        if col in tractor.colnames:
+                        if col == 'ELLIPSEBIT': # skip because we filled it, above
                             #print('  Skipping existing column {}'.format(col))
                             pass
                         else:
@@ -958,7 +961,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
     if len(dropcat) > 0:
         dropcat = vstack(dropcat)
-        
+
     return tractor, dropcat
 
 def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
