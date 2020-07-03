@@ -270,8 +270,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   largegalaxy=False, pipeline=False, custom=True,
                   log=None, apodize=False, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True,
-                  write_all_pickles=False, no_subsky=False, subsky_radii=None,
-                  customsky=False, just_coadds=False, require_grz=True, no_gaia=False,
+                  write_all_pickles=False,
+                  #no_subsky=False,
+                  subsky_radii=None,
+                  ubercal_sky=False, just_coadds=False, require_grz=True, no_gaia=False,
                   no_tycho=False):
     """Build a custom set of large-galaxy coadds
 
@@ -356,23 +358,23 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             galaxydir=survey.output_dir, galaxy=galaxy, stagesuffix=stagesuffix)
         if os.path.isfile(checkpointfile):
             os.remove(checkpointfile)
-    if no_subsky and subsky_radii:
+    if subsky_radii: # implies --no-subsky
         if len(subsky_radii) != 3:
-            print('subsky_radii must be a 3-element vector')
+            raise ValueError('subsky_radii must be a 3-element vector')
         cmd += '--no-subsky --subsky-radii {} {} {} '.format(subsky_radii[0], subsky_radii[1], subsky_radii[2]) # [arcsec]
-    if customsky:
-        print('Skipping custom sky')
-        #cmd += '--largegalaxy-skysub '
-        #print('HACK!!!!!!!!!!!!!!!!! doing just largegalaxies stage in legacyhalos.coadds')
-        #cmd += '--stage largegalaxies '
+    if ubercal_sky: # implies --no-subsky
+        cmd += '--no-subsky --ubercal-sky '
 
     # stage-specific options here--
-    if largegalaxy:
-        cmd += '--fit-on-coadds --saddle-fraction 0.2 --saddle-min 4.0 '
-        #cmd += '--nsigma 10 '
     if custom:
         cmd += '--fit-on-coadds '
+    elif largegalaxy:
+        cmd += '--fit-on-coadds --saddle-fraction 0.2 --saddle-min 4.0 '
+        #cmd += '--nsigma 10 '
+    else:
+        pass # standard pipeline
 
+    cmd += '--stage fit_on_coadds ' ; cleanup = False
     #cmd += '--stage srcs ' ; cleanup = False
     #cmd += '--stage fitblobs ' ; cleanup = False
     #cmd += '--stage coadds ' ; cleanup = False

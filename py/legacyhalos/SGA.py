@@ -89,7 +89,6 @@ def mpi_args():
 
     parser.add_argument('--coadds', action='store_true', help='Build the large-galaxy coadds.')
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipeline coadds.')
-    parser.add_argument('--customsky', action='store_true', help='Build the largest large-galaxy coadds with custom sky-subtraction.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
@@ -99,8 +98,9 @@ def mpi_args():
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
-    parser.add_argument('--customredux', action='store_true', help='Process the custom reductions of the largest galaxies.')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
+
+    parser.add_argument('--ubercal-sky', action='store_true', help='Build the largest large-galaxy coadds with custom (ubercal) sky-subtraction.')
 
     parser.add_argument('--no-unwise', action='store_false', dest='unwise', help='Do not build unWISE coadds or do forced unWISE photometry.')
     parser.add_argument('--no-cleanup', action='store_false', dest='cleanup', help='Do not clean up legacypipe files after coadds.')
@@ -284,7 +284,8 @@ def _get_brickname_one(args):
     return get_brickname(*args)
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                customsky=False, preselect_sample=True, customredux=False, nproc=1,
+                preselect_sample=True, nproc=1,
+                #customsky=False, customredux=False, 
                 d25min=0.1, d25max=100.0):
     """Read/generate the parent SGA catalog.
 
@@ -307,61 +308,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
-    # Select the galaxies requiring custom sky-subtraction.
-    if customsky:
-        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
-        rows = np.arange(len(sample))
-
-        samplecut = np.where(
-            #(sample['GROUP_DIAMETER'] > 5) * 
-            (sample['GROUP_DIAMETER'] > 5) * (sample['GROUP_DIAMETER'] < 25) *
-            (sample['GROUP_PRIMARY'] == True) *
-            (sample['IN_DESI']))[0]
-        #this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
-        #rows = np.hstack((rows, this))
-
-        rows = rows[samplecut]
-        nrows = len(rows)
-        print('Selecting {} custom sky galaxies.'.format(nrows))
-        
-    elif customredux:
-        sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
-        rows = np.arange(len(sample))
-
-        samplecut = np.where(
-            (sample['GROUP_PRIMARY'] == True) *
-            (sample['IN_DESI']))[0]
-        rows = rows[samplecut]
-        
-        customgals = [
-            'NGC3034_GROUP',
-            'NGC3077', # maybe?
-            'NGC3726', # maybe?
-            'NGC3953_GROUP', # maybe?
-            'NGC3992_GROUP',
-            'NGC4051',
-            'NGC4096', # maybe?
-            'NGC4125_GROUP',
-            'UGC07698',
-            'NGC4736_GROUP',
-            'NGC5055_GROUP',
-            'NGC5194_GROUP',
-            'NGC5322_GROUP',
-            'NGC5354_GROUP',
-            'NGC5866_GROUP',
-            'NGC4258',
-            'NGC3031_GROUP',
-            'NGC0598_GROUP',
-            'NGC5457'
-            ]
-
-        these = np.where(np.isin(sample['GROUP_NAME'][samplecut], customgals))[0]
-        rows = rows[these]
-        nrows = len(rows)
-
-        print('Selecting {} galaxies with custom reductions.'.format(nrows))
-        
-    elif preselect_sample:
+    if preselect_sample:
         cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_MULT',
                 'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'SGA_ID', 'GALAXY', 'RA', 'DEC',
                 'BRICKNAME']
@@ -423,7 +370,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             
             brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]
-
+            
         if False: # SAGA host galaxies
             from astrometry.libkd.spherematch import match_radec
             saga = astropy.table.Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'saga_hosts.csv'))
@@ -442,6 +389,61 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
         nrows = len(rows)
         print('Selecting {} galaxies in the DR9 footprint.'.format(nrows))
+        
+    #elif customsky:
+    ## Select the galaxies requiring custom sky-subtraction.
+    #    sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+    #    rows = np.arange(len(sample))
+    #
+    #    samplecut = np.where(
+    #        #(sample['GROUP_DIAMETER'] > 5) * 
+    #        (sample['GROUP_DIAMETER'] > 5) * (sample['GROUP_DIAMETER'] < 25) *
+    #        (sample['GROUP_PRIMARY'] == True) *
+    #        (sample['IN_DESI']))[0]
+    #    #this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
+    #    #rows = np.hstack((rows, this))
+    #
+    #    rows = rows[samplecut]
+    #    nrows = len(rows)
+    #    print('Selecting {} custom sky galaxies.'.format(nrows))
+    #    
+    #elif customredux:
+    #    sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+    #    rows = np.arange(len(sample))
+    #
+    #    samplecut = np.where(
+    #        (sample['GROUP_PRIMARY'] == True) *
+    #        (sample['IN_DESI']))[0]
+    #    rows = rows[samplecut]
+    #    
+    #    customgals = [
+    #        'NGC3034_GROUP',
+    #        'NGC3077', # maybe?
+    #        'NGC3726', # maybe?
+    #        'NGC3953_GROUP', # maybe?
+    #        'NGC3992_GROUP',
+    #        'NGC4051',
+    #        'NGC4096', # maybe?
+    #        'NGC4125_GROUP',
+    #        'UGC07698',
+    #        'NGC4736_GROUP',
+    #        'NGC5055_GROUP',
+    #        'NGC5194_GROUP',
+    #        'NGC5322_GROUP',
+    #        'NGC5354_GROUP',
+    #        'NGC5866_GROUP',
+    #        'NGC4258',
+    #        'NGC3031_GROUP',
+    #        'NGC0598_GROUP',
+    #        'NGC5457'
+    #        ]
+    #
+    #    these = np.where(np.isin(sample['GROUP_NAME'][samplecut], customgals))[0]
+    #    rows = rows[these]
+    #    nrows = len(rows)
+    #
+    #    print('Selecting {} galaxies with custom reductions.'.format(nrows))
+        
     else:
         rows = None
 

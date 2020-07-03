@@ -44,8 +44,8 @@ def main():
                                              d25min=args.d25min, d25max=args.d25max, 
                                              galaxylist=args.galaxylist,
                                              verbose=args.verbose,
-                                             customsky=args.customsky,
-                                             customredux=args.customredux,
+                                             #customsky=args.customsky,
+                                             #customredux=args.customredux,
                                              nproc=args.nproc,
                                              preselect_sample=True)
         if len(sample) == 0:
@@ -54,8 +54,8 @@ def main():
         # For the custom coadds step we write out the full sample in each mosaic.
         if args.coadds or args.build_SGA:
             fullsample = legacyhalos.SGA.read_sample(verbose=args.verbose,
-                                                     preselect_sample=False,
-                                                     customsky=False)
+                                                     preselect_sample=False)#,
+                                                     #customsky=False)
             fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
 
     if comm:
@@ -264,15 +264,15 @@ def main():
             survey = get_survey(run, output_dir=galaxydir)
             
         # Need the object "radius" to build the coadds.
-        if args.customsky:
-            radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
+        #if args.customsky:
+        #    radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 # [arcsec]
+        #else:
+        if onegal[DIAMCOLUMN] > 30: # NGC0598=M33 is 61 arcmin in diameter!
+            radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 0.7 # [arcsec]
+        elif onegal[DIAMCOLUMN] > 14 and onegal[DIAMCOLUMN] < 30:
+            radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.0 # [arcsec]
         else:
-            if onegal[DIAMCOLUMN] > 30: # NGC0598=M33 is 61 arcmin in diameter!
-                radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 0.7 # [arcsec]
-            elif onegal[DIAMCOLUMN] > 14 and onegal[DIAMCOLUMN] < 30:
-                radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.0 # [arcsec]
-            else:
-                radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
+            radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN, M33=args.M33)
         survey = get_survey(run, output_dir=galaxydir)
@@ -291,7 +291,7 @@ def main():
                                largegalaxy=True, pipeline=False, custom=False,
                                apodize=False, unwise=args.unwise, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
-                               customsky=args.customsky,
+                               ubercal_sky=args.ubercal_sky,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile)
 
