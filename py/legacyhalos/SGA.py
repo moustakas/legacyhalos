@@ -22,6 +22,8 @@ ELLIPSEBITS = dict(
     #nogrz = 2**1,            # nobs_g == 0 | nobs_r == 0 | nobs_z == 0
     rex_toosmall = 2**1,     # type == REX & shape_r < 5
     anytype_toosmall = 2**2, # type != REX & shape_r < 2
+    failed = 2**3,           # ellipse-fitting failed
+    notfit = 2**4,           # not ellipse-fit
     )
 
 DROPBITS = dict(
@@ -540,7 +542,7 @@ def _init_ellipse_SGA(clobber=False):
     return outfile, dropfile, refcat
 
 def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
-                       skipfull=False, writekd=True):
+                       exclude_full_sga=False, writekd=True):
     import shutil
     import fitsio
     from astropy.table import Table, vstack, join
@@ -621,8 +623,8 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
     lslga['DEC'][:] = lslga['SGA_DEC']
 
     # Stack!
-    if skipfull:
-        print('Temporarily leaving off the original SGA!')
+    if exclude_full_sga:
+        #print('Temporarily leaving off the original SGA!')
         out = cat
     else:
         out = vstack((lslga, cat))
@@ -724,10 +726,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
         print('Warning: All Tractor sources are Gaia stars in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
         onegal['DROPBIT'] |= DROPBITS['allGaia']
         return None, onegal
-    try:
-        assert('G2' not in set(tractor['REF_CAT']))
-    except:
-        print('Failed G2 assert in {}'.format(galaxy))
+    assert('G2' not in set(tractor['REF_CAT']))
 
     # Make sure we have at least one SGA in this field; if not, it means the
     # galaxy is spurious (or *all* the galaxies, in the case of a galaxy group),
@@ -809,6 +808,9 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # track the galaxies that are dropped by Tractor and, separately, galaxies
     # which fail ellipse-fitting (or are not ellipse-fit because they're too
     # small).
+    isdonefile = os.path.join(galaxydir, '{}-largegalaxy-ellipse.isdone'.format(galaxy))
+    isfailfile = os.path.join(galaxydir, '{}-largegalaxy-ellipse.isfail'.format(galaxy))
+
     dropcat = []
     for igal, lslga_id in enumerate(np.atleast_1d(fullsample['SGA_ID'])):
         ellipsefile = os.path.join(galaxydir, '{}-largegalaxy-{}-ellipse.fits'.format(galaxy, lslga_id))
@@ -825,7 +827,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
              # there's a fitting bug)!
             if len(match) == 0:
                 if verbose:
-                    print('Dropped by Tractor and  not ellipse-fit: {} (ID={})'.format(fullsample['GALAXY'][igal], lslga_id))
+                    print('Dropped by Tractor and not ellipse-fit: {} (ID={})'.format(fullsample['GALAXY'][igal], lslga_id))
                 dropped = Table(fullsample[igal])
                 dropped['DROPBIT'] |= DROPBITS['dropped']
                 dropcat.append(dropped)
@@ -861,37 +863,35 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     thisgal['DROPBIT'] |= DROPBITS['negflux']
                     dropcat.append(thisgal)
                 else:
+                    # If either of these files exist (but there's not
+                    # ellipse.fits catalog) then something has gone wrong. If
+                    # *neither* file exists, then this galaxy was never fit!
+                    if os.path.isfile(isdonefile) or os.path.isfile(isfailfile):
+                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['failed']
+                    elif not os.path.isfile(isdonefile) and not os.path.isfile(isfailfile):
+                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notfit']
+                    elif typ == 'REX' and r50 < 5.0:
+                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['rex_toosmall']
+                    elif typ != 'REX' and typ != 'PSF' and r50 < 2.0:
+                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['anytype_toosmall']
+                    else:
+                        raise ValueError('This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
+                        #print('This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
+                        #pdb.set_trace()
+
+                    # Populate the output catalog--
+
                     # What do we do about ref_cat, ref_id???
                     #tractor['REF_CAT'][match] = ' '
                     #tractor['REF_ID'][match] = -1 # use -1, 0!
                     tractor['FREEZE'][match] = True
                     
-                    if typ == 'REX' and r50 < 5.0:
-                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['rex_toosmall']
-                    elif typ != 'REX' and typ != 'PSF' and r50 < 2.0:
-                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['anytype_toosmall']
-                    else:
-                        raise ValueError('This should never happen....')
-
-                    # Populate the output catalog--
                     thisgal.rename_column('RA', 'SGA_RA')
                     thisgal.rename_column('DEC', 'SGA_DEC')
                     thisgal.remove_column('INDEX')
                     for col in thisgal.colnames:
                         tractor[col][match] = thisgal[col]
 
-                ## Also write out a separate catalog of these objects (including
-                ## some info from the original Tractor catalog) so we can test
-                ## and verify that all's well.
-                ##noell = Table(fullsample[igal]['SGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
-                ##                               'D25_LEDA', 'PA_LEDA', 'BA_LEDA'])
-                #noell = Table(fullsample[igal])
-                #noell['TRACTOR_RA'] = tractor['RA'][match]
-                #noell['TRACTOR_DEC'] = tractor['DEC'][match]
-                #noell['TRACTOR_TYPE'] = tractor['TYPE'][match]
-                #noell['FLUX_R'] = tractor['FLUX_R'][match]
-                #noell['SHAPE_R'] = tractor['SHAPE_R'][match]
-                #noellipse.append(noell)
         else:
             ellipse = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id),
                                       filesuffix='largegalaxy', verbose=True)
@@ -900,15 +900,6 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             # ellipse-fitting, which *may* point to a problem. Add a bit--
             if ellipse['largeshift']:
                 tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['largeshift']
-                
-                #badcen = Table(fullsample[igal]['SGA_ID', 'GALAXY', 'RA', 'DEC', 'GROUP_NAME', 'GROUP_ID',
-                #                               'D25_LEDA', 'PA_LEDA', 'BA_LEDA'])
-                #badcen['TRACTOR_RA'] = tractor['RA'][match]
-                #badcen['TRACTOR_DEC'] = tractor['DEC'][match]
-                #badcen['TRACTOR_TYPE'] = tractor['TYPE'][match]
-                #badcen['FLUX_R'] = tractor['FLUX_R'][match]
-                #badcen['SHAPE_R'] = tractor['SHAPE_R'][match]
-                #largeshift.append(badcen)
 
             # Get the ellipse-derived geometry, which we'll add to the Tractor
             # catalog below.
