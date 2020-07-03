@@ -250,7 +250,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     
                 # Add a bar and label to the first image.
                 if _just_coadds:
-                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
+                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -resize {} -geometry +0+0 '.format(resize)
                     #cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 -resize 4096x4096\> '
                     if barlen:
                         addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
@@ -262,7 +262,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     else:
                         thumbsz = sz[0]
                 else:
-                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
+                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -resize {} -geometry +0+0 '.format(resize)
                     if barlen:
                         addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
                         cmd = cmd+' '+barpngfile+' '

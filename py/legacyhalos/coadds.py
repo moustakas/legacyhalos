@@ -374,7 +374,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--fit-on-coadds '
 
     #cmd += '--stage srcs ' ; cleanup = False
-    cmd += '--stage fitblobs ' ; cleanup = False
+    #cmd += '--stage fitblobs ' ; cleanup = False
     #cmd += '--stage coadds ' ; cleanup = False
     #cmd += '--stage wise_forced ' ; cleanup = False
 
