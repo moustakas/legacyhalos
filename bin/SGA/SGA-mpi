@@ -71,15 +71,24 @@ def main():
                                   makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
                                   ccdqa=args.ccdqa, args=args)
         return
-        
+
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
     if rank == 0:
         if args.build_SGA:
-            # Build the final catalog in chunks of 1000 (primary) galaxies.
-            suffix, chunksize, fail = 'build-SGA', 1024, []
-            nchunks = np.ceil(len(sample) / chunksize).astype(np.int)
-            groups = np.array_split(np.arange(len(sample)), nchunks)
+            # When building the final catalog, process the full sample, divided
+            # into a *fixed* number of bigchunks, distributed to all the
+            # available ranks.
+            suffix, fail, bigchunksize = 'build-SGA', [], 1024
+            nbigchunks = np.ceil(len(sample) / bigchunksize).astype(np.int)
+            bigchunks = np.array_split(np.arange(len(sample)), nbigchunks)
+            groups = np.array_split(bigchunks, size)
+
+            ## Build the final catalog in chunks of 1000 (primary) galaxies.
+            #suffix, chunksize, fail = 'build-SGA', 1024, []
+            #nchunks = np.ceil(len(sample) / chunksize).astype(np.int)
+            #groups = np.array_split(np.arange(len(sample)), nchunks)
+            #groups = np.array_split(np.arange(len(sample)), size)
         else:
             suffix, groups, _, fail = legacyhalos.SGA.missing_files(args, sample, size)
     else:
@@ -95,7 +104,7 @@ def main():
             suffix.upper(), ntodo, len(sample), size), flush=True)
         
     # Wait for all ranks to catch up.
-    if comm is not None:
+    if comm:
         comm.barrier()
 
     if len(groups[rank]) == 0:
@@ -134,37 +143,59 @@ def main():
             return
         
     # Wait for all ranks to catch up.
-    if comm is not None:
+    if comm:
         comm.barrier()
 
     # Loop on the remaining objects.
-    if not args.build_SGA:
-        print('Starting {} {} on rank {} with {} cores on {}'.format(
-            len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
-            flush=True)
+    #if not args.build_SGA:
+    print('Starting {} {} on rank {} with {} cores on {}'.format(
+        len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
+        flush=True)
 
     # Build the SGA only on rank 0 in order to avoid memory problems--
-    if args.build_SGA and rank == 0:
-        import fitsio
-        from astropy.table import Table
+    if args.build_SGA:
+        if rank == 0:
+            import fitsio
+            from astropy.table import Table
+            from legacyhalos.SGA import _init_ellipse_SGA, _write_ellipse_SGA
+
+            tall = time.time()
+            _init = _init_ellipse_SGA(clobber=args.clobber)
+            if _init is None:
+                return
+            outfile, dropfile, refcat = _init
+        else:
+            outfile, dropfile, refcat = None, None, None
+            
+        if comm:
+            outfile = comm.bcast(outfile, root=0)
+            dropfile = comm.bcast(dropfile, root=0)
+            refcat = comm.bcast(refcat, root=0)
+            comm.barrier() # wait
+
+        # Now loop over each "chunk" assigned to this rank.
         from astrometry.util.multiproc import multiproc
-        from legacyhalos.SGA import _init_ellipse_SGA, _write_ellipse_SGA
         from legacyhalos.SGA import _build_ellipse_SGA_one
-        
-        tall = time.time()
-        _init = _init_ellipse_SGA(clobber=args.clobber)
-        if _init is None:
-            return
-        outfile, dropfile, refcat = _init
+
+        ## Divide the sample (assigned to this rank) into chunks. Use (unique)
+        ## group_id as the chunk number.
+        #chunksize = 1024
+        #nchunks = np.ceil(len(groups[rank]) / chunksize).astype(np.int)
+        #chunks = np.array_split(np.arange(len(groups[rank])), nchunks)
 
         chunkdatadir = os.path.join(datadir, 'chunks')
 
         mp = multiproc(nthreads=args.nproc)
-        for ichunk, chunk in enumerate(groups):
-            print('Working on chunk {:03d}/{:03d}'.format(ichunk, nchunks-1))
+        for ichunk, chunk in enumerate(groups[rank]):
+            print('Working on chunk {:03d}/{:03d}'.format(ichunk, len(groups[rank])-1))
             tchunk = time.time()
 
-            chunkdir = os.path.join(chunkdatadir, '{:03d}'.format(ichunk))
+            mingroup = np.min(sample['GROUP_ID'][chunk])
+            maxgroup = np.max(sample['GROUP_ID'][chunk])
+
+            chunkdir = os.path.join(chunkdatadir, '{}-{}'.format(mingroup, maxgroup))
+            print(chunkdir)
+            #chunkdir = os.path.join(chunkdatadir, '{:03d}'.format(ichunk))
             if not os.path.isdir(chunkdir):
                 os.makedirs(chunkdir, exist_ok=True)
 
@@ -194,25 +225,33 @@ def main():
                 ichunk, len(chunksample), len(chunkfullsample), len(cat), len(dropcat)))
 
             _write_ellipse_SGA(cat, dropcat, chunkoutfile, chunkdropfile, refcat, skipfull=True, writekd=False)
-            print('Finished chunk {:03d}/{:03d} after {:.3f} minutes'.format(ichunk, nchunks-1, (time.time() - tchunk) / 60))
+            print('Finished chunk {:03d}/{:03d} after {:.3f} minutes'.format(ichunk, len(groups[rank])-1, (time.time() - tchunk) / 60))
                 
-        print('Finished all {:03d} chunks after {:.3f} minutes'.format(nchunks, (time.time() - tall) / 60))
+        if comm:
+            comm.barrier() # wait
 
-        tfinal = time.time()
         # Now gather up all the chunks and write out!
-        cat, dropcat = [], []
-        for ichunk in np.arange(nchunks):
-            chunkdir = os.path.join(chunkdatadir, '{:03d}'.format(ichunk))
-            chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
-            chunkdropfile = os.path.join(chunkdir, os.path.basename(dropfile))
-            
-            if os.path.isfile(chunkoutfile):
-                cat.append(Table(fitsio.read(chunkoutfile)))
-            if os.path.isfile(chunkdropfile):
-                dropcat.append(Table(fitsio.read(chunkdropfile)))
+        if rank == 0:
+            print('Finished all {:03d} chunks after {:.3f} minutes'.format(nbigchunks, (time.time() - tall) / 60))
 
-        _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat, skipfull=False, writekd=True)
-        print('Gathering and writing out final files took {:.3f} minutes'.format((time.time() - tfinal) / 60))
+            tfinal = time.time()
+            cat, dropcat = [], []
+            for ichunk, chunk in enumerate(np.hstack(groups)):
+                mingroup = np.min(sample['GROUP_ID'][chunk])
+                maxgroup = np.max(sample['GROUP_ID'][chunk])
+                
+                #chunkdir = os.path.join(chunkdatadir, '{:03d}'.format(ichunk))
+                chunkdir = os.path.join(chunkdatadir, '{}-{}'.format(mingroup, maxgroup))
+                chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
+                chunkdropfile = os.path.join(chunkdir, os.path.basename(dropfile))
+
+                if os.path.isfile(chunkoutfile):
+                    cat.append(Table(fitsio.read(chunkoutfile)))
+                if os.path.isfile(chunkdropfile):
+                    dropcat.append(Table(fitsio.read(chunkdropfile)))
+
+            _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat, skipfull=False, writekd=True)
+            print('Gathering and writing out final files took {:.3f} minutes'.format((time.time() - tfinal) / 60))
         return
     
     tall = time.time()
@@ -310,7 +349,7 @@ def main():
                            get_galaxy_galaxydir=legacyhalos.SGA.get_galaxy_galaxydir)
 
     # Wait for all ranks to finish.
-    if comm is not None:
+    if comm:
         comm.barrier()
         
     if rank == 0:
