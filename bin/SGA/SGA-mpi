@@ -156,7 +156,6 @@ def main():
         if _init is None:
             return
         outfile, dropfile, refcat = _init
-        #outfile, notractorfile, noellipsefile, missingfile, refcat = _init
 
         chunkdatadir = os.path.join(datadir, 'chunks')
 
@@ -171,11 +170,9 @@ def main():
 
             chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
             chunkdropfile = os.path.join(chunkdir, os.path.basename(dropfile))
-            #chunknotractorfile = os.path.join(chunkdir, os.path.basename(notractorfile))
-            #chunknoellipsefile = os.path.join(chunkdir, os.path.basename(noellipsefile))
-            #chunkmissingfile = os.path.join(chunkdir, os.path.basename(missingfile))
 
-            # chunkoutfile gets written last, so test "doneness" based on that file's existence.
+            # chunkoutfile gets written last, so test "doneness" based on that
+            # file's existence.
             if os.path.isfile(chunkoutfile):
                 print('Skipping completed chunk {:03d}'.format(ichunk))
                 continue
@@ -192,53 +189,30 @@ def main():
 
             cat = list(filter(None, results[0]))
             dropcat = list(filter(None, results[1]))
-            #notractor = list(filter(None, results[1]))
-            #noellipse = list(filter(None, results[2]))
-            #missing = list(filter(None, results[3]))
 
             print('Chunk {}: N(sample)={}, N(fullsample)={}, N(cat)={}, N(dropped)={}'.format(
                 ichunk, len(chunksample), len(chunkfullsample), len(cat), len(dropcat)))
-            #print('Chunk {}: N(sample)={}, N(fullsample)={}, N(cat)={}, N(notractor)={}, N(noellipse)={}, N(missing)={}'.format(
-            #    ichunk, len(chunksample), len(chunkfullsample), len(cat), len(notractor), len(noellipse), len(missing)))
 
             _write_ellipse_SGA(cat, dropcat, chunkoutfile, chunkdropfile, refcat, skipfull=True, writekd=False)
-            #_write_ellipse_SGA(cat, notractor, noellipse, missing, chunkoutfile, chunknotractorfile,
-            #                   chunknoellipsefile, chunkmissingfile, refcat, skipfull=True, writekd=False)
             print('Finished chunk {:03d}/{:03d} after {:.3f} minutes'.format(ichunk, nchunks-1, (time.time() - tchunk) / 60))
                 
         print('Finished all {:03d} chunks after {:.3f} minutes'.format(nchunks, (time.time() - tall) / 60))
 
         tfinal = time.time()
         # Now gather up all the chunks and write out!
-        cat, dtopcat = [], []
-        #cat, notractor, noellipse, missing = [], [], [], []
+        cat, dropcat = [], []
         for ichunk in np.arange(nchunks):
             chunkdir = os.path.join(chunkdatadir, '{:03d}'.format(ichunk))
             chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
             chunkdropfile = os.path.join(chunkdir, os.path.basename(dropfile))
             
-            #chunknotractorfile = os.path.join(chunkdir, os.path.basename(notractorfile))
-            #chunknoellipsefile = os.path.join(chunkdir, os.path.basename(noellipsefile))
-            #chunkmissingfile = os.path.join(chunkdir, os.path.basename(missingfile))
-
             if os.path.isfile(chunkoutfile):
                 cat.append(Table(fitsio.read(chunkoutfile)))
             if os.path.isfile(chunkdropfile):
                 dropcat.append(Table(fitsio.read(chunkdropfile)))
-                
-            #if os.path.isfile(chunknotractorfile):
-            #    notractor.append(Table(fitsio.read(chunknotractorfile)))
-            #if os.path.isfile(chunknoellipsefile):
-            #    noellipse.append(Table(fitsio.read(chunknoellipsefile)))
-            #if os.path.isfile(chunkmissingfile):
-            #    missing.append(Table(fitsio.read(chunkmissingfile)))
 
         _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat, skipfull=False, writekd=True)
-        #_write_ellipse_SGA(cat, notractor, noellipse, missing, outfile, notractorfile,
-        #                   noellipsefile, missingfile, refcat, skipfull=False, writekd=True)
         print('Gathering and writing out final files took {:.3f} minutes'.format((time.time() - tfinal) / 60))
-        pdb.set_trace()
-
         return
     
     tall = time.time()

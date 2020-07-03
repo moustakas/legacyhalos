@@ -19,9 +19,9 @@ DIAMCOLUMN = 'GROUP_DIAMETER'
 
 ELLIPSEBITS = dict(
     largeshift = 2**0,       # >10-pixel shift in the flux-weighted center
-    nogrz = 2**1,            # nobs_g == 0 | nobs_r == 0 | nobs_z == 0
-    rex_toosmall = 2**2,     # type == REX & shape_r < 5
-    anytype_toosmall = 2**3, # type != REX & shape_r < 2
+    #nogrz = 2**1,            # nobs_g == 0 | nobs_r == 0 | nobs_z == 0
+    rex_toosmall = 2**1,     # type == REX & shape_r < 5
+    anytype_toosmall = 2**2, # type != REX & shape_r < 2
     )
 
 DROPBITS = dict(
@@ -45,33 +45,6 @@ def SGA_version():
     """
     version = 'v3.0'  # DR9
     return version
-
-#def SGA_dir():
-#    if 'SGA_DIR' not in os.environ:
-#        print('Required ${SGA_DIR environment variable not set.')
-#        raise EnvironmentError
-#    ldir = os.path.abspath(os.getenv('SGA_DIR'))
-#    if not os.path.isdir(ldir):
-#        os.makedirs(ldir, exist_ok=True)
-#    return ldir
-#
-#def legacyhalos.io.legacyhalos_data_dir():
-#    if 'SGA_DATA_DIR' not in os.environ:
-#        print('Required ${SGA_DATA_DIR environment variable not set.')
-#        raise EnvironmentError
-#    ldir = os.path.abspath(os.getenv('SGA_DATA_DIR'))
-#    if not os.path.isdir(ldir):
-#        os.makedirs(ldir, exist_ok=True)
-#    return ldir
-#
-#def legacyhalos.io.legacyhalos_html_dir():
-#    if 'SGA_HTML_DIR' not in os.environ:
-#        print('Required ${SGA_HTML_DIR environment variable not set.')
-#        raise EnvironmentError
-#    ldir = os.path.abspath(os.getenv('SGA_HTML_DIR'))
-#    if not os.path.isdir(ldir):
-#        os.makedirs(ldir, exist_ok=True)
-#    return ldir
 
 def mpi_args():
     import argparse
@@ -562,157 +535,9 @@ def _init_ellipse_SGA(clobber=False):
     #    with open(logfile, 'a') as log:
     #        with redirect_stdout(log), redirect_stderr(log):
 
-    #notractorfile = os.path.join(outdir, 'SGA-notractor-{}.fits'.format(version))
-    #noellipsefile = os.path.join(outdir, 'SGA-noellipse-{}.fits'.format(version))
-    #missingfile = os.path.join(outdir, 'SGA-missing-{}.fits'.format(version))
     dropfile = os.path.join(outdir, 'SGA-dropped-{}.fits'.format(version))
 
     return outfile, dropfile, refcat
-    #return outfile, notractorfile, noellipsefile, missingfile, refcat
-
-#def _write_ellipse_SGA(cat, notractor, noellipse, missing, outfile, notractorfile,
-#                       noellipsefile, missingfile, refcat, skipfull=False, writekd=True):
-#    import shutil
-#    import fitsio
-#    from contextlib import redirect_stdout, redirect_stderr
-#    from astropy.table import Table, vstack, join
-#    from legacyhalos.SGA import SGA_version
-#    
-#    version = SGA_version()
-#    
-#    if len(cat) == 0:
-#        print('Something went wrong and no galaxies were fitted.')
-#        return
-#    cat = vstack(cat)
-#
-#    if len(notractor) > 0:
-#        notractor = vstack(notractor)
-#        print('Writing {} galaxies dropped by Tractor to {}'.format(len(notractor), notractorfile))
-#        notractor.write(notractorfile, overwrite=True)
-#
-#    if len(noellipse) > 0:
-#        noellipse = vstack(noellipse)
-#        print('Writing {} galaxies not ellipse-fit to {}'.format(len(noellipse), noellipsefile))
-#        noellipse.write(noellipsefile, overwrite=True)
-#
-#    if len(missing) > 0:
-#        missing = vstack(missing)
-#        print('Writing {} galaxies with no grz coverage to {}'.format(len(missing), missingfile))
-#        missing.write(missingfile, overwrite=True)
-#
-#    print('Gathered {} pre-burned and frozen galaxies.'.format(len(cat)))
-#    print('  Frozen (all): {}'.format(np.sum(cat['FREEZE'])))
-#    print('  Frozen (SGA): {}'.format(np.sum(cat['FREEZE'] * (cat['REF_CAT'] == refcat))))
-#    print('  Pre-burned: {}'.format(np.sum(cat['PREBURNED'])))
-#
-#    # We only have frozen galaxies here, but whatever--
-#    ifreeze = np.where(cat['FREEZE'])[0]
-#    ilslga = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
-#
-#    cat = cat[ifreeze]
-#    print('Keeping {} frozen galaxies, of which {} are SGA.'.format(len(ifreeze), len(ilslga)))
-#
-#    # Read the full parent SGA catalog and add all the Tractor columns.
-#    lslgafile = os.getenv('LARGEGALAXIES_CAT')
-#    lslga, hdr = fitsio.read(lslgafile, header=True)
-#    lslga = Table(lslga)
-#    print('Read {} galaxies from {}'.format(len(lslga), lslgafile))
-#
-#    # Remove the already-burned SGA galaxies so we don't double-count them--
-#    ilslga2 = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
-#    rem = np.where(np.isin(lslga['SGA_ID'], cat['SGA_ID'][ilslga2]))[0]
-#    print('Removing {} pre-burned SGA galaxies from the parent catalog, so we do not double-count them.'.format(len(rem)))
-#    lslga = lslga[np.delete(np.arange(len(lslga)), rem)] # remove duplicates
-#
-#    # Next, remove galaxies that were either dropped by Tractor in pre-burning
-#    # or which were not ellipse-fit (the latter are in the Tractor catalog but
-#    # with REF_CAT='').
-#    if len(notractor) > 0:
-#        print('Removing {} SGA galaxies dropped by Tractor.'.format(len(notractor)))
-#        rem = np.where(np.isin(lslga['SGA_ID'], notractor['SGA_ID']))[0]
-#        assert(len(rem) == len(notractor))
-#        lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
-#    if len(noellipse) > 0:
-#        print('Removing {} SGA galaxies not ellipse-fit.'.format(len(noellipse)))
-#        rem = np.where(np.isin(lslga['SGA_ID'], noellipse['SGA_ID']))[0]
-#        assert(len(rem) == len(noellipse))
-#        lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
-#
-#    lslga.rename_column('RA', 'SGA_RA')
-#    lslga.rename_column('DEC', 'SGA_DEC')
-#    for col in cat.colnames:
-#        if col in lslga.colnames:
-#            #print('  Skipping existing column {}'.format(col))
-#            pass
-#        else:
-#            if cat[col].ndim > 1:
-#                # assume no multidimensional strings or Boolean
-#                lslga[col] = np.zeros((len(lslga), cat[col].shape[1]), dtype=cat[col].dtype)-1
-#            else:
-#                typ = cat[col].dtype.type
-#                if typ is np.str_ or typ is np.str or typ is np.bool_ or typ is np.bool:
-#                    lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)
-#                else:
-#                    lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)-1
-#    lslga['RA'][:] = lslga['SGA_RA']
-#    lslga['DEC'][:] = lslga['SGA_DEC']
-#
-#    # Stack!
-#    if skipfull:
-#        print('Temporarily leaving off the original SGA!')
-#        out = cat
-#    else:
-#        out = vstack((lslga, cat))
-#    del lslga, cat
-#    out = out[np.argsort(out['SGA_ID'])]
-#    out = vstack((out[out['SGA_ID'] != -1], out[out['SGA_ID'] == -1]))
-#
-#    if not skipfull:
-#        # This may not happen if galaxies are dropped--
-#        #chk1 = np.where(np.isin(out['SGA_ID'], fullsample['SGA_ID']))[0]
-#        #assert(len(chk1) == len(fullsample))
-#        if len(missing) > 0:
-#            chk2 = np.where(np.isin(out['SGA_ID'], missing['SGA_ID']))[0]
-#            assert(len(chk2) == len(missing))
-#        if len(notractor) > 0:
-#            chk3 = np.where(np.isin(out['SGA_ID'], notractor['SGA_ID']))[0]
-#            assert(len(chk3) == 0)
-#        if len(noellipse) > 0:
-#            chk4 = np.where(np.isin(out['SGA_ID'], noellipse['SGA_ID']))[0]
-#            assert(len(chk4) == 0)
-#        if len(missing) > 0 and len(notractor) > 0:            
-#            chk5 = np.where(np.isin(notractor['SGA_ID'], missing['SGA_ID']))[0]
-#            assert(len(chk5) == 0)
-#    assert(np.all(out['RA'] > 0))
-#    assert(np.all(np.isfinite(out['PA'])))
-#    assert(np.all(np.isfinite(out['BA'])))
-#    ww = np.where(out['SGA_ID'] != -1)[0]
-#    assert(np.all((out['PA'][ww] >= 0) * (out['PA'][ww] <= 180)))
-#    assert(np.all((out['BA'][ww] > 0) * (out['BA'][ww] <= 1.0)))
-#
-#    print('Writing {} galaxies to {}'.format(len(out), outfile))
-#    hdrversion = 'L{}-ELLIPSE'.format(version[1:2]) # fragile!
-#    hdr['SGAVER'] = hdrversion
-#    fitsio.write(outfile, out.as_array(), header=hdr, clobber=True)
-#
-#    # Write the KD-tree version
-#    if writekd:
-#        kdoutfile = outfile.replace('.fits', '.kd.fits') # fragile
-#        cmd = 'startree -i {} -o {} -T -P -k '.format(outfile, kdoutfile)
-#        print(cmd)
-#        _ = os.system(cmd)
-#
-#        cmd = 'modhead {} SGAVER {}'.format(kdoutfile, hdrversion)
-#        print(cmd)
-#        _ = os.system(cmd)
-#
-#    #fix_permissions = True
-#    #if fix_permissions:
-#    #    #print('Fixing group permissions.')
-#    #    shutil.chown(outfile, group='cosmo')
-#    #    if writekd:
-#    #        shutil.chown(kdoutfile, group='cosmo')
-
 
 def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
                        skipfull=False, writekd=True):
@@ -758,15 +583,23 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
     print('Removing {} pre-burned SGA galaxies from the parent catalog, so we do not double-count them.'.format(len(rem)))
     lslga = lslga[np.delete(np.arange(len(lslga)), rem)] # remove duplicates
 
-    # Next, remove galaxies that were either dropped by Tractor in pre-burning
-    # or which were not ellipse-fit (the latter are in the Tractor catalog but
-    # with REF_CAT='').
+    # Next, remove all galaxies from the 'dropcat' catalog *except* those with
+    # DROPBITS[notfit] | DROPBITS[nogrz]. Every other galaxy is spurious (or not
+    # large) in some fashion.
+    print('Found {} SGA galaxies in the dropcat catalog.'.format(len(dropcat)))
     if len(dropcat) > 0:
-        print('Removing {} SGA dropped galaxies.'.format(len(dropcat)))
-        rem = np.where(np.isin(lslga['SGA_ID'], dropcat['SGA_ID']))[0]
-        pdb.set_trace()
-        assert(len(rem) == len(dropcat))
-        lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
+        keep = np.where(
+                np.logical_or((dropcat['DROPBIT'] & DROPBITS['notfit'] == 0),
+                              (dropcat['DROPBIT'] & DROPBITS['nogrz'] == 0))
+                )[0]
+        if len(keep) > 0:
+            print('Keeping {} dropped SGA galaxies that were not fit or lack grz imaging.'.format(len(keep)))
+            dropcat = dropcat[keep]
+        if len(dropcat) > 0:
+            print('Removing {} SGA dropped galaxies.'.format(len(dropcat)))
+            rem = np.where(np.isin(lslga['SGA_ID'], dropcat['SGA_ID']))[0]
+            assert(len(rem) == len(dropcat))
+            lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
 
     lslga.rename_column('RA', 'SGA_RA')
     lslga.rename_column('DEC', 'SGA_DEC')
@@ -796,29 +629,6 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
     del lslga, cat
     out = out[np.argsort(out['SGA_ID'])]
     out = vstack((out[out['SGA_ID'] != -1], out[out['SGA_ID'] == -1]))
-
-    #if not skipfull:
-    #    # This may not happen if galaxies are dropped--
-    #    #chk1 = np.where(np.isin(out['SGA_ID'], fullsample['SGA_ID']))[0]
-    #    #assert(len(chk1) == len(fullsample))
-    #    if len(missing) > 0:
-    #        chk2 = np.where(np.isin(out['SGA_ID'], missing['SGA_ID']))[0]
-    #        assert(len(chk2) == len(missing))
-    #    if len(notractor) > 0:
-    #        chk3 = np.where(np.isin(out['SGA_ID'], notractor['SGA_ID']))[0]
-    #        assert(len(chk3) == 0)
-    #    if len(noellipse) > 0:
-    #        chk4 = np.where(np.isin(out['SGA_ID'], noellipse['SGA_ID']))[0]
-    #        assert(len(chk4) == 0)
-    #    if len(missing) > 0 and len(notractor) > 0:            
-    #        chk5 = np.where(np.isin(notractor['SGA_ID'], missing['SGA_ID']))[0]
-    #        assert(len(chk5) == 0)
-    #assert(np.all(out['RA'] > 0))
-    #assert(np.all(np.isfinite(out['PA'])))
-    #assert(np.all(np.isfinite(out['BA'])))
-    #ww = np.where(out['SGA_ID'] != -1)[0]
-    #assert(np.all((out['PA'][ww] >= 0) * (out['PA'][ww] <= 180)))
-    #assert(np.all((out['BA'][ww] > 0) * (out['BA'][ww] <= 1.0)))
 
     print('Writing {} galaxies to {}'.format(len(out), outfile))
     hdrversion = 'L{}-ELLIPSE'.format(version[1:2]) # fragile!
@@ -872,10 +682,14 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # keep them in the SGA catalog, not reject them.
     run = get_run(onegal)
     ccdsfile = os.path.join(galaxydir, '{}-ccds-{}.fits'.format(galaxy, run))
+    isdonefile = os.path.join(galaxydir, '{}-largegalaxy-coadds.isdone'.format(galaxy))
     tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
     if not os.path.isfile(tractorfile):
         if os.path.isfile(ccdsfile):
             print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+            onegal['DROPBIT'] |= DROPBITS['nogrz']
+        elif os.path.isfile(isdonefile):
+            print('No photometric CCDs in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
             onegal['DROPBIT'] |= DROPBITS['nogrz']
         else:
             print('Warning: no Tractor catalog in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
@@ -975,6 +789,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     
     tractor['GROUP_ID'][:] = onegal['GROUP_ID'] # note that we don't change GROUP_MULT
     tractor['GROUP_NAME'][:] = onegal['GROUP_NAME']
+    tractor['ELLIPSEBIT'][:] = np.zeros(len(tractor), dtype=np.int32) # we don't want -1 here
 
     # add the columns from legacyhalos.ellipse.ellipse_cog
     radkeys = ['RADIUS_SB{:0g}'.format(sbcut) for sbcut in sbcuts]
@@ -1155,10 +970,6 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
     if len(dropcat) > 0:
         dropcat = vstack(dropcat)
-    #if len(notractor) > 0:
-    #    notractor = vstack(notractor)
-    #if len(noellipse) > 0:
-    #    noellipse = vstack(noellipse)
 
     return tractor, dropcat
 
