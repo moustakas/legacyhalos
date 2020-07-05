@@ -1048,6 +1048,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     cols = ['ra', 'dec', 'bx', 'by', 'type', 'ref_cat', 'ref_id',
             'sersic', 'shape_r', 'shape_e1', 'shape_e2',
             'flux_g', 'flux_r', 'flux_z',
+            'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z',
             'nobs_g', 'nobs_r', 'nobs_z',
             'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
             'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
@@ -1094,8 +1095,14 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
             else:
                 r50 = tractor.shape_r[I][0]
                 refflux = tractor.get('flux_{}'.format(refband))[I][0]
-                ng, nr, nz = tractor.nobs_g[I][0], tractor.nobs_z[I][0], tractor.nobs_z[I][0]
-                if ng < 1 or nr < 1 or nz < 1:
+                # Bug in fit_on_coadds: nobs_[g,r,z] is 1 even when missing the
+                # band, so use flux_ivar_[g,r,z].
+                #ng, nr, nz = tractor.nobs_g[I][0], tractor.nobs_z[I][0], tractor.nobs_z[I][0]
+                #if ng < 1 or nr < 1 or nz < 1:
+                ng = tractor.flux_g[I][0] * np.sqrt(tractor.flux_ivar_g[I][0]) == 0
+                nr = tractor.flux_r[I][0] * np.sqrt(tractor.flux_ivar_r[I][0]) == 0
+                nz = tractor.flux_z[I][0] * np.sqrt(tractor.flux_ivar_z[I][0]) == 0
+                if ng or nr or nz:
                     reject_galaxy.append(ii)
                     data['tractor_flags'].update({str(sid): 'nogrz'})
                     msg.append('Missing 3-band coverage')
@@ -1103,7 +1110,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                     reject_galaxy.append(ii)
                     data['tractor_flags'].update({str(sid): 'psf'})
                     msg.append('Tractor type=PSF')
-                elif refflux <= 0:
+                elif refflux < 0:
                     reject_galaxy.append(ii)
                     data['tractor_flags'].update({str(sid): 'negflux'})
                     msg.append('{}-band flux={:.3g} (<=0)'.format(refband, refflux))
@@ -1112,13 +1119,13 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                     data['tractor_flags'].update({str(sid): 'anytype_toosmall'})
                     msg.append('type={}, r50={:.3f} (<{:.1f}) arcsec'.format(tractor.type[I], r50, minsize))
                 elif tractor.type[I] == 'REX':
-                    if r50 > minsize_rex: # REX must have a minimum size
-                        keep_galaxy.append(ii)
-                        central_galaxy.append(I)
-                    else:
+                    if r50 < minsize_rex: # REX must have a minimum size
                         reject_galaxy.append(ii)
                         data['tractor_flags'].update({str(sid): 'rex_toosmall'})
                         msg.append('Tractor type=REX & r50={:.3f} (<{:.1f}) arcsec'.format(r50, minsize_rex))
+                    else:
+                        keep_galaxy.append(ii)
+                        central_galaxy.append(I)
                 else:
                     keep_galaxy.append(ii)
                     central_galaxy.append(I)

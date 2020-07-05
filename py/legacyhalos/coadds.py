@@ -374,7 +374,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         pass # standard pipeline
 
-    cmd += '--stage fit_on_coadds ' ; cleanup = False
+    #cmd += '--stage fit_on_coadds ' ; cleanup = False
     #cmd += '--stage srcs ' ; cleanup = False
     #cmd += '--stage fitblobs ' ; cleanup = False
     #cmd += '--stage coadds ' ; cleanup = False

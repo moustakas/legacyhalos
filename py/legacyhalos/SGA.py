@@ -463,9 +463,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #    sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
     #print(time.time() - t0)
 
-    #print('Gigantic hack!!')
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/junk', dtype=str)
-    #galaxylist = fitsio.read('/global/cscratch1/sd/dstn/sga-gather/SGA-nogrz-v3.0.fits', columns='GROUP_NAME')
+    if False:
+        print('Gigantic hack!!')
+        #galaxylist = np.loadtxt('/global/homes/i/ioannis/junk', dtype=str)
+        bb = fitsio.read('/global/cscratch1/sd/ioannis/SGA-data-dr9alpha/SGA-dropped-v3.0.fits', columns=['GROUP_NAME', 'DROPBIT'])
+        #ww = np.where(bb['DROPBIT'] & DROPBITS['negflux'] != 0)[0]
+        ww = np.where(bb['DROPBIT'] & DROPBITS['dropped'] != 0)[0]
+        galaxylist = list(set(bb['GROUP_NAME'][ww]))
+        galaxylist = galaxylist[:100]
     
     if galaxylist is not None:
         galcolumn = 'GROUP_NAME'
@@ -526,6 +531,7 @@ def _init_ellipse_SGA(clobber=False):
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
     outdir = legacyhalos.io.legacyhalos_data_dir()
+    outdir = os.path.join(outdir, 'test')
     outfile = os.path.join(outdir, 'SGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
@@ -590,8 +596,10 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
     print('Found {} SGA galaxies in the dropcat catalog.'.format(len(dropcat)))
     if len(dropcat) > 0:
         ignore = np.where(
-            np.logical_or((dropcat['DROPBIT'] & DROPBITS['notfit'] == 0),
-                          (dropcat['DROPBIT'] & DROPBITS['nogrz'] == 0))
+            np.logical_or(
+                (dropcat['DROPBIT'] & DROPBITS['notfit'] == 0),
+                (dropcat['DROPBIT'] & DROPBITS['allGaia'] == 0),
+                (dropcat['DROPBIT'] & DROPBITS['nogrz'] == 0))
             )[0]
         if len(ignore) > 0:
             print('Ignoring {} dropped SGA galaxies that were not fit or lack grz imaging.'.format(len(ignore)))
@@ -667,6 +675,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     import warnings
     import fitsio
     from astropy.table import Table, vstack, hstack, Column
+    from astrometry.util.util import Tan
     from tractor.ellipses import EllipseE # EllipseESoft
     from legacyhalos.io import read_ellipsefit, get_run
     from legacyhalos.misc import is_in_ellipse
@@ -734,12 +743,32 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
         assert('G2' not in set(tractor['REF_CAT']))
 
     # Make sure we have at least one SGA in this field; if not, it means the
-    # galaxy is spurious (or *all* the galaxies, in the case of a galaxy group),
-    # so return it in the "notractor" catalog.
+    # galaxy is spurious (or *all* the galaxies, in the case of a galaxy group
+    # are spurious). Actually, on the edge of the footprint we can also have a
+    # catalog without any SGA sources (i.e., if there are no pixels). Capture
+    # that case here, too.
     ilslga = np.where(tractor['REF_CAT'] == refcat)[0]
     if len(ilslga) == 0:
         print('Warning: No SGA sources in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
-        onegal['DROPBIT'] |= DROPBITS['dropped']
+        # Are there pixels?
+        grzmissing, box = False, 2
+        for band in ['g', 'r', 'z']:
+            imfile = os.path.join(galaxydir, '{}-largegalaxy-image-{}.fits.fz'.format(galaxy, band))
+            ivarfile = os.path.join(galaxydir, '{}-largegalaxy-invvar-{}.fits.fz'.format(galaxy, band))
+            #wcs = Tan(imfile, 1)
+            img = fitsio.read(imfile)
+            ivar = fitsio.read(ivarfile)
+            H, W = img.shape
+            if (np.all(img[H//2-box:H//2+box, W//2-box:W//2+box] == 0) and
+                np.all(ivar[H//2-box:H//2+box, W//2-box:W//2+box] == 0)):
+                grzmissing = True
+                break
+        if grzmissing:
+            print('  Missing grz coverage--')
+            onegal['DROPBIT'] |= DROPBITS['nogrz']
+        else:
+            print('  Dropped by Tractor--')
+            onegal['DROPBIT'] |= DROPBITS['dropped']
         return None, onegal
         
     # Next, remove SGA sources which do not belong to this group, because they
@@ -854,17 +883,24 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                 typ = tractor['TYPE'][match]
                 r50 = tractor['SHAPE_R'][match]
                 rflux = tractor['FLUX_R'][match]
-                ng, nr, nz = tractor['NOBS_G'][match], tractor['NOBS_R'][match], tractor['NOBS_Z'][match]
+
+                # Bug in fit_on_coadds: nobs_[g,r,z] is 1 even when missing the
+                # band, so use S/N==0 in grz.
+                #ng, nr, nz = tractor['NOBS_G'][match], tractor['NOBS_R'][match], tractor['NOBS_Z'][match]
+                ng = tractor['FLUX_G'][match] * np.sqrt(tractor['FLUX_IVAR_G'][match]) == 0
+                nr = tractor['FLUX_R'][match] * np.sqrt(tractor['FLUX_IVAR_R'][match]) == 0
+                nz = tractor['FLUX_Z'][match] * np.sqrt(tractor['FLUX_IVAR_Z'][match]) == 0
 
                 thisgal = Table(fullsample[igal])
-                
-                if ng == 0 or nr == 0 or nz == 0:
+
+                #if ng == 0 or nr == 0 or nz == 0:
+                if ng or nr or nz:
                     thisgal['DROPBIT'] |= DROPBITS['nogrz']
                     dropcat.append(thisgal)
                 elif typ == 'PSF':
                     thisgal['DROPBIT'] |= DROPBITS['isPSF']
                     dropcat.append(thisgal)
-                elif rflux <= 0:
+                elif rflux < 0:
                     thisgal['DROPBIT'] |= DROPBITS['negflux']
                     dropcat.append(thisgal)
                 else:
@@ -961,6 +997,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
     if len(dropcat) > 0:
         dropcat = vstack(dropcat)
+
+    pdb.set_trace()
 
     return tractor, dropcat
 
@@ -1093,7 +1131,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
                 thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-largegalaxy-grz-montage.png'.format(galaxy1))
 
                 ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
-                viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, lslga=True)
+                viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, sga=True)
 
                 html.write('<tr>\n')
                 #html.write('<td>{:g}</td>\n'.format(count))
@@ -1227,7 +1265,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
 
         """
         ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
-        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, lslga=True)
+        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, sga=True)
 
         html.write('<h2>Group Properties</h2>\n')
 

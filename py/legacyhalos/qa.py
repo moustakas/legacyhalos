@@ -173,6 +173,8 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
 
         reff, e1, e2 = EllipseE.fromRAbPhi(diam*60/2, ba, 180-pa) # note the 180 rotation
         inellipse = np.where(is_in_ellipse(tractor['RA'], tractor['DEC'], ragal, decgal, reff, e1, e2))[0]
+        if len(inellipse) < 3:
+            continue
 
         # scale the size of the marker by flux
         minflx, maxflx = np.percentile(tractor['FLUX_R'][inellipse], [50, 95])
@@ -233,10 +235,12 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
     #ax1.scatter(tractor['BX'], imgsz[1]-tractor['BY'], alpha=1.0, s=10, color='red')
     #ax1.scatter(tractor['BX'], tractor['BY'], alpha=1.0, s=10, color='#999999')
 
-    ax2.legend(loc='lower right', fontsize=12)
-    lgnd = ax3.legend(loc='lower right', fontsize=12)
-    lgnd.legendHandles[0]._sizes = [40]
-    lgnd.legendHandles[1]._sizes = [40]    
+    hh, ll = ax2.get_legend_handles_labels()
+    if len(hh) > 0:
+        ax2.legend(loc='lower right', fontsize=12)
+        lgnd = ax3.legend(loc='lower right', fontsize=12)
+        lgnd.legendHandles[0]._sizes = [40]
+        lgnd.legendHandles[1]._sizes = [40]    
 
     fig.subplots_adjust(wspace=0.05, right=0.9)
 
@@ -326,7 +330,11 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     ax.set_xlabel(r'Semi-major axis (arcsec)')
     ax.set_ylabel('Cumulative brightness (AB mag)')
 
-    ax.set_xlim(0, maxsma*1.01)
+    if maxsma > 0:
+        ax.set_xlim(0, maxsma*1.01)
+    else:
+        ax.set_xlim(0, 1) # hack!
+        
     #ax.margins(x=0)
     xlim = ax.get_xlim()
     if smascale:
@@ -343,7 +351,9 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     ax_twin.set_ylim(yfaint, ybright)
     ax_twin.set_ylabel('Cumulative Flux (AB mag)')#, rotation=-90)
 
-    leg1 = ax.legend(loc='lower right', fontsize=14)#, ncol=3)
+    hh, ll = ax.get_legend_handles_labels()
+    if len(hh) > 0:
+        leg1 = ax.legend(loc='lower right', fontsize=14)#, ncol=3)
     
     # Plot some threshold radii for the large-galaxy project--
     if plot_sbradii:
@@ -359,16 +369,16 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         if ellipsefit['radius_sb26'] > 0: #< xlim[1]:            
             ll = ax.axvline(x=ellipsefit['radius_sb26'], lw=2, color='k', ls='-')
             lline.append(ll), llabel.append('R(26)')
-            
-        ll = ax.axvline(x=ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
-                        lw=2, color='#e41a1c', ls='dotted')
-        lline.append(ll), llabel.append('Moment Size')
-        
-        leg2 = ax.legend(lline, llabel, loc='lower left', fontsize=14, frameon=False)
-        ax.add_artist(leg1)
-        
-    #pdb.set_trace()
 
+        if False:
+            ll = ax.axvline(x=ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
+                            lw=2, color='#e41a1c', ls='dotted')
+            lline.append(ll), llabel.append('Moment Size')
+
+        if len(lline) > 0:
+            leg2 = ax.legend(lline, llabel, loc='lower left', fontsize=14, frameon=False)
+            ax.add_artist(leg1)
+        
     if smascale:
         fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
     else:
@@ -975,13 +985,16 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 #if fntsize < 20:
                 #    fntsize = 20
                 #print('Font size {}'.format(fntsize))
-                ax1.legend(loc='lower right', fontsize=fntsize, frameon=True)
+                hh, ll = ax1.get_legend_handles_labels()
+                if len(hh) > 0:
+                    ax1.legend(loc='lower right', fontsize=fntsize, frameon=True)
         else:
-            from photutils import EllipticalAperture
-            geometry = ellipsefit['geometry']
-            ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
-                                         geometry.sma*(1 - geometry.eps), geometry.pa)
-            ellaper.plot(color='k', lw=1, axes=ax1, alpha=0.5)
+            pass
+            #from photutils import EllipticalAperture
+            #geometry = ellipsefit['geometry']
+            #ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
+            #                             geometry.sma*(1 - geometry.eps), geometry.pa)
+            #ellaper.plot(color='k', lw=1, axes=ax1, alpha=0.5)
 
         ax1.get_xaxis().set_visible(False)
         ax1.get_yaxis().set_visible(False)
@@ -1168,11 +1181,11 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         for filt in bands:
             col = next(colors)
             
-            radius = sbprofile['radius_{}'.format(filt)]**0.25
             mu = sbprofile['mu_{}'.format(filt)]
             muerr = sbprofile['muerr_{}'.format(filt)]
-            if len(mu) == 0: # no good data
+            if len(mu) == 0 or mu[0] == -1: # no good data
                 continue
+            radius = sbprofile['radius_{}'.format(filt)]**0.25
 
             #good = (ellipsefit[filt].stop_code < 4)
             #bad = ~good
@@ -1275,7 +1288,9 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
             #ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
             #ax1.set_ylim(31.99, 18)
 
-        leg1 = ax1.legend(loc='upper right')
+        hh, ll = ax1.get_legend_handles_labels()
+        if len(hh) > 0:
+            leg1 = ax1.legend(loc='upper right')
 
         # Plot some threshold radii for the large-galaxy project--
         if plot_sbradii:
@@ -1304,30 +1319,35 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 #ll = ax1.axvline(x=rr, lw=2, color='red', ls='dotted')
                 lline.append(ll), llabel.append('Moment Size')
 
-            leg2 = ax1.legend(lline, llabel, loc='lower left', frameon=False, fontsize=14)
-            ax1.add_artist(leg1)
+            if len(lline) > 0:
+                leg2 = ax1.legend(lline, llabel, loc='lower left', frameon=False, fontsize=14)
+                ax1.add_artist(leg1)
             
         # Now the color-radius plot
-            
-        ax2.fill_between(sbprofile['radius_gr']**0.25,
-                         sbprofile['gr'] - sbprofile['gr_err'],
-                         sbprofile['gr'] + sbprofile['gr_err'],
-                         label=r'$g - r$', facecolor=next(colors), alpha=0.75,
-                         edgecolor='k', lw=2)
+        if sbprofile['radius_gr'][0] != -1:
+            ax2.fill_between(sbprofile['radius_gr']**0.25,
+                             sbprofile['gr'] - sbprofile['gr_err'],
+                             sbprofile['gr'] + sbprofile['gr_err'],
+                             label=r'$g - r$', facecolor=next(colors), alpha=0.75,
+                             edgecolor='k', lw=2)
 
-        ax2.fill_between(sbprofile['radius_rz']**0.25,
-                         sbprofile['rz'] - sbprofile['rz_err'],
-                         sbprofile['rz'] + sbprofile['rz_err'],
-                         label=r'$r - z$', facecolor=next(colors), alpha=0.75,
-                         edgecolor='k', lw=2)
+        if sbprofile['radius_rz'][0] != -1:
+            ax2.fill_between(sbprofile['radius_rz']**0.25,
+                             sbprofile['rz'] - sbprofile['rz_err'],
+                             sbprofile['rz'] + sbprofile['rz_err'],
+                             label=r'$r - z$', facecolor=next(colors), alpha=0.75,
+                             edgecolor='k', lw=2)
 
         if plot_radius:
             ax2.set_xlabel(r'(Galactocentric radius)$^{1/4}$ (arcsec)')
         else:
             ax2.set_xlabel(r'(Semi-major axis)$^{1/4}$ (arcsec)')
         #ax2.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
-        ax2.legend(loc='upper right')
-        #ax2.legend(bbox_to_anchor=(0.25, 0.98))
+
+        hh, ll = ax2.get_legend_handles_labels()
+        if len(hh) > 0:
+            ax2.legend(loc='upper right')
+            #ax2.legend(bbox_to_anchor=(0.25, 0.98))
         
         ax2.set_ylabel('Color (mag)')
         ax2.set_ylim(-0.5, 3)
