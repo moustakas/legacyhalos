@@ -139,12 +139,15 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         else:
             filesuffix = '-ccdpos.png'
             #filesuffix = '-largegalaxy-maskbits.png'
-            dependson = '-largegalaxy-ellipse.isdone'
+            #dependson = '-largegalaxy-ellipse.isdone'
+            dependson = None
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+        #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
         suffix = 'htmlindex'
         filesuffix = '-largegalaxy-grz-montage.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+        #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
         raise ValueError('Need at least one keyword argument.')
 
@@ -1691,7 +1694,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
         
     # Only create pages for the set of galaxies with a montage.
     keep = np.arange(len(sample))
-    _, _, done, _ = missing_files(args, sample)
+    _, missing, done, _ = missing_files(args, sample)
     if len(done[0]) == 0:
         print('No galaxies with complete montages!')
         return
