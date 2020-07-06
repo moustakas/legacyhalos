@@ -4,6 +4,14 @@ legacyhalos.SGA
 
 Code to support the SGA sample and project.
 
+# Courteau 'test' sample--
+# SGA-mpi --htmlindex --galaxylist NGC1566_GROUP NGC4649_GROUP NGC4694 NGC4477 --htmlhome courteau.html --html-noraslices --clobber
+
+rsync -av /global/cscratch1/sd/ioannis/SGA-data-dr9alpha/065/NGC1566_GROUP /global/cscratch1/sd/ioannis/SGA-data-dr9alpha/187/NGC4477 /global/cscratch1/sd/ioannis/SGA-data-dr9alpha/190/NGC4649_GROUP /global/cscratch1/sd/ioannis/SGA-data-dr9alpha/192/NGC4694 .
+tar czvf dr9-courteau.tar.gz NGC1566_GROUP NGC4477 NGC4649_GROUP NGC4694
+
+
+
 """
 import os, shutil, time, pdb
 import numpy as np
@@ -70,6 +78,9 @@ def mpi_args():
 
     parser.add_argument('--htmlplots', action='store_true', help='Build the pipeline figures.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
+    parser.add_argument('--htmlhome', default='index.html', type=str, help='Home page file name (use in tandem with --htmlindex).')
+    parser.add_argument('--html-noraslices', dest='html_raslices', action='store_false',
+                        help='Do not organize HTML pages by RA slice (use in tandem with --htmlindex).')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
@@ -345,9 +356,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]
             
-        if False: # SAGA host galaxies
+        if True: # SAGA host galaxies
             from astrometry.libkd.spherematch import match_radec
-            saga = astropy.table.Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'saga_hosts.csv'))
+            saga = astropy.table.Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'catalogs', 'saga_hosts.csv'))
             #fullsample = legacyhalos.SGA.read_sample(preselect_sample=False)
             m1, m2, d12 = match_radec(sample['RA'][samplecut], sample['DEC'][samplecut],
                                       saga['RA'], saga['DEC'], 5/3600.0, nearest=True)
@@ -1036,17 +1047,17 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
                 res.append('...')
     return res
 
-def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
+def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
                    racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
-                   maketrends=False, fix_permissions=True):
+                   maketrends=False, fix_permissions=True, html_raslices=True):
     """Build the home (index.html) page and, optionally, the trends.html top-level
     page.
 
     """
     import legacyhalos.html
     
-    homehtmlfile = os.path.join(htmldir, homehtml)
-    print('Building {}'.format(homehtmlfile))
+    htmlhomefile = os.path.join(htmldir, htmlhome)
+    print('Building {}'.format(htmlhomefile))
 
     js = legacyhalos.html.html_javadate()       
 
@@ -1054,7 +1065,7 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
     raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
     #rasorted = raslices)
 
-    with open(homehtmlfile, 'w') as html:
+    with open(htmlhomefile, 'w') as html:
         html.write('<html><body>\n')
         html.write('<style type="text/css">\n')
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
@@ -1071,49 +1082,27 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
                    brightness profiles, and both aperture and integrated
                    photometry for a sample of approximately 400,000 galaxies
                    over 20,000 square degrees.</p>\n""")
-         
-        html.write('<p>The web-page visualizations are organized by one-degree slices of right ascension.</p><br />\n')
-        
+
         if maketrends:
             html.write('<p>\n')
             html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
             html.write('<a href="https://github.com/moustakas/legacyhalos">Code and documentation</a>\n')
             html.write('</p>\n')
 
-        html.write('<table>\n')
-        html.write('<tr><th>RA Slice</th><th>Number of Galaxies</th></tr>\n')
-        for raslice in sorted(set(raslices)):
-            inslice = np.where(raslice == raslices)[0]
-            html.write('<tr><td><a href="RA{0}.html"><h3>{0}</h3></a></td><td>{1}</td></tr>\n'.format(raslice, len(inslice)))
-        html.write('</table>\n')
-
-        html.write('<br /><br />\n')
-        html.write('<b><i>Last updated {}</b></i>\n'.format(js))
-        html.write('</html></body>\n')
-
-    if fix_permissions:
-        shutil.chown(homehtmlfile, group='cosmo')
-
-    # Now build the individual pages (one per RA slice).
-    for raslice in sorted(set(raslices)):
-        inslice = np.where(raslice == raslices)[0]
-        galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample[inslice], html=True)
-
-        slicefile = os.path.join(htmldir, 'RA{}.html'.format(raslice))
-        print('Building {}'.format(slicefile))
-        
-        with open(slicefile, 'w') as html:
-            html.write('<html><body>\n')
-            html.write('<style type="text/css">\n')
-            html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
-            html.write('p {width: "75%";}\n')
-            html.write('</style>\n')
-            
-            html.write('<h3>RA Slice {}</h3>\n'.format(raslice))
+        # The default is to organize the sample by RA slice, but support both options here.
+        if html_raslices:
+            html.write('<p>The web-page visualizations are organized by one-degree slices of right ascension.</p><br />\n')
 
             html.write('<table>\n')
+            html.write('<tr><th>RA Slice</th><th>Number of Galaxies</th></tr>\n')
+            for raslice in sorted(set(raslices)):
+                inslice = np.where(raslice == raslices)[0]
+                html.write('<tr><td><a href="RA{0}.html"><h3>{0}</h3></a></td><td>{1}</td></tr>\n'.format(raslice, len(inslice)))
+            html.write('</table>\n')
+        else:
+            html.write('<br /><br />\n')
+            html.write('<table>\n')
             html.write('<tr>\n')
-            #html.write('<th>Number</th>\n')
             html.write('<th> </th>\n')
             html.write('<th>Index</th>\n')
             html.write('<th>ID</th>\n')
@@ -1122,9 +1111,10 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
             html.write('<th>Dec</th>\n')
             html.write('<th>Diameter (arcmin)</th>\n')
             html.write('<th>Viewer</th>\n')
-
             html.write('</tr>\n')
-            for gal, galaxy1, htmlgalaxydir1 in zip(sample[inslice], np.atleast_1d(galaxy), np.atleast_1d(htmlgalaxydir)):
+            
+            galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
+            for gal, galaxy1, htmlgalaxydir1 in zip(sample, np.atleast_1d(galaxy), np.atleast_1d(htmlgalaxydir)):
 
                 htmlfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}.html'.format(galaxy1))
                 pngfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}-largegalaxy-grz-montage.png'.format(galaxy1))
@@ -1134,8 +1124,6 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
                 viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, sga=True)
 
                 html.write('<tr>\n')
-                #html.write('<td>{:g}</td>\n'.format(count))
-                #print(gal['INDEX'], gal['SGA_ID'], gal['GALAXY'])
                 html.write('<td><a href="{0}"><img src="{1}" height="auto" width="100%"></a></td>\n'.format(pngfile1, thumbfile1))
                 html.write('<td>{}</td>\n'.format(gal['INDEX']))
                 html.write('<td>{}</td>\n'.format(gal['SGA_ID']))
@@ -1143,21 +1131,83 @@ def build_homehtml(sample, htmldir, homehtml='index.html', pixscale=0.262,
                 html.write('<td>{:.7f}</td>\n'.format(ra1))
                 html.write('<td>{:.7f}</td>\n'.format(dec1))
                 html.write('<td>{:.4f}</td>\n'.format(diam1))
-                #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
-                #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
-                #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
                 html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
-                #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
                 html.write('</tr>\n')
             html.write('</table>\n')
-            #count += 1
-
-            html.write('<br /><br />\n')
-            html.write('<b><i>Last updated {}</b></i>\n'.format(js))
-            html.write('</html></body>\n')
+            
+        # close up shop
+        html.write('<br /><br />\n')
+        html.write('<b><i>Last updated {}</b></i>\n'.format(js))
+        html.write('</html></body>\n')
 
     if fix_permissions:
-        shutil.chown(homehtmlfile, group='cosmo')
+        shutil.chown(htmlhomefile, group='cosmo')
+        
+    # Optionally build the individual pages (one per RA slice).
+    if html_raslices:
+        for raslice in sorted(set(raslices)):
+            inslice = np.where(raslice == raslices)[0]
+            galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample[inslice], html=True)
+
+            slicefile = os.path.join(htmldir, 'RA{}.html'.format(raslice))
+            print('Building {}'.format(slicefile))
+
+            with open(slicefile, 'w') as html:
+                html.write('<html><body>\n')
+                html.write('<style type="text/css">\n')
+                html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
+                html.write('p {width: "75%";}\n')
+                html.write('</style>\n')
+
+                html.write('<h3>RA Slice {}</h3>\n'.format(raslice))
+
+                html.write('<table>\n')
+                html.write('<tr>\n')
+                #html.write('<th>Number</th>\n')
+                html.write('<th> </th>\n')
+                html.write('<th>Index</th>\n')
+                html.write('<th>ID</th>\n')
+                html.write('<th>Galaxy</th>\n')
+                html.write('<th>RA</th>\n')
+                html.write('<th>Dec</th>\n')
+                html.write('<th>Diameter (arcmin)</th>\n')
+                html.write('<th>Viewer</th>\n')
+
+                html.write('</tr>\n')
+                for gal, galaxy1, htmlgalaxydir1 in zip(sample[inslice], np.atleast_1d(galaxy), np.atleast_1d(htmlgalaxydir)):
+
+                    htmlfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}.html'.format(galaxy1))
+                    pngfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}-largegalaxy-grz-montage.png'.format(galaxy1))
+                    thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-largegalaxy-grz-montage.png'.format(galaxy1))
+
+                    ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
+                    viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, sga=True)
+
+                    html.write('<tr>\n')
+                    #html.write('<td>{:g}</td>\n'.format(count))
+                    #print(gal['INDEX'], gal['SGA_ID'], gal['GALAXY'])
+                    html.write('<td><a href="{0}"><img src="{1}" height="auto" width="100%"></a></td>\n'.format(pngfile1, thumbfile1))
+                    html.write('<td>{}</td>\n'.format(gal['INDEX']))
+                    html.write('<td>{}</td>\n'.format(gal['SGA_ID']))
+                    html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
+                    html.write('<td>{:.7f}</td>\n'.format(ra1))
+                    html.write('<td>{:.7f}</td>\n'.format(dec1))
+                    html.write('<td>{:.4f}</td>\n'.format(diam1))
+                    #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
+                    #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
+                    #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
+                    html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
+                    #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
+                    html.write('</tr>\n')
+                html.write('</table>\n')
+                #count += 1
+
+                html.write('<br /><br />\n')
+                html.write('<b><i>Last updated {}</b></i>\n'.format(js))
+                html.write('</html></body>\n')
+
+        if fix_permissions:
+            shutil.chown(htmlhomefile, group='cosmo')
 
     # Optionally build the trends (trends.html) page--
     if maketrends:
@@ -1187,7 +1237,7 @@ def _build_htmlpage_one(args):
     """Wrapper function for the multiprocessing."""
     return build_htmlpage_one(*args)
 
-def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, htmldir,
+def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, htmldir,
                        racolumn, deccolumn, diamcolumn, pixscale, nextgalaxy, prevgalaxy,
                        nexthtmlgalaxydir, prevhtmlgalaxydir, verbose, clobber, fix_permissions):
     """Build the web page for a single galaxy.
@@ -1583,7 +1633,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         raslice = get_raslice(gal[racolumn])
         html.write('<h4>RA Slice {}</h4>\n'.format(raslice))
 
-        html.write('<a href="../../{}">Home</a>\n'.format(homehtml))
+        html.write('<a href="../../{}">Home</a>\n'.format(htmlhome))
         html.write('<br />\n')
         html.write('<a href="../../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
         html.write('<br />\n')
@@ -1596,7 +1646,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, h
         _html_ccd_diagnostics(html)
 
         html.write('<br /><br />\n')
-        html.write('<a href="../../{}">Home</a>\n'.format(homehtml))
+        html.write('<a href="../../{}">Home</a>\n'.format(htmlhome))
         html.write('<br />\n')
         html.write('<a href="../../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
         html.write('<br />\n')
@@ -1616,6 +1666,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               racolumn='GROUP_RA', deccolumn='GROUP_DEC', diamcolumn='GROUP_DIAMETER',
               first=None, last=None, galaxylist=None,
               nproc=1, survey=None, makeplots=False,
+              htmlhome='index.html', html_raslices=True,
               clobber=False, verbose=True, maketrends=False, ccdqa=False,
               args=None, fix_permissions=True):
     """Make the HTML pages.
@@ -1650,12 +1701,12 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
 
     trendshtml = 'trends.html'
-    homehtml = 'index.html'
 
     # Build the home (index.html) page (always, irrespective of clobber)--
-    build_homehtml(sample, htmldir, homehtml=homehtml, pixscale=pixscale,
+    build_htmlhome(sample, htmldir, htmlhome=htmlhome, pixscale=pixscale,
                    racolumn=racolumn, deccolumn=deccolumn, diamcolumn=diamcolumn,
-                   maketrends=maketrends, fix_permissions=fix_permissions)
+                   maketrends=maketrends, fix_permissions=fix_permissions,
+                   html_raslices=html_raslices)
 
     # Now build the individual pages in parallel.
     raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
@@ -1671,7 +1722,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     args = []
     for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate(zip(
         sample[rasorted], np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir))):
-        args.append([ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, homehtml, htmldir,
+        args.append([ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, htmldir,
                      racolumn, deccolumn, diamcolumn, pixscale, nextgalaxy,
                      prevgalaxy, nexthtmlgalaxydir, prevhtmlgalaxydir, verbose,
                      clobber, fix_permissions])

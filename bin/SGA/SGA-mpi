@@ -72,6 +72,7 @@ def main():
                                   racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
                                   zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
                                   makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                  htmlhome=args.htmlhome, html_raslices=args.html_raslices,
                                   ccdqa=args.ccdqa, args=args)
         return
 
