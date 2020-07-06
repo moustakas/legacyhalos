@@ -1,7 +1,7 @@
 #! /bin/bash
 # Shell script to set the environment variables for SGA project.
 
-project=manga
+project=virgofilaments
 
 #############################
 # For a power-user / testing.
@@ -10,7 +10,7 @@ export PYTHONPATH=$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
 #############################
 
 # Specifiy the location of the input and output data.
-export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/$project
+export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/$project
 export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data
 export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html
 

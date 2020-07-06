@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""MPI wrapper for the MaNGA project.
+"""MPI wrapper for the Virgo filaments project.
 
-manga-mpi --coadds
+virgofilaments-mpi --coadds
 
 """
 import matplotlib
@@ -15,16 +15,16 @@ def main():
 
     """
     import legacyhalos.io
-    import legacyhalos.manga
+    import legacyhalos.virgofilaments
 
     from legacypipe.runs import get_survey
-    from legacyhalos.manga import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, RADIUSFACTOR, MANGA_RADIUS
+    from legacyhalos.virgofilaments import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, RADIUSFACTOR, MANGA_RADIUS
 
     basedir = legacyhalos.io.legacyhalos_dir()
     datadir = legacyhalos.io.legacyhalos_data_dir()
     htmldir = legacyhalos.io.legacyhalos_html_dir()
     
-    args = legacyhalos.manga.mpi_args()
+    args = legacyhalos.virgofilaments.mpi_args()
 
     if args.mpi:
         from mpi4py import MPI
@@ -40,9 +40,9 @@ def main():
         print('$LEGACYHALOS_DIR={}'.format(basedir))
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
-        sample = legacyhalos.manga.read_sample(first=args.first, last=args.last,
-                                               galaxylist=args.galaxylist,
-                                               verbose=args.verbose)
+        sample = legacyhalos.virgofilaments.read_sample(first=args.first, last=args.last,
+                                                        galaxylist=args.galaxylist,
+                                                        verbose=args.verbose)
         if len(sample) == 0:
             return
 
@@ -52,17 +52,17 @@ def main():
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
     if args.htmlindex and rank == 0:
-        legacyhalos.manga.make_html(sample, survey=None, pixscale=args.pixscale,
-                                    racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn=DIAMCOLUMN,
-                                    zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
-                                    makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                    ccdqa=args.ccdqa, args=args)
+        legacyhalos.virgofilaments.make_html(sample, survey=None, pixscale=args.pixscale,
+                                             racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn=DIAMCOLUMN,
+                                             zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+                                             makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                             ccdqa=args.ccdqa, args=args)
         return
     
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
     if rank == 0:
-        suffix, groups, _, fail = legacyhalos.manga.missing_files(args, sample, size)
+        suffix, groups, _, fail = legacyhalos.virgofilaments.missing_files(args, sample, size)
     else:
         groups, suffix = [], ''
 
@@ -89,14 +89,14 @@ def main():
             if args.debug:
                 if len(fail[rank]) > 0:
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
-                    galaxy, galaxydir = legacyhalos.manga.get_galaxy_galaxydir(sample[fail[rank]])
+                    galaxy, galaxydir = legacyhalos.virgofilaments.get_galaxy_galaxydir(sample[fail[rank]])
                     for ii, dd in zip(fail[rank], np.atleast_1d(galaxydir)):
                         print('  {} {}'.format(ii, dd))
 
                 todo = np.hstack(groups)
                 if len(todo) > 0:
                     #print('Galaxies left to do:')
-                    galaxy, galaxydir = legacyhalos.manga.get_galaxy_galaxydir(sample[todo])
+                    galaxy, galaxydir = legacyhalos.virgofilaments.get_galaxy_galaxydir(sample[todo])
                     for ii, dd in zip(todo, np.atleast_1d(galaxydir)):
                         print('  {} {}'.format(ii, dd))
             return
@@ -109,7 +109,7 @@ def main():
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
-        galaxy, galaxydir = legacyhalos.manga.get_galaxy_galaxydir(onegal)
+        galaxy, galaxydir = legacyhalos.virgofilaments.get_galaxy_galaxydir(onegal)
         if not os.path.isdir(galaxydir):
             os.makedirs(galaxydir, exist_ok=True)
 
@@ -175,7 +175,7 @@ def main():
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
                            largegalaxy=False,
-                           get_galaxy_galaxydir=legacyhalos.manga.get_galaxy_galaxydir)
+                           get_galaxy_galaxydir=legacyhalos.virgofilaments.get_galaxy_galaxydir)
 
     # Wait for all ranks to finish.
     if comm is not None:
@@ -184,7 +184,7 @@ def main():
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups, _, _ = legacyhalos.manga.missing_files(args, sample, size, clobber_overwrite=False)
+        _, groups, _, _ = legacyhalos.virgofilaments.missing_files(args, sample, size, clobber_overwrite=False)
         if len(groups) > 0:
             stilltodo = len(np.hstack(groups))
         else:
