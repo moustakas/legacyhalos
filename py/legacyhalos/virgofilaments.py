@@ -12,10 +12,10 @@ import astropy
 import legacyhalos.io
 
 ZCOLUMN = 'Z'
-RACOLUMN = 'RA'
-DECCOLUMN = 'DEC'
-DIAMCOLUMN = 'D25'
-GALAXYCOLUMN = 'GALAXY'
+RACOLUMN = 'GROUP_RA'
+DECCOLUMN = 'GROUP_DEC'
+DIAMCOLUMN = 'GROUP_DIAMETER'
+GALAXYCOLUMN = 'GROUP_NAME'
 
 ELLIPSEBITS = dict(
     largeshift = 2**0, # >10-pixel shift in the flux-weighted center
@@ -52,6 +52,7 @@ def mpi_args():
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
 
+    parser.add_argument('--build-catalog', action='store_true', help='Build the final catalog.')
     args = parser.parse_args()
 
     return args
@@ -64,7 +65,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     if args.coadds:
         suffix = 'coadds'
-        filesuffix = '-custom-coadds.isdone'
+        filesuffix = '-largegalaxy-coadds.isdone'
     elif args.pipeline_coadds:
         suffix = 'pipeline-coadds'
         if args.just_coadds:
@@ -73,31 +74,30 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             filesuffix = '-pipeline-coadds.isdone'
     elif args.ellipse:
         suffix = 'ellipse'
-        filesuffix = '-custom-ellipse.isdone'
-        dependson = '-custom-coadds.isdone'
-    elif args.build_SGA:
-        suffix = 'build-SGA'
-        filesuffix = '-custom-ellipse.isdone'
+        filesuffix = '-largegalaxy-ellipse.isdone'
+        dependson = '-largegalaxy-coadds.isdone'
+    elif args.build_catalog:
+        suffix = 'build-catalog'
+        filesuffix = '-largegalaxy-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
         if args.just_coadds:
-            filesuffix = '-custom-grz-montage.png'
+            filesuffix = '-largegalaxy-grz-montage.png'
         else:
             filesuffix = '-ccdpos.png'
-            #filesuffix = '-custom-maskbits.png'
+            #filesuffix = '-largegalaxy-maskbits.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
         suffix = 'htmlindex'
-        filesuffix = '-custom-grz-montage.png'
+        filesuffix = '-largegalaxy-grz-montage.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
-        print('Nothing to do.')
-        return
+        raise ValueError('Need at least one keyword argument.')
 
-    # Make clobber=False for build_SGA and htmlindex because we're not making
-    # the files here, we're just looking for them. The argument args.clobber
-    # gets used downstream.
-    if args.htmlindex or args.build_SGA:
+    # Make clobber=False for build_catalog and htmlindex because we're not
+    # making the files here, we're just looking for them. The argument
+    # args.clobber gets used downstream.
+    if args.htmlindex or args.build_catalog:
         clobber = False
     else:
         clobber = args.clobber
@@ -200,14 +200,15 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     else:
         return galaxy, galaxydir
 
-def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None):
+def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
+                read_groupsample=True):
     """Read/generate the parent SGA catalog.
 
     """
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
             
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_v0_groups.fits')
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_v0_groups_new.fits')
 
     if first and last:
         if first > last:
@@ -218,12 +219,15 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     nrows = info[ext].get_nrows()
 
     # Select primary group members--
-    if True:
+    if read_groupsample:
         cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY']
         sample = fitsio.read(samplefile, columns=cols)
+        rows = np.arange(len(sample))
+        nrows_orig = len(rows)
 
         samplecut = np.where(sample['GROUP_PRIMARY'])[0]
         rows = rows[samplecut]
+        nrows = len(rows)
     else:
         rows = None
 
@@ -254,7 +258,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     # Add an (internal) index number:
     sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
-    
+
     if galaxylist is not None:
         if verbose:
             print('Selecting specific galaxies.')

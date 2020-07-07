@@ -96,8 +96,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         filesuffix = '-custom-grz-montage.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
-        print('Nothing to do.')
-        return
+        raise ValueError('Need at least one keyword argument.')
 
     # Make clobber=False for build_SGA and htmlindex because we're not making
     # the files here, we're just looking for them. The argument args.clobber

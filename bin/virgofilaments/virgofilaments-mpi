@@ -35,19 +35,26 @@ def main():
         rank, size = 0, 1
 
     # Read and broadcast the sample.
-    sample = None
+    sample, fullsample = None, None
     if rank == 0:
         print('$LEGACYHALOS_DIR={}'.format(basedir))
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
         sample = legacyhalos.virgofilaments.read_sample(first=args.first, last=args.last,
                                                         galaxylist=args.galaxylist,
-                                                        verbose=args.verbose)
+                                                        verbose=args.verbose,
+                                                        read_groupsample=True)
         if len(sample) == 0:
             return
+        
+        if args.coadds or args.build_catalog:
+            fullsample = legacyhalos.virgofilaments.read_sample(verbose=args.verbose,
+                                                                read_groupsample=False)
+            fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
 
     if comm:
         sample = comm.bcast(sample, root=0)
+        fullsample = comm.bcast(fullsample, root=0)
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
@@ -123,16 +130,23 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
+        radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 1.5 # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
 
         if args.coadds:
             from legacyhalos.mpi import call_custom_coadds
+
+            # Write out the individual galaxies for this mosaic.
+            thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
+            samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
+            #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+            thissample.write(samplefile, overwrite=True)
+
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               largegalaxy=False, pipeline=False, custom=True,
+                               largegalaxy=True, pipeline=False, custom=False,
                                apodize=False, unwise=True, galex=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=True, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
@@ -144,7 +158,7 @@ def main():
             # model images.
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               largegalaxy=False, pipeline=True, custom=False,
+                               largegalaxy=True, pipeline=True, custom=False,
                                apodize=False, unwise=False, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=True, write_all_pickles=True,
                                just_coadds=args.just_coadds,
@@ -156,7 +170,7 @@ def main():
                          nproc=args.nproc, verbose=args.verbose, debug=args.debug,
                          unwise=False, galex=False,
                          #unwise=True, galex=True,
-                         logfile=logfile, largegalaxy=False, pipeline=False)
+                         logfile=logfile, largegalaxy=True, pipeline=False)
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
@@ -175,7 +189,7 @@ def main():
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
-                           largegalaxy=False,
+                           largegalaxy=True,
                            get_galaxy_galaxydir=legacyhalos.virgofilaments.get_galaxy_galaxydir)
 
     # Wait for all ranks to finish.
