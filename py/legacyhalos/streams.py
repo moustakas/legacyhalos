@@ -234,7 +234,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     # Add an (internal) index number:
     sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
-    
+
     if galaxylist is not None:
         if verbose:
             print('Selecting specific galaxies.')

@@ -28,7 +28,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     """
     import fitsio
 
-    def _copyfile(infile, outfile, clobber=False, update_header=False):
+    def _copyfile(infile, outfile, clobber=False, update_header=False, missing_ok=False):
         if os.path.isfile(outfile) and not clobber:
             return 1
         if os.path.isfile(infile):
@@ -37,8 +37,11 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 pass
             return 1
         else:
-            print('Missing file {}; please check the logfile.'.format(infile))
-            return 0
+            if missing_ok:
+                return 1
+            else:
+                print('Missing file {}; please check the logfile.'.format(infile))
+                return 0
 
     def _do_cleanup():
         import shutil
@@ -52,6 +55,20 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if os.path.isfile(picklefile):
                 os.remove(picklefile)
 
+    # Diagnostic plots (OK if they're missing) (put this above the check for the
+    # CCDs--if the plots have been made then they are useful for testing and
+    # debugging).
+    for qatype in ('ccdpos', 'pipelinesky', 'customsky'):
+        ok = _copyfile(
+            os.path.join(output_dir, 'metrics', 'cus', 'fitoncoadds-{}-{}.jpg'.format(brickname, qatype)),
+                         os.path.join(output_dir, '{}-{}-{}.jpg'.format(galaxy, stagesuffix, qatype)),
+            clobber=clobber, missing_ok=True)
+
+        if not ok:
+            return ok
+
+    pdb.set_trace()
+    
     # If we made it here and there is no CCDs file it's because legacypipe
     # exited cleanly with "No photometric CCDs touching brick."
     ccdsfile = os.path.join(output_dir, 'coadd', 'cus', brickname,
@@ -361,20 +378,20 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     if subsky_radii: # implies --no-subsky
         if len(subsky_radii) != 3:
             raise ValueError('subsky_radii must be a 3-element vector')
-        cmd += '--no-subsky --subsky-radii {} {} {} '.format(subsky_radii[0], subsky_radii[1], subsky_radii[2]) # [arcsec]
-    if ubercal_sky: # implies --no-subsky
-        cmd += '--no-subsky --ubercal-sky '
+        cmd += '--no-subsky --ubercal-sky --subsky-radii {} {} {} '.format(subsky_radii[0], subsky_radii[1], subsky_radii[2]) # [arcsec]
+    #if ubercal_sky: # implies --no-subsky
+    #    cmd += '--no-subsky --ubercal-sky '
 
     # stage-specific options here--
     if custom:
-        cmd += '--fit-on-coadds '
+        cmd += '--fit-on-coadds --no-ivar-reweighting '
     elif largegalaxy:
         cmd += '--fit-on-coadds --saddle-fraction 0.2 --saddle-min 4.0 '
         #cmd += '--nsigma 10 '
     else:
         pass # standard pipeline
 
-    #cmd += '--stage fit_on_coadds ' ; cleanup = False
+    cmd += '--stage fit_on_coadds ' ; cleanup = False
     #cmd += '--stage srcs ' ; cleanup = False
     #cmd += '--stage fitblobs ' ; cleanup = False
     #cmd += '--stage coadds ' ; cleanup = False
