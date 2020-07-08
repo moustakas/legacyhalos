@@ -129,7 +129,7 @@ def main():
         # Mosaic diameter--
         radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60. / 2. # [arcsec]
         radius_mask_arcsec = onegal[MASKCOLUMN] * 60.        # [arcsec]
-        subsky_radii = (radius_mask_arcsec, 1.5*radius_mask_arcsec, 3*radius_mask_arcsec)
+        subsky_radii = (radius_mask_arcsec, 2*radius_mask_arcsec, 4*radius_mask_arcsec)
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
@@ -139,8 +139,8 @@ def main():
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=False, custom=True,
-                               apodize=False, unwise=True, galex=False, force=args.force, plots=False,
-                               verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                               apodize=False, unwise=False, galex=False, force=args.force, plots=False,
+                               verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                subsky_radii=subsky_radii,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile)
@@ -153,7 +153,7 @@ def main():
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=True, custom=False,
                                apodize=False, unwise=False, force=args.force, plots=False,
-                               verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                               verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                no_splinesky=False, just_coadds=args.just_coadds,
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 

@@ -87,7 +87,7 @@ def missing_files_one(checkfile, dependsfile, clobber):
     #print(checkfile, dependsfile, clobber)
     if os.path.isfile(checkfile) and clobber is False:
         # Is the stage that this stage depends on done, too?
-        print(checkfile, dependsfile, clobber)
+        #print(checkfile, dependsfile, clobber)
         if dependsfile is None:
             return 'done'
         else:

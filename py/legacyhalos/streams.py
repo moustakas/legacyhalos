@@ -47,6 +47,7 @@ def mpi_args():
     
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
 
+    parser.add_argument('--no-cleanup', action='store_false', dest='cleanup', help='Do not clean up legacypipe files after coadds.')
     parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
     parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
 

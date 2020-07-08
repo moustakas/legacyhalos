@@ -130,7 +130,7 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 1.5 # [arcsec]
+        radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
