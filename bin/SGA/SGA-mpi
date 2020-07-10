@@ -183,6 +183,7 @@ def main():
         from astrometry.util.multiproc import multiproc
         from legacyhalos.SGA import _build_ellipse_SGA_one, _write_ellipse_SGA
 
+        print('HACKING THE CHUNK DIRECTORY!!!')
         #chunkdatadir = os.path.join(datadir, 'chunks')
         chunkdatadir = os.path.join(datadir, 'test-chunks')
 

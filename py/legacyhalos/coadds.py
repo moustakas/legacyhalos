@@ -63,15 +63,14 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             os.path.join(output_dir, 'metrics', 'cus', 'fitoncoadds-{}-{}.jpg'.format(brickname, qatype)),
                          os.path.join(output_dir, '{}-{}-{}.jpg'.format(galaxy, stagesuffix, qatype)),
             clobber=clobber, missing_ok=True)
-
         if not ok:
             return ok
 
     # If we made it here and there is no CCDs file it's because legacypipe
     # exited cleanly with "No photometric CCDs touching brick."
-    ccdsfile = os.path.join(output_dir, 'coadd', 'cus', brickname,
+    _ccdsfile = os.path.join(output_dir, 'coadd', 'cus', brickname,
                             'legacysurvey-{}-ccds.fits'.format(brickname))
-    if not os.path.isfile(ccdsfile) and missing_ok is False:
+    if not os.path.isfile(_ccdsfile) and missing_ok is False:
         print('No photometric CCDs touching brick.')
         if cleanup:
             _do_cleanup()
@@ -391,7 +390,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         pass # standard pipeline
 
-    cmd += '--stage fit_on_coadds ' ; cleanup = False ; missing_ok = True
+    #cmd += '--stage fit_on_coadds ' ; cleanup = False ; missing_ok = True
     #cmd += '--stage srcs ' ; cleanup = False
     #cmd += '--stage fitblobs ' ; cleanup = False
     #cmd += '--stage coadds ' ; cleanup = False
@@ -405,7 +404,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print(cmd, flush=True, file=log)
 
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
-    #err = 0
+    #err=0
 
     if err != 0:
         print('Something went wrong; please check the logfile.')

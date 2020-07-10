@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+
+"""Build the tarball.
+
+funpack -Z -F -v streams/*/*custom*.fz
+funpack -Z -F -v streams/*/*pipeline*.fz
+funpack -Z -F -v streams/*/*invvar*.fz
+
+montage -bordercolor white -borderwidth 1 -tile 7x6 -geometry +0+0 -resize 512 */*-custom-image-grz.jpg ./legacystreams.png
+
+"""
+import os, pdb
+import numpy as np
+
+import legacyhalos.io
+import legacyhalos.streams
+
+datadir = legacyhalos.io.legacyhalos_data_dir()
+outdir = '/global/cscratch1/sd/ioannis/legacystreams'
+if not os.path.isdir(outdir):
+    os.makedirs(outdir)
+
+cmd1 = 'rsync -auvPn --exclude="*.p" --exclude="metrics" --exclude="coadd" --exclude="tractor" --exclude="tractor-i" {}/* {}'.format(datadir, outdir)
+cmd2 = 'funpack -Z -F -v {}/*/*custom*.fz'.format(outdir)
+cmd3 = 'pushd /global/cscratch1/sd/ioannis/'
+cmd4 = 'tar czvf legacystreams.tar.gz legacystreams'
+cmd5 = 'popd'
+
+for cmd in (cmd1, cmd2, cmd3, cmd4, cmd5):
+    print(cmd)
+
+pdb.set_trace()
+
+sample = legacyhalos.streams.read_sample()
+galaxy, galaxydir = legacyhalos.streams.get_galaxy_galaxydir(sample)
+for gal, gdir in zip(galaxy, galaxydir):
+    outgaldir = os.path.join(outdir, gal)
+    if not os.path.isdir(outgaldir):
+        os.makedirs(outgaldir)
+
+     
+    
+    
+    

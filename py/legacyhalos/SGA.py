@@ -359,7 +359,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             brickcut = np.where(np.isin(sample['BRICKNAME'][samplecut], bricklist))[0]
             rows = rows[brickcut]
             
-        if True: # SAGA host galaxies
+        if False: # SAGA host galaxies
             from astrometry.libkd.spherematch import match_radec
             saga = astropy.table.Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'catalogs', 'saga_hosts.csv'))
             #fullsample = legacyhalos.SGA.read_sample(preselect_sample=False)
@@ -545,6 +545,7 @@ def _init_ellipse_SGA(clobber=False):
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
     outdir = legacyhalos.io.legacyhalos_data_dir()
+    print('HACKING THE OUTPUT DIRECTORY!!!')
     outdir = os.path.join(outdir, 'test')
     outfile = os.path.join(outdir, 'SGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
@@ -1011,8 +1012,6 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
     if len(dropcat) > 0:
         dropcat = vstack(dropcat)
-
-    pdb.set_trace()
 
     return tractor, dropcat
 
