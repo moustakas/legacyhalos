@@ -135,7 +135,7 @@ def main():
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[fail[rank]])
                     for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
-                        #print('\\rm {}/{}-largegalaxy-{}.isfail'.format(dd, os.path.basename(dd), suffix.lower()))
+                        #print('\\rm {}/{}-largegalaxy-{}.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
                         #print('\rm {}/*'.format(dd))
                         print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
 
@@ -146,6 +146,7 @@ def main():
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[todo])
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                         #print('{}'.format(dd))
+                        #print('\\rm {}/{}-largegalaxy-*.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
                         print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
             return
         
@@ -183,9 +184,8 @@ def main():
         from astrometry.util.multiproc import multiproc
         from legacyhalos.SGA import _build_ellipse_SGA_one, _write_ellipse_SGA
 
-        print('HACKING THE CHUNK DIRECTORY!!!')
-        #chunkdatadir = os.path.join(datadir, 'chunks')
-        chunkdatadir = os.path.join(datadir, 'test-chunks')
+        #print('HACKING THE CHUNK DIRECTORY!!!') ; chunkdatadir = os.path.join(datadir, 'test-chunks')
+        chunkdatadir = os.path.join(datadir, 'chunks')
 
         mp = multiproc(nthreads=args.nproc)
         for ichunk, chunk in enumerate(groups[rank]):
@@ -254,6 +254,9 @@ def main():
                 if os.path.isfile(chunkdropfile):
                     dropcat.append(Table(fitsio.read(chunkdropfile)))
 
+            #print('HACK!!!!!!!!!!! EXCLUDE_FULL_SGA=TRUE')
+            #_write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
+            #                   exclude_full_sga=True, writekd=True)
             _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
                                exclude_full_sga=False, writekd=True)
             print('Gathering and writing out final files took {:.3f} minutes'.format(

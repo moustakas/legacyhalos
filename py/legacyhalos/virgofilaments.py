@@ -12,10 +12,14 @@ import astropy
 import legacyhalos.io
 
 ZCOLUMN = 'Z'
-RACOLUMN = 'GROUP_RA'
-DECCOLUMN = 'GROUP_DEC'
-DIAMCOLUMN = 'GROUP_DIAMETER'
-GALAXYCOLUMN = 'GROUP_NAME'
+RACOLUMN = 'RA'
+DECCOLUMN = 'DEC'
+DIAMCOLUMN = 'DIAMETER'
+GALAXYCOLUMN = 'GALAXY'
+#RACOLUMN = 'GROUP_RA'
+#DECCOLUMN = 'GROUP_DEC'
+#DIAMCOLUMN = 'GROUP_DIAMETER'
+#GALAXYCOLUMN = 'GROUP_NAME'
 
 ELLIPSEBITS = dict(
     largeshift = 2**0, # >10-pixel shift in the flux-weighted center
@@ -208,7 +212,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
             
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_v0_groups_new.fits')
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_v0_main.fits')
+    #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_v0_groups_new.fits')
 
     if first and last:
         if first > last:
@@ -218,18 +223,21 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
-    # Select primary group members--
-    if read_groupsample:
-        cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY']
-        sample = fitsio.read(samplefile, columns=cols)
-        rows = np.arange(len(sample))
-        nrows_orig = len(rows)
-
-        samplecut = np.where(sample['GROUP_PRIMARY'])[0]
-        rows = rows[samplecut]
-        nrows = len(rows)
-    else:
-        rows = None
+    print('Temporary hack to skip the group catalog!')
+    ## Select primary group members--
+    #if read_groupsample:
+    #    cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY']
+    #    #cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_PRIMARY']
+    #    sample = fitsio.read(samplefile, columns=cols, upper=True)
+    #    rows = np.arange(len(sample))
+    #    nrows_orig = len(rows)
+    #
+    #    samplecut = np.where(sample['GROUP_PRIMARY'])[0]
+    #    rows = rows[samplecut]
+    #    nrows = len(rows)
+    #else:
+    #    rows = None
+    rows = None
 
     if first is None:
         first = 0
@@ -258,6 +266,13 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     # Add an (internal) index number:
     sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
+
+    print('Temporary hack to the data model!')
+    sample.rename_column('VFID', 'GALAXY')
+    sample.rename_column('RADIUS', 'DIAMETER')
+    sample['RA'] = sample['RA'].astype('f8')
+    sample['DEC'] = sample['DEC'].astype('f8')
+    sample['DIAMETER'] *= 2 / 60 # convert to diameter and arcsec-->arcmin
 
     if galaxylist is not None:
         if verbose:
