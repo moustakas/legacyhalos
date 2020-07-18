@@ -720,16 +720,16 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
     if not os.path.isfile(tractorfile):
         if os.path.isfile(ccdsfile) and os.path.isfile(isdonefile):
-            print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+            print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
             onegal['DROPBIT'] |= DROPBITS['nogrz']
         elif not os.path.isfile(ccdsfile) and os.path.isfile(isdonefile): # no photometric CCDs touching brick (e.g., PGC2045341)
-            print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+            print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
             onegal['DROPBIT'] |= DROPBITS['nogrz']
         elif os.path.isfile(ccdsfile) and not os.path.isfile(isdonefile):
-            print('Missing fitting results in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+            print('Missing fitting results in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
             onegal['DROPBIT'] |= DROPBITS['notfit']
         else: # shouldn't happen...I think
-            print('Warning: no Tractor catalog in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+            print('Warning: no Tractor catalog in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
             onegal['DROPBIT'] |= DROPBITS['notfit']
         return None, onegal
 
@@ -741,10 +741,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     for band in ['g', 'r', 'z']:
         imfile = os.path.join(galaxydir, '{}-largegalaxy-image-{}.fits.fz'.format(galaxy, band))
         if not os.path.isfile(imfile):
-            print('  Missing image {}'.format(imfile))
+            print('  Missing image {}'.format(imfile), flush=True)
             grzmissing = True
     if grzmissing:
-        print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+        print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
         onegal['DROPBIT'] |= DROPBITS['nogrz']
         return None, onegal
 
@@ -764,7 +764,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     if len(isgaia) > 0:
         tractor = tractor[np.delete(np.arange(len(tractor)), isgaia)]
         if len(tractor) == 0: # can happen in small fields
-            print('Warning: All Tractor sources are Gaia stars in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+            print('Warning: All Tractor sources are Gaia stars in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
             onegal['DROPBIT'] |= DROPBITS['allGaia']
             return None, onegal
         assert('G2' not in set(tractor['REF_CAT']))
@@ -783,8 +783,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                 ycen, xcen = np.int(ycen-1), np.int(xcen-1)
             else:
                 ycen, xcen = H//2, W//2
-            print(band, img[ycen-box:ycen+box, xcen-box:xcen+box],
-                  ivar[ycen-box:ycen+box, xcen-box:xcen+box])
+            #print(band, img[ycen-box:ycen+box, xcen-box:xcen+box],
+            #      ivar[ycen-box:ycen+box, xcen-box:xcen+box])
             if (np.all(img[ycen-box:ycen+box, xcen-box:xcen+box] == 0) and
                 np.all(ivar[ycen-box:ycen+box, xcen-box:xcen+box] == 0)):
                 grzmissing = True
@@ -802,10 +802,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
         # Are there pixels?
         grzmissing = _check_grz(galaxydir, galaxy)
         if grzmissing:
-            print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+            print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
             onegal['DROPBIT'] |= DROPBITS['nogrz']
         else:
-            print('Dropped by Tractor in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+            print('Dropped by Tractor in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
             onegal['DROPBIT'] |= DROPBITS['dropped']
         return None, onegal
         
@@ -816,7 +816,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     if len(toss) > 0:
         for tt in toss:
             if verbose:
-                print('  Removing non-primary SGA_ID={}'.format(tractor[ilslga][tt]['REF_ID']))
+                print('  Removing non-primary SGA_ID={}'.format(tractor[ilslga][tt]['REF_ID']), flush=True)
         keep = np.delete(np.arange(len(tractor)), ilslga[toss])
         tractor = tractor[keep]
 
@@ -828,7 +828,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # catalog.
     keep = np.where(np.logical_or(tractor['TYPE'] == 'PSF', tractor['SHAPE_R'] > 0.1))[0]
     if len(keep) == 0:
-        print('All Tractor sources have been dropped in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
+        print('All Tractor sources have been dropped in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
         onegal['DROPBIT'] |= DROPBITS['allsmall']
         return None, onegal
     tractor = tractor[keep]
@@ -845,7 +845,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     tractorcols = tractor.colnames
     for col in lslgacols[::-1]: # reverse the order
         if col in tractorcols:
-            print('  Skipping existing column {}'.format(col))
+            print('  Skipping existing column {}'.format(col), flush=True)
         else:
             if onegal[col].ndim > 1:
                 # assume no multidimensional strins
@@ -892,6 +892,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
         if len(match) > 1:
             raise ValueError('Multiple matches should never happen but it did in the field of ID={}?!?'.format(onegal['SGA_ID']))
 
+        thisgal = Table(fullsample[igal])
+
         # An object can be missing an ellipsefit file for two reasons:
         if not os.path.isfile(ellipsefile):
              # If the galaxy does not appear in the Tractor catalog, it was
@@ -900,21 +902,17 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
              # PGC1062274)!
             if len(match) == 0:
                 # check for grz coverage
-                grzmissing = _check_grz(galaxydir, galaxy, radec=(fullsample['RA'][igal], fullsample['DEC'][igal]))
+                grzmissing = _check_grz(galaxydir, galaxy, radec=(thisgal['RA'], thisgal['DEC']))
                 if grzmissing:
                     print('Missing grz coverage for galaxy {} in the field of {} (SGA_ID={})'.format(
-                        fullsample['GALAXY'][igal], galaxy, onegal['SGA_ID'][0]))
-                    dropped = Table(fullsample[igal])
-                    dropped['DROPBIT'] |= DROPBITS['nogrz']
+                        fullsample['GALAXY'][igal], galaxy, onegal['SGA_ID'][0]), flush=True)
+                    thisgal['DROPBIT'] |= DROPBITS['nogrz']
                     dropcat.append(thisgal)
                 else:
                     if verbose:
-                        print('Dropped by Tractor and not ellipse-fit: {} (ID={})'.format(fullsample['GALAXY'][igal], lslga_id))
-                    dropped = Table(fullsample[igal])
-                    dropped['DROPBIT'] |= DROPBITS['dropped']
-                    dropcat.append(dropped)
-                pdb.set_trace()
-                    
+                        print('Dropped by Tractor and not ellipse-fit: {} (ID={})'.format(fullsample['GALAXY'][igal], lslga_id), flush=True)
+                    thisgal['DROPBIT'] |= DROPBITS['dropped']
+                    dropcat.append(thisgal)
             else:
                 # Objects here were fit by Tractor but *not* ellipse-fit. Keep
                 # them but reset ref_cat and ref_id. That way if it's a galaxy
@@ -928,7 +926,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                 if verbose:
                     print('Not ellipse-fit: {} (ID={}, type={}, r50={:.2f} arcsec, fluxr={:.3f} nanomaggies)'.format(
                         fullsample['GALAXY'][igal], lslga_id, tractor['TYPE'][match[0]], tractor['SHAPE_R'][match[0]],
-                        tractor['FLUX_R'][match[0]]))
+                        tractor['FLUX_R'][match[0]]), flush=True)
 
                 typ = tractor['TYPE'][match]
                 r50 = tractor['SHAPE_R'][match]
@@ -941,8 +939,6 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                 nr = tractor['FLUX_R'][match] * np.sqrt(tractor['FLUX_IVAR_R'][match]) == 0
                 nz = tractor['FLUX_Z'][match] * np.sqrt(tractor['FLUX_IVAR_Z'][match]) == 0
 
-                thisgal = Table(fullsample[igal])
-
                 #if ng == 0 or nr == 0 or nz == 0:
                 if ng or nr or nz:
                     thisgal['DROPBIT'] |= DROPBITS['nogrz']
@@ -954,11 +950,13 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     # In some corner cases we can end up with negative r-band
                     # flux because of missing grz coverage right at the center
                     # of the galaxy, e.g., PGC046314.
-                    grzmissing = _check_grz(galaxydir, galaxy)
+                    grzmissing = _check_grz(galaxydir, galaxy, radec=(thisgal['RA'], thisgal['DEC']))
                     if grzmissing:
-                        print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
-                        onegal['DROPBIT'] |= DROPBITS['nogrz']
+                        print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
+                        thisgal['DROPBIT'] |= DROPBITS['nogrz']
+                        dropcat.append(thisgal)
                     else:
+                        print('Negative r-band flux in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
                         thisgal['DROPBIT'] |= DROPBITS['negflux']
                         dropcat.append(thisgal)
                 else:
