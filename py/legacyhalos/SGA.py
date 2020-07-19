@@ -10,8 +10,6 @@ Code to support the SGA sample and project.
 rsync -av /global/cscratch1/sd/ioannis/SGA-data-dr9alpha/065/NGC1566_GROUP /global/cscratch1/sd/ioannis/SGA-data-dr9alpha/187/NGC4477 /global/cscratch1/sd/ioannis/SGA-data-dr9alpha/190/NGC4649_GROUP /global/cscratch1/sd/ioannis/SGA-data-dr9alpha/192/NGC4694 .
 tar czvf dr9-courteau.tar.gz NGC1566_GROUP NGC4477 NGC4649_GROUP NGC4694
 
-
-
 """
 import os, shutil, time, pdb
 import numpy as np
@@ -36,11 +34,12 @@ ELLIPSEBITS = dict(
 DROPBITS = dict(
     notfit = 2**0,    # no Tractor catalog, not fit
     nogrz = 2**1,     # missing grz coverage
-    dropped = 2**2,   # dropped by Tractor (either spurious or a problem with the fitting)
-    isPSF = 2**3,     # tractor type=PSF
-    negflux = 2**4,   # flux_r <= 0
-    allGaia = 2**5,   # all Tractor sources in the field are Gaia stars
-    allsmall = 2**6,  # all Tractor sources with PSF | shape_r>0.1 have been dropped
+    masked = 2**2,    # masked (e.g., due to a bleed trail)
+    dropped = 2**3,   # dropped by Tractor (either spurious or a problem with the fitting)
+    isPSF = 2**4,     # tractor type=PSF
+    negflux = 2**5,   # flux_r <= 0
+    #allGaia = 2**5,  # all Tractor sources in the field are Gaia stars
+    #allsmall = 2**6, # all Tractor sources with PSF | shape_r>0.1 have been dropped
     )
 
 def SGA_version():
@@ -473,8 +472,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #gg = np.loadtxt('/global/homes/i/ioannis/ispsf.txt', str)
     #ss[np.isin(ss['GALAXY'], gg)]
     #ss[np.isin(ss['GALAXY'], gg)]['GROUP_NAME',].write('ispsf-bug.txt', format='ascii.basic', overwrite=True)
-    #print('Gigantic hack!!')
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/refit.txt', str)#, skiprows=1)
+    print('Gigantic hack!!')
+    galaxylist = np.loadtxt('/global/homes/i/ioannis/refit.txt', str)#, skiprows=1)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/dropped.txt', str)#, skiprows=1)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/dropped3.txt', str)#, skiprows=1)
 
@@ -622,7 +621,8 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
         ignore = np.where(
             np.logical_or(
                 (dropcat['DROPBIT'] & DROPBITS['notfit'] == 0),
-                (dropcat['DROPBIT'] & DROPBITS['allGaia'] == 0),
+                (dropcat['DROPBIT'] & DROPBITS['masked'] == 0),
+                #(dropcat['DROPBIT'] & DROPBITS['allGaia'] == 0),
                 (dropcat['DROPBIT'] & DROPBITS['nogrz'] == 0))
             )[0]
         if len(ignore) > 0:
@@ -763,13 +763,14 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     isgaia = np.where(tractor['REF_CAT'] == 'G2')[0]
     if len(isgaia) > 0:
         tractor = tractor[np.delete(np.arange(len(tractor)), isgaia)]
-        if len(tractor) == 0: # can happen in small fields
+        if len(tractor) == 0: # can happen on the edge of the footprint
             print('Warning: All Tractor sources are Gaia stars in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
-            onegal['DROPBIT'] |= DROPBITS['allGaia']
+            onegal['DROPBIT'] |= DROPBITS['nogrz']
+            #onegal['DROPBIT'] |= DROPBITS['allGaia']
             return None, onegal
         assert('G2' not in set(tractor['REF_CAT']))
 
-    def _check_grz(galaxydir, galaxy, radec=None):
+    def _check_grz(galaxydir, galaxy, radec=None, just_ivar=False):
         grzmissing, box = False, 2
         for band in ['g', 'r', 'z']:
             imfile = os.path.join(galaxydir, '{}-largegalaxy-image-{}.fits.fz'.format(galaxy, band))
@@ -785,10 +786,15 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                 ycen, xcen = H//2, W//2
             #print(band, img[ycen-box:ycen+box, xcen-box:xcen+box],
             #      ivar[ycen-box:ycen+box, xcen-box:xcen+box])
-            if (np.all(img[ycen-box:ycen+box, xcen-box:xcen+box] == 0) and
-                np.all(ivar[ycen-box:ycen+box, xcen-box:xcen+box] == 0)):
-                grzmissing = True
-                break
+            if just_ivar:
+                if np.all(ivar[ycen-box:ycen+box, xcen-box:xcen+box] == 0):
+                    grzmissing = True
+                    break
+            else:
+                if (np.all(img[ycen-box:ycen+box, xcen-box:xcen+box] == 0) and
+                    np.all(ivar[ycen-box:ycen+box, xcen-box:xcen+box] == 0)):
+                    grzmissing = True
+                    break
         return grzmissing
 
     # Make sure we have at least one SGA in this field; if not, it means the
@@ -805,8 +811,13 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
             onegal['DROPBIT'] |= DROPBITS['nogrz']
         else:
-            print('Dropped by Tractor in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
-            onegal['DROPBIT'] |= DROPBITS['dropped']
+            # Is it fully masked because of a bleed trail or just dropped?
+            if _check_grz(galaxydir, galaxy, just_ivar=True):
+                print('Masked and dropped by Tractor in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
+                onegal['DROPBIT'] |= DROPBITS['masked']
+            else:
+                print('Dropped by Tractor in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
+                onegal['DROPBIT'] |= DROPBITS['dropped']
         return None, onegal
         
     # Next, remove SGA sources which do not belong to this group, because they
@@ -943,22 +954,30 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                 if ng or nr or nz:
                     thisgal['DROPBIT'] |= DROPBITS['nogrz']
                     dropcat.append(thisgal)
-                elif typ == 'PSF':
-                    thisgal['DROPBIT'] |= DROPBITS['isPSF']
-                    dropcat.append(thisgal)
-                elif rflux < 0:
-                    # In some corner cases we can end up with negative r-band
-                    # flux because of missing grz coverage right at the center
-                    # of the galaxy, e.g., PGC046314.
+                elif typ == 'PSF' or rflux < 0:
+                    # In some corner cases we can end up as PSF or with negative
+                    # r-band flux because of missing grz coverage right at the
+                    # center of the galaxy, e.g., PGC046314.
                     grzmissing = _check_grz(galaxydir, galaxy, radec=(thisgal['RA'], thisgal['DEC']))
                     if grzmissing:
                         print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
                         thisgal['DROPBIT'] |= DROPBITS['nogrz']
                         dropcat.append(thisgal)
                     else:
-                        print('Negative r-band flux in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
-                        thisgal['DROPBIT'] |= DROPBITS['negflux']
-                        dropcat.append(thisgal)
+                        # check for fully mask (e.g. bleed trail)--
+                        if _check_grz(galaxydir, galaxy, radec=(thisgal['RA'], thisgal['DEC']), just_ivar=True):
+                            print('Masked galaxy in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
+                            thisgal['DROPBIT'] |= DROPBITS['masked']
+                            dropcat.append(thisgal)
+                        elif typ == 'PSF':
+                            thisgal['DROPBIT'] |= DROPBITS['isPSF']
+                            dropcat.append(thisgal)
+                        elif rflux < 0:
+                            #print('Negative r-band flux in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
+                            thisgal['DROPBIT'] |= DROPBITS['negflux']
+                            dropcat.append(thisgal)
+                        else:
+                            pass
                 else:
                     # If either of these files exist (but there's not
                     # ellipse.fits catalog) then something has gone wrong. If
@@ -1054,7 +1073,9 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     if len(dropcat) > 0:
         dropcat = vstack(dropcat)
 
-    pdb.set_trace()
+    #print(dropcat)
+    #print(tractor[tractor['SGA_ID'] != -1])
+    #pdb.set_trace()
     
     return tractor, dropcat
 

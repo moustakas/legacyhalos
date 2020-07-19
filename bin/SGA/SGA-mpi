@@ -146,8 +146,8 @@ def main():
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[todo])
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                         #print('{}'.format(dd))
-                        #print('\\rm {}/{}-largegalaxy-*.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
-                        print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                        print('\\rm {}/{}-largegalaxy-*.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
+                        #print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
             return
         
     # Wait for all ranks to catch up.
