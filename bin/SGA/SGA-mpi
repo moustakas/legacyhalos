@@ -86,6 +86,8 @@ def main():
             suffix, fail, bigchunksize = 'build-SGA', [], 1024
             nbigchunks = np.ceil(len(sample) / bigchunksize).astype(np.int)
             bigchunks = np.array_split(np.arange(len(sample)), nbigchunks)
+            #print('HACK!!!!!!!!!!!!!!')
+            #bigchunks = bigchunks[:5]
             groups = np.array_split(bigchunks, size)
 
             #print('Hack!!!!!!!!!')
@@ -98,6 +100,7 @@ def main():
             #groups = np.array_split(np.arange(len(sample)), size)
         else:
             suffix, groups, _, fail = legacyhalos.SGA.missing_files(args, sample, size)
+            #groups[0] = groups[0][32:]
     else:
         groups, suffix = [], ''
 
@@ -146,8 +149,8 @@ def main():
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[todo])
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                         #print('{}'.format(dd))
-                        print('\\rm {}/{}-largegalaxy-*.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
-                        #print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                        #print('\\rm {}/{}-largegalaxy-*.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
+                        print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
             return
         
     # Wait for all ranks to catch up.

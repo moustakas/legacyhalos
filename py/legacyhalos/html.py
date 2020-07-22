@@ -233,10 +233,10 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 with Image.open(np.atleast_1d(jpgfile)[0]) as im:
                     sz = im.size
                 if sz[0] > 4096 and sz[0] < 8192:
-                    resize = '-resize 1024x1024 '
+                    resize = '1024x1024'
                     #resize = '-resize 2048x2048 '
                 elif sz[0] > 8192:
-                    resize = '-resize 1024x1024 '
+                    resize = '1024x1024'
                     #resize = '-resize 4096x4096 '
                 else:
                     resize = None
@@ -286,6 +286,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 subprocess.call(cmd.split())
                 if not os.path.isfile(montagefile):
                     print('There was a problem writing {}'.format(montagefile))
+                    print(cmd)
                     continue
 
                 # Create a couple smaller thumbnail images

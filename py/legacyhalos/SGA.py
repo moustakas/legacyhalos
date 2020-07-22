@@ -38,8 +38,6 @@ DROPBITS = dict(
     dropped = 2**3,   # dropped by Tractor (either spurious or a problem with the fitting)
     isPSF = 2**4,     # tractor type=PSF
     negflux = 2**5,   # flux_r <= 0
-    #allGaia = 2**5,  # all Tractor sources in the field are Gaia stars
-    #allsmall = 2**6, # all Tractor sources with PSF | shape_r>0.1 have been dropped
     )
 
 def SGA_version():
@@ -472,7 +470,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #gg = np.loadtxt('/global/homes/i/ioannis/ispsf.txt', str)
     #ss[np.isin(ss['GALAXY'], gg)]
     #ss[np.isin(ss['GALAXY'], gg)]['GROUP_NAME',].write('ispsf-bug.txt', format='ascii.basic', overwrite=True)
-    print('Gigantic hack!!')
+    #print('Gigantic hack!!')
     galaxylist = np.loadtxt('/global/homes/i/ioannis/refit.txt', str)#, skiprows=1)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/dropped.txt', str)#, skiprows=1)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/dropped3.txt', str)#, skiprows=1)
@@ -525,11 +523,11 @@ def _get_diameter(ellipse):
     if ellipse['radius_sb26'] > 0:
         diam, diamref = 2 * ellipse['radius_sb26'] / 60, 'SB26' # [arcmin]
     elif ellipse['radius_sb25'] > 0:
-        diam, diamref = 1.2 * 2 * ellipse['radius_sb25'] / 60, 'SB25' # [arcmin]
+        diam, diamref = 1.25 * 2 * ellipse['radius_sb25'] / 60, 'SB25' # [arcmin]
     #elif ellipse['radius_sb24'] > 0:
     #    diam, diamref = 1.5 * ellipse['radius_sb24'] * 2 / 60, 'SB24' # [arcmin]
     else:
-        diam, diamref = 1.2 * ellipse['d25_leda'], 'LEDA' # [arcmin]
+        diam, diamref = 1.25 * ellipse['d25_leda'], 'LEDA' # [arcmin]
         #diam, diamref = 2 * ellipse['majoraxis'] * ellipse['refpixscale'] / 60, 'WGHT' # [arcmin]
 
     if diam <= 0:
@@ -554,7 +552,7 @@ def _init_ellipse_SGA(clobber=False):
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
     outdir = legacyhalos.io.legacyhalos_data_dir()
-    print('HACKING THE OUTPUT DIRECTORY!!!') ; outdir = os.path.join(outdir, 'test')
+    #print('HACKING THE OUTPUT DIRECTORY!!!') ; outdir = os.path.join(outdir, 'test')
     outfile = os.path.join(outdir, 'SGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
@@ -613,20 +611,24 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
     print('Removing {} pre-burned SGA galaxies from the parent catalog, so we do not double-count them.'.format(len(rem)))
     lslga = lslga[np.delete(np.arange(len(lslga)), rem)] # remove duplicates
 
+    # Update the reference diameter for objects that were not pre-burned--
+    print('Updating the reference diameter from Hyperleda.')
+    lslga['DIAM'] *= 1.25
+
     # Next, remove all galaxies from the 'dropcat' catalog *except* those with
     # DROPBITS[notfit] | DROPBITS[nogrz]. Every other galaxy is spurious (or not
-    # large) in some fashion.
+    # large) in some fashion. Update: all 'dropped' galaxies should be kept!
     print('Found {} SGA galaxies in the dropcat catalog.'.format(len(dropcat)))
     if len(dropcat) > 0:
-        ignore = np.where(
-            np.logical_or(
-                (dropcat['DROPBIT'] & DROPBITS['notfit'] == 0),
-                (dropcat['DROPBIT'] & DROPBITS['masked'] == 0),
-                #(dropcat['DROPBIT'] & DROPBITS['allGaia'] == 0),
-                (dropcat['DROPBIT'] & DROPBITS['nogrz'] == 0))
-            )[0]
+        if False:
+            ignore = np.logical_or(dropcat['DROPBIT'] & DROPBITS['notfit'] != 0,
+                                   dropcat['DROPBIT'] & DROPBITS['masked'] != 0)
+            ignore = np.logical_or(ignore, dropcat['DROPBIT'] & DROPBITS['nogrz'] != 0)
+            ignore = np.where(ignore)[0]
+        else:
+            ignore = np.arange(len(dropcat))
         if len(ignore) > 0:
-            print('Ignoring {} dropped SGA galaxies that were not fit or lack grz imaging.'.format(len(ignore)))
+            print('Not removing {} dropped SGA galaxies.'.format(len(ignore)))
             dropcat = dropcat[np.delete(np.arange(len(dropcat)), ignore)] # remove duplicates
         if len(dropcat) > 0:
             print('Removing {} SGA dropped galaxies.'.format(len(dropcat)))
@@ -752,9 +754,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     tractor = Table(fitsio.read(tractorfile, upper=True))
 
     # Annoying hack. Leo I had unWISE time-resolved photometry, which we don't
-    # need or want; remove it here.
+    # need or want; remove it here. Also remove the FITBITS column, since that
+    # was added late as well.
     for col in tractor.colnames:
-        if 'LC_' in col:
+        if col == 'FITBITS' or 'LC_' in col:
             tractor.remove_column(col)
 
     # Remove Gaia stars from the Tractor catalog immediately, so they're not
@@ -1014,6 +1017,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                             pass
                         else:
                             tractor[col][match] = thisgal[col]
+            # Update the nominal diameter--
+            tractor['DIAM'][match] = 1.25 * tractor['DIAM'][match]
         else:
             ellipse = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id),
                                       filesuffix='largegalaxy', verbose=True)
