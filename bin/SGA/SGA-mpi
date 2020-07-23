@@ -149,6 +149,7 @@ def main():
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[todo])
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                         #print('{}'.format(dd))
+                        #print('touch {}/{}-largegalaxy-coadds.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
                         #print('\\rm {}/{}-largegalaxy-*.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
                         print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
             return
@@ -187,8 +188,8 @@ def main():
         from astrometry.util.multiproc import multiproc
         from legacyhalos.SGA import _build_ellipse_SGA_one, _write_ellipse_SGA
 
-        #print('HACKING THE CHUNK DIRECTORY!!!') ; chunkdatadir = os.path.join(datadir, 'test-chunks')
-        chunkdatadir = os.path.join(datadir, 'chunks')
+        print('HACKING THE CHUNK DIRECTORY!!!') ; chunkdatadir = os.path.join(datadir, 'test-chunks')
+        #chunkdatadir = os.path.join(datadir, 'chunks')
 
         mp = multiproc(nthreads=args.nproc)
         for ichunk, chunk in enumerate(groups[rank]):

@@ -471,7 +471,11 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #ss[np.isin(ss['GALAXY'], gg)]
     #ss[np.isin(ss['GALAXY'], gg)]['GROUP_NAME',].write('ispsf-bug.txt', format='ascii.basic', overwrite=True)
     #print('Gigantic hack!!')
-    galaxylist = np.loadtxt('/global/homes/i/ioannis/refit.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/fix.txt', str)#, skiprows=1)
+
+    galaxylist = np.loadtxt('/global/homes/i/ioannis/badcoords.txt', str)#, skiprows=1)
+    
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/refit.txt', str)#, skiprows=1)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/dropped.txt', str)#, skiprows=1)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/dropped3.txt', str)#, skiprows=1)
 
@@ -552,7 +556,7 @@ def _init_ellipse_SGA(clobber=False):
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
     outdir = legacyhalos.io.legacyhalos_data_dir()
-    #print('HACKING THE OUTPUT DIRECTORY!!!') ; outdir = os.path.join(outdir, 'test')
+    print('HACKING THE OUTPUT DIRECTORY!!!') ; outdir = os.path.join(outdir, 'test')
     outfile = os.path.join(outdir, 'SGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
@@ -1007,7 +1011,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     #tractor['REF_CAT'][match] = ' '
                     #tractor['REF_ID'][match] = -1 # use -1, 0!
                     tractor['FREEZE'][match] = True
-                    
+
                     thisgal.rename_column('RA', 'SGA_RA')
                     thisgal.rename_column('DEC', 'SGA_DEC')
                     thisgal.remove_column('INDEX')
@@ -1071,7 +1075,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # Keep just frozen sources. Can be empty (e.g., if a field contains just a
     # single dropped source, e.g., DR8-2194p447-894).
     keep = np.where(tractor['FREEZE'])[0]
-    if len(keep) == 0:
+    if len(keep) > 0:
         #raise ValueError('No frozen galaxies in the field of ID={}?!?'.format(onegal['SGA_ID']))
         tractor = tractor[keep]
 
@@ -1780,9 +1784,13 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
                    html_raslices=html_raslices)
 
     # Now build the individual pages in parallel.
-    raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
-    rasorted = np.argsort(raslices)
-    galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample[rasorted], html=True)
+    if html_raslices:
+        raslices = np.array([get_raslice(ra) for ra in sample[racolumn]])
+        rasorted = np.argsort(raslices)
+        galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample[rasorted], html=True)
+    else:
+        rasorted = np.arange(len(sample))
+        galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
 
     nextgalaxy = np.roll(np.atleast_1d(galaxy), -1)
     prevgalaxy = np.roll(np.atleast_1d(galaxy), 1)
