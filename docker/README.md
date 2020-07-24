@@ -2,7 +2,7 @@ Build a Docker container for the legacyhalos project.
 =====================================================
 
 ```
-docker pull legacysurvey/legacypipe:DR9.5.4
+docker pull legacysurvey/legacypipe:DR9.5.5pre
 docker build . -t legacysurvey/legacyhalos
 docker push legacysurvey/legacyhalos:latest
 

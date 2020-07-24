@@ -1,4 +1,4 @@
-FROM legacysurvey/legacypipe:DR9.5.4
+FROM legacysurvey/legacypipe:DR9.5.5pre
 
 RUN for x in \
     ipython \
@@ -12,7 +12,7 @@ RUN echo '<policymap></policymap>' > /etc/ImageMagick-6/policy.xml
 
 # legacyhalos
 WORKDIR /src
-RUN git clone http://github.com/moustakas/legacyhalos.git legacyhalos \
+RUN git clone https://github.com/moustakas/legacyhalos.git legacyhalos \
     && cd legacyhalos && git describe
 
 RUN echo 'PYTHONPATH=/src/legacyhalos/py:$PYTHONPATH'
