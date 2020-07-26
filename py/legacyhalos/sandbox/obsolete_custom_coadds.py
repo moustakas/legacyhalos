@@ -711,3 +711,126 @@ def obsolete_custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                 os.remove(picklefile)
 
     return 1
+
+def coadds_skysub(tims, targetwcs, survey, brickname, bands, mp,
+                  subsky_radii=None, plots=False, plots2=False,
+                  ps=None, verbose=False):
+    
+    from tractor.sky import ConstantSky
+    from legacypipe.reference import get_reference_sources, get_reference_map
+    from legacypipe.coadds import make_coadds
+    from legacypipe.survey import get_rgb, imsave_jpeg
+    from astropy.stats import sigma_clipped_stats
+
+    if plots or plots2:
+        import os
+        import matplotlib.pyplot as plt
+        
+    if plots:
+        import matplotlib.patches as patches
+
+        refs, _ = get_reference_sources(survey, targetwcs, targetwcs.pixel_scale(), ['r'],
+                                        tycho_stars=False, gaia_stars=False,
+                                        large_galaxies=True, star_clusters=False)
+        
+        pixscale = targetwcs.pixel_scale()
+        width, height = targetwcs.get_width() * pixscale / 3600, targetwcs.get_height() * pixscale / 3600 # [degrees]
+        bb, bbcc = targetwcs.radec_bounds(), targetwcs.radec_center() # [degrees]
+        pad = 0.5 * width # [degrees]
+
+        delta = np.max( (np.diff(bb[0:2]), np.diff(bb[2:4])) ) / 2 + pad / 2
+        xlim = bbcc[0] - delta, bbcc[0] + delta
+        ylim = bbcc[1] - delta, bbcc[1] + delta
+
+        plt.clf()
+        fig, allax = plt.subplots(1, 3, figsize=(12, 5), sharey=True, sharex=True)
+        for ax, band in zip(allax, ('g', 'r', 'z')):
+            ax.set_xlabel('RA (deg)')
+            ax.text(0.9, 0.05, band, ha='center', va='bottom',
+                    transform=ax.transAxes, fontsize=18)
+
+            if band == 'g':
+                ax.set_ylabel('Dec (deg)')
+            ax.get_xaxis().get_major_formatter().set_useOffset(False)
+            for gal in refs:
+                ax.add_patch(patches.Circle((gal.ra, gal.dec), gal.radius, fill=False, edgecolor='black', lw=2))
+
+            these = np.where([tim.band == band for tim in tims])[0]
+            col = plt.cm.Set1(np.linspace(0, 1, len(tims)))
+            for ii, indx in enumerate(these):
+                tim = tims[indx]
+                wcs = tim.subwcs
+                cc = wcs.radec_bounds()
+                ax.add_patch(patches.Rectangle((cc[0], cc[2]), cc[1]-cc[0],
+                                               cc[3]-cc[2], fill=False, lw=2, 
+                                               edgecolor=col[these[ii]],
+                                               label='ccd{:02d}'.format(these[ii])))
+                ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=10)
+
+            ax.set_ylim(ylim)
+            ax.set_xlim(xlim)
+            ax.invert_xaxis()
+            ax.set_aspect('equal')
+
+        plt.subplots_adjust(bottom=0.12, wspace=0.05, left=0.12, right=0.97, top=0.95)
+        plt.savefig(os.path.join(survey.output_dir, 'metrics', 'cus', '{}-ccdpos.jpg'.format(ps.basefn)))
+        
+    if plots:
+        plt.figure(figsize=(8,6))
+        mods = []
+        for tim in tims:
+            imcopy = tim.getImage().copy()
+            tim.sky.addTo(imcopy, -1)
+            mods.append(imcopy)
+        C = make_coadds(tims, bands, targetwcs, mods=mods, callback=None, mp=mp)
+        imsave_jpeg(os.path.join(survey.output_dir, 'metrics', 'cus', '{}-pipelinesky.jpg'.format(ps.basefn)),
+                    get_rgb(C.comods, bands), origin='lower')
+
+    for tim in tims:
+        # full-field mosaic with no sky-subtraction
+        tim.imobj.get_tractor_image(gaussPsf=True, pixPsf=False, subsky=False,
+                                    dq=True, apodize=False)
+        H, W = tim.subwcs.shape
+        H, W = np.int(H), np.int(W)
+        pixel_scale = tim.subwcs.pixel_scale()
+
+        refs, _ = get_reference_sources(survey, tim.subwcs, pixel_scale, ['r'],
+                                        tycho_stars=True, gaia_stars=True,
+                                        large_galaxies=True, star_clusters=True)
+        refmask = get_reference_map(tim.subwcs, refs) != 0 # True=object pixels
+    
+        # Mask the center of the (target) field--
+        #http://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array
+        _, x0, y0 = targetwcs.radec2pixelxy(targetwcs.crval[0], targetwcs.crval[1])
+        xcen, ycen = np.round(x0 - 1).astype('int'), np.round(y0 - 1).astype('int')
+        ymask, xmask = np.ogrid[-ycen:H-ycen, -xcen:W-xcen]
+        cenmask = (xmask**2 + ymask**2) <= (subsky_radii[0] / pixel_scale)**2
+
+        #plt.imshow(refmask, origin='lower') ; plt.savefig('junk.png')
+        #plt.imshow(cenmask, origin='lower') ; plt.savefig('junk.png')
+        #plt.imshow(np.log10(tim.data), origin='lower') ; plt.savefig('junk.png')
+        
+    allbands = np.array([tim.band for tim in tims])
+    for band in sorted(set(allbands)):
+        print('Working on band {}'.format(band))
+        I = np.where(allbands == band)[0]
+
+        bandtims = [tims[ii].imobj.get_tractor_image(
+            gaussPsf=True, pixPsf=False, subsky=False, dq=True, apodize=False)
+            for ii in I]
+
+    C = make_coadds(tims, bands, targetwcs, callback=None, sbscale=False, mp=mp)
+    for coimg,coiv,band in zip(C.coimgs, C.cowimgs, bands):
+        #cosky = np.median(coimg[refmask * (coiv > 0)])
+        skypix = _build_objmask(coimg, coiv, refmask * (coiv>0))
+        skymean, skymedian, skysig = sigma_clipped_stats(coimg, mask=~skypix, sigma=3.0)
+        
+        I = np.where(allbands == band)[0]
+        #print('Band', band, 'Coadd sky:', skymedian)
+
+        for ii in I:
+            tims[ii].data -= skymedian
+            #print('Tim', tims[ii], 'after subtracting skymedian: median', np.median(tims[ii].data))
+
+    return tims
+

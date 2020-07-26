@@ -22,13 +22,13 @@ def _mosaic_width(radius_mosaic, pixscale):
 
 def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                      unwise=True, galex=False, cleanup=False, just_coadds=False,
-                     clobber=False, require_grz=True):
+                     clobber=False, require_grz=True, missing_ok=False):
     """Move (rename) files into the desired output directory and clean up.
 
     """
     import fitsio
 
-    def _copyfile(infile, outfile, clobber=False, update_header=False):
+    def _copyfile(infile, outfile, clobber=False, update_header=False, missing_ok=False):
         if os.path.isfile(outfile) and not clobber:
             return 1
         if os.path.isfile(infile):
@@ -37,8 +37,11 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 pass
             return 1
         else:
-            print('Missing file {}; please check the logfile.'.format(infile))
-            return 0
+            if missing_ok:
+                return 1
+            else:
+                print('Missing file {}; please check the logfile.'.format(infile))
+                return 0
 
     def _do_cleanup():
         import shutil
@@ -52,36 +55,49 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if os.path.isfile(picklefile):
                 os.remove(picklefile)
 
+    # Diagnostic plots (OK if they're missing) (put this above the check for the
+    # CCDs--if the plots have been made then they are useful for testing and
+    # debugging).
+    for qatype in ('ccdpos', 'pipelinesky', 'customsky'):
+        ok = _copyfile(
+            os.path.join(output_dir, 'metrics', 'cus', 'fitoncoadds-{}-{}.jpg'.format(brickname, qatype)),
+                         os.path.join(output_dir, '{}-{}-{}.jpg'.format(galaxy, stagesuffix, qatype)),
+            clobber=clobber, missing_ok=True)
+        if not ok:
+            return ok
+
     # If we made it here and there is no CCDs file it's because legacypipe
     # exited cleanly with "No photometric CCDs touching brick."
-    ccdsfile = os.path.join(output_dir, 'coadd', 'cus', brickname,
+    _ccdsfile = os.path.join(output_dir, 'coadd', 'cus', brickname,
                             'legacysurvey-{}-ccds.fits'.format(brickname))
-    if not os.path.isfile(ccdsfile):
+    if not os.path.isfile(_ccdsfile) and missing_ok is False:
         print('No photometric CCDs touching brick.')
         if cleanup:
             _do_cleanup()
         return 1
     
+    ccdsfile = os.path.join(output_dir, '{}-ccds-{}.fits'.format(galaxy, run))
     ok = _copyfile(
         os.path.join(output_dir, 'coadd', 'cus', brickname,
-                     'legacysurvey-{}-ccds.fits'.format(brickname)),
-                     os.path.join(output_dir, '{}-ccds-{}.fits'.format(galaxy, run)),
-        clobber=clobber)
+                     'legacysurvey-{}-ccds.fits'.format(brickname)), ccdsfile,
+        clobber=clobber, missing_ok=missing_ok)
     if not ok:
         return ok
-
-    ccdsfile = os.path.join(output_dir, '{}-ccds-{}.fits'.format(galaxy, run))
-    allbands = fitsio.read(ccdsfile, columns='filter')
-    bands = list(sorted(set(allbands)))
 
     # For objects on the edge of the footprint we can sometimes lose 3-band
     # coverage if one of the bands is fully masked. Check here and write out all
     # the files except a 
-    if require_grz and ('g' not in bands or 'r' not in bands or 'z' not in bands):
-        print('Lost grz coverage and require_grz=True.')
-        if cleanup:
-            _do_cleanup()
-        return 1
+    if os.path.isfile(ccdsfile): # can be missing during testing if missing_ok=True
+        allbands = fitsio.read(ccdsfile, columns='filter')
+        bands = list(sorted(set(allbands)))
+
+        if require_grz and ('g' not in bands or 'r' not in bands or 'z' not in bands):
+            print('Lost grz coverage and require_grz=True.')
+            if cleanup:
+                _do_cleanup()
+            return 1
+    else:
+        bands = ('g', 'r', 'z')
 
     # image coadds (FITS + JPG)
     for band in bands:
@@ -90,7 +106,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
                              os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, outtype, band)),
-                clobber=clobber, update_header=True)
+                clobber=clobber, missing_ok=missing_ok, update_header=True)
             if not ok:
                 return ok
 
@@ -99,7 +115,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
         os.path.join(output_dir, 'coadd', 'cus', brickname,
                      'legacysurvey-{}-image.jpg'.format(brickname)),
         os.path.join(output_dir, '{}-{}-image-grz.jpg'.format(galaxy, stagesuffix)),
-        clobber=clobber)
+        clobber=clobber, missing_ok=missing_ok)
     if not ok:
         return ok
 
@@ -116,7 +132,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                     os.path.join(output_dir, 'coadd', 'cus', brickname,
                                  'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
                                  os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, outtype, band)),
-                    clobber=clobber)
+                    clobber=clobber, missing_ok=missing_ok)
                 if not ok:
                     return ok
 
@@ -124,7 +140,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     ok = _copyfile(
         os.path.join(output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
         os.path.join(output_dir, '{}-{}-tractor.fits'.format(galaxy, stagesuffix)),
-        clobber=clobber)
+        clobber=clobber, missing_ok=missing_ok)
     if not ok:
         return ok
 
@@ -133,21 +149,21 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
         os.path.join(output_dir, 'coadd', 'cus', brickname,
                      'legacysurvey-{}-maskbits.fits.fz'.format(brickname)),
         os.path.join(output_dir, '{}-{}-maskbits.fits.fz'.format(galaxy, stagesuffix)),
-        clobber=clobber)
+        clobber=clobber, missing_ok=missing_ok)
     if not ok:
         return ok
 
     ok = _copyfile(
         os.path.join(output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
         os.path.join(output_dir, '{}-{}-blobs.fits.gz'.format(galaxy, stagesuffix)),
-        clobber=clobber)
+        clobber=clobber, missing_ok=missing_ok)
     if not ok:
         return ok
 
     ok = _copyfile(
         os.path.join(output_dir, 'metrics', 'cus', 'outlier-mask-{}.fits.fz'.format(brickname)),
         os.path.join(output_dir, '{}-{}-outlier-mask.fits.fz'.format(galaxy, stagesuffix)),
-        clobber=clobber)
+        clobber=clobber, missing_ok=missing_ok)
     if not ok:
         return ok
 
@@ -156,7 +172,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             os.path.join(output_dir, 'coadd', 'cus', brickname,
                          'legacysurvey-{}-depth-{}.fits.fz'.format(brickname, band)),
             os.path.join(output_dir, '{}-depth-{}.fits.fz'.format(galaxy, band)),
-            clobber=clobber)
+            clobber=clobber, missing_ok=missing_ok)
         if not ok:
             return ok
 
@@ -168,7 +184,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
                 os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, imtype, band)),
-                clobber=clobber)
+                clobber=clobber, missing_ok=missing_ok)
             if not ok:
                 return ok
 
@@ -178,7 +194,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             os.path.join(output_dir, 'coadd', 'cus', brickname,
                          'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
             os.path.join(output_dir, '{}-{}-{}-grz.jpg'.format(galaxy, stagesuffix, imtype)),
-            clobber=clobber)
+            clobber=clobber, missing_ok=missing_ok)
         if not ok:
             return ok
 
@@ -193,7 +209,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                     os.path.join(output_dir, 'coadd', 'cus', brickname,
                                  'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
                     os.path.join(output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)),
-                    clobber=clobber)
+                    clobber=clobber, missing_ok=missing_ok)
                 if not ok:
                     return ok
 
@@ -201,7 +217,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-model-{}.fits.fz'.format(brickname, band)),
                 os.path.join(output_dir, '{}-{}-model-{}.fits.fz'.format(galaxy, stagesuffix, band)),
-                    clobber=clobber)
+                    clobber=clobber, missing_ok=missing_ok)
             if not ok:
                 return ok
 
@@ -210,7 +226,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
                 os.path.join(output_dir, '{}-{}-W1W2.jpg'.format(galaxy, suffix)),
-                    clobber=clobber)
+                    clobber=clobber, missing_ok=missing_ok)
             if not ok:
                 return ok
 
@@ -221,7 +237,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                     os.path.join(output_dir, 'coadd', 'cus', brickname,
                                  'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
                     os.path.join(output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)),
-                    clobber=clobber)
+                    clobber=clobber, missing_ok=missing_ok)
                 if not ok:
                     return ok
 
@@ -229,7 +245,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-model-{}.fits.fz'.format(brickname, band)),
                 os.path.join(output_dir, '{}-{}-model-{}.fits.fz'.format(galaxy, stagesuffix, band)),
-                    clobber=clobber)
+                    clobber=clobber, missing_ok=missing_ok)
             if not ok:
                 return ok
 
@@ -238,7 +254,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
                 os.path.join(output_dir, '{}-{}-FUVNUV.jpg'.format(galaxy, suffix)),
-                    clobber=clobber)
+                    clobber=clobber, missing_ok=missing_ok)
             if not ok:
                 return ok
 
@@ -256,7 +272,7 @@ def get_ccds(survey, ra, dec, pixscale, width):
     brickname = 'custom-{}'.format(custom_brickname(ra, dec))
     brick = BrickDuck(ra, dec, brickname)
 
-    targetwcs = wcs_for_brick(brick, W=width, H=width, pixscale=pixscale)
+    targetwcs = wcs_for_brick(brick, W=np.float(width), H=np.float(width), pixscale=pixscale)
     ccds = survey.ccds_touching_wcs(targetwcs)
     if ccds is None or np.sum(ccds.ccd_cuts == 0) == 0:
         return []
@@ -269,9 +285,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC', 
                   largegalaxy=False, pipeline=False, custom=True,
                   log=None, apodize=False, unwise=True, galex=False, force=False,
-                  plots=False, verbose=False, cleanup=True,
-                  write_all_pickles=False, no_subsky=False, subsky_radii=None,
-                  customsky=False, just_coadds=False, require_grz=True, no_gaia=False,
+                  plots=False, verbose=False, cleanup=True, missing_ok=False,
+                  write_all_pickles=False,
+                  #no_subsky=False,
+                  subsky_radii=None,
+                  ubercal_sky=False, just_coadds=False, require_grz=True, no_gaia=False,
                   no_tycho=False):
     """Build a custom set of large-galaxy coadds
 
@@ -356,24 +374,24 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             galaxydir=survey.output_dir, galaxy=galaxy, stagesuffix=stagesuffix)
         if os.path.isfile(checkpointfile):
             os.remove(checkpointfile)
-    if no_subsky and subsky_radii:
+    if subsky_radii: # implies --no-subsky
         if len(subsky_radii) != 3:
-            print('subsky_radii must be a 3-element vector')
-        cmd += '--no-subsky --subsky-radii {} {} {} '.format(subsky_radii[0], subsky_radii[1], subsky_radii[2]) # [arcsec]
-    if customsky:
-        print('Skipping custom sky')
-        #cmd += '--largegalaxy-skysub '
-        #print('HACK!!!!!!!!!!!!!!!!! doing just largegalaxies stage in legacyhalos.coadds')
-        #cmd += '--stage largegalaxies '
+            raise ValueError('subsky_radii must be a 3-element vector')
+        cmd += '--no-subsky --ubercal-sky --subsky-radii {} {} {} '.format(subsky_radii[0], subsky_radii[1], subsky_radii[2]) # [arcsec]
+    #if ubercal_sky: # implies --no-subsky
+    #    cmd += '--no-subsky --ubercal-sky '
 
     # stage-specific options here--
-    if largegalaxy:
+    if custom:
+        cmd += '--fit-on-coadds --no-ivar-reweighting '
+    elif largegalaxy:
         cmd += '--fit-on-coadds --saddle-fraction 0.2 --saddle-min 4.0 '
         #cmd += '--nsigma 10 '
-    if custom:
-        cmd += '--fit-on-coadds '
+    else:
+        pass # standard pipeline
 
-    cmd += '--stage srcs ' ; cleanup = False
+    #cmd += '--stage fit_on_coadds ' ; cleanup = False ; missing_ok = True
+    #cmd += '--stage srcs ' ; cleanup = False
     #cmd += '--stage fitblobs ' ; cleanup = False
     #cmd += '--stage coadds ' ; cleanup = False
     #cmd += '--stage wise_forced ' ; cleanup = False
@@ -386,6 +404,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print(cmd, flush=True, file=log)
 
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
+    #err=0
 
     if err != 0:
         print('Something went wrong; please check the logfile.')
@@ -395,5 +414,5 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
                               run, unwise=unwise, galex=galex, cleanup=cleanup,
                               just_coadds=just_coadds, clobber=force,
-                              require_grz=require_grz)
+                              require_grz=require_grz, missing_ok=missing_ok)
         return ok, stagesuffix

@@ -1,11 +1,7 @@
 #!/usr/bin/env python
-"""MPI wrapper for the tidal streams project.
+"""MPI wrapper for the Virgo filaments project.
 
-funpack -Z -F -v streams/*/*custom*.fz
-funpack -Z -F -v streams/*/*pipeline*.fz
-funpack -Z -F -v streams/*/*invvar*.fz
-
-montage -bordercolor white -borderwidth 1 -tile 5x5 -geometry +0+0 -resize 512 */*-custom-image-grz.jpg ./streams.png
+virgofilaments-mpi --coadds
 
 """
 import matplotlib
@@ -19,16 +15,16 @@ def main():
 
     """
     import legacyhalos.io
-    import legacyhalos.streams
+    import legacyhalos.virgofilaments
 
     from legacypipe.runs import get_survey
-    from legacyhalos.streams import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, DIAMCOLUMN, MASKCOLUMN
+    from legacyhalos.virgofilaments import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, DIAMCOLUMN
 
     basedir = legacyhalos.io.legacyhalos_dir()
     datadir = legacyhalos.io.legacyhalos_data_dir()
     htmldir = legacyhalos.io.legacyhalos_html_dir()
     
-    args = legacyhalos.streams.mpi_args()
+    args = legacyhalos.virgofilaments.mpi_args()
 
     if args.mpi:
         from mpi4py import MPI
@@ -39,34 +35,42 @@ def main():
         rank, size = 0, 1
 
     # Read and broadcast the sample.
-    sample = None
+    sample, fullsample = None, None
     if rank == 0:
         print('$LEGACYHALOS_DIR={}'.format(basedir))
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
-        sample = legacyhalos.streams.read_sample(first=args.first, last=args.last,
-                                               galaxylist=args.galaxylist,
-                                               verbose=args.verbose)
+        sample = legacyhalos.virgofilaments.read_sample(first=args.first, last=args.last,
+                                                        galaxylist=args.galaxylist,
+                                                        verbose=args.verbose,
+                                                        read_groupsample=True)
         if len(sample) == 0:
             return
+        
+        #if args.coadds or args.build_catalog:
+        #    fullsample = legacyhalos.virgofilaments.read_sample(verbose=args.verbose,
+        #                                                        read_groupsample=False)
+        #    fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
+        fullsample = None
 
     if comm:
         sample = comm.bcast(sample, root=0)
+        fullsample = comm.bcast(fullsample, root=0)
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
     if args.htmlindex and rank == 0:
-        legacyhalos.streams.make_html(sample, survey=None, pixscale=args.pixscale,
-                                      racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn=DIAMCOLUMN,
-                                      zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
-                                      makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                      ccdqa=args.ccdqa, args=args)
+        legacyhalos.virgofilaments.make_html(sample, survey=None, pixscale=args.pixscale,
+                                             racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
+                                             zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+                                             makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                             ccdqa=args.ccdqa, args=args)
         return
     
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
     if rank == 0:
-        suffix, groups, _, fail = legacyhalos.streams.missing_files(args, sample, size)
+        suffix, groups, _, fail = legacyhalos.virgofilaments.missing_files(args, sample, size)
     else:
         groups, suffix = [], ''
 
@@ -93,16 +97,16 @@ def main():
             if args.debug:
                 if len(fail[rank]) > 0:
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
-                    galaxy, galaxydir = legacyhalos.streams.get_galaxy_galaxydir(sample[fail[rank]])
-                    for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
-                        print('  {} {} (D={:.3f})'.format(ii, dd, diam))
+                    galaxy, galaxydir = legacyhalos.virgofilaments.get_galaxy_galaxydir(sample[fail[rank]])
+                    for ii, dd in zip(fail[rank], np.atleast_1d(galaxydir)):
+                        print('  {} {}'.format(ii, dd))
 
                 todo = np.hstack(groups)
                 if len(todo) > 0:
                     #print('Galaxies left to do:')
-                    galaxy, galaxydir = legacyhalos.streams.get_galaxy_galaxydir(sample[todo])
-                    for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
-                        print('  {} {} (D={:.3f})'.format(ii, dd, diam))
+                    galaxy, galaxydir = legacyhalos.virgofilaments.get_galaxy_galaxydir(sample[todo])
+                    for ii, dd in zip(todo, np.atleast_1d(galaxydir)):
+                        print('  {} {}'.format(ii, dd))
             return
         
     # Loop on the remaining objects.
@@ -113,7 +117,7 @@ def main():
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
-        galaxy, galaxydir = legacyhalos.streams.get_galaxy_galaxydir(onegal)
+        galaxy, galaxydir = legacyhalos.virgofilaments.get_galaxy_galaxydir(onegal)
         if not os.path.isdir(galaxydir):
             os.makedirs(galaxydir, exist_ok=True)
 
@@ -126,22 +130,28 @@ def main():
         else:
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
-        # Mosaic diameter--
-        radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60. / 2. # [arcsec]
-        radius_mask_arcsec = onegal[MASKCOLUMN] * 60.        # [arcsec]
-        subsky_radii = (radius_mask_arcsec, 2*radius_mask_arcsec, 4*radius_mask_arcsec)
+        # Need the object "radius" to build the coadds.
+        radius_mosaic_arcsec = onegal[DIAMCOLUMN] * 60 * 1.5 # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
 
         if args.coadds:
             from legacyhalos.mpi import call_custom_coadds
+
+            # Write out the individual galaxies for this mosaic.
+            print('Hack---do not write out fullsample.')
+            #thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
+            #samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
+            #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+            #thissample.write(samplefile, overwrite=True)
+
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=False, custom=True,
-                               apodize=False, unwise=False, galex=False, force=args.force, plots=False,
-                               verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
-                               subsky_radii=subsky_radii,
+                               #largegalaxy=True, pipeline=False, custom=False,
+                               apodize=False, unwise=True, galex=True, force=args.force, plots=False,
+                               verbose=args.verbose, cleanup=True, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile)
 
@@ -153,8 +163,8 @@ def main():
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=True, custom=False,
                                apodize=False, unwise=False, force=args.force, plots=False,
-                               verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
-                               no_splinesky=False, just_coadds=args.just_coadds,
+                               verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                               just_coadds=args.just_coadds,
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
@@ -162,7 +172,11 @@ def main():
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                          nproc=args.nproc, verbose=args.verbose, debug=args.debug,
                          unwise=False, galex=False,
-                         logfile=logfile, largegalaxy=False, pipeline=False)
+                         #unwise=True, galex=True,
+                         logfile=logfile,
+                         #largegalaxy=True,
+                         largegalaxy=False,
+                         pipeline=False)
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
@@ -182,7 +196,8 @@ def main():
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
                            largegalaxy=False,
-                           get_galaxy_galaxydir=legacyhalos.streams.get_galaxy_galaxydir)
+                           #largegalaxy=True,
+                           get_galaxy_galaxydir=legacyhalos.virgofilaments.get_galaxy_galaxydir)
 
     # Wait for all ranks to finish.
     if comm is not None:
@@ -191,7 +206,7 @@ def main():
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups, _, _ = legacyhalos.streams.missing_files(args, sample, size, clobber_overwrite=False)
+        _, groups, _, _ = legacyhalos.virgofilaments.missing_files(args, sample, size, clobber_overwrite=False)
         if len(groups) > 0:
             stilltodo = len(np.hstack(groups))
         else:

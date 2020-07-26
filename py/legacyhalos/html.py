@@ -233,13 +233,13 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 with Image.open(np.atleast_1d(jpgfile)[0]) as im:
                     sz = im.size
                 if sz[0] > 4096 and sz[0] < 8192:
-                    resize = '-resize 1024x1024 '
+                    resize = '1024x1024'
                     #resize = '-resize 2048x2048 '
                 elif sz[0] > 8192:
-                    resize = '-resize 1024x1024 '
+                    resize = '1024x1024'
                     #resize = '-resize 4096x4096 '
                 else:
-                    resize = ''
+                    resize = None
 
                 # Make a quick thumbnail of just the data.
                 cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(96, np.atleast_1d(jpgfile)[0], thumb2file)
@@ -250,8 +250,10 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     
                 # Add a bar and label to the first image.
                 if _just_coadds:
-                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 {} -geometry +0+0 '.format(resize)
-                    #cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 -resize 4096x4096\> '
+                    if resize:
+                        cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -resize {} -geometry +0+0 '.format(resize)
+                    else:
+                        cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 '
                     if barlen:
                         addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
                         cmd = cmd+' '+barpngfile
@@ -262,7 +264,10 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     else:
                         thumbsz = sz[0]
                 else:
-                    cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 {} -geometry +0+0 '.format(resize)
+                    if resize:
+                        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -resize {} -geometry +0+0 '.format(resize)
+                    else:
+                        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
                     if barlen:
                         addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
                         cmd = cmd+' '+barpngfile+' '
@@ -281,6 +286,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 subprocess.call(cmd.split())
                 if not os.path.isfile(montagefile):
                     print('There was a problem writing {}'.format(montagefile))
+                    print(cmd)
                     continue
 
                 # Create a couple smaller thumbnail images
@@ -340,6 +346,8 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                 display_ellipse_sbprofile, qa_curveofgrowth,
                                 qa_maskbits)
 
+    Image.MAX_IMAGE_PIXELS = None
+    
     # Read the data--
     data = read_multiband(galaxy, galaxydir, bands=bands,
                           refband=refband, pixscale=pixscale,
@@ -591,7 +599,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
     return 1
 
 # Get the viewer link
-def viewer_link(ra, dec, width, lslga=False):
+def viewer_link(ra, dec, width, sga=False):
     baseurl = 'http://legacysurvey.org/viewer-dev/'
     if width > 1200:
         zoom = 13
@@ -599,8 +607,8 @@ def viewer_link(ra, dec, width, lslga=False):
         zoom = 14
     else:
         zoom = 15
-    if lslga:
-        layer1 = '&lslga'
+    if sga:
+        layer1 = '&sga&sga-parent'
     else:
         layer1 = ''
     viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8{}'.format(
