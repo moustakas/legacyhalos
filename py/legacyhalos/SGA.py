@@ -37,8 +37,81 @@ DROPBITS = dict(
     masked = 2**2,    # masked (e.g., due to a bleed trail)
     dropped = 2**3,   # dropped by Tractor (either spurious or a problem with the fitting)
     isPSF = 2**4,     # tractor type=PSF
-    negflux = 2**5,   # flux_r <= 0
+    veto = 2**5,      # veto the ellipse-fit geometry
+    negflux = 2**6,   # flux_r <= 0
     )
+
+# veto the ellipse-fit parameters for these objects
+VETO_ELLIPSE = np.array(list(set([
+    # LG dwarfs
+    'LeoII',
+    'LeoI',
+    'LGS3',
+    'AndromedaVI',
+    'AndromedaXXVIII',
+    'Phoenix',
+    'Cetus',
+    'Tucana',
+    'KKR25', 
+    # ~small galaxies with problematic ellipse-fits and no bright non-SGA companions in the Hyperleda mask
+    'PGC091013', # ellipse diameter too big
+    'PGC020336',  # ellipse moves to bright star
+    'PGC2022273', # ellipse diameter too big
+    'PGC091171',  # ellipse diameter too big
+    'PGC2665094', # ellipse moves to bright star
+    'PGC090861',  # affected by bleed trail
+    'PGC1036933', # ellipse diameter too big
+    'PGC437802',  # ellipse diameter too big
+    'PGC213966',  # ellipse diameter too big (but we may lose a small companion)
+    'PGC2046017', # affected by bleed trail
+    'UGC09630',   # ellipse moves to bright star
+    'PGC2042481', # ellipse diameter too big
+    'PGC022276',  # ellipse moves to bright star
+    'PGC061640',  # ellipse diameter too big
+    'PGC2123520', # ellipse diameter too big
+    'PGC2034992', # affected by bleed trail
+    'PGC090944', # ellipse diameter too big
+    'PGC090808',  # ellipse diameter too big
+    'UGC04788',   # ellipse diameter too big
+    'PGC147988', # wrong diameter (bleed trail)
+    'PGC061380', # diameter and PA very wrong
+    'PGC1090829', # ellipse diameter too big
+    'PGC2385881', # totally wrong ellipse diameter
+    'PGC2283901', # ellipse diameter too big
+    'PGC006108', # ellipse diameter too big
+    'PGC3288397', # ellipse diameter too big
+    'PGC2371341', # diameter too big?
+    'PGC711419',  # ellipse diameter too big
+    'PGC145889', # ellipse diam far too large
+    'UGC03974', # b/a too narrow
+    'PGC2631024', # diameter too big
+    'UGC10111', # b/a too big
+    'UGC10736', # PA affected by star
+    #'UGC04363', # ellipse b/a is too narrow
+    #'NGC4204',  # ellipse b/a is too narrow
+    #'PGC069404', # PA not great
+    #'NGC0660', # ellipse PA is wrong
+    #'PGC045254', # b/a could be better
+    #'PGC2742031', # ellipse b/a, pa affected by star (fit as PSF)
+    #'ESO085-014', # ellipse diameter too big
+    #'NGC4395', # too big?
+    #'NGC2403', # not big enough?
+    #'NGC7462', # ellipse diameter too big
+    #'NGC0988', # ellipse diameter too big
+    #'NGC0134', # ellipse diameter too big
+    #'NGC3623', # ellipse diameter too big
+    #'NGC1515', # ellipse diameter too big
+    #'NGC3972', # ellipse diameter too big
+    #'NGC4527', # ellipse diameter too big
+    #'NGC4062', # ellipse diameter too big
+    #'NGC4570', # ellipse diameter too big
+    #'ESO437-020', # ellipse diameter too big
+    #'ESO196-013', # ellipse diameter too big
+    #'PGC047705',  # ellipse diameter too big
+    #'PGC2369617', # ellipse diameter too big
+    #'UGC00484', # ellipse diameter too big
+    #'NGC1566',  # ellipse PA not quite right
+    ])))
 
 def SGA_version():
     """Archived versions. We used v2.0 for DR8, v3.0 through v7.0 were originally
@@ -473,7 +546,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #print('Gigantic hack!!')
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/fix.txt', str)#, skiprows=1)
 
-    galaxylist = np.loadtxt('/global/homes/i/ioannis/badcoords.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/badcoords.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/arjun.txt', str)#, skiprows=1)
     
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/refit.txt', str)#, skiprows=1)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/dropped.txt', str)#, skiprows=1)
@@ -556,7 +630,7 @@ def _init_ellipse_SGA(clobber=False):
     #outdir = os.path.dirname(os.getenv('LARGEGALAXIES_CAT'))
     #outdir = '/global/project/projectdirs/cosmo/staging/largegalaxies/{}'.format(version)
     outdir = legacyhalos.io.legacyhalos_data_dir()
-    print('HACKING THE OUTPUT DIRECTORY!!!') ; outdir = os.path.join(outdir, 'test')
+    #print('HACKING THE OUTPUT DIRECTORY!!!') ; outdir = os.path.join(outdir, 'test')
     outfile = os.path.join(outdir, 'SGA-ellipse-{}.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
@@ -598,26 +672,26 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
 
     # We only have frozen galaxies here, but whatever--
     ifreeze = np.where(cat['FREEZE'])[0]
-    ilslga = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
+    isga = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
 
     cat = cat[ifreeze]
-    print('Keeping {} frozen galaxies, of which {} are SGA.'.format(len(ifreeze), len(ilslga)))
+    print('Keeping {} frozen galaxies, of which {} are SGA.'.format(len(ifreeze), len(isga)))
 
     # Read the full parent SGA catalog and add all the Tractor columns.
-    lslgafile = os.getenv('LARGEGALAXIES_CAT')
-    lslga, hdr = fitsio.read(lslgafile, header=True)
-    lslga = Table(lslga)
-    print('Read {} galaxies from {}'.format(len(lslga), lslgafile))
+    sgafile = os.getenv('LARGEGALAXIES_CAT')
+    sga, hdr = fitsio.read(sgafile, header=True)
+    sga = Table(sga)
+    print('Read {} galaxies from {}'.format(len(sga), sgafile))
 
     # Remove the already-burned SGA galaxies so we don't double-count them--
-    ilslga2 = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
-    rem = np.where(np.isin(lslga['SGA_ID'], cat['SGA_ID'][ilslga2]))[0]
+    isga2 = np.where(cat['FREEZE'] * (cat['REF_CAT'] == refcat))[0]
+    rem = np.where(np.isin(sga['SGA_ID'], cat['SGA_ID'][isga2]))[0]
     print('Removing {} pre-burned SGA galaxies from the parent catalog, so we do not double-count them.'.format(len(rem)))
-    lslga = lslga[np.delete(np.arange(len(lslga)), rem)] # remove duplicates
+    sga = sga[np.delete(np.arange(len(sga)), rem)] # remove duplicates
 
     # Update the reference diameter for objects that were not pre-burned--
     print('Updating the reference diameter from Hyperleda.')
-    lslga['DIAM'] *= 1.25
+    sga['DIAM'] *= 1.25
 
     # Next, remove all galaxies from the 'dropcat' catalog *except* those with
     # DROPBITS[notfit] | DROPBITS[nogrz]. Every other galaxy is spurious (or not
@@ -636,36 +710,37 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
             dropcat = dropcat[np.delete(np.arange(len(dropcat)), ignore)] # remove duplicates
         if len(dropcat) > 0:
             print('Removing {} SGA dropped galaxies.'.format(len(dropcat)))
-            rem = np.where(np.isin(lslga['SGA_ID'], dropcat['SGA_ID']))[0]
+            rem = np.where(np.isin(sga['SGA_ID'], dropcat['SGA_ID']))[0]
             assert(len(rem) == len(dropcat))
-            lslga = lslga[np.delete(np.arange(len(lslga)), rem)]
+            sga = sga[np.delete(np.arange(len(sga)), rem)]
 
-    lslga.rename_column('RA', 'SGA_RA')
-    lslga.rename_column('DEC', 'SGA_DEC')
+    sga.rename_column('RA', 'SGA_RA')
+    sga.rename_column('DEC', 'SGA_DEC')
     for col in cat.colnames:
-        if col in lslga.colnames:
+        if col in sga.colnames:
             #print('  Skipping existing column {}'.format(col))
             pass
         else:
             if cat[col].ndim > 1:
                 # assume no multidimensional strings or Boolean
-                lslga[col] = np.zeros((len(lslga), cat[col].shape[1]), dtype=cat[col].dtype)-1
+                sga[col] = np.zeros((len(sga), cat[col].shape[1]), dtype=cat[col].dtype)-1
             else:
                 typ = cat[col].dtype.type
                 if typ is np.str_ or typ is np.str or typ is np.bool_ or typ is np.bool:
-                    lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)
+                    sga[col] = np.zeros(len(sga), dtype=cat[col].dtype)
                 else:
-                    lslga[col] = np.zeros(len(lslga), dtype=cat[col].dtype)-1
-    lslga['RA'][:] = lslga['SGA_RA']
-    lslga['DEC'][:] = lslga['SGA_DEC']
+                    sga[col] = np.zeros(len(sga), dtype=cat[col].dtype)-1
+    sga['RA'][:] = sga['SGA_RA']
+    sga['DEC'][:] = sga['SGA_DEC']
+    sga['DROPBIT'][:] = DROPBITS['nogrz'] # outside the footprint
 
     # Stack!
     if exclude_full_sga:
         #print('Temporarily leaving off the original SGA!')
         out = cat
     else:
-        out = vstack((lslga, cat))
-    del lslga, cat
+        out = vstack((sga, cat))
+    del sga, cat
     out = out[np.argsort(out['SGA_ID'])]
     out = vstack((out[out['SGA_ID'] != -1], out[out['SGA_ID'] == -1]))
 
@@ -809,8 +884,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # are spurious). Actually, on the edge of the footprint we can also have a
     # catalog without any SGA sources (i.e., if there are no pixels). Capture
     # that case here, too.
-    ilslga = np.where(tractor['REF_CAT'] == refcat)[0]
-    if len(ilslga) == 0:
+    isga = np.where(tractor['REF_CAT'] == refcat)[0]
+    if len(isga) == 0:
         #print('Warning: No SGA sources in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]))
         # Are there pixels?
         grzmissing = _check_grz(galaxydir, galaxy)
@@ -830,12 +905,12 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # Next, remove SGA sources which do not belong to this group, because they
     # will be handled when we deal with *that* group. (E.g., PGC2190838 is in
     # the *mosaic* of NGC5899 but does not belong to the NGC5899 "group").
-    toss = np.where(np.logical_not(np.isin(tractor['REF_ID'][ilslga], fullsample['SGA_ID'])))[0]
+    toss = np.where(np.logical_not(np.isin(tractor['REF_ID'][isga], fullsample['SGA_ID'])))[0]
     if len(toss) > 0:
         for tt in toss:
             if verbose:
-                print('  Removing non-primary SGA_ID={}'.format(tractor[ilslga][tt]['REF_ID']), flush=True)
-        keep = np.delete(np.arange(len(tractor)), ilslga[toss])
+                print('  Removing non-primary SGA_ID={}'.format(tractor[isga][tt]['REF_ID']), flush=True)
+        keep = np.delete(np.arange(len(tractor)), isga[toss])
         tractor = tractor[keep]
 
     # Finally toss out Tractor sources which are too small (i.e., are outside
@@ -859,9 +934,9 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     onegal.rename_column('RA', 'SGA_RA')
     onegal.rename_column('DEC', 'SGA_DEC')
     onegal.remove_column('INDEX')
-    lslgacols = onegal.colnames
+    sgacols = onegal.colnames
     tractorcols = tractor.colnames
-    for col in lslgacols[::-1]: # reverse the order
+    for col in sgacols[::-1]: # reverse the order
         if col in tractorcols:
             print('  Skipping existing column {}'.format(col), flush=True)
         else:
@@ -902,15 +977,24 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     isfailfile = os.path.join(galaxydir, '{}-largegalaxy-ellipse.isfail'.format(galaxy))
 
     dropcat = []
-    for igal, lslga_id in enumerate(np.atleast_1d(fullsample['SGA_ID'])):
-        ellipsefile = os.path.join(galaxydir, '{}-largegalaxy-{}-ellipse.fits'.format(galaxy, lslga_id))
+    for igal, sga_id in enumerate(np.atleast_1d(fullsample['SGA_ID'])):
+        ellipsefile = os.path.join(galaxydir, '{}-largegalaxy-{}-ellipse.fits'.format(galaxy, sga_id))
 
         # Find this object in the Tractor catalog. 
-        match = np.where((tractor['REF_CAT'] == refcat) * (tractor['REF_ID'] == lslga_id))[0]
+        match = np.where((tractor['REF_CAT'] == refcat) * (tractor['REF_ID'] == sga_id))[0]
         if len(match) > 1:
             raise ValueError('Multiple matches should never happen but it did in the field of ID={}?!?'.format(onegal['SGA_ID']))
 
         thisgal = Table(fullsample[igal])
+
+        # For some systems (e.g., LG dwarfs), override the ellipse geometry for
+        # specific galaxies where we want the (usually larger) Hyperleda
+        # ellipse.
+        if thisgal['GALAXY'] in VETO_ELLIPSE:
+            print('Vetoing ellipse-fitting results for galaxy {}'.format(thisgal['GALAXY'][0]))
+            thisgal['DROPBIT'] |= DROPBITS['veto']
+            dropcat.append(thisgal)
+            continue
 
         # An object can be missing an ellipsefit file for two reasons:
         if not os.path.isfile(ellipsefile):
@@ -928,7 +1012,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     dropcat.append(thisgal)
                 else:
                     if verbose:
-                        print('Dropped by Tractor and not ellipse-fit: {} (ID={})'.format(fullsample['GALAXY'][igal], lslga_id), flush=True)
+                        print('Dropped by Tractor and not ellipse-fit: {} (ID={})'.format(fullsample['GALAXY'][igal], sga_id), flush=True)
                     thisgal['DROPBIT'] |= DROPBITS['dropped']
                     dropcat.append(thisgal)
             else:
@@ -943,7 +1027,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                 # we want to be sure it doesn't get forced PSF in production!
                 if verbose:
                     print('Not ellipse-fit: {} (ID={}, type={}, r50={:.2f} arcsec, fluxr={:.3f} nanomaggies)'.format(
-                        fullsample['GALAXY'][igal], lslga_id, tractor['TYPE'][match[0]], tractor['SHAPE_R'][match[0]],
+                        fullsample['GALAXY'][igal], sga_id, tractor['TYPE'][match[0]], tractor['SHAPE_R'][match[0]],
                         tractor['FLUX_R'][match[0]]), flush=True)
 
                 typ = tractor['TYPE'][match]
@@ -959,7 +1043,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
                 #if ng == 0 or nr == 0 or nz == 0:
                 if ng or nr or nz:
-                    thisgal['DROPBIT'] |= DROPBITS['nogrz']
+                    thisgal['DROPBIT'] |= DROPBITS['masked']
                     dropcat.append(thisgal)
                 elif typ == 'PSF' or rflux < 0:
                     # In some corner cases we can end up as PSF or with negative
@@ -989,21 +1073,34 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     # If either of these files exist (but there's not
                     # ellipse.fits catalog) then something has gone wrong. If
                     # *neither* file exists, then this galaxy was never fit!
-                    if os.path.isfile(isdonefile) and not os.path.isfile(isfailfile):
+                    if os.path.isfile(isfailfile):
+                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['failed']
+                    elif os.path.isfile(isdonefile):
                         if typ == 'REX' and r50 < 5.0:
                             tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['rex_toosmall']
                         elif typ != 'REX' and typ != 'PSF' and r50 < 2.0:
                             tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notrex_toosmall']
                         else:
-                            pass
-                    elif os.path.isfile(isdonefile) and os.path.isfile(isfailfile):
-                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['failed']
-                    elif not os.path.isfile(isdonefile) and not os.path.isfile(isfailfile):
-                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notfit']
+                            # corner case (e.g., IC1613) where I think I made the done files by fiat
+                            tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notfit']
                     else:
-                        raise ValueError('This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
-                        #print('Problem: This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
-                        #pdb.set_trace()
+                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notfit']
+                        
+                    #if os.path.isfile(isdonefile) and not os.path.isfile(isfailfile):
+                    #    if typ == 'REX' and r50 < 5.0:
+                    #        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['rex_toosmall']
+                    #    elif typ != 'REX' and typ != 'PSF' and r50 < 2.0:
+                    #        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notrex_toosmall']
+                    #    else:
+                    #        pass
+                    #elif os.path.isfile(isdonefile) and os.path.isfile(isfailfile):
+                    #    tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['failed']
+                    #elif not os.path.isfile(isdonefile) and not os.path.isfile(isfailfile):
+                    #    tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notfit']
+                    #else:
+                    #    raise ValueError('This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
+                    #    #print('Problem: This should never happen....galaxy {} in group {}'.format(fullsample['GALAXY'][igal], galaxy))
+                    #    #pdb.set_trace()
 
                     # Populate the output catalog--
 
@@ -1024,7 +1121,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             # Update the nominal diameter--
             tractor['DIAM'][match] = 1.25 * tractor['DIAM'][match]
         else:
-            ellipse = read_ellipsefit(galaxy, galaxydir, galaxyid=str(lslga_id),
+            ellipse = read_ellipsefit(galaxy, galaxydir, galaxyid=str(sga_id),
                                       filesuffix='largegalaxy', verbose=True)
 
             # Objects with "largeshift" shifted positions significantly during
@@ -1033,14 +1130,14 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                 tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['largeshift']
 
             # Get the ellipse-derived geometry, which we'll add to the Tractor
-            # catalog below.
+            # catalog below. 
+            ragal, decgal = tractor['RA'][match], tractor['DEC'][match]
             pa, ba = ellipse['pa'], 1 - ellipse['eps']
             diam, diamref = _get_diameter(ellipse)
             
             # Next find all the objects in the "ellipse-of-influence" of this
             # galaxy and freeze them. Note: EllipseE.fromRAbPhi wants semi-major
             # axis (i.e., radius) in arcsec.
-            ragal, decgal = tractor['RA'][match], tractor['DEC'][match]
             reff, e1, e2 = EllipseE.fromRAbPhi(diam*60/2, ba, 180-pa) # note the 180 rotation
             inellipse = np.where(is_in_ellipse(tractor['RA'], tractor['DEC'], ragal, decgal, reff, e1, e2))[0]
 
@@ -1048,18 +1145,19 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             if len(inellipse) == 0:
                 raise ValueError('No galaxies in the ellipse-of-influence in the field of ID={}?!?'.format(onegal['SGA_ID']))
 
-            #print('Freezing the Tractor parameters of {} objects in the ellipse of ID={}.'.format(len(inellipse), lslga_id))
+            #print('Freezing the Tractor parameters of {} objects in the ellipse of ID={}.'.format(len(inellipse), sga_id))
             tractor['FREEZE'][inellipse] = True
 
             # Populate the output catalog--
-            thisgal = Table(fullsample[igal])
             thisgal.rename_column('RA', 'SGA_RA')
             thisgal.rename_column('DEC', 'SGA_DEC')
             thisgal.remove_column('INDEX')
             for col in thisgal.colnames:
                 tractor[col][match] = thisgal[col]
 
-            # Add ellipse geometry and aperture photometry--
+            # RA, Dec and the geometry values can be different for the VETO list--
+            tractor['RA'][match] = ragal
+            tractor['DEC'][match] = decgal
             tractor['PA'][match] = pa
             tractor['BA'][match] = ba
             tractor['DIAM'][match] = diam
@@ -1084,6 +1182,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
     #print(dropcat)
     #print(tractor[tractor['SGA_ID'] != -1])
+    #ww = tractor['SGA_ID'] != -1 ; tractor['GALAXY', 'GROUP_NAME', 'RA', 'DEC', 'GROUP_RA', 'GROUP_DEC', 'PA', 'BA', 'DIAM', 'DIAM_REF', 'ELLIPSEBIT'][ww]
+    # stop here
     #pdb.set_trace()
     
     return tractor, dropcat

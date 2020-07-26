@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 ccddir = '/global/cfs/cdirs/cosmo/work/legacysurvey/dr9/'
 sgadir = '/global/cscratch1/sd/ioannis/SGA-data-dr9alpha/'
-outroot= '/global/cscratch1/sd/raichoor/tmpdir/tmp'
+outroot= '/global/cscratch1/sd/ioannis/tmp'
 
 # returns pixels on the edge of the footprint
 def get_footedge(isfoot,nside,nest):

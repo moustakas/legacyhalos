@@ -279,7 +279,7 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     else:
                         thumbsz = sz[0]*3
                 cmd = cmd+' {}'.format(montagefile)
-                #print(cmd)
+                print(cmd)
 
                 #if verbose:
                 print('Writing {}'.format(montagefile))
