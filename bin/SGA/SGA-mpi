@@ -195,11 +195,12 @@ def main():
             refcat = comm.bcast(refcat, root=0)
 
         # Now loop over each "chunk" assigned to this rank.
+        from legacyhalos.SGA import get_raslice
         from astrometry.util.multiproc import multiproc
         from legacyhalos.SGA import _build_ellipse_SGA_one, _write_ellipse_SGA
 
         #print('HACKING THE CHUNK DIRECTORY!!!') ; chunkdatadir = os.path.join(datadir, 'test-chunks')
-        #chunkdatadir = os.path.join(datadir, 'rachunks')
+        chunkdatadir = os.path.join(datadir, 'rachunks')
 
         mp = multiproc(nthreads=args.nproc)
         for ichunk, chunk in enumerate(groups[rank]):
@@ -209,7 +210,8 @@ def main():
             #mingroup = np.min(sample['GROUP_ID'][chunk])
             #maxgroup = np.max(sample['GROUP_ID'][chunk])
             #chunkdir = os.path.join(chunkdatadir, '{}-{}'.format(mingroup, maxgroup))
-            chunkdir = os.path.join(chunkdatadir, raslices_str[ichunk])
+            raslice_str = get_raslice(sample['RA'][chunk[0]])
+            chunkdir = os.path.join(chunkdatadir, raslice_str)
             if not os.path.isdir(chunkdir):
                 os.makedirs(chunkdir, exist_ok=True)
 
@@ -253,7 +255,7 @@ def main():
             tfinal = time.time()
             cat, dropcat = [], []
             for ichunk, chunk in enumerate(np.hstack(groups)):
-                print('Gathering chunk {:03d}/{:03d}'.format(ichunk, len(np.hstack(groups))-1))
+                print('Gathering chunk {:03d}/{:03d}'.format(ichunk, len(np.hstack(groups))-1), flush=True)
                 
                 #mingroup = np.min(sample['GROUP_ID'][chunk])
                 #maxgroup = np.max(sample['GROUP_ID'][chunk])                
@@ -272,10 +274,10 @@ def main():
             _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
                                exclude_full_sga=False, writekd=True)
             print('Gathering and writing out final files took {:.3f} minutes'.format(
-                (time.time() - tfinal) / 60))
+                (time.time() - tfinal) / 60), flush=True)
             return
         else:
-            print('All done on rank {}'.format(rank))
+            print('All done on rank {}'.format(rank), flush=True)
             return
 
     # The rest of the pipeline--

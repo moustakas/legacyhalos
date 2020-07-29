@@ -87,7 +87,7 @@ VETO_ELLIPSE = np.array(list(set([
     'PGC2631024', # diameter too big
     'UGC10111', # b/a too big
     'UGC10736', # PA affected by star
-    #'UGC04363', # ellipse b/a is too narrow
+    'UGC04363', # ellipse b/a is too narrow and diameter too big (bleed trail)
     #'NGC4204',  # ellipse b/a is too narrow
     #'PGC069404', # PA not great
     #'NGC0660', # ellipse PA is wrong
