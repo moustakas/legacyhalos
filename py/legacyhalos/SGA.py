@@ -88,6 +88,11 @@ VETO_ELLIPSE = np.array(list(set([
     'UGC10111', # b/a too big
     'UGC10736', # PA affected by star
     'UGC04363', # ellipse b/a is too narrow and diameter too big (bleed trail)
+    'PGC883370', # ellipse center moves to a spurious position
+    'PGC2742031', # affected by star
+    'UGC03998', # affected by star
+    'UGC10061', # irregular galaxy; poor SB profile
+    'PGC086661', # Hyperleda is better       
     #'NGC4204',  # ellipse b/a is too narrow
     #'PGC069404', # PA not great
     #'NGC0660', # ellipse PA is wrong
@@ -549,9 +554,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/badcoords.txt', str)#, skiprows=1)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/arjun.txt', str)#, skiprows=1)
     
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/refit.txt', str)#, skiprows=1)
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/dropped.txt', str)#, skiprows=1)
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/dropped3.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/refit3.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/closepairs.txt', str)#, skiprows=1)
+    galaxylist = np.loadtxt('/global/homes/i/ioannis/dr9beta-bigger.txt', str)#, skiprows=1)
 
     ## strip whitespace
     #t0 = time.time()

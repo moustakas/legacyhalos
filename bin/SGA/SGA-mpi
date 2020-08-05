@@ -151,6 +151,7 @@ def main():
                     galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(sample[fail[rank]])
                     for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
                         print('  {} {} (D25={:.3f})'.format(ii, dd, diam))
+                        #print('\\rm {}/{}-largegalaxy-*.isfail'.format(dd, os.path.basename(dd), suffix.lower()))
 
                 todo = np.hstack(groups)
                 if len(todo) > 0:

@@ -121,8 +121,8 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 
 def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1, 
                    verbose=False, debug=False, clobber=False, ccdqa=False,
-                   logfile=None, zcolumn='Z', datadir=None, htmldir=None, 
-                   largegalaxy=False, just_coadds=False,
+                   logfile=None, zcolumn='Z', datadir=None, htmldir=None,                   
+                   largegalaxy=False, galex=False, just_coadds=False,
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                    get_galaxy_galaxydir=None):
     """Wrapper script to build the pipeline coadds."""
@@ -137,7 +137,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
             radius_mosaic_arcsec=radius_mosaic_arcsec,
             maketrends=False, ccdqa=ccdqa,
             clobber=clobber, verbose=verbose, 
-            largegalaxy=largegalaxy, just_coadds=just_coadds,
+            largegalaxy=largegalaxy, galex=galex, just_coadds=just_coadds,
             get_galaxy_galaxydir=get_galaxy_galaxydir)
         _done(galaxy, survey.output_dir, err, t0, 'html')
     else:
@@ -151,7 +151,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                     radius_mosaic_arcsec=radius_mosaic_arcsec,
                     maketrends=False, ccdqa=ccdqa,
                     clobber=clobber, verbose=verbose,
-                    largegalaxy=largegalaxy, just_coadds=just_coadds,
+                    largegalaxy=largegalaxy, galex=galex, just_coadds=just_coadds,
                     get_galaxy_galaxydir=get_galaxy_galaxydir)
                 _done(galaxy, survey.output_dir, err, t0, 'html')
 

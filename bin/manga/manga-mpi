@@ -174,7 +174,7 @@ def main():
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
-                           largegalaxy=False,
+                           largegalaxy=False, galex=True,
                            get_galaxy_galaxydir=legacyhalos.manga.get_galaxy_galaxydir)
 
     # Wait for all ranks to finish.

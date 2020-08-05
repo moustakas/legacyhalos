@@ -180,8 +180,8 @@ def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
 def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, 
-                        barlabel=None, just_coadds=False, clobber=False,
-                        verbose=False):
+                        barlabel=None, galex=False, just_coadds=False,
+                        clobber=False, verbose=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
@@ -333,7 +333,7 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
 
 def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                     refband='r', pixscale=0.262, barlen=None, barlabel=None,
-                    clobber=False, verbose=False, largegalaxy=False,
+                    clobber=False, verbose=False, largegalaxy=False, galex=False,
                     scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
 
@@ -510,7 +510,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                nproc=1, barlen=None, barlabel=None,
                radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
-               largegalaxy=False, just_coadds=False, scaledfont=False):
+               largegalaxy=False, galex=False, just_coadds=False, scaledfont=False):
     """Make QA plots.
 
     """
@@ -565,12 +565,13 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
-                            verbose=verbose, largegalaxy=largegalaxy, scaledfont=scaledfont)
+                            verbose=verbose, largegalaxy=largegalaxy, galex=galex,
+                            scaledfont=scaledfont)
 
         # Build the montage coadds.
         make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
                             barlabel=barlabel, clobber=clobber, verbose=verbose,
-                            just_coadds=just_coadds)
+                            galex=galex, just_coadds=just_coadds)
 
         # CCD positions
         make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
@@ -599,7 +600,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
     return 1
 
 # Get the viewer link
-def viewer_link(ra, dec, width, sga=False):
+def viewer_link(ra, dec, width, sga=False, manga=False):
     baseurl = 'http://legacysurvey.org/viewer-dev/'
     if width > 1200:
         zoom = 13
@@ -607,10 +608,13 @@ def viewer_link(ra, dec, width, sga=False):
         zoom = 14
     else:
         zoom = 15
+        
+    layer1 = ''
     if sga:
         layer1 = '&sga&sga-parent'
-    else:
-        layer1 = ''
+    if manga:
+        layer1 = layer1+'&manga'
+
     viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8{}'.format(
         baseurl, ra, dec, zoom, layer1)
 
