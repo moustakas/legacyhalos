@@ -180,8 +180,8 @@ def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
         display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
 
 def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, 
-                        barlabel=None, galex=False, just_coadds=False,
-                        clobber=False, verbose=False):
+                        barlabel=None, just_coadds=False, clobber=False,
+                        verbose=False):
     """Montage the coadds into a nice QAplot.
 
     barlen - pixels
@@ -303,6 +303,119 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 #    #if verbose:
                 #    print('Writing {}'.format(tf))
                 #    subprocess.call(cmd.split())
+
+def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, 
+                                barlabel=None, just_coadds=False, clobber=False,
+                                verbose=False):
+    """Montage the GALEX and WISE coadds into a nice QAplot.
+
+    barlen - pixels
+
+    """
+    from legacyhalos.qa import addbar_to_png, fonttype
+    from PIL import Image, ImageDraw, ImageFont
+
+    Image.MAX_IMAGE_PIXELS = None
+
+    for filesuffix in ('FUVNUV', 'W1W2'):
+        montagefile = os.path.join(htmlgalaxydir, '{}-{}-montage.png'.format(galaxy, filesuffix))
+        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-montage.png'.format(galaxy, filesuffix))
+        thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-montage.png'.format(galaxy, filesuffix))
+        if not os.path.isfile(montagefile) or clobber:
+            coaddfiles = ('image-{}'.format(filesuffix),
+                          'model-{}'.format(filesuffix),
+                          )
+                          #'{}-resid-grz'.format(filesuffix))
+
+            # Image coadd with the scale bar label--
+            barpngfile = os.path.join(htmlgalaxydir, '{}-{}.png'.format(galaxy, coaddfiles[0]))
+
+            # Make sure all the files exist.
+            check, _just_coadds = True, just_coadds
+            jpgfile = []
+            for suffix in coaddfiles:
+                _jpgfile = os.path.join(galaxydir, '{}-{}.jpg'.format(galaxy, suffix))
+                jpgfile.append(_jpgfile)
+                if not os.path.isfile(_jpgfile):
+                    if verbose:
+                        print('File {} not found!'.format(_jpgfile))
+                    check = False
+                #print(check, _jpgfile)
+
+            # Check for just the image coadd.
+            if check is False:
+                if os.path.isfile(np.atleast_1d(jpgfile)[0]):
+                    _just_coadds = True
+                else:
+                    continue
+
+            if check or _just_coadds:
+                with Image.open(np.atleast_1d(jpgfile)[0]) as im:
+                    sz = im.size
+                if sz[0] > 4096 and sz[0] < 8192:
+                    resize = '1024x1024'
+                    #resize = '-resize 2048x2048 '
+                elif sz[0] > 8192:
+                    resize = '1024x1024'
+                    #resize = '-resize 4096x4096 '
+                else:
+                    resize = None
+
+                # Make a quick thumbnail of just the data.
+                cmd = 'convert -thumbnail {0}x{0} {1} {2}'.format(96, np.atleast_1d(jpgfile)[0], thumb2file)
+                if os.path.isfile(thumb2file):
+                    os.remove(thumb2file)
+                print('Writing {}'.format(thumb2file))
+                subprocess.call(cmd.split())
+
+                # Add a bar and label to the first image.
+                if _just_coadds:
+                    if resize:
+                        cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -resize {} -geometry +0+0 '.format(resize)
+                    else:
+                        cmd = 'montage -bordercolor white -borderwidth 1 -tile 1x1 -geometry +0+0 '
+                    if barlen:
+                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
+                        cmd = cmd+' '+barpngfile
+                    else:
+                        cmd = cmd+' '+jpgfile
+                    if sz[0] > 512:
+                        thumbsz = 512
+                    else:
+                        thumbsz = sz[0]
+                else:
+                    if resize:
+                        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -resize {} -geometry +0+0 '.format(resize)
+                    else:
+                        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
+                    if barlen:
+                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
+                        cmd = cmd+' '+barpngfile+' '
+                        cmd = cmd+' '.join(ff for ff in jpgfile[1:])
+                    else:
+                        cmd = cmd+' '.join(ff for ff in jpgfile)
+                    if sz[0] > 512:
+                        thumbsz = 512*3
+                    else:
+                        thumbsz = sz[0]*3
+                cmd = cmd+' {}'.format(montagefile)
+                print(cmd)
+
+                #if verbose:
+                print('Writing {}'.format(montagefile))
+                subprocess.call(cmd.split())
+                if not os.path.isfile(montagefile):
+                    print('There was a problem writing {}'.format(montagefile))
+                    print(cmd)
+                    continue
+
+                # Create a couple smaller thumbnail images
+                cmd = 'convert -thumbnail {0} {1} {2}'.format(thumbsz, montagefile, thumbfile)
+                #print(cmd)
+                if os.path.isfile(thumbfile):
+                    os.remove(thumbfile)                
+                print('Writing {}'.format(thumbfile))
+                subprocess.call(cmd.split())
 
 def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
     """Visualize the maskbits image.
@@ -571,8 +684,14 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         # Build the montage coadds.
         make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
                             barlabel=barlabel, clobber=clobber, verbose=verbose,
-                            galex=galex, just_coadds=just_coadds)
+                            just_coadds=just_coadds)
 
+        # Multiwavelength coadds (does not support just_coadds=True)--
+        if galex:
+            make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
+                                        #barlen=barlen, barlabel=barlabel,
+                                        clobber=clobber, verbose=verbose)
+        
         # CCD positions
         make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
                        radius=radius_mosaic_pixels, survey=survey, clobber=clobber,

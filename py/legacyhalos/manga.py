@@ -410,7 +410,7 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
             #html.write('<th>Galaxy</th>\n')
             html.write('<th>RA</th>\n')
             html.write('<th>Dec</th>\n')
-            #html.write('<th>Diameter (arcmin)</th>\n')
+            html.write('<th>Redshift</th>\n')
             html.write('<th>Viewer</th>\n')
             html.write('</tr>\n')
             
@@ -431,7 +431,7 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
                 html.write('<td>{:.7f}</td>\n'.format(ra1))
                 html.write('<td>{:.7f}</td>\n'.format(dec1))
-                #html.write('<td>{:.4f}</td>\n'.format(diam1))
+                html.write('<td>{:.5f}</td>\n'.format(gal[ZCOLUMN]))
                 html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
                 html.write('</tr>\n')
             html.write('</table>\n')
@@ -521,6 +521,41 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
         return nccds, tractor, sample
 
+    def _html_galaxy_properties(html, gal):
+        """Build the table of group properties.
+
+        """
+        galaxy1, ra1, dec1, diam1 = gal[GALAXYCOLUMN], gal[racolumn], gal[deccolumn], 5 * MANGA_RADIUS / pixscale
+        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1, manga=True)
+
+        html.write('<h2>Galaxy Properties</h2>\n')
+
+        html.write('<table>\n')
+        html.write('<tr>\n')
+        html.write('<th>Index</th>\n')
+        html.write('<th>MaNGA ID</th>\n')
+        html.write('<th>PLATE-IFU</th>\n')
+        html.write('<th>RA</th>\n')
+        html.write('<th>Dec</th>\n')
+        html.write('<th>Redshift</th>\n')
+        html.write('<th>Viewer</th>\n')
+        #html.write('<th>SkyServer</th>\n')
+        html.write('</tr>\n')
+
+        html.write('<tr>\n')
+        #html.write('<td>{:g}</td>\n'.format(ii))
+        #print(gal['INDEX'], gal['SGA_ID'], gal['GALAXY'])
+        html.write('<td>{}</td>\n'.format(gal['INDEX']))
+        html.write('<td>{}</td>\n'.format(gal['MANGAID']))
+        html.write('<td>{}</td>\n'.format(galaxy1))
+        html.write('<td>{:.7f}</td>\n'.format(ra1))
+        html.write('<td>{:.7f}</td>\n'.format(dec1))
+        html.write('<td>{:.5f}</td>\n'.format(gal[ZCOLUMN]))
+        html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
+        #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
+        html.write('</tr>\n')
+        html.write('</table>\n')
+
     def _html_image_mosaics(html):
         html.write('<h2>Image Mosaics</h2>\n')
 
@@ -542,11 +577,12 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('</table>\n')
             #html.write('<br />\n')
 
-        pngfile, thumbfile = '{}-custom-grz-montage.png'.format(galaxy1), 'thumb-{}-custom-grz-montage.png'.format(galaxy1)
         html.write('<p>Color mosaics showing the data (left panel), model (middle panel), and residuals (right panel).</p>\n')
         html.write('<table width="90%">\n')
-        html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
-            pngfile, thumbfile))
+        for filesuffix in ('custom-grz', 'FUVNUV', 'W1W2'):
+            pngfile, thumbfile = '{}-{}-montage.png'.format(galaxy1, filesuffix), 'thumb-{}-{}-montage.png'.format(galaxy1, filesuffix)
+            html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
+                pngfile, thumbfile))
         html.write('</table>\n')
 
         pngfile, thumbfile = '{}-pipeline-grz-montage.png'.format(galaxy1), 'thumb-{}-pipeline-grz-montage.png'.format(galaxy1)
@@ -731,6 +767,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('<br />\n')
         html.write('<a href="../../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
 
+        _html_galaxy_properties(html, gal)
         _html_image_mosaics(html)
         #_html_ellipsefit_and_photometry(html, tractor, sample)
         #_html_maskbits(html)

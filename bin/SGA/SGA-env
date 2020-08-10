@@ -13,8 +13,8 @@ export PYTHONPATH=$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
 export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/$project
 export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9alpha
 export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr9alpha
-#export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9beta
-#export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr9beta
+#export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9delta
+#export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr9delta
 
 # Use a local checkout of the code even though it's in the Docker container.
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos

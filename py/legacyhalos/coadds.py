@@ -411,8 +411,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         return 0, stagesuffix
     else:
         # Move (rename) files into the desired output directory and clean up.
+        #print('USING CLEANUP INSTEAD OF FORCE IN COADDS.PY')
         ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
                               run, unwise=unwise, galex=galex, cleanup=cleanup,
-                              just_coadds=just_coadds, clobber=force,
+                              just_coadds=just_coadds,
+                              #clobber=True,
+                              clobber=force,
                               require_grz=require_grz, missing_ok=missing_ok)
         return ok, stagesuffix

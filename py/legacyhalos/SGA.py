@@ -92,7 +92,12 @@ VETO_ELLIPSE = np.array(list(set([
     'PGC2742031', # affected by star
     'UGC03998', # affected by star
     'UGC10061', # irregular galaxy; poor SB profile
-    'PGC086661', # Hyperleda is better       
+    'PGC086661', # Hyperleda is better
+    'UGC08614', # Hyperleda is better
+    'UGC04483',
+    'DDO125',
+    'UGC08308',
+    'UGC07599',
     #'NGC4204',  # ellipse b/a is too narrow
     #'PGC069404', # PA not great
     #'NGC0660', # ellipse PA is wrong
@@ -538,44 +543,15 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     # Add an (internal) index number:
     sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
     
-    #print('Hack the sample!')
-    #tt = astropy.table.Table.read('/global/projecta/projectdirs/desi/users/ioannis/dr9d-lslga/dr9d-lslga-south.fits')
-    #tt = tt[tt['D25'] > 1]
-    #galaxylist = tt['GALAXY'].data
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/closepairs1.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/closepairs2.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/closepairs3.txt', str) # = NGC5195_GROUP and NGC4395
 
-    #import numpy as np ; from legacyhalos.SGA import read_sample
-    #ss = read_sample(preselect_sample=False, verbose=True)
-    #gg = np.loadtxt('/global/homes/i/ioannis/ispsf.txt', str)
-    #ss[np.isin(ss['GALAXY'], gg)]
-    #ss[np.isin(ss['GALAXY'], gg)]['GROUP_NAME',].write('ispsf-bug.txt', format='ascii.basic', overwrite=True)
-    #print('Gigantic hack!!')
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/fix.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-tofix.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/refit.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/fluxratio-0.1.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/notfit.txt', str)#, skiprows=1)
 
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/badcoords.txt', str)#, skiprows=1)
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/arjun.txt', str)#, skiprows=1)
-    
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/refit3.txt', str)#, skiprows=1)
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/closepairs.txt', str)#, skiprows=1)
-    galaxylist = np.loadtxt('/global/homes/i/ioannis/dr9beta-bigger.txt', str)#, skiprows=1)
-
-    ## strip whitespace
-    #t0 = time.time()
-    #if 'GALAXY' in sample.colnames:
-    #    sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
-    #if 'GROUP_NAME' in sample.colnames:
-    #    galcolumn = 'GROUP_NAME'
-    #    sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
-    #print(time.time() - t0)
-
-    if False:
-        print('Gigantic hack!!')
-        #galaxylist = np.loadtxt('/global/homes/i/ioannis/junk', dtype=str)
-        bb = fitsio.read('/global/cscratch1/sd/ioannis/SGA-data-dr9alpha/SGA-dropped-v3.0.fits', columns=['GROUP_NAME', 'DROPBIT'])
-        #ww = np.where(bb['DROPBIT'] & DROPBITS['negflux'] != 0)[0]
-        ww = np.where(bb['DROPBIT'] & DROPBITS['dropped'] != 0)[0]
-        galaxylist = list(set(bb['GROUP_NAME'][ww]))
-        #galaxylist = galaxylist[:100]
-    
     if galaxylist is not None:
         galcolumn = 'GROUP_NAME'
         if verbose:
@@ -587,12 +563,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         else:
             sample = sample[these]
 
-    #print(get_brickname(sample['GROUP_RA'], sample['GROUP_DEC']))
-
-    # Reverse sort by diameter. Actually, don't do this, otherwise there's a
-    # significant imbalance between ranks.
-    #sample = sample[np.argsort(sample['GROUP_DIAMETER'])]
-    
     return sample
 
 def _get_diameter(ellipse):
@@ -749,6 +719,13 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
     out = out[np.argsort(out['SGA_ID'])]
     out = vstack((out[out['SGA_ID'] != -1], out[out['SGA_ID'] == -1]))
 
+    # Annoying hack. Leo I had unWISE time-resolved photometry, which we don't
+    # need or want; remove it here. Also remove the FITBITS column, since that
+    # was added late as well.
+    for col in out.colnames:
+        if col == 'FITBITS' or 'NEA' in col or 'LC_' in col:
+            out.remove_column(col)
+
     print('Writing {} galaxies to {}'.format(len(out), outfile))
     hdrversion = 'L{}-ELLIPSE'.format(version[1:2]) # fragile!
     hdr['SGAVER'] = hdrversion
@@ -836,13 +813,6 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
     # OK, now keep going!    
     tractor = Table(fitsio.read(tractorfile, upper=True))
-
-    # Annoying hack. Leo I had unWISE time-resolved photometry, which we don't
-    # need or want; remove it here. Also remove the FITBITS column, since that
-    # was added late as well.
-    for col in tractor.colnames:
-        if col == 'FITBITS' or 'LC_' in col:
-            tractor.remove_column(col)
 
     # Remove Gaia stars from the Tractor catalog immediately, so they're not
     # double-counted. If this step removes everything, then it means the galaxy
@@ -1123,6 +1093,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                             pass
                         else:
                             tractor[col][match] = thisgal[col]
+                        
             # Update the nominal diameter--
             tractor['DIAM'][match] = 1.25 * tractor['DIAM'][match]
         else:
@@ -1144,7 +1115,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             # galaxy and freeze them. Note: EllipseE.fromRAbPhi wants semi-major
             # axis (i.e., radius) in arcsec.
             reff, e1, e2 = EllipseE.fromRAbPhi(diam*60/2, ba, 180-pa) # note the 180 rotation
+            #try:
             inellipse = np.where(is_in_ellipse(tractor['RA'], tractor['DEC'], ragal, decgal, reff, e1, e2))[0]
+            #except:
+            #    print('!!!!!!!!!!!!!!!!!!!!!', onegal['GROUP_NAME'])
 
             # This should never happen since the SGA galaxy itself is in the ellipse!
             if len(inellipse) == 0:
