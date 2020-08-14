@@ -415,7 +415,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
                               run, unwise=unwise, galex=galex, cleanup=cleanup,
                               just_coadds=just_coadds,
-                              #clobber=True,
-                              clobber=force,
+                              clobber=True,
+                              #clobber=force,
                               require_grz=require_grz, missing_ok=missing_ok)
         return ok, stagesuffix

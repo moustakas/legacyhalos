@@ -161,7 +161,10 @@ def main():
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                         #print('{}'.format(dd))
                         #print('touch {}/{}-largegalaxy-coadds.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
-                        #print('\\rm {}/{}-largegalaxy-*.isdone'.format(dd, os.path.basename(dd), suffix.lower()))
+                        #from glob import glob
+                        #if len(glob('{}/{}-largegalaxy-*.p'.format(dd, os.path.basename(dd), suffix.lower()))) > 0:
+                        #    print('ls -l {}/{}-largegalaxy-*.p'.format(dd, os.path.basename(dd), suffix.lower()))
+                        #print('\\rm {}/{}-largegalaxy-*ellipse.fits'.format(dd, os.path.basename(dd), suffix.lower()))
                         print('  {} {} (Group Diameter={:.3f})'.format(ii, dd, diam))
             return
         

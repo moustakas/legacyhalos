@@ -29,6 +29,7 @@ ELLIPSEBITS = dict(
     notrex_toosmall = 2**2, # type != REX & shape_r < 2
     failed = 2**3,          # ellipse-fitting failed
     notfit = 2**4,          # not ellipse-fit
+    indropcat = 2**5,       # in the dropcat catalog
     )
 
 DROPBITS = dict(
@@ -52,7 +53,8 @@ VETO_ELLIPSE = np.array(list(set([
     'Phoenix',
     'Cetus',
     'Tucana',
-    'KKR25', 
+    'KKR25',
+    'LeoA',
     # ~small galaxies with problematic ellipse-fits and no bright non-SGA companions in the Hyperleda mask
     'PGC091013', # ellipse diameter too big
     'PGC020336',  # ellipse moves to bright star
@@ -347,10 +349,6 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
-def _get_brickname_one(args):
-    """Wrapper function for the multiprocessing."""
-    return get_brickname(*args)
-
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
                 preselect_sample=True, nproc=1,
                 #customsky=False, customredux=False, 
@@ -543,14 +541,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     # Add an (internal) index number:
     sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
     
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/closepairs1.txt', str)#, skiprows=1)
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/closepairs2.txt', str)#, skiprows=1)
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/closepairs3.txt', str) # = NGC5195_GROUP and NGC4395
-
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-tofix.txt', str)#, skiprows=1)
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/refit.txt', str)#, skiprows=1)
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/fluxratio-0.1.txt', str)#, skiprows=1)
-    #galaxylist = np.loadtxt('/global/homes/i/ioannis/notfit.txt', str)#, skiprows=1)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-ellipse-outdated.txt', str)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-refit-ispsf-dropped.txt', str)
 
     if galaxylist is not None:
         galcolumn = 'GROUP_NAME'
@@ -682,11 +674,11 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
             ignore = np.arange(len(dropcat))
         if len(ignore) > 0:
             print('Not removing {} dropped SGA galaxies.'.format(len(ignore)))
-            dropcat = dropcat[np.delete(np.arange(len(dropcat)), ignore)] # remove duplicates
-        if len(dropcat) > 0:
-            print('Removing {} SGA dropped galaxies.'.format(len(dropcat)))
-            rem = np.where(np.isin(sga['SGA_ID'], dropcat['SGA_ID']))[0]
-            assert(len(rem) == len(dropcat))
+            ignore_dropcat = dropcat[np.delete(np.arange(len(dropcat)), ignore)] # remove duplicates
+        if len(ignore_dropcat) > 0:
+            print('Removing {} SGA dropped galaxies.'.format(len(ignore_dropcat)))
+            rem = np.where(np.isin(sga['SGA_ID'], ignore_dropcat['SGA_ID']))[0]
+            assert(len(rem) == len(ignore_dropcat))
             sga = sga[np.delete(np.arange(len(sga)), rem)]
 
     sga.rename_column('RA', 'SGA_RA')
@@ -708,7 +700,13 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
     sga['RA'][:] = sga['SGA_RA']
     sga['DEC'][:] = sga['SGA_DEC']
     sga['DROPBIT'][:] = DROPBITS['nogrz'] # outside the footprint
-
+    sga['ELLIPSEBIT'][:] = ELLIPSEBITS['notfit'] # not fit
+    if len(dropcat) > 0:
+        these = np.where(np.isin(sga['SGA_ID'], dropcat['SGA_ID']))[0]
+        assert(len(these) == len(dropcat))
+        sga['DROPBIT'][these] = dropcat['DROPBIT']
+        sga['ELLIPSEBIT'][these] = ELLIPSEBITS['indropcat']
+        
     # Stack!
     if exclude_full_sga:
         #print('Temporarily leaving off the original SGA!')

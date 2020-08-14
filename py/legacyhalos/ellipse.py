@@ -898,7 +898,9 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                     galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
                 # Specify the fitting range
                 maxis = data['mge'][igal]['majoraxis'] # [pixels]
-                if samp['D25_LEDA'] > 10: # e.g., NGC5457
+                if samp['D25_LEDA'] > 10 or samp['PGC'] == 31968: # e.g., NGC5457
+                    if samp['PGC'] == 31968: # special-case NGC3344
+                        print('Special-casing PGC031968==NGC3344!')
                     maxsma = 1.5 * maxis # [pixels]
                     delta_sma = 0.003 * maxsma
                 else:
