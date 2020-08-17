@@ -162,7 +162,7 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                        verbose=False, cleanup=True, write_all_pickles=False,
                        #no_subsky=False,
                        subsky_radii=None,
-                       ubercal_sky=False,
+                       #ubercal_sky=False,
                        just_coadds=False, require_grz=True, 
                        no_gaia=False, no_tycho=False,
                        debug=False, logfile=None):
@@ -184,8 +184,8 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
             run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
             verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
             #no_subsky=no_subsky,
-            subsky_radii=subsky_radii,
-            ubercal_sky=ubercal_sky, just_coadds=just_coadds,
+            subsky_radii=subsky_radii, #ubercal_sky=ubercal_sky,
+            just_coadds=just_coadds,
             require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho)
         _done(galaxy, survey.output_dir, err, t0, 'coadds', filesuffix)
     else:
@@ -200,8 +200,8 @@ def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                     run=run, apodize=apodize, unwise=unwise, galex=galex, force=force, plots=plots,
                     verbose=verbose, cleanup=cleanup, write_all_pickles=write_all_pickles,
                     #no_subsky=no_subsky,
-                    subsky_radii=subsky_radii,
-                    ubercal_sky=ubercal_sky, just_coadds=just_coadds,
+                    subsky_radii=subsky_radii, #ubercal_sky=ubercal_sky,
+                    just_coadds=just_coadds,
                     require_grz=require_grz, no_gaia=no_gaia, no_tycho=no_tycho,
                     log=log)
                 _done(galaxy, survey.output_dir, err, t0, 'coadds', filesuffix, log=log)

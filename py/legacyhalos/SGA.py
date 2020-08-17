@@ -55,7 +55,11 @@ VETO_ELLIPSE = np.array(list(set([
     'Tucana',
     'KKR25',
     'LeoA',
+    'ESO349-031',
     # ~small galaxies with problematic ellipse-fits and no bright non-SGA companions in the Hyperleda mask
+    '2MASXJ13161816+0925305', # bleed trail
+    'PGC1029274', # bleed
+    'PGC1783580', # star
     'PGC091013', # ellipse diameter too big
     'PGC020336',  # ellipse moves to bright star
     'PGC2022273', # ellipse diameter too big
@@ -357,7 +361,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     d25min in arcmin
 
-    big = ss[ss['IN_DESI'] * (ss['GROUP_DIAMETER']>5) * ss['GROUP_PRIMARY']]
+    big = ss[ss['IN_FOOTPRINT'] * (ss['GROUP_DIAMETER']>5) * ss['GROUP_PRIMARY']]
     %time bricks = np.hstack([survey.get_bricks_near(bb['GROUP_RA'], bb['GROUP_DEC'], bb['GROUP_DIAMETER']/60).brickname for bb in big])
 
     """
@@ -376,7 +380,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     if preselect_sample:
         cols = ['GROUP_NAME', 'GROUP_RA', 'GROUP_DEC', 'GROUP_DIAMETER', 'GROUP_MULT',
-                'GROUP_PRIMARY', 'GROUP_ID', 'IN_DESI', 'SGA_ID', 'GALAXY', 'RA', 'DEC',
+                'GROUP_PRIMARY', 'GROUP_ID', 'IN_FOOTPRINT', 'SGA_ID', 'GALAXY', 'RA', 'DEC',
                 'BRICKNAME']
         sample = fitsio.read(samplefile, columns=cols)
         rows = np.arange(len(sample))
@@ -387,7 +391,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             ### custom reductions
             #(np.array(['DR8' not in gg for gg in sample['GALAXY']])) *
             (sample['GROUP_PRIMARY'] == True) *
-            (sample['IN_DESI']))[0]
+            (sample['IN_FOOTPRINT']))[0]
         rows = rows[samplecut]
 
         if True: # DR9 bricklist
@@ -448,7 +452,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             rows = rows[m1]
 
         if False: # test fitting of all the DR8 candidates
-            fullsample = read_sample(preselect_sample=False, columns=['SGA_ID', 'GALAXY', 'GROUP_ID', 'GROUP_NAME', 'GROUP_DIAMETER', 'IN_DESI'])
+            fullsample = read_sample(preselect_sample=False, columns=['SGA_ID', 'GALAXY', 'GROUP_ID', 'GROUP_NAME', 'GROUP_DIAMETER', 'IN_FOOTPRINT'])
             ww = np.where(fullsample['SGA_ID'] >= 5e6)[0]
             these = np.where(np.isin(sample['GROUP_ID'][samplecut], fullsample['GROUP_ID'][ww]))[0]
             rows = rows[these]
@@ -458,14 +462,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         
     #elif customsky:
     ## Select the galaxies requiring custom sky-subtraction.
-    #    sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+    #    sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_FOOTPRINT'])
     #    rows = np.arange(len(sample))
     #
     #    samplecut = np.where(
     #        #(sample['GROUP_DIAMETER'] > 5) * 
     #        (sample['GROUP_DIAMETER'] > 5) * (sample['GROUP_DIAMETER'] < 25) *
     #        (sample['GROUP_PRIMARY'] == True) *
-    #        (sample['IN_DESI']))[0]
+    #        (sample['IN_FOOTPRINT']))[0]
     #    #this = np.where(sample['GROUP_NAME'] == 'NGC4448')[0]
     #    #rows = np.hstack((rows, this))
     #
@@ -474,12 +478,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #    print('Selecting {} custom sky galaxies.'.format(nrows))
     #    
     #elif customredux:
-    #    sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_DESI'])
+    #    sample = fitsio.read(samplefile, columns=['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_PRIMARY', 'IN_FOOTPRINT'])
     #    rows = np.arange(len(sample))
     #
     #    samplecut = np.where(
     #        (sample['GROUP_PRIMARY'] == True) *
-    #        (sample['IN_DESI']))[0]
+    #        (sample['IN_FOOTPRINT']))[0]
     #    rows = rows[samplecut]
     #    
     #    customgals = [
@@ -543,6 +547,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-ellipse-outdated.txt', str)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-refit-ispsf-dropped.txt', str)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-refit-ispsf2.txt', str)
+
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/closepairs.txt', str)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/south-closepairs2.txt', str)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/south-refit-newparent.txt', str)
+    #galaxylist = np.loadtxt('/global/homes/i/ioannis/south-ispsf.txt', str)
 
     if galaxylist is not None:
         galcolumn = 'GROUP_NAME'

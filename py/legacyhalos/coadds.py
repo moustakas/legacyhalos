@@ -274,6 +274,7 @@ def get_ccds(survey, ra, dec, pixscale, width):
 
     targetwcs = wcs_for_brick(brick, W=np.float(width), H=np.float(width), pixscale=pixscale)
     ccds = survey.ccds_touching_wcs(targetwcs)
+
     if ccds is None or np.sum(ccds.ccd_cuts == 0) == 0:
         return []
     ccds.cut(ccds.ccd_cuts == 0)
@@ -288,8 +289,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   plots=False, verbose=False, cleanup=True, missing_ok=False,
                   write_all_pickles=False,
                   #no_subsky=False,
-                  subsky_radii=None,
-                  ubercal_sky=False, just_coadds=False, require_grz=True, no_gaia=False,
+                  subsky_radii=None, #ubercal_sky=False,
+                  just_coadds=False, require_grz=True, no_gaia=False,
                   no_tycho=False):
     """Build a custom set of large-galaxy coadds
 
