@@ -27,9 +27,12 @@ def mpi_args():
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
+    parser.add_argument('--galaxylist', type=str, nargs='*', default=None, help='List of galaxy names to process.')
 
-    parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
-    parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
+    parser.add_argument('--coadds', action='store_true', help='Build the custom coadds.')
+    parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipelinecoadds.')
+    parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
+
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
     parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
@@ -166,16 +169,17 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     nside = 8 # keep hard-coded
     
     if datadir is None:
-        datadir = hsc_data_dir()
+        datadir = legacyhalos.io.legacyhalos_data_dir()
     if htmldir is None:
-        htmldir = hsc_html_dir()
+        htmldir = legacyhalos.io.legacyhalos_html_dir()
 
-    if 'ID_S16A' in cat.colnames and 'NAME' in cat.colnames:
+    if 'ID_S16A' in cat.colnames:# and 'NAME' in cat.colnames:
         galid = cat['ID_S16A']
-        name = cat['NAME']
+        name = str(galid)
+        #name = cat['NAME']
     else:
         print('Missing ID_S16A and NAME in catalog!')
-        raise ValuerError
+        raise ValueError()
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
@@ -213,7 +217,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     else:
         return galaxy, galaxydir
 
-def read_sample(first=None, last=None, verbose=False):
+def read_sample(first=None, last=None, galaxylist=None, verbose=False):
     """Read/generate the parent HSC sample by combining the low-z and intermediate-z
     samples.
 
@@ -238,8 +242,8 @@ def read_sample(first=None, last=None, verbose=False):
     #samplefile = os.path.join(hdir, 's18a_z0.07_0.12_rcmod_18.5_etg_muse_massive_0313.fits')
     
     # intermediate-z sample only
-    #samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_decals_full_fdfc_bsm_ell.fits')
-    samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_dec_30_for_john.fits')
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 's16a_massive_z_0.5_logm_11.4_decals_full_fdfc_bsm_ell.fits')
+    #samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_dec_30_for_john.fits')
 
     # low-z sample only
     #samplefile = os.path.join(hdir, 'low-z-shape-for-john.fits')
@@ -254,9 +258,7 @@ def read_sample(first=None, last=None, verbose=False):
     #if False:
     #print('Temporary sample!!')
     #samplefile = os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits')
-    samplefile = os.path.join(hdir, 'hsc-sample-s16a-lowz.fits')
-
-
+    #samplefile = os.path.join(hdir, 'hsc-sample-s16a-lowz.fits')
     
     if first and last:
         if first > last:
@@ -266,31 +268,46 @@ def read_sample(first=None, last=None, verbose=False):
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
+    rows = None
+
     if first is None:
         first = 0
     if last is None:
         last = nrows
-        rows = np.arange(first, last)
+        if rows is None:
+            rows = np.arange(first, last)
+        else:
+            rows = rows[np.arange(first, last)]
     else:
         if last >= nrows:
             print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
             raise ValueError()
-        rows = np.arange(first, last + 1)
+        if rows is None:
+            rows = np.arange(first, last+1)
+        else:
+            rows = rows[np.arange(first, last+1)]
 
     sample = astropy.table.Table(info[ext].read(rows=rows, upper=True))
-    #if 'Z_BEST' in sample.colnames:
-    #    sample.rename_column('Z_BEST', 'Z')
-    #if 'Z_SPEC' in sample.colnames:
-    #    sample.rename_column('Z_SPEC', 'Z')
-    #sample.add_column(astropy.table.Column(name='RELEASE', data=np.repeat(7000, len(sample)).astype(np.int32)))
-    
     if verbose:
         if len(rows) == 1:
             print('Read galaxy index {} from {}'.format(first, samplefile))
         else:
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(sample), samplefile))
-            
+
+    # Add an (internal) index number:
+    #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
+
+    if galaxylist is not None:
+        if verbose:
+            print('Selecting specific galaxies.')
+        these = np.isin(sample[GALAXYCOLUMN], galaxylist)
+        if np.count_nonzero(these) == 0:
+            print('No matching galaxies!')
+            return astropy.table.Table()
+        else:
+            sample = sample[these]
+
     return sample
 
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),

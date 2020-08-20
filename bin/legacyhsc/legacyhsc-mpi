@@ -24,7 +24,7 @@ def main():
     datadir = legacyhalos.io.legacyhalos_data_dir()
     htmldir = legacyhalos.io.legacyhalos_html_dir()
     
-    args = legacyhalos.manga.mpi_args()
+    args = legacyhalos.hsc.mpi_args()
 
     if args.mpi:
         from mpi4py import MPI
@@ -130,8 +130,12 @@ def main():
             RADIUS_CLUSTER = RADIUS_CLUSTER_LOWZ_KPC
         else:
             RADIUS_CLUSTER = RADIUS_CLUSTER_KPC
+            
         radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
             redshift=onegal[ZCOLUMN], radius_kpc=RADIUS_CLUSTER) # [arcsec]
+            
+        radius_mask_arcsec = radius_mosaic_arcsec / 3 # [arcsec]
+        subsky_radii = (radius_mask_arcsec, 1.5*radius_mask_arcsec, 3*radius_mask_arcsec)
 
         run = legacyhalos.io.get_run(onegal)
         survey = get_survey(run, output_dir=galaxydir)
@@ -143,6 +147,7 @@ def main():
                                largegalaxy=False, pipeline=False, custom=True,
                                unwise=False, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                               subsky_radii=subsky_radii,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile)
 
@@ -158,8 +163,11 @@ def main():
 
         if args.ellipse:
             from legacyhalos.mpi import call_ellipse
+            input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
+                         input_ellipse=input_ellipse,
                          nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                         zcolumn=ZCOLUMN, 
                          unwise=False, 
                          logfile=logfile, largegalaxy=False, pipeline=False)
                              
@@ -180,8 +188,9 @@ def main():
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
-                           largegalaxy=False, galex=False,
-                           get_galaxy_galaxydir=legacyhalos.manga.get_galaxy_galaxydir)
+                           largegalaxy=False, 
+                           galex=False,
+                           get_galaxy_galaxydir=legacyhalos.hsc.get_galaxy_galaxydir)
 
     # Wait for all ranks to finish.
     if comm is not None:
@@ -190,7 +199,7 @@ def main():
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups, _, _ = legacyhalos.manga.missing_files(args, sample, size, clobber_overwrite=False)
+        _, groups, _, _ = legacyhalos.hsc.missing_files(args, sample, size, clobber_overwrite=False)
         if len(groups) > 0:
             stilltodo = len(np.hstack(groups))
         else:
