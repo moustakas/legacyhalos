@@ -437,6 +437,9 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
 
     hdr = legacyhalos_header()
 
+    #for col in out.colnames:
+    #    print(col, out[col])
+    #pdb.set_trace()
     hdu = fits.convenience.table_to_hdu(out)
     hdu.header['EXTNAME'] = 'ELLIPSE'
     hdu.header.update(hdr)

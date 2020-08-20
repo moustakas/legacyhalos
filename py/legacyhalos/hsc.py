@@ -6,18 +6,17 @@ Miscellaneous code pertaining to the project comparing HSC and DECaLS surface
 brightness profiles.
 
 """
-import os
-import pdb
+import os, shutil, pdb
 import numpy as np
+import astropy
 
-import fitsio
-import astropy.table
-
-import legacyhalos.html
+import legacyhalos.io
 
 ZCOLUMN = 'Z_BEST'
 RADIUS_CLUSTER_KPC = 250.0 # default cluster radius
 RADIUS_CLUSTER_LOWZ_KPC = 150.0 # default cluster radius
+RACOLUMN = 'RA'
+DECCOLUMN = 'DEC'
 
 def mpi_args():
     import argparse
@@ -28,9 +27,12 @@ def mpi_args():
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
+    parser.add_argument('--galaxylist', type=str, nargs='*', default=None, help='List of galaxy names to process.')
 
-    parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
-    parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
+    parser.add_argument('--coadds', action='store_true', help='Build the custom coadds.')
+    parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipelinecoadds.')
+    parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
+
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
     parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
@@ -40,7 +42,6 @@ def mpi_args():
     
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     
-    parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
     parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
     parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
     parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
@@ -57,97 +58,106 @@ def get_integrated_filename():
     integratedfile = os.path.join(hsc_dir(), 'integrated-flux.fits')
     return integratedfile
 
-def missing_files_groups(args, sample, size, htmldir=None):
-    """Simple task-specific wrapper on missing_files.
+def missing_files(args, sample, size=1, clobber_overwrite=None):
+    from astrometry.util.multiproc import multiproc
+    from legacyhalos.io import _missing_files_one
 
-    """
+    dependson = None
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)        
     if args.coadds:
         suffix = 'coadds'
-    elif args.custom_coadds:
-        suffix = 'custom-coadds'
+        filesuffix = '-custom-coadds.isdone'
+    elif args.pipeline_coadds:
+        suffix = 'pipeline-coadds'
+        if args.just_coadds:
+            filesuffix = '-pipeline-image-grz.jpg'
+        else:
+            filesuffix = '-pipeline-coadds.isdone'
     elif args.ellipse:
         suffix = 'ellipse'
+        filesuffix = '-custom-ellipse.isdone'
+        dependson = '-custom-coadds.isdone'
+    #elif args.build_SGA:
+    #    suffix = 'build-SGA'
+    #    filesuffix = '-custom-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
+        if args.just_coadds:
+            filesuffix = '-custom-grz-montage.png'
+        else:
+            filesuffix = '-ccdpos.png'
+            #filesuffix = '-custom-maskbits.png'
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+    elif args.htmlindex:
+        suffix = 'htmlindex'
+        filesuffix = '-custom-grz-montage.png'
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
-        suffix = ''        
+        print('Nothing to do.')
+        return
 
-    if suffix != '':
-        groups = missing_files(sample, filetype=suffix, size=size,
-                               clobber=args.clobber, htmldir=htmldir)
+    # Make clobber=False for build_SGA and htmlindex because we're not making
+    # the files here, we're just looking for them. The argument args.clobber
+    # gets used downstream.
+    if args.htmlindex:
+    #if args.htmlindex or args.build_SGA:
+        clobber = False
     else:
-        groups = []        
+        clobber = args.clobber
 
-    return suffix, groups
-
-def missing_files(sample, filetype='coadds', size=1, htmldir=None,
-                  clobber=False):
-    """Find missing data of a given filetype."""    
-
-    if filetype == 'coadds':
-        filesuffix = '-pipeline-resid-grz.jpg'
-    elif filetype == 'custom-coadds':
-        filesuffix = '-custom-resid-grz.jpg'
-    elif filetype == 'ellipse':
-        filesuffix = '-ellipsefit.p'
-    elif filetype == 'html':
-        filesuffix = '-ccdpos.png'
-        #filesuffix = '-sersic-exponential-nowavepower.png'
-    else:
-        print('Unrecognized file type!')
-        raise ValueError
+    if clobber_overwrite is not None:
+        clobber = clobber_overwrite
 
     if type(sample) is astropy.table.row.Row:
         ngal = 1
     else:
         ngal = len(sample)
     indices = np.arange(ngal)
-    todo = np.ones(ngal, dtype=bool)
 
-    if filetype == 'html':
-        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir, html=True)
-    else:
-        galaxy, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir)
-
-    for ii, (gal, gdir) in enumerate( zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)) ):
+    mp = multiproc(nthreads=args.nproc)
+    missargs = []
+    for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
+        #missargs.append([gal, gdir, filesuffix, dependson, clobber])
         checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
-        if os.path.exists(checkfile) and clobber is False:
-            todo[ii] = False
-
-    if np.sum(todo) == 0:
-        return list()
-    else:
-        indices = indices[todo]
+        if dependson:
+            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+        else:
+            missargs.append([checkfile, None, clobber])
         
-    return np.array_split(indices, size)
+    todo = np.array(mp.map(_missing_files_one, missargs))
 
-def hsc_dir():
-    if 'HSC_DIR' not in os.environ:
-        print('Required ${HSC_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('HSC_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
+    itodo = np.where(todo == 'todo')[0]
+    idone = np.where(todo == 'done')[0]
+    ifail = np.where(todo == 'fail')[0]
 
-def hsc_data_dir():
-    if 'HSC_DATA_DIR' not in os.environ:
-        print('Required ${HSC_DATA_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('HSC_DATA_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
+    if len(ifail) > 0:
+        fail_indices = [indices[ifail]]
+    else:
+        fail_indices = [np.array([])]
 
-def hsc_html_dir():
-    if 'HSC_HTML_DIR' not in os.environ:
-        print('Required ${HSC_HTML_DIR environment variable not set.')
-        raise EnvironmentError
-    ldir = os.path.abspath(os.getenv('HSC_HTML_DIR'))
-    if not os.path.isdir(ldir):
-        os.makedirs(ldir, exist_ok=True)
-    return ldir
+    if len(idone) > 0:
+        done_indices = [indices[idone]]
+    else:
+        done_indices = [np.array([])]
 
+    if len(itodo) > 0:
+        _todo_indices = indices[itodo]
+        todo_indices = np.array_split(_todo_indices, size) # unweighted
+
+        ## Assign the sample to ranks to make the D25 distribution per rank ~flat.
+        ## https://stackoverflow.com/questions/33555496/split-array-into-equally-weighted-chunks-based-on-order
+        #weight = np.atleast_1d(sample[DIAMCOLUMN])[_todo_indices]
+        #cumuweight = weight.cumsum() / weight.sum()
+        #idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
+        #if len(idx) < size: # can happen in corner cases
+        #    todo_indices = np.array_split(_todo_indices, size) # unweighted
+        #else:
+        #    todo_indices = np.array_split(_todo_indices, idx) # weighted
+    else:
+        todo_indices = [np.array([])]
+
+    return suffix, todo_indices, done_indices, fail_indices
+    
 def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     """Retrieve the galaxy name and the (nested) directory.
 
@@ -159,16 +169,17 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     nside = 8 # keep hard-coded
     
     if datadir is None:
-        datadir = hsc_data_dir()
+        datadir = legacyhalos.io.legacyhalos_data_dir()
     if htmldir is None:
-        htmldir = hsc_html_dir()
+        htmldir = legacyhalos.io.legacyhalos_html_dir()
 
-    if 'ID_S16A' in cat.colnames and 'NAME' in cat.colnames:
+    if 'ID_S16A' in cat.colnames:# and 'NAME' in cat.colnames:
         galid = cat['ID_S16A']
-        name = cat['NAME']
+        name = str(galid)
+        #name = cat['NAME']
     else:
         print('Missing ID_S16A and NAME in catalog!')
-        raise ValuerError
+        raise ValueError()
 
     if type(cat) is astropy.table.row.Row:
         ngal = 1
@@ -206,7 +217,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
     else:
         return galaxy, galaxydir
 
-def read_sample(first=None, last=None, verbose=False):
+def read_sample(first=None, last=None, galaxylist=None, verbose=False):
     """Read/generate the parent HSC sample by combining the low-z and intermediate-z
     samples.
 
@@ -225,12 +236,13 @@ def read_sample(first=None, last=None, verbose=False):
     sout.write('hsc-sample-s16a-lowz.fits', overwrite=True)
 
     """
-    hdir = hsc_dir()
+    import fitsio
+
     # Hack for MUSE proposal
     #samplefile = os.path.join(hdir, 's18a_z0.07_0.12_rcmod_18.5_etg_muse_massive_0313.fits')
     
     # intermediate-z sample only
-    #samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_decals_full_fdfc_bsm_ell.fits')
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 's16a_massive_z_0.5_logm_11.4_decals_full_fdfc_bsm_ell.fits')
     #samplefile = os.path.join(hdir, 's16a_massive_z_0.5_logm_11.4_dec_30_for_john.fits')
 
     # low-z sample only
@@ -244,9 +256,10 @@ def read_sample(first=None, last=None, verbose=False):
 
     # combined sample (see comment block above)
     #if False:
-    print('Temporary sample!!')
-    samplefile = os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits')
+    #print('Temporary sample!!')
+    #samplefile = os.path.join(hdir, 'temp-hsc-sample-s16a-lowz.fits')
     #samplefile = os.path.join(hdir, 'hsc-sample-s16a-lowz.fits')
+    
     if first and last:
         if first > last:
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
@@ -255,31 +268,46 @@ def read_sample(first=None, last=None, verbose=False):
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
+    rows = None
+
     if first is None:
         first = 0
     if last is None:
         last = nrows
-        rows = np.arange(first, last)
+        if rows is None:
+            rows = np.arange(first, last)
+        else:
+            rows = rows[np.arange(first, last)]
     else:
         if last >= nrows:
             print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
             raise ValueError()
-        rows = np.arange(first, last + 1)
+        if rows is None:
+            rows = np.arange(first, last+1)
+        else:
+            rows = rows[np.arange(first, last+1)]
 
     sample = astropy.table.Table(info[ext].read(rows=rows, upper=True))
-    #if 'Z_BEST' in sample.colnames:
-    #    sample.rename_column('Z_BEST', 'Z')
-    #if 'Z_SPEC' in sample.colnames:
-    #    sample.rename_column('Z_SPEC', 'Z')
-    #sample.add_column(astropy.table.Column(name='RELEASE', data=np.repeat(7000, len(sample)).astype(np.int32)))
-    
     if verbose:
         if len(rows) == 1:
             print('Read galaxy index {} from {}'.format(first, samplefile))
         else:
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(sample), samplefile))
-            
+
+    # Add an (internal) index number:
+    #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
+
+    if galaxylist is not None:
+        if verbose:
+            print('Selecting specific galaxies.')
+        these = np.isin(sample[GALAXYCOLUMN], galaxylist)
+        if np.count_nonzero(these) == 0:
+            print('No matching galaxies!')
+            return astropy.table.Table()
+        else:
+            sample = sample[these]
+
     return sample
 
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),

@@ -661,7 +661,7 @@ def _fitgeometry_refband(ellipsefit, geometry0, majoraxis, refband='r', verbose=
     return ellipsefit
 
 def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
-                         filesuffix='', refband='r', maxsma=None, nproc=1,
+                         filesuffix='custom', refband='r', maxsma=None, nproc=1,
                          integrmode='median', nclip=2, sclip=3, delta_sma=1.0,
                          galaxyinfo=None, input_ellipse=None, fitgeometry=False,
                          nowrite=False, verbose=False):
@@ -767,7 +767,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 
     # Integrate to the edge [pixels].
     if maxsma is None:
-        maxsma = 0.95 * (data['{}_width'.format(refband)]/2) / np.cos(geometry.pa % (np.pi/4))
+        maxsma = 0.95 * (data['refband_width']/2) / np.cos(geometry.pa % (np.pi/4))
     ellipsefit['maxsma'] = np.float32(maxsma) # [pixels]
 
     sma = np.arange(0, np.ceil(maxsma), delta_sma).astype('f4')
@@ -868,7 +868,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     if largegalaxy:
         filesuffix = 'largegalaxy'
     else:
-        filesuffix = ''
+        filesuffix = 'custom'
         #central_galaxy_id = None
 
     # Read the data and then do ellipse-fitting.
@@ -884,8 +884,13 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         if data['failed']: # all galaxies dropped
             return 1, filesuffix
 
-        for igal in np.arange(len(data['central_galaxy_id'])):
-            central_galaxy_id = data['central_galaxy_id'][igal]
+        if data['central_galaxy_id'] is not None:
+            central_galaxy_id_all = data['central_galaxy_id']
+        else:
+            central_galaxy_id_all = np.atleast_1d(1)
+
+        for igal in np.arange(len(central_galaxy_id_all)):
+            central_galaxy_id = central_galaxy_id_all[igal]
             galaxyid = str(central_galaxy_id)
             print('Starting ellipse-fitting for galaxy {} with {} core(s)'.format(galaxyid, nproc))
             if largegalaxy:
@@ -910,7 +915,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                     delta_sma = 1.0
                 print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))
             else:
-                maxsma, galaxyid, delta_sma = None, None, 1.0                
+                maxsma, galaxyid, delta_sma = None, '', 1.0                
                 galaxyinfo = {'redshift': (redshift, '')}
 
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, centralindx=igal,
@@ -930,43 +935,3 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         else:
             return 0, filesuffix
 
-    #if pipeline:
-    #    print('Forced ellipse-fitting on the pipeline images.')
-    #    pipeline_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
-    #                                                  refband=refband, pixscale=pixscale,
-    #                                                  pipeline=True, verbose=verbose)
-    #    if bool(pipeline_data):
-    #        pipeline_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, pipeline_data,
-    #                                                   nproc=nproc, filesuffix='pipeline',
-    #                                                   bands=bands, pixscale=pixscale,
-    #                                                   verbose=verbose)
-    #if sdss:
-    #    print('Forced ellipse-fitting on the SDSS images.')
-    #    sdss_data = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=sdss_bands,
-    #                                              refband='r', sdss_pixscale=sdss_pixscale,
-    #                                              sdss=True)
-    #    
-    #    sdss_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, sdss_data,
-    #                                           nproc=nproc, filesuffix='sdss',
-    #                                           bands=sdss_bands, pixscale=sdss_pixscale,
-    #                                           verbose=verbose)
-    #
-    #if unwise:
-    #    print('Forced ellipse-fitting on the unWISE images.')
-    #    unwise_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
-    #                                             nproc=nproc, filesuffix='unwise',
-    #                                             bands=('W1','W2','W3','W4'),
-    #                                             pixscale=unwise_pixscale,
-    #                                             verbose=verbose)
-    #if galex:
-    #    print('Forced ellipse-fitting on the GALEX images.')
-    #    galex_ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
-    #                                            nproc=nproc, filesuffix='galex',
-    #                                            bands=('FUV', 'NUV'),
-    #                                            pixscale=galex_pixscale,
-    #                                            verbose=verbose)
-    #
-    #if ellipsefit['success']:
-    #    return 1
-    #else:
-    #    return 0
