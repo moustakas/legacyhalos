@@ -114,7 +114,7 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True):
         im.save(pngfile)
     return pngfile
 
-def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
+def qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=False, png=None):
     """For the SGA, display the maskbits image with some additional information
     about the catalog.
 
@@ -127,8 +127,8 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
 
     from tractor.ellipses import EllipseE
     from legacypipe.reference import get_large_galaxy_version
-    from legacyhalos.SGA import _get_diameter
     from legacyhalos.misc import is_in_ellipse
+    from legacyhalos.SGA import _get_diameter
 
     Image.MAX_IMAGE_PIXELS = None
     imgsz = colorimg.size
@@ -207,16 +207,17 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, png=None):
                             1-ellipsefit['eps'],
                             ellipsefit['pa'], 2 * maxis * ellipsefit['refpixscale'],
                             ellipsefit['refpixscale'], color=cb_colors['blue']) # '#ffaa33')
-        draw_ellipse_on_png(colorimg, ellipsefit['x0'], imgsz[1]-ellipsefit['y0'],
-                            ellipsefit['ba_leda'], ellipsefit['pa_leda'],
-                            ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
-                            color=cb_colors['red'])
+        if 'd25_leda' in ellipsefit.keys():
+            draw_ellipse_on_png(colorimg, ellipsefit['x0'], imgsz[1]-ellipsefit['y0'],
+                                ellipsefit['ba_leda'], ellipsefit['pa_leda'],
+                                ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
+                                color=cb_colors['red'])
         
-        # Hyperleda geometry
-        maxis = ellipsefit['d25_leda'] * 60 / ellipsefit['refpixscale'] / 2 # [pixels]
-        ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                                     maxis, maxis * ellipsefit['ba_leda'],
-                                     np.radians(ellipsefit['pa_leda']-90))
+            # Hyperleda geometry
+            maxis = ellipsefit['d25_leda'] * 60 / ellipsefit['refpixscale'] / 2 # [pixels]
+            ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
+                                         maxis, maxis * ellipsefit['ba_leda'],
+                                         np.radians(ellipsefit['pa_leda']-90))
         if igal == 0:
             ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax2, alpha=1.0, label='Hyperleda')
         else:
@@ -830,9 +831,10 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     # First display the color mosaic...
     if ellipsefit and ellipsefit['success']:
         sz = colorimg.size
-        draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], ellipsefit['ba_leda'],
-                            ellipsefit['pa_leda'], ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
-                            color=cb_colors['red']) # '#3388ff')        
+        if 'd25_leda' in ellipsefit.keys():
+            draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], ellipsefit['ba_leda'],
+                                ellipsefit['pa_leda'], ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
+                                color=cb_colors['red']) # '#3388ff')        
         draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
                             ellipsefit['pa'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
                             ellipsefit['refpixscale'], color=cb_colors['green']) # '#ffaa33')
@@ -972,12 +974,14 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
 
             # Visualize the input geometry
             if ellipsefit['input_ellipse']:
-                geometry = ellipsefit['geometry']
-                #maxis = geometry.sma
-                maxis = geometry.sma * 0.8
-                ellaper = EllipticalAperture((geometry.x0, geometry.y0), maxis,
-                                             maxis*(1 - geometry.eps), geometry.pa)
-                ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
+                print('FIX ME!!!')
+                if False:
+                    geometry = ellipsefit['geometry']
+                    #maxis = geometry.sma
+                    maxis = geometry.sma * 0.8
+                    ellaper = EllipticalAperture((geometry.x0, geometry.y0), maxis,
+                                                 maxis*(1 - geometry.eps), geometry.pa)
+                    ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
 
             if ii == 2:
                 fntsize = 20
