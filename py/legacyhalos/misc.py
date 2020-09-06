@@ -14,12 +14,12 @@ RADIUS_CLUSTER_KPC = 500.0     # default cluster radius
 #SURVEY_DIR = '/global/project/projectdirs/cosmo/data/legacysurvey/dr8'
 ZCOLUMN = 'Z_LAMBDA'    
 
-def viewer_inspect(cat):
+def viewer_inspect(cat, galaxycolname='GALAXY'):
     """Write a little catalog that can be uploaded to the viewer.
 
     """
-    out = cat['GALAXY', 'RA', 'DEC']
-    out.rename_column('GALAXY', 'NAME')
+    out = cat[galaxycolname, 'RA', 'DEC']
+    out.rename_column(galaxycolname, 'NAME')
     outfile = os.path.join(os.getenv('HOME'), 'tmp', 'viewer.fits')
     print('Writing {} objects to {}'.format(len(cat), outfile))
     out.write(outfile, overwrite=True)
