@@ -1158,9 +1158,10 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         tractor.d25_leda = np.zeros(len(tractor), dtype='f4')
         tractor.pa_leda = np.zeros(len(tractor), dtype='f4')
         tractor.ba_leda = np.zeros(len(tractor), dtype='f4')
-        tractor.d25_leda[central_galaxy] = sample['D25_LEDA']
-        tractor.pa_leda[central_galaxy] = sample['PA_LEDA']
-        tractor.ba_leda[central_galaxy] = sample['BA_LEDA']
+        if 'D25_LEDA' in sample.colnames and 'PA_LEDA' in sample.colnames and 'BA_LEDA' in sample.colnames:
+            tractor.d25_leda[central_galaxy] = sample['D25_LEDA']
+            tractor.pa_leda[central_galaxy] = sample['PA_LEDA']
+            tractor.ba_leda[central_galaxy] = sample['BA_LEDA']
         
         # Do we need to take into account the elliptical mask of each source??
         srt = np.argsort(tractor.flux_r[central_galaxy])[::-1]
