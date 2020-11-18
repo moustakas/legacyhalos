@@ -177,8 +177,13 @@ cat.add_column(Column(name='PGC', data=np.zeros(ng, dtype=np.int32)))
 cat.add_column(Column(name='PA', data=np.zeros(ng, dtype='f4')))
 cat.add_column(Column(name='BA', data=np.zeros(ng, dtype='f4')))
 cat.add_column(Column(name='DIAM', data=np.zeros(ng, dtype='f4')))
-cat['RA_ORIG'] = cat['RA']
-cat['DEC_ORIG'] = cat['DEC']
+
+cat.rename_column('RA', 'RA_ORIG')
+cat.rename_column('DEC', 'DEC_ORIG')
+cat.add_column(Column(name='RA', data=np.zeros(ng, dtype='f8')))
+cat.add_column(Column(name='DEC', data=np.zeros(ng, dtype='f8')))
+cat['RA'][:] = cat['RA_ORIG']
+cat['DEC'][:] = cat['DEC_ORIG']
 
 #dr8 = Table(fitsio.read(homedir+'/vf_north_v0_legacysurvey_match.fits', upper=True, ext=1))
 #for cols in 'FLUX_G', 'FLUX_R', 'FLUX_W1', 'FLUX_W2', 'FLUX_W3', 'FLUX_W4', 'FLUX_Z':
@@ -188,6 +193,7 @@ cat['DEC_ORIG'] = cat['DEC']
 fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] == 0))[0]
 if len(fix) > 0:
     cat['RADIUS'][fix] = 100.0
+cat['DIAM'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
 
 m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA'], sga['DEC'], 3/3600)
 miss = np.delete(np.arange(ng), m1)
