@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+
+"""Archive old SGA files.
+
+"""
+import os, pdb
+from glob import glob
+from legacyhalos.SGA import get_galaxy_galaxydir, read_sample
+
+ss = read_sample(verbose=True)
+galaxy, galaxydir = get_galaxy_galaxydir(ss)
+
+alldir = np.array(glob('/global/cscratch1/sd/ioannis/SGA-data-dr9alpha/???/*'))
+assert(np.sum(np.isin(alldir, galaxydir)) == len(galaxydir))
+
+# directories that no longer exist--
+mvdir = alldir[np.where(np.logical_not(np.isin(alldir, galaxydir)))[0]]
+with open('/global/cscratch1/sd/ioannis/SGA-attic/SGA-attic.txt'.format(prefix), 'w') as ff:
+    [ff.write('{}\n'.format(mv)) for mv in mvdir]
+
+#for mv in mvdir:
+#    os.system('mv {} /global/cscratch1/sd/ioannis/SGA-attic/'.format(mv))
+
+pdb.set_trace()
