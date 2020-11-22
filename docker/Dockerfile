@@ -1,4 +1,4 @@
-FROM legacysurvey/legacypipe:DR9.5.10b
+FROM legacysurvey/legacypipe:DR9.6.7b
 
 RUN for x in \
     ipython \
