@@ -19,9 +19,9 @@ Input Data and Sample Selection
 
 2. *Assemble Legacy Surveys photometry.*
    
-   Next, we assemble *grz* and *W1-W4* photometry from the `Legacy Survey/DR8`_
+   Next, we assemble *grz* and *W1-W4* photometry from the `Legacy Survey/DR9`_
    sweep files for the full catalog of centrals and satellites using the
-   `match-legacysurvey-redmapper.slurm`_ SLURM script.
+   `legacyhalos-match-redmapper`_ script.
 
 3. *Select the parent sample.*
 
@@ -37,11 +37,11 @@ Analysis for Paper 1
 1. Build the sample by running the Python script `build-paper1-sample`_.
 
 2. Build the n(z) and n(lambda) relations:
-   `legacyhalos-paper1-smf --nofz --noflambda --dr dr6-dr7 --clobber --verbose`
+   `legacyhalos-paper1-smf --nofz --noflambda --dr dr9 --clobber --verbose`
 
 2. Build the stellar mass functions:
-   `legacyhalos-paper1-smf --smf --sfhgrid 1 --lsphot --dr dr6-dr7 --clobber --verbose`
-   `legacyhalos-paper1-smf --smf --sfhgrid 2 --lsphot --dr dr6-dr7 --clobber --verbose`
+   `legacyhalos-paper1-smf --smf --sfhgrid 1 --lsphot --dr dr9 --clobber --verbose`
+   `legacyhalos-paper1-smf --smf --sfhgrid 2 --lsphot --dr dr9 --clobber --verbose`
    `legacyhalos-paper1-smf --smf --sfhgrid 1 --sdssphot --clobber --verbose`
    `legacyhalos-paper1-smf --smf --sfhgrid 2 --sdssphot --clobber --verbose`
 
@@ -103,11 +103,9 @@ References
 
 .. _`redmapper-sdssWISEphot.ipynb`: https://nbviewer.jupyter.org/github/moustakas/legacyhalos/blob/master/doc/redmapper-sdssWISEphot.ipynb
 
-.. _`match-legacysurvey-redmapper.slurm`: https://github.com/moustakas/legacyhalos/blob/master/bin/match-legacysurvey-redmapper.slurm
+.. _`legacyhalos-match-redmapper`: https://github.com/moustakas/legacyhalos/blob/master/bin/legacyhalos/legacyhalos-match-redmapper
 
-.. _`Legacy Surveys/DR6`: http://legacysurvey.org/dr6/files/#sweep-catalogs
-
-.. _`Legacy Surveys/DR7`: http://legacysurvey.org/dr7/files/#sweep-catalogs
+.. _`Legacy Surveys/DR9`: http://legacysurvey.org/dr9/files/#sweep-catalogs
 
 .. _`legacyhalos-sample-selection.ipynb`: https://nbviewer.jupyter.org/github/moustakas/legacyhalos/blob/master/doc/legacyhalos-sample-selection.ipynb
 
