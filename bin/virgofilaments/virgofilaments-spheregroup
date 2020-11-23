@@ -136,7 +136,7 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
         
     return cat
 
-def qa():
+def qa(version='v1'):
     fig, ax = plt.subplots(2, 2, figsize=(13, 10))
     ax[0, 0].scatter(cat['RA'][m1], cat['DEC'][m1], s=5)
     ax[0, 0].scatter(cat['RA'][miss], cat['DEC'][miss], s=5)
@@ -160,73 +160,81 @@ def qa():
     ax[1, 1].axis('off')
 
     fig.subplots_adjust(left=0.1, bottom=0.15, right=0.98, hspace=0.25, wspace=0.2)
-    fig.savefig(os.path.join(homedir, 'qa-virgofilaments-SGA.png'))
+    fig.savefig(os.path.join(homedir, 'qa-virgofilaments-{}-SGA.png'.format(version)))
 
-sga = Table(fitsio.read(homedir+'/../../SGA/sample/v3.0/SGA-parent-v3.0.fits'))
-cat = Table(fitsio.read(homedir+'/vf_north_v0_main.fits', upper=True))
-ng = len(cat)
+def main(version='v1'):
 
-cat['SGA_MATCH'] = np.zeros(ng, bool)
-fix = np.where(cat['OBJNAME'] == '')[0]
-if len(fix) > 0:
-    cat['OBJNAME'][fix] = cat['VFID'][fix]
-    
-cat.rename_column('OBJNAME', 'GALAXY')
-cat.add_column(Column(name='SGA_ID', data=np.arange(ng)))
-cat.add_column(Column(name='PGC', data=np.zeros(ng, dtype=np.int32)))
-cat.add_column(Column(name='PA', data=np.zeros(ng, dtype='f4')))
-cat.add_column(Column(name='BA', data=np.zeros(ng, dtype='f4')))
-cat.add_column(Column(name='DIAM', data=np.zeros(ng, dtype='f4')))
+    sga = Table(fitsio.read(homedir+'/../../SGA/sample/v3.0/SGA-parent-v3.0.fits'))
+    cat = Table(fitsio.read(homedir+'/vf_north_{}_main.fits'.format(version), upper=True))
+    ng = len(cat)
 
-cat.rename_column('RA', 'RA_ORIG')
-cat.rename_column('DEC', 'DEC_ORIG')
-cat.add_column(Column(name='RA', data=np.zeros(ng, dtype='f8')))
-cat.add_column(Column(name='DEC', data=np.zeros(ng, dtype='f8')))
-cat['RA'][:] = cat['RA_ORIG']
-cat['DEC'][:] = cat['DEC_ORIG']
+    cat['SGA_MATCH'] = np.zeros(ng, bool)
+    fix = np.where(cat['OBJNAME'] == '')[0]
+    if len(fix) > 0:
+        cat['OBJNAME'][fix] = cat['VFID'][fix]
 
-#dr8 = Table(fitsio.read(homedir+'/vf_north_v0_legacysurvey_match.fits', upper=True, ext=1))
-#for cols in 'FLUX_G', 'FLUX_R', 'FLUX_W1', 'FLUX_W2', 'FLUX_W3', 'FLUX_W4', 'FLUX_Z':
-#    cat[cols] = dr8[cols]
+    cat.rename_column('OBJNAME', 'GALAXY')
+    cat.add_column(Column(name='SGA_ID', data=np.arange(ng)))
+    cat.add_column(Column(name='PGC', data=np.zeros(ng, dtype=np.int32)))
+    cat.add_column(Column(name='PA', data=np.zeros(ng, dtype='f4')))
+    cat.add_column(Column(name='BA', data=np.zeros(ng, dtype='f4')))
+    cat.add_column(Column(name='DIAM', data=np.zeros(ng, dtype='f4')))
 
-# fix crummy radii
-fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] == 0))[0]
-if len(fix) > 0:
-    cat['RADIUS'][fix] = 100.0
-cat['DIAM'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
+    cat.rename_column('RA', 'RA_ORIG')
+    cat.rename_column('DEC', 'DEC_ORIG')
+    cat.add_column(Column(name='RA', data=np.zeros(ng, dtype='f8')))
+    cat.add_column(Column(name='DEC', data=np.zeros(ng, dtype='f8')))
+    cat['RA'][:] = cat['RA_ORIG']
+    cat['DEC'][:] = cat['DEC_ORIG']
 
-m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA'], sga['DEC'], 3/3600)
-miss = np.delete(np.arange(ng), m1)
-print('N={}/{} matches'.format(len(m1), ng))
+    #dr8 = Table(fitsio.read(homedir+'/vf_north_v0_legacysurvey_match.fits', upper=True, ext=1))
+    #for cols in 'FLUX_G', 'FLUX_R', 'FLUX_W1', 'FLUX_W2', 'FLUX_W3', 'FLUX_W4', 'FLUX_Z':
+    #    cat[cols] = dr8[cols]
 
-# update data model;
-cat['SGA_MATCH'][m1] = True
-cat['SGA_ID'][m1] = sga['SGA_ID'][m2]
-cat['PGC'][m1] = sga['PGC'][m2]
-cat['PA'][m1] = sga['PA'][m2]
-cat['BA'][m1] = sga['BA'][m2]
-cat['DIAM'][m1] = sga['DIAM'][m2]
-cat['RA'][m1] = sga['RA'][m2]
-cat['DEC'][m1] = sga['DEC'][m2]
+    # fix crummy radii
+    fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] == 0))[0]
+    if len(fix) > 0:
+        cat['RADIUS'][fix] = 100.0
+    cat['DIAM'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
 
-print('Removing special characters from galaxy names.')
-fix = np.where(['[' in gg or ':' in gg or '(' in gg for gg in cat['GALAXY']])[0]
-if len(fix) > 0:
-    for ii in fix:
-        cat['GALAXY'][ii] = cat['GALAXY'][ii].replace('[', '').replace(']', '_').replace(':', '_').replace('(', '_').replace(')', '_')
+    m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA'], sga['DEC'], 3/3600)
+    miss = np.delete(np.arange(ng), m1)
+    print('N={}/{} matches'.format(len(m1), ng))
 
-if False:
-    check = cat[miss]
-    check = check[np.logical_or(check['FLUX_R'] == 0, np.isnan(check['FLUX_R']))]
-    print(len(check))
+    # update data model;
+    cat['SGA_MATCH'][m1] = True
+    cat['SGA_ID'][m1] = sga['SGA_ID'][m2]
+    cat['PGC'][m1] = sga['PGC'][m2]
+    cat['PA'][m1] = sga['PA'][m2]
+    cat['BA'][m1] = sga['BA'][m2]
+    cat['DIAM'][m1] = sga['DIAM'][m2]
+    cat['RA'][m1] = sga['RA'][m2]
+    cat['DEC'][m1] = sga['DEC'][m2]
 
-    check = check[np.argsort(check['RADIUS'])[::-1]]
+    print('Removing special characters from galaxy names.')
+    fix = np.where(['[' in gg or ':' in gg or '(' in gg for gg in cat['GALAXY']])[0]
+    if len(fix) > 0:
+        for ii in fix:
+            cat['GALAXY'][ii] = cat['GALAXY'][ii].replace('[', '').replace(']', '_').replace(':', '_').replace('(', '_').replace(')', '_')
 
-    print(check)
-    viewer_inspect(check[:20], galaxycolname='GALAXY')
-    qa()
+    if False:
+        check = cat[miss]
+        check = check[np.logical_or(check['FLUX_R'] == 0, np.isnan(check['FLUX_R']))]
+        print(len(check))
 
-out = build_group_catalog(cat)
-out.write(os.path.join(homedir, 'vf_north_v0_main_groups.fits'), overwrite=True)
+        check = check[np.argsort(check['RADIUS'])[::-1]]
 
-pdb.set_trace()
+        print(check)
+        viewer_inspect(check[:20], galaxycolname='GALAXY')
+        qa()
+
+    out = build_group_catalog(cat)
+    out.write(os.path.join(homedir, 'vf_north_{}_main_groups.fits'.format(version)), overwrite=True)
+
+    pdb.set_trace()
+
+if __name__ == '__main__':
+
+    version = 'v1'
+    main(version)
+
