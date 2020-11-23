@@ -7,6 +7,7 @@ Code to support the legacyhalos sample and project.
 """
 import os, shutil, pdb
 import numpy as np
+from legacyhalos.io import legacyhalos_dir
 
 ZCOLUMN = 'Z'
 RACOLUMN = 'RA'
