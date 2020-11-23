@@ -3,22 +3,53 @@
 """Archive old SGA files.
 
 """
-import os, pdb
+import os, shutil, pdb
+import numpy as np
 from glob import glob
+import multiprocessing
 from legacyhalos.SGA import get_galaxy_galaxydir, read_sample
+
+def _atticfiles_one(args):
+    return atticfiles_one(*args)
+
+def atticfiles_one(gdir):
+    pickles = len(glob('{}/*.p'.format(gdir))) > 0
+    coadds = os.path.isdir('{}/coadd'.format(gdir))
+    if pickles or coadds:
+        return gdir
+    else:
+        return None
 
 ss = read_sample(verbose=True)
 galaxy, galaxydir = get_galaxy_galaxydir(ss)
 
+# check for left-over pickle files and coadd directories
+nproc = 32
+glist = [[gdir] for gdir in galaxydir]
+with multiprocessing.Pool(nproc) as P:
+    rr = P.map(_atticfiles_one, glist)
+gfix = list(filter(None, rr))
+
+
+pdb.set_trace()
+
+# now check for obsolete galaxies and groups to be moved
 alldir = np.array(glob('/global/cscratch1/sd/ioannis/SGA-data-dr9alpha/???/*'))
 assert(np.sum(np.isin(alldir, galaxydir)) == len(galaxydir))
 
 # directories that no longer exist--
 mvdir = alldir[np.where(np.logical_not(np.isin(alldir, galaxydir)))[0]]
-with open('/global/cscratch1/sd/ioannis/SGA-attic/SGA-attic.txt'.format(prefix), 'w') as ff:
-    [ff.write('{}\n'.format(mv)) for mv in mvdir]
+print('Found {}/{} obsolete directories that need to be moved.'.format(len(mvdir), len(alldir)))
+assert(len(alldir)-len(mvdir)==len(galaxydir))
 
-#for mv in mvdir:
-#    os.system('mv {} /global/cscratch1/sd/ioannis/SGA-attic/'.format(mv))
+if False:
+    with open('/global/cscratch1/sd/ioannis/SGA-attic/SGA-attic.txt', 'w') as ff:
+        [ff.write('{}\n'.format(mv)) for mv in mvdir]
+
+for ii, mv in enumerate(mvdir):
+    print(ii)
+    if os.path.isdir(mv):
+        shutil.move(mv, '/global/cscratch1/sd/ioannis/SGA-attic/')
+        
 
 pdb.set_trace()
