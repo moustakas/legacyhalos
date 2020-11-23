@@ -11,16 +11,16 @@
 #   % source legacyhalos-env
 #   % match-legacysurvey-redmapper-dr9.sh
 
+source $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-env
+
 dr=dr9
 drdir=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9m
-
-source $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-env
 
 export BRICKSFILE=$drdir/survey-bricks.fits.gz
 
 # The satellites need more memory, so use fewer cores.
-export NUMPROC_CENTRALS=$(($SLURM_CPUS_ON_NODE / 2))
-export NUMPROC_MEMBERS=$(($SLURM_CPUS_ON_NODE / 5))
+export NUMPROC_CENTRALS=32
+export NUMPROC_MEMBERS=32
 
 # ADM run once for each of the DECaLS and MzLS/BASS surveys.
 for survey in north south
@@ -35,13 +35,20 @@ do
     echo "Wrote list of tractor files to" $TRACTOR_FILELIST
 
     echo "Writing "$REDMAPPER_DIR/v6.3.1/legacysurvey-$dr-$survey-centrals-v6.3.1-lgt5.fits
-    time srun -N 1 python $LEGACYPIPE_DIR/bin/match-external-catalog.py \
+    time python $LEGACYPIPE_CODE_DIR/bin/match-external-catalog.py \
          -v --numproc $NUMPROC_CENTRALS -f fits -F $TRACTOR_FILELIST \
-         --copycols MEM_MATCH_ID \
          $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-centrals-sdssWISEphot-dr14.fits \
          $TRACTOR_INDIR \
-         $REDMAPPER_DIR/v6.3.1/legacysurvey-$dr-$survey-centrals-v6.3.1-lgt5.fits 
+         $REDMAPPER_DIR/v6.3.1/legacysurvey-$dr-$survey-centrals-v6.3.1-lgt5.fits \
+         --copycols MEM_MATCH_ID
 
+    echo "Writing "$REDMAPPER_DIR/v6.3.1/legacysurvey-$dr-$survey-members-v6.3.1-lgt5.fits
+    time python $LEGACYPIPE_CODE_DIR/bin/match-external-catalog.py \
+         -v --numproc $NUMPROC_MEMBERS -f fits -F $TRACTOR_FILELIST \
+         $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-members-sdssWISEphot-dr14.fits \
+         $TRACTOR_INDIR \
+         $REDMAPPER_DIR/v6.3.1/legacysurvey-$dr-$survey-members-v6.3.1-lgt5.fits \
+         --copycols MEM_MATCH_ID
 done
 
 wait
