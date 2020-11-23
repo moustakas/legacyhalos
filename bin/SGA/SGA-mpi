@@ -211,9 +211,6 @@ def main():
             print('Working on chunk {:03d}/{:03d}'.format(ichunk, len(groups[rank])-1))
             tchunk = time.time()
 
-            #mingroup = np.min(sample['GROUP_ID'][chunk])
-            #maxgroup = np.max(sample['GROUP_ID'][chunk])
-            #chunkdir = os.path.join(chunkdatadir, '{}-{}'.format(mingroup, maxgroup))
             raslice_str = get_raslice(sample['RA'][chunk[0]])
             chunkdir = os.path.join(chunkdatadir, raslice_str)
             if not os.path.isdir(chunkdir):
@@ -243,7 +240,7 @@ def main():
             
             print('Chunk {}: N(sample)={}, N(fullsample)={}, N(cat)={}, N(dropped)={}'.format(
                 ichunk, len(chunksample), len(chunkfullsample), len(cat), len(dropcat)))
-            
+
             _write_ellipse_SGA(cat, dropcat, chunkoutfile, chunkdropfile, refcat,
                                exclude_full_sga=True, writekd=False)
             print('Finished chunk {:03d}/{:03d} after {:.3f} minutes'.format(
@@ -261,11 +258,14 @@ def main():
             for ichunk, chunk in enumerate(np.hstack(groups)):
                 print('Gathering chunk {:03d}/{:03d}'.format(ichunk, len(np.hstack(groups))-1), flush=True)
                 
+                raslice_str = get_raslice(sample['RA'][chunk[0]])
+                
                 #mingroup = np.min(sample['GROUP_ID'][chunk])
                 #maxgroup = np.max(sample['GROUP_ID'][chunk])                
                 #chunkdir = os.path.join(chunkdatadir, '{:03d}'.format(ichunk))
                 #chunkdir = os.path.join(chunkdatadir, '{}-{}'.format(mingroup, maxgroup))
-                chunkdir = os.path.join(chunkdatadir, raslices_str[ichunk])
+                #chunkdir = os.path.join(chunkdatadir, raslices_str[ichunk])
+                chunkdir = os.path.join(chunkdatadir, raslice_str)
             
                 chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
                 chunkdropfile = os.path.join(chunkdir, os.path.basename(dropfile))
