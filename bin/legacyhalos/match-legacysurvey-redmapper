@@ -1,257 +1,48 @@
-#!/usr/bin/env python
+#!/bin/bash -l
+#SBATCH -q regular
+#SBATCH -N 1
+#SBATCH -t 04:00:00
+#SBATCH -L SCRATCH,project
+#SBATCH -C haswell
 
-from __future__ import print_function, division
+# Should be able to finish in a 4-hour interactive job:
+#   salloc -N 1 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v0.0.4
+#   % legacyhalos-shifter
+#   % source legacyhalos-env
+#   % match-legacysurvey-redmapper-dr9.sh
 
-import os, sys, re
-import numpy as np
+dr=dr9
+drdir=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9m
 
-from legacypipe.internal import sharedmem
-from legacypipe.internal.io import iter_tractor, parse_filename
+source $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-env
 
-import argparse
-import os, sys
-from time import time
-from scipy.spatial import cKDTree as KDTree
+export BRICKSFILE=$drdir/survey-bricks.fits.gz
 
-import fitsio
-import platform
+# The satellites need more memory, so use fewer cores.
+export NUMPROC_CENTRALS=$(($SLURM_CPUS_ON_NODE / 2))
+export NUMPROC_MEMBERS=$(($SLURM_CPUS_ON_NODE / 5))
 
-print('Running from %s' % platform.node())
+# ADM run once for each of the DECaLS and MzLS/BASS surveys.
+for survey in north south
+do
+    export INDIR=$drdir/$survey
+    echo "Working on input directory" $INDIR
+    export TRACTOR_INDIR=$INDIR/tractor
+    export TRACTOR_FILELIST=$SCRATCH/tractor_filelist_$survey
 
-def main():
-    ns = parse_args()
-        
-    if ns.ignore_errors:
-        print("Warning: *** Will ignore broken catalog files ***")
-        print("         *** Disable -I for final data product. ***")
+    # Write the bricks of interest to the output directory.
+    find $TRACTOR_INDIR -name 'tractor-*.fits' > $TRACTOR_FILELIST
+    echo "Wrote list of tractor files to" $TRACTOR_FILELIST
 
-    bricks = list_bricks(ns)
+    echo "Writing "$REDMAPPER_DIR/v6.3.1/legacysurvey-$dr-$survey-centrals-v6.3.1-lgt5.fits
+    time srun -N 1 python $LEGACYPIPE_DIR/bin/match-external-catalog.py \
+         -v --numproc $NUMPROC_CENTRALS -f fits -F $TRACTOR_FILELIST \
+         --copycols MEM_MATCH_ID \
+         $REDMAPPER_DIR/v6.3.1/redmapper-v6.3.1-lgt5-centrals-sdssWISEphot-dr14.fits \
+         $TRACTOR_INDIR \
+         $REDMAPPER_DIR/v6.3.1/legacysurvey-$dr-$survey-centrals-v6.3.1-lgt5.fits 
 
-    tree, nobj, morecols = read_external(ns.external, ns)
+done
 
-    # get the data type of the match
-    brickname, path = bricks[0]
-
-    print('Initializing output catalog.')
-    peek = fitsio.read(path, 1, upper=True, rows=0)
-    matched_catalog = sharedmem.empty(nobj, dtype=peek.dtype)
-    matched_catalog['OBJID'] = -1
-
-    matched_distance = sharedmem.empty(nobj, dtype='f4')
-
-    # convert to radian
-    tol = ns.tolerance / (60. * 60.)  * (np.pi / 180)
-
-    matched_distance[:] = tol
-    nprocessed = np.zeros((), dtype='i8')
-    nmatched = np.zeros((), dtype='i8')
-    ntotal = np.zeros((), dtype='i8')
-    t0 = time()
-
-    print('Starting multiprocessing with {} cores.'.format(ns.numproc))
-    with sharedmem.MapReduce(np=ns.numproc) as pool:
-        def work(brickname, path):
-            try:
-                print('Reading {}'.format(path))
-                objects = fitsio.read(path, 1, upper=True)
-                #objects = objects[objects['FLUX_R'] > 10**(-0.4*(24-22.5))]
-            except:
-                if ns.ignore_errors:
-                    print ("IO Error on %s" %path)
-                    return None, None, None
-                else:
-                    raise
-        
-            pos = radec2pos(objects['RA'], objects['DEC'])
-            #print('Querying KD tree')
-            d, i = tree.query(pos, 1)
-            assert (objects['OBJID'] != -1).all()
-            with pool.critical:
-                mask = d < matched_distance[i]
-                i = i[mask]
-                matched_catalog[i] = objects[mask]
-                matched_distance[i] = d[mask]
-            matched = mask.sum()
-
-            return brickname, matched, len(objects)
-
-        def reduce(brickname, matched, total):
-            if brickname is None:
-                return
-            nprocessed[...] += 1
-            nmatched[...] += matched
-            ntotal[...] += total
-            if ns.verbose:
-                print("Processed %d files, %g / second, matched %d / %d objects."
-                      % (nprocessed, nprocessed / (time() - t0), nmatched, ntotal)
-                      )
-
-        pool.map(work, bricks, star=True, reduce=reduce)
-
-        nrealmatched = (matched_catalog['OBJID'] != -1).sum()
-        if ns.verbose:
-            print("Processed %d files, %g / second, matched %d / %d objects into %d slots."
-                  % (nprocessed, nprocessed / (time() - t0), nmatched, ntotal, nrealmatched))
-
-        try:
-            os.makedirs(os.path.dirname(ns.dest))
-        except OSError:
-            pass
-        header = {}
-
-        header['NMATCHED'] = nrealmatched
-        header['NCOLLISION'] = nmatched - nrealmatched
-        header['TOL_ARCSEC'] = ns.tolerance
-
-        # Optionally add the new columns
-        if len(morecols) > 0:
-            newdtype = matched_catalog.dtype.descr
-    
-            for coldata, col in zip( morecols, ns.copycols ):
-                newdtype = newdtype + [(col, coldata.dtype)]
-            newdtype = np.dtype(newdtype)
-        
-            _matched_catalog = np.empty(matched_catalog.shape, dtype=newdtype)
-            for field in matched_catalog.dtype.fields:
-                _matched_catalog[field] = matched_catalog[field]
-            for coldata, col in zip( morecols, ns.copycols ):
-                _matched_catalog[col] = coldata
-                
-            matched_catalog = _matched_catalog.copy()
-            del _matched_catalog
-
-        for format in ns.format:
-            save_file(ns.dest, matched_catalog, header, format)
-
-def save_file(filename, data, header, format):
-    basename = os.path.splitext(filename)[0]
-    if format == 'fits':
-        filename = basename + '.fits'
-        print('Writing {}'.format(filename))
-        fitsio.write(filename, data, extname='LEGACYSURVEY', header=header, clobber=True)
-    elif format == 'hdf5':
-        filename = basename + '.hdf5'
-        import h5py
-        with h5py.File(filename, 'w') as ff:
-            dset = ff.create_dataset('LEGACYSURVEY', data=data)
-            for key in header:
-                dset.attrs[key] = header[key]
-    else:
-        raise ValueError("Unknown format")
-
-def radec2pos(ra, dec):
-    pos = np.empty(len(ra), ('f4', 3))
-    pos[:, 2] = np.sin(dec / 180. * np.pi)
-    pos[:, 1] = np.cos(dec / 180. * np.pi)
-    pos[:, 0] = pos[:, 1]
-    pos[:, 0] *= np.sin(ra / 180. * np.pi)
-    pos[:, 1] *= np.cos(ra / 180. * np.pi)
-    return pos
-
-def read_external(filename, ns):
-    t0 = time()
-    cat = fitsio.FITS(filename, upper=True, columns=['RA', 'DEC'])[1][:]
-
-    if ns.verbose:
-        print("Reading external catalog took %g seconds." % (time() - t0))
-        print("Found %d objects." % len(cat))
-
-    t0 = time()
-    for raname, decname in [
-            ('RA', 'DEC'), 
-            ('PLUG_RA', 'PLUG_DEC')
-            ]:
-        if raname in cat.dtype.names \
-        and decname in cat.dtype.names: 
-            ra = cat[raname]
-            dec = cat[decname]
-            if ns.verbose:
-                print('Using %s/%s for positions.' % (raname, decname))
-            break
-    else:
-        raise KeyError("No RA/DEC or PLUG_RA/PLUG_DEC in the external catalog")
-
-    pos = radec2pos(ra, dec)
-    # work around NERSC overcommit issue.
-    pos = sharedmem.copy(pos)
-
-    tree = KDTree(pos)
-    if ns.verbose:
-        print("Building KD-Tree took %g seconds." % (time() - t0))
-
-    morecols = []
-    if ns.copycols is not None:
-        for col in np.atleast_1d(ns.copycols):
-            if col not in cat.dtype.names:
-                print('Column {} does not exist in external catalog!'.format(col))
-                raise IOError
-            morecols.append(cat[col])
-
-    return tree, len(cat), morecols
-
-def list_bricks(ns):
-    t0 = time()
-
-    if ns.filelist is not None:
-        d = dict([(os.path.basename(fn.strip()), fn.strip()) 
-            for fn in open(ns.filelist, 'r').readlines()])
-        #d = dict([(parse_filename(fn.strip()), fn.strip()) 
-        #    for fn in open(ns.filelist, 'r').readlines()])
-    else:
-        d = dict(iter_tractor(ns.src))
-
-    if ns.verbose:
-        print('enumerated %d bricks in %g seconds' % (
-            len(d), time() - t0))
-
-    #- Load list of bricknames to use
-    if ns.bricklist is not None:
-        bricklist = np.loadtxt(ns.bricklist, dtype='S8')
-        # TODO: skip unknown bricks?
-        d = dict([(brickname.decode(), d[brickname]) 
-                             for brickname in bricklist])
-
-    t0 = time()
-
-    bricks = sorted(d.items())
-
-    return bricks
-    
-def parse_args():
-    ap = argparse.ArgumentParser(
-    description="""Match an input redMaPPer catalog to the sweep catalogs from a given Legacy
-        Survey data release."""
-        )
-
-    ap.add_argument("external", help="Full path to an external catalog")
-    ap.add_argument("src", help="Path to the root directory of all tractor files")
-    ap.add_argument("dest", help="Path to the output file")
-
-    ap.add_argument('-f', "--format", choices=['fits', 'hdf5'], nargs='+', default=["fits"],
-        help="Format of the output file")
-
-    ap.add_argument('-t', "--tolerance", default=1.0, type=float,
-        help="Tolerance of the angular distance for a match, in arcseconds")
-
-    ap.add_argument('-F', "--filelist", default=None,
-        help="list of tractor brickfiles to use; this will avoid expensive walking of the path.")
-
-    ap.add_argument('-b', "--bricklist", 
-        help="""Filename with list of bricknames to include. 
-                If not set, all bricks in src are included, sorted by brickname.
-            """)
-
-    ap.add_argument('-v', "--verbose", action='store_true')
-
-    ap.add_argument('-I', "--ignore-errors", action='store_true')
-
-    ap.add_argument("--numproc", type=int, default=None,
-        help="""Number of concurrent processes to use. 0 for sequential execution. 
-            Default is to use OMP_NUM_THREADS, or the number of cores on the node.""")
-
-    ap.add_argument("--copycols", nargs='*', help="List of columns to copy from external to matched output catalog (e.g., MJD, FIBER, PLATE)", default=None)
-
-    return ap.parse_args()
-
-if __name__ == '__main__':
-    main() 
+wait
+echo "All done"
