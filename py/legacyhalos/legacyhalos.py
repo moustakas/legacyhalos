@@ -9,10 +9,10 @@ import os, shutil, pdb
 import numpy as np
 from legacyhalos.io import legacyhalos_dir
 
-ZCOLUMN = 'Z'
 RACOLUMN = 'RA'
 DECCOLUMN = 'DEC'
-DIAMCOLUMN = 'TBD'
+ZCOLUMN = 'Z_LAMBDA'    
+RADIUS_CLUSTER_KPC = 500.0 # default cluster radius [kpc]
 
 def sample_dir():
     sdir = os.path.join(legacyhalos_dir(), 'sample')
@@ -47,55 +47,6 @@ def profiles_dir(figures=False, data=False):
         if not os.path.isdir(pdir):
             os.makedirs(pdir, exist_ok=True)
     return pdir
-
-def get_integrated_filename():
-    """Return the name of the file containing the integrated photometry."""
-    if hsc:
-        import legacyhalos.hsc
-        integratedfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'integrated-flux.fits')
-    else:
-        integratedfile = os.path.join(profiles_dir(data=True), 'integrated-flux.fits')
-    return integratedfile
-
-def read_integrated_flux(first=None, last=None, integratedfile=None, verbose=False):
-    """Read the output of legacyhalos.integrate.
-    
-    """
-    if integratedfile is None:
-        integratedfile = get_integrated_filename()
-        
-    if not os.path.isfile(integratedfile):
-        print('File {} not found.'.format(integratedfile)) # non-catastrophic error is OK
-        return None
-    
-    if first and last:
-        if first > last:
-            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
-            raise ValueError()
-    ext = 1
-    info = fitsio.FITS(integratedfile)
-    nrows = info[ext].get_nrows()
-
-    if first is None:
-        first = 0
-    if last is None:
-        last = nrows
-        rows = np.arange(first, last)
-    else:
-        if last >= nrows:
-            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
-            raise ValueError()
-        rows = np.arange(first, last + 1)
-    results = Table(info[ext].read(rows=rows, upper=True))
-    
-    if verbose:
-        if len(rows) == 1:
-            print('Read galaxy index {} from {}'.format(first, integratedfile))
-        else:
-            print('Read galaxy indices {} through {} (N={}) from {}'.format(
-                first, last, len(results), integratedfile))
-            
-    return results
 
 def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
                          candidates=False):
@@ -152,7 +103,127 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
-def missing_files(sample, filetype='coadds', size=1, htmldir=None,
+def missing_files(args, sample, size=1, clobber_overwrite=None):
+    import multiprocessing
+    from legacyhalos.io import _missing_files_one
+
+    dependson = None
+    if args.htmlplots is False and args.htmlindex is False:
+        if args.verbose:
+            t0 = time.time()
+            print('Getting galaxy names and directories...', end='')
+        galaxy, galaxydir = get_galaxy_galaxydir(sample)
+        if args.verbose:
+            print('...took {:.3f} sec'.format(time.time() - t0))
+        
+    if args.coadds:
+        suffix = 'coadds'
+        filesuffix = '-largegalaxy-coadds.isdone'
+    elif args.pipeline_coadds:
+        suffix = 'pipeline-coadds'
+        if args.just_coadds:
+            filesuffix = '-pipeline-image-grz.jpg'
+        else:
+            filesuffix = '-pipeline-coadds.isdone'
+    elif args.ellipse:
+        suffix = 'ellipse'
+        filesuffix = '-largegalaxy-ellipse.isdone'
+        dependson = '-largegalaxy-coadds.isdone'
+    elif args.build_SGA:
+        suffix = 'build-SGA'
+        filesuffix = '-largegalaxy-SGA.isdone'
+        dependson = '-largegalaxy-ellipse.isdone'
+    elif args.htmlplots:
+        suffix = 'html'
+        if args.just_coadds:
+            filesuffix = '-largegalaxy-grz-montage.png'
+        else:
+            filesuffix = '-ccdpos.png'
+            #filesuffix = '-largegalaxy-maskbits.png'
+            #dependson = '-largegalaxy-ellipse.isdone'
+            dependson = None
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+        #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+    elif args.htmlindex:
+        suffix = 'htmlindex'
+        filesuffix = '-largegalaxy-grz-montage.png'
+        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+        #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+    else:
+        raise ValueError('Need at least one keyword argument.')
+
+    # Make clobber=False for build_SGA and htmlindex because we're not making
+    # the files here, we're just looking for them. The argument args.clobber
+    # gets used downstream.
+    if args.htmlindex:
+        clobber = False
+    elif args.build_SGA:
+        clobber = True
+    else:
+        clobber = args.clobber
+
+    if clobber_overwrite is not None:
+        clobber = clobber_overwrite
+
+    if type(sample) is astropy.table.row.Row:
+        ngal = 1
+    else:
+        ngal = len(sample)
+    indices = np.arange(ngal)
+
+    pool = multiprocessing.Pool(args.nproc)
+    missargs = []
+    for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
+        #missargs.append([gal, gdir, filesuffix, dependson, clobber])
+        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+        if dependson:
+            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+        else:
+            missargs.append([checkfile, None, clobber])
+
+    if args.verbose:
+        t0 = time.time()
+        print('Finding missing files...', end='')
+    todo = np.array(pool.map(_missing_files_one, missargs))
+    if args.verbose:
+        print('...took {:.3f} min'.format((time.time() - t0)/60))
+
+    itodo = np.where(todo == 'todo')[0]
+    idone = np.where(todo == 'done')[0]
+    ifail = np.where(todo == 'fail')[0]
+
+    if len(ifail) > 0:
+        fail_indices = [indices[ifail]]
+    else:
+        fail_indices = [np.array([])]
+
+    if len(idone) > 0:
+        done_indices = [indices[idone]]
+    else:
+        done_indices = [np.array([])]
+
+    if len(itodo) > 0:
+        _todo_indices = indices[itodo]
+
+        # Assign the sample to ranks to make the D25 distribution per rank ~flat.
+
+        # https://stackoverflow.com/questions/33555496/split-array-into-equally-weighted-chunks-based-on-order
+        weight = np.atleast_1d(sample[DIAMCOLUMN])[_todo_indices]
+        cumuweight = weight.cumsum() / weight.sum()
+        idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
+        if len(idx) < size: # can happen in corner cases or with 1 rank
+            todo_indices = np.array_split(_todo_indices, size) # unweighted
+        else:
+            todo_indices = np.array_split(_todo_indices, idx) # weighted
+        for ii in range(size): # sort by weight
+            srt = np.argsort(sample[DIAMCOLUMN][todo_indices[ii]])
+            todo_indices[ii] = todo_indices[ii][srt]
+    else:
+        todo_indices = [np.array([])]
+
+    return suffix, todo_indices, done_indices, fail_indices
+
+def obsolete_missing_files(sample, filetype='coadds', size=1, htmldir=None,
                   sdss=False, clobber=False):
     """Find missing data of a given filetype."""    
 
@@ -214,8 +285,9 @@ def mpi_args():
     parser.add_argument('--last', type=int, help='Index of last object to process.')
     parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
 
-    parser.add_argument('--coadds', action='store_true', help='Build the pipeline coadds.')
-    parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py.')
+    parser.add_argument('--coadds', action='store_true', help='Build the coadds with the custom sky.')
+    parser.add_argument('--pipeline-coadds', action='store_true', help='Build the coadds with the pipeline sky.')
+    parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py).')
     parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
@@ -225,22 +297,75 @@ def mpi_args():
 
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
+    parser.add_argument('--htmlhome', default='index.html', type=str, help='Home page file name (use in tandem with --htmlindex).')
+    parser.add_argument('--html-noraslices', dest='html_raslices', action='store_false',
+                        help='Do not organize HTML pages by RA slice (use in tandem with --htmlindex).')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--sdss-pixscale', default=0.396, type=float, help='SDSS pixel scale (arcsec/pix).')
     
+    parser.add_argument('--no-unwise', action='store_false', dest='unwise', help='Do not build unWISE coadds or do forced unWISE photometry.')
+    parser.add_argument('--no-cleanup', action='store_false', dest='cleanup', help='Do not clean up legacypipe files after coadds.')
     parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
+
     parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
     parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
-    parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
-
     parser.add_argument('--debug', action='store_true', help='Log to STDOUT and build debugging plots.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
     args = parser.parse_args()
 
     return args
+
+def get_integrated_filename():
+    """Return the name of the file containing the integrated photometry."""
+    if hsc:
+        import legacyhalos.hsc
+        integratedfile = os.path.join(legacyhalos.hsc.hsc_dir(), 'integrated-flux.fits')
+    else:
+        integratedfile = os.path.join(profiles_dir(data=True), 'integrated-flux.fits')
+    return integratedfile
+
+def read_integrated_flux(first=None, last=None, integratedfile=None, verbose=False):
+    """Read the output of legacyhalos.integrate.
+    
+    """
+    if integratedfile is None:
+        integratedfile = get_integrated_filename()
+        
+    if not os.path.isfile(integratedfile):
+        print('File {} not found.'.format(integratedfile)) # non-catastrophic error is OK
+        return None
+    
+    if first and last:
+        if first > last:
+            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+            raise ValueError()
+    ext = 1
+    info = fitsio.FITS(integratedfile)
+    nrows = info[ext].get_nrows()
+
+    if first is None:
+        first = 0
+    if last is None:
+        last = nrows
+        rows = np.arange(first, last)
+    else:
+        if last >= nrows:
+            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
+            raise ValueError()
+        rows = np.arange(first, last + 1)
+    results = Table(info[ext].read(rows=rows, upper=True))
+    
+    if verbose:
+        if len(rows) == 1:
+            print('Read galaxy index {} from {}'.format(first, integratedfile))
+        else:
+            print('Read galaxy indices {} through {} (N={}) from {}'.format(
+                first, last, len(results), integratedfile))
+            
+    return results
 
 def write_results(lsphot, results=None, sersic_single=None, sersic_double=None,
                   sersic_exponential=None, sersic_single_nowavepower=None,
@@ -313,10 +438,10 @@ def read_jackknife(verbose=False, dr='dr6-dr7'):
         print('Read {} rows from {}'.format(len(jack), jackfile))
     return Table(jack), nside
 
-def read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
-                isedfit_lsphot=False, isedfit_sdssphot=False,
-                isedfit_lhphot=False, candidates=False,
-                kcorr=False, verbose=False):
+def obsolete_read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
+                         isedfit_lsphot=False, isedfit_sdssphot=False,
+                         isedfit_lhphot=False, candidates=False,
+                         kcorr=False, verbose=False):
     """Read the sample.
 
     """
@@ -456,9 +581,9 @@ def read_smf_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=F
                                 candidates=candidates, verbose=verbose)
     return sample
     
-def read_profiles_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
-                         isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
-                         kcorr=False, verbose=False):
+def obsolete_read_profiles_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
+                                  isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
+                                  kcorr=False, verbose=False):
     """Read the profiles paper sample.
 
     """

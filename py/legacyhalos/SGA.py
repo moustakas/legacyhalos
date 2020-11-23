@@ -157,7 +157,7 @@ def mpi_args():
 
     parser.add_argument('--coadds', action='store_true', help='Build the large-galaxy coadds.')
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipeline coadds.')
-    parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
+    parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py).')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
     parser.add_argument('--M33', action='store_true', help='Use a special CCDs file for M33.')

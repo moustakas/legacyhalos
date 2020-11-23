@@ -1,0 +1,288 @@
+#!/usr/bin/env python
+"""Build the sample for the legacyhalos project.
+
+salloc -N 1 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v0.0.5
+legacyhalos-sample-selection
+
+"""
+import os, time, pdb
+import numpy as np
+import fitsio
+from astropy.table import Table, hstack
+
+def select_legacysurvey(lscat, rmcat):
+    good = np.where(
+        (lscat['GALDEPTH_G'] > 0) * 
+        (lscat['GALDEPTH_R'] > 0) * 
+        (lscat['GALDEPTH_Z'] > 0) * 
+        (lscat['NOBS_G'] > 1) * 
+        (lscat['NOBS_R'] > 1) * 
+        (lscat['NOBS_Z'] > 1) *
+        (np.sum(rmcat['MODELMAGGIES'] == 0, axis=1) != 5) )[0] # missing SDSS photometry
+    return good
+
+def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', index=None, satellites=False):
+    """Read the parent redMaPPer cluster catalog and updated photometry.
+    
+    """
+    if satellites:
+        suffix1, suffix2 = '_members', '-members'
+    else:
+        suffix1, suffix2 = '', '-centrals'
+    rmfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                          'dr8_run_redmapper_{}_lgt5_catalog{}.fit'.format(rmversion, suffix1) )
+    rmphotfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                          'redmapper-{}-lgt5{}-sdssWISEphot-{}.fits'.format(rmversion, suffix2, sdssdr) )
+    
+    rm = Table(fitsio.read(rmfile, ext=1, upper=True, rows=index))
+    rmphot = Table(fitsio.read(rmphotfile, ext=1, upper=True, rows=index))
+
+    print('Read {} galaxies from {}'.format(len(rm), rmfile))
+    print('Read {} galaxies from {}'.format(len(rmphot), rmphotfile))
+    
+    rm.rename_column('RA', 'RA_REDMAPPER')
+    rm.rename_column('DEC', 'DEC_REDMAPPER')
+    rmphot.rename_column('RA', 'RA_SDSS')
+    rmphot.rename_column('DEC', 'DEC_SDSS')
+    rmphot.rename_column('OBJID', 'SDSS_OBJID')
+
+    assert(np.sum(rmphot['MEM_MATCH_ID'] - rm['MEM_MATCH_ID']) == 0)
+    if satellites:
+        assert(np.sum(rmphot['ID'] - rm['ID']) == 0)
+        rm.remove_columns( ('ID', 'MEM_MATCH_ID') )
+    else:
+        rm.remove_column('MEM_MATCH_ID')
+    rmout = hstack( (rmphot, rm) )
+    del rmphot, rm
+
+    # Add a central_id column
+    #rmout.rename_column('MEM_MATCH_ID', 'CENTRAL_ID')
+    #cid = ['{:07d}'.format(cid) for cid in rmout['MEM_MATCH_ID']]
+    #rmout.add_column(Column(name='CENTRAL_ID', data=cid, dtype='U7'), index=0)
+    
+    return rmout
+
+def read_legacysurvey(rmversion='v6.3.1', index=None, satellites=False, satid=None):
+    """Read the matched Legacy Survey catalogs.
+    
+    Note that non-matching entries are populated with zeros / False.
+    
+    """
+    if satellites:
+        galtype = 'members'
+    else:
+        galtype = 'centrals'
+
+    ## Resolve north and south.
+    #inorth = rm['DEC'] > 32.275
+    #raslc = np.where(np.logical_or(rm['RA'] > 315, rm['RA'] < 45))[0]
+    #if len(raslc) > 0:
+    #    inorth[raslc] = False
+    #inorth = np.where(inorth)[0]
+    #isouth = np.where(np.logical_not(inorth))[0]
+        
+    cols = ['RELEASE', 'BRICKID', 'BRICKNAME', 'OBJID', 'TYPE', 'RA', 'DEC',
+            #'RA_IVAR', 'DEC_IVAR', 'DCHISQ', 
+            'EBV', 'MASKBITS',
+            #'FLUX_U', 'FLUX_I', 'FLUX_Y', 
+            'FLUX_G', 'FLUX_R', 'FLUX_Z', 'FLUX_W1', 'FLUX_W2', 'FLUX_W3', 'FLUX_W4', 
+            #'FLUX_IVAR_U', 'FLUX_IVAR_I', 'FLUX_IVAR_Y',             
+            'FLUX_IVAR_G', 'FLUX_IVAR_R', 'FLUX_IVAR_Z', 'FLUX_IVAR_W1', 'FLUX_IVAR_W2', 'FLUX_IVAR_W3', 'FLUX_IVAR_W4', 
+            #'MW_TRANSMISSION_U', 'MW_TRANSMISSION_I', 'MW_TRANSMISSION_Y', 
+            'MW_TRANSMISSION_G', 'MW_TRANSMISSION_R', 'MW_TRANSMISSION_Z', 
+            'MW_TRANSMISSION_W1', 'MW_TRANSMISSION_W2', 'MW_TRANSMISSION_W3', 'MW_TRANSMISSION_W4', 
+            #'NOBS_U', 'NOBS_I', 'NOBS_Y',
+            'NOBS_G', 'NOBS_R', 'NOBS_Z', 'NOBS_W1', 'NOBS_W2', 'NOBS_W3', 'NOBS_W4',
+            #'RCHISQ_U', 'RCHISQ_G', 'RCHISQ_R', 'RCHISQ_I', 'RCHISQ_Z', 'RCHISQ_Y',
+            #'RCHISQ_W1', 'RCHISQ_W2', 'RCHISQ_W3', 'RCHISQ_W4', 
+            #'FRACFLUX_U', 'FRACFLUX_I', 'FRACFLUX_Y', 
+            'FRACFLUX_G', 'FRACFLUX_R', 'FRACFLUX_Z', 'FRACFLUX_W1', 'FRACFLUX_W2', 'FRACFLUX_W3', 'FRACFLUX_W4', 
+            'FRACMASKED_G', 'FRACMASKED_R', 'FRACMASKED_Z', #'FRACMASKED_U', 'FRACMASKED_I', 'FRACMASKED_Y', 
+            'FRACIN_G', 'FRACIN_R', 'FRACIN_Z', #'FRACIN_U', 'FRACIN_I', 'FRACIN_Y', 
+            'ANYMASK_G', 'ANYMASK_R', 'ANYMASK_Z', #'ANYMASK_U', 'ANYMASK_I', 'ANYMASK_Y', 
+            'ALLMASK_G', 'ALLMASK_R', 'ALLMASK_Z', 'WISEMASK_W1', 'WISEMASK_W2', #'ALLMASK_U', 'ALLMASK_I', 'ALLMASK_Y', 
+            'PSFSIZE_G', 'PSFSIZE_R', 'PSFSIZE_Z', #'PSFSIZE_U', 'PSFSIZE_I', 'PSFSIZE_Y',
+            'PSFDEPTH_G', 'PSFDEPTH_R', 'PSFDEPTH_Z', #'PSFDEPTH_U', 'PSFDEPTH_I', 'PSFDEPTH_Y', 
+            'GALDEPTH_G', 'GALDEPTH_R', 'GALDEPTH_Z', #'GALDEPTH_U', 'GALDEPTH_I', 'GALDEPTH_Y', 
+            'SERSIC', 'SERSIC_IVAR', 'SHAPE_R', 'SHAPE_R_IVAR', 'SHAPE_E1', 'SHAPE_E1_IVAR', 'SHAPE_E2', 'SHAPE_E2_IVAR']
+        
+    lsdr = 'dr9-north'
+    lsfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                          'legacysurvey-{}-{}-{}-lgt5.fits'.format(lsdr, galtype, rmversion) )
+    dr9north = Table(fitsio.read(lsfile, ext=1, upper=True, rows=index, columns=cols))
+    print('Read {} galaxies from {}'.format(len(dr9north), lsfile))
+
+    lsdr = 'dr9-south'
+    lsfile = os.path.join( os.getenv('REDMAPPER_DIR'), rmversion, 
+                           'legacysurvey-{}-{}-{}-lgt5.fits'.format(lsdr, galtype, rmversion) )
+    ls = Table(fitsio.read(lsfile, ext=1, upper=True, rows=index, columns=cols))
+    print('Read {} galaxies from {}'.format(len(ls), lsfile))
+
+    print('Resolving the north/south catalogs.')
+    inorth = np.where((dr9north['RELEASE'] != 0) * (dr9north['DEC'] > 32.275) *
+                      (dr9north['RA'] > 45) * (dr9north['RA'] < 315))[0]
+    ls[inorth] = dr9north[inorth]
+
+    # Next, we have to deal with the fact that the the redmapper catalog contains 
+    # duplicates (via 'ID').  Consequently, the coordinate-matching code only 
+    # matched to *one* of the members, but the rest of the code in this notebook 
+    # needs all the entries populated (because although they have the same `ID`, they 
+    # have different `MEM_MATCH_ID` values, i.e., they belong to different clusters).
+    
+    # For example, consider ID 23136319, which appears on rows 4161 and
+    # 4632.  In the legacyhalos catalog only one entry is populated, e.g.,
+
+    # RELEASE BRICKID BRICKNAME ... SHAPEEXP_E1_IVAR SHAPEEXP_E2 SHAPEEXP_E2_IVAR
+    # int32   int32    bytes8  ...     float32        float32       float32
+    # ------- ------- --------- ... ---------------- ----------- ----------------
+    # 7000  498662  1402p305 ...              0.0         0.0              0.0
+    #    0       0           ...              0.0         0.0              0.0
+
+    # even though these are the same object.
+
+    # The script below (written by Chun-Hao To) finds all the duplicates in the 
+    # redmapper catalog (via 'ID'), find the entry in the legacyhalos catalog that 
+    # is populated (e.g., with RELEASE != 0) and then copies over the data to
+    # the entries that are empty.    
+    
+    if satellites:
+        import pandas as pd
+        
+        print('Processing duplicates in the satellites catalog.')
+        t0 = time.time()
+        
+        redm_pd = pd.DataFrame({'ID': satid.byteswap().newbyteorder()})
+        #redm_pd = pd.DataFrame.from_records(satid)
+        redm_pd['index'] = pd.Series(np.arange(len(satid)), index=redm_pd.index)
+
+        # Find duplicates
+        duplicatedmask = redm_pd.duplicated(subset=['ID'], keep=False)
+        redm_pd_duplicated = redm_pd[duplicatedmask]
+        
+        group = redm_pd_duplicated.groupby(['ID'])
+        
+        for name, grp in group:
+            entry = None
+            for index in grp['index']:
+                temp = ls[index]
+                if temp['RELEASE'] != 0:
+                    entry = temp
+            if entry is not None:
+                for index in grp['index']:
+                    ls[index] = entry
+        print('    Time: {:.3f} min'.format((time.time() - t0)/60 ))
+
+    miss = ls['RELEASE'] == 0
+    print('A total of {}/{} galaxies ({:.2f}%) do not have DR9 photometry.'.format(
+        np.sum(miss), len(ls), 100*np.sum(miss)/len(ls)))
+    
+    return ls
+
+def get_central_candidates(cen, sat, ls):
+    """Create a hash table connecting, for each cluster, all the candidate 
+    centrals' ID numbers to an index in the satellites catalog.  The clever 
+    algorithm used here is by Chun-Hao To (Stanford).
+    
+    """    
+    ncen, ncand = cen['ID_CENT'].shape
+
+    #offset = sat['ID'].min()
+    #g_index = dok_matrix( (np.max(sat['ID']) - offset + 1, 1), dtype=np.int )
+    #g_index[sat['ID'] - offset] = np.array( range( len(sat) ) )[:, np.newaxis]
+    
+    # Create a DataFrame for the catalog of centrals.
+    cen_temp = [cen['ID_CENT'][:, ii] for ii in range(ncand)]
+    cen_temp.append(cen['MEM_MATCH_ID'])
+    columns = ['ID_CENT_{}'.format(ii) for ii in range(ncand)]
+    columns.append('MEM_MATCH_ID_CEN')
+               
+    cen_pd = pd.DataFrame.from_records(np.array(cen_temp).T, columns=columns)
+    del cen_temp, columns
+
+    # Create DataFrame for the satellites / members.
+    sat_pd = pd.DataFrame.from_records(sat[['ID', 'MEM_MATCH_ID']].as_array())
+    sat_pd['index'] = pd.Series(np.arange(len(sat)), index=sat_pd.index)
+
+    # Create the mapping between them
+    cengalindex = np.zeros_like(cen['ID_CENT'])
+    pcen = np.zeros( len(sat) ).astype('f4')
+    primary_central = np.zeros( len(sat) ).astype(bool)
+    
+    for ii in range(ncand):
+        # Old algorithm which doesn't deal with duplicates correctly.
+        #index = np.where( cen['ID_CENT'][:, ii] - offset >= 0 )[0]
+        #cengalindex[index, ii] = g_index[cen['ID_CENT'][index, ii] - offset]
+        merged = pd.merge(cen_pd, sat_pd, left_on=['ID_CENT_{}'.format(ii), 'MEM_MATCH_ID_CEN'], 
+                          right_on=['ID', 'MEM_MATCH_ID'], suffixes=('_original','_matched'))
+        cengalindex[:, ii] = merged['index']
+        pcen[cengalindex[:, ii]] = cen['P_CEN'][:, ii]
+        if ii == 0:
+            primary_central[cengalindex[:, ii]] = True
+        
+    cengalindex = cengalindex.flatten()
+        
+    candcen = sat[cengalindex]
+    candcen.add_column(Column(name='P_CEN', data=pcen[cengalindex]), index=1)
+    candcen.add_column(Column(name='PRIMARY_CENTRAL', data=primary_central[cengalindex]), index=2)
+
+    return candcen, ls[cengalindex]
+
+def main(lsdr='dr9', sdssdr='dr14', rmversion='v6.3.1'):
+    from legacyhalos.legacyhalos import sample_dir
+
+    cenfile = os.path.join(sample_dir(), 'legacyhalos-centrals-{}.fits'.format(lsdr))
+    candcenfile = os.path.join(sample_dir(), 'legacyhalos-candidate-centrals-{}.fits'.format(lsdr))
+    jackfile = os.path.join(sample_dir(), 'legacyhalos-jackknife-{}.fits'.format(lsdr))
+
+    # Centrals--read the original redMaPPer catalog + SDSS/unWISE photometry and
+    # then the matched LS photometry.
+    rmcenall = read_redmapper(rmversion=rmversion, sdssdr=sdssdr, index=None)
+    lscenall = read_legacysurvey(rmversion='v6.3.1', index=None, satellites=False)
+    assert(len(rmcenall) == len(lscenall))
+
+    pdb.set_trace()
+
+    cenmatched = select_legacysurvey(lscenall, rmcenall)
+    print('Identified {} / {} ({:.2f}%) centrals with grz photometry (nobs>1) and a match to redMaPPer.'.format(
+        len(cenmatched), len(lscenall), 100*len(cenmatched)/len(lscenall)))
+    lscen = lscenall[cenmatched]
+    rmcen = rmcenall[cenmatched]
+
+    # Now the satellites
+    rmsatall = read_redmapper(rmversion=rmversion, satellites=True)
+
+    index = np.arange(5000)
+    if index is None:
+        satid = rmsatall['ID'].data
+    else:
+        satid = rmsatall['ID'][index].data
+
+    pdb.set_trace()
+
+    lssatall = read_legacysurvey(rmversion=rmversion, satellites=True, satid=satid, index=index)
+
+    # Get the 
+    rmcandcenall, lscandcenall = get_central_candidates(rmcenall, rmsatall, lssatall)
+
+    candcenmatched = select_legacysurvey(lscandcenall, rmcandcenall)
+    print('Identified {} / {} ({:.2f}%) candidate centrals with grz photometry and a match to redMaPPer.'.format(
+        len(candcenmatched), len(lscandcenall), 100*len(candcenmatched)/len(lscandcenall)))
+    lscandcen = lscandcenall[candcenmatched]
+    rmcandcen = rmcandcenall[candcenmatched]
+
+    # depth cut?
+    #candcen = hstack((rmcandcen[candcendepthcut], lscandcen[candcendepthcut]))
+    candcen = hstack((rmcandcen, lscandcen))
+
+    # Write out
+    print('Writing {}'.format(cenfile))
+    cen.write(cenfile, overwrite=True)
+
+    print('Writing {}'.format(candcenfile))
+    candcen.write(candcenfile, overwrite=True)
+    
+
+    pdb.set_trace()
+
+if __name__ == '__main__':
+    main()

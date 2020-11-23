@@ -5,14 +5,8 @@ legacyhalos.misc
 Miscellaneous utility code used by various scripts.
 
 """
-from __future__ import absolute_import, division, print_function
-
 import os, sys
 import numpy as np
-
-RADIUS_CLUSTER_KPC = 500.0     # default cluster radius
-#SURVEY_DIR = '/global/project/projectdirs/cosmo/data/legacysurvey/dr8'
-ZCOLUMN = 'Z_LAMBDA'    
 
 def viewer_inspect(cat, galaxycolname='GALAXY'):
     """Write a little catalog that can be uploaded to the viewer.

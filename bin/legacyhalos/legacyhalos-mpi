@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-"""MPI wrapper for the legacyhalos profiles sample.
+"""MPI wrapper for the legacyhalos project.
+
+legacyhalos-mpi --coadds
 
 """
 import matplotlib
@@ -12,18 +14,23 @@ def main():
     """Top-level wrapper.
 
     """
-    from astropy.table import Table, hstack
+    from legacypipe.runs import get_survey
     import legacyhalos.io
-    import legacyhalos.mpi
-    import legacyhalos.html
+    import legacyhalos.legacyhalos
 
-    from legacypipe.survey import LegacySurveyData
-    from legacyhalos.misc import RADIUS_CLUSTER_KPC, ZCOLUMN
+    from legacyhalos.legacyhalos import ZCOLUMN, RACOLUMN, DECCOLUMN, RADIUS_CLUSTER_KPC
 
-    from legacyhalos.mpi import (call_pipeline_coadds, call_custom_coadds, call_ellipse,
-                                 call_sersic, call_sky, call_htmlplots)
+    basedir = legacyhalos.io.legacyhalos_dir()
+    datadir = legacyhalos.io.legacyhalos_data_dir()
+    htmldir = legacyhalos.io.legacyhalos_html_dir()
 
-    args = legacyhalos.mpi.mpi_args()
+    args = legacyhalos.legacyhalos.mpi_args()
+
+    #from legacypipe.survey import LegacySurveyData
+    #from legacyhalos.misc import , ZCOLUMN
+    #
+    #from legacyhalos.mpi import (call_pipeline_coadds, call_custom_coadds, call_ellipse,
+    #                             call_sersic, call_sky, call_htmlplots)
 
     if args.mpi:
         from mpi4py import MPI
@@ -34,9 +41,14 @@ def main():
         rank, size = 0, 1
 
     # Read and broadcast the sample.
+    sample, fullsample = None, None
     if rank == 0:
-        sample = legacyhalos.io.read_profiles_sample(first=args.first, last=args.last,
-                                                     verbose=args.verbose)
+        print('$LEGACYHALOS_DIR={}'.format(basedir))
+        print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
+        print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
+        pdb.set_trace()
+        sample = legacyhalos.legacyhalos.read_profiles_sample(first=args.first, last=args.last,
+                                                              verbose=args.verbose)
     else:
         sample = None
 
