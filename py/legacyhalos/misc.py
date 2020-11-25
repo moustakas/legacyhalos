@@ -120,13 +120,6 @@ def ccdwcs(ccd):
                                         ccd.cd2_1, ccd.cd2_2, W, H]])
     return W, H, ccdwcs
 
-def area():
-    """Return the area of the DR6+DR7 sample.  See the
-    `legacyhalos-sample-selection.ipynb` notebook for this calculation.
-
-    """
-    return 6717.906
-
 def cosmology(WMAP=False, Planck=False):
     """Establish the default cosmology for the project."""
 
@@ -202,36 +195,6 @@ def destroy_logger(log):
         log.removeHandler(hndl)
         hndl.flush()
         hndl.close()
-
-def cutout_radius_kpc(redshift, pixscale=None, radius_kpc=RADIUS_CLUSTER_KPC):
-    """Get a cutout radius of RADIUS_KPC [in pixels] at the redshift of the cluster.
-
-    """
-    cosmo = cosmology()
-    arcsec_per_kpc = cosmo.arcsec_per_kpc_proper(redshift).value
-    radius = radius_kpc * arcsec_per_kpc # [float arcsec]
-    if pixscale:
-        radius = np.rint(radius / pixscale).astype(int) # [integer/rounded pixels]
-    return radius
-
-def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
-                          rmin=50, rmax=500, bound=False):
-    """Get a cutout radius which depends on the richness radius (in h^-1 Mpc)
-    R_LAMBDA of each cluster (times an optional fudge factor).
-
-    Optionally bound the radius to (rmin, rmax).
-
-    """
-    cosmo = cosmology()
-
-    radius_kpc = cluster_radius * 1e3 * cosmo.h # cluster radius in kpc
-    radius = np.rint(factor * radius_kpc * cosmo.arcsec_per_kpc_proper(redshift).value / pixscale)
-
-    if bound:
-        radius[radius < rmin] = rmin
-        radius[radius > rmax] = rmax
-
-    return radius # [pixels]
 
 def arcsec2kpc(redshift):
     """Compute and return the scale factor to convert a physical axis in arcseconds
