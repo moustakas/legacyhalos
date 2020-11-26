@@ -19,7 +19,7 @@ import matplotlib.patches as patches
 import legacyhalos.io
 import legacyhalos.misc
 
-from legacyhalos.misc import RADIUS_CLUSTER_KPC
+#from legacyhalos.misc import RADIUS_CLUSTER_KPC
 
 sns, _ = legacyhalos.misc.plot_style()
     
@@ -879,7 +879,11 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         img = ma.masked_array(dat.data, dat.mask)
         mask = ma.masked_array(dat.data, ~dat.mask)
 
-        norm = ImageNormalize(img, interval=interval, stretch=stretch)
+        try:
+            norm = ImageNormalize(img, interval=interval, stretch=stretch)
+        except:
+            norm = ImageNormalize(img, interval=interval)
+            #pdb.set_trace()
 
         # There's an annoying bug in matplotlib>2.0.2 which ignores masked
         # pixels (it used to render them in white), so we have to overplot the

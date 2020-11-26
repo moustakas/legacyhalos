@@ -839,41 +839,23 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 
     return ellipsefit
 
-def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
-                        sdss_pixscale=0.396, galex_pixscale=1.5, unwise_pixscale=2.75,
-                        nproc=1, refband='r', bands=('g','r','z'), sdss_bands=('g','r','i'),
-                        integrmode='median', nclip=3, sclip=3, zcolumn=None,
-                        largegalaxy=False, pipeline=False, input_ellipse=None, fitgeometry=False,
-                        verbose=False, debug=False, sdss=False, galex=False, unwise=False):
-                        
-    """Top-level wrapper script to do ellipse-fitting on a single galaxy.
-
-    fitgeometry - fit for the ellipse parameters (do not use the mean values
-      from MGE).
-
-    pipeline - read the pipeline-built images (default is custom)
+def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
+                               bands=('g', 'r', 'z'),
+                               refband='f', pixscale=0.262, 
+                               subsky={},
+                               galex_pixscale=1.5,
+                               unwise_pixscale=2.75,
+                               galex=False, unwise=False, sdss=False,
+                               verbose=False,
+                               largegalaxy=False,
+                               return_sample=True):
+    """Wrapper on ellipsefit_multiband which allows me to do sky-subtraction tests. 
 
     """
-    import subprocess
-    import astropy.units as u
-    
-    if galaxy is None and galaxydir is None:
-        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
-
-    if zcolumn is not None and zcolumn in onegal.columns:
-        redshift = onegal[zcolumn]
-    else:
-        redshift = None
-
-    if largegalaxy:
-        filesuffix = 'largegalaxy'
-    else:
-        filesuffix = 'custom'
-        #central_galaxy_id = None
-
     # Read the data and then do ellipse-fitting.
     data, sample = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
                                                  refband=refband, pixscale=pixscale,
+                                                 subsky=subsky,
                                                  galex_pixscale=galex_pixscale,
                                                  unwise_pixscale=unwise_pixscale,
                                                  galex=galex, unwise=unwise, sdss=sdss,
@@ -894,6 +876,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             galaxyid = str(central_galaxy_id)
             print('Starting ellipse-fitting for galaxy {} with {} core(s)'.format(galaxyid, nproc))
             if largegalaxy:
+                import astropy.units as u
                 # Supplement the fit results dictionary with some additional info.
                 samp = sample[sample['SGA_ID'] == central_galaxy_id]
                 galaxyinfo = {'sga_id': (central_galaxy_id, ''),
@@ -935,3 +918,50 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         else:
             return 0, filesuffix
 
+def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
+                        sdss_pixscale=0.396, galex_pixscale=1.5, unwise_pixscale=2.75,
+                        nproc=1, refband='r', bands=('g', 'r', 'z'), sdss_bands=('g','r','i'),
+                        integrmode='median', nclip=3, sclip=3, zcolumn=None,
+                        largegalaxy=False, pipeline=False, input_ellipse=None, fitgeometry=False,
+                        verbose=False, debug=False, sdss=False, galex=False, unwise=False,
+                        sky_tests=False):
+                        
+    """Top-level wrapper script to do ellipse-fitting on a single galaxy.
+
+    fitgeometry - fit for the ellipse parameters (do not use the mean values
+      from MGE).
+
+    pipeline - read the pipeline-built images (default is custom)
+
+    """
+    if galaxy is None and galaxydir is None:
+        galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
+
+    if zcolumn is not None and zcolumn in onegal.columns:
+        redshift = onegal[zcolumn]
+    else:
+        redshift = None
+
+    if largegalaxy:
+        filesuffix = 'largegalaxy'
+    else:
+        filesuffix = 'custom'
+        #central_galaxy_id = None
+
+    # tests of sky-subtraction
+    if sky_tests:
+        pdb.set_trace()
+    else:
+        error, filesuffix = _call_ellipsefit_multiband(
+            galaxy, galaxydir, filesuffix,
+            bands=bands,
+            refband=refband, pixscale=pixscale,
+            subsky=subsky,
+            galex_pixscale=galex_pixscale,
+            unwise_pixscale=unwise_pixscale,
+            galex=galex, unwise=unwise, sdss=sdss,
+            verbose=verbose,
+            largegalaxy=largegalaxy,
+            return_sample=True)
+
+    return error, filesuffix

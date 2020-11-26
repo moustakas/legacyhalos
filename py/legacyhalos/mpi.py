@@ -36,9 +36,10 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
           galaxy, (time.time() - t0)/60), flush=True, file=log)
     
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
-                 debug=False, logfile=None, input_ellipse=None, zcolumn=None,
+                 debug=False, logfile=None, input_ellipse=None, zcolumn=None,                 
                  sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
-                 galex=False, galex_pixscale=1.5, largegalaxy=False, pipeline=True):
+                 galex=False, galex_pixscale=1.5, largegalaxy=False, pipeline=True,
+                 sky_tests=False):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -59,6 +60,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
             sdss=sdss, sdss_pixscale=sdss_pixscale,
             unwise=unwise, unwise_pixscale=unwise_pixscale,
             galex=galex, galex_pixscale=galex_pixscale,
+            sky_tests=sky_tests,
             largegalaxy=largegalaxy, pipeline=pipeline)
         _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix)
     else:
@@ -73,6 +75,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                     sdss=sdss, sdss_pixscale=sdss_pixscale,
                     unwise=unwise, unwise_pixscale=unwise_pixscale,
                     galex=galex, galex_pixscale=galex_pixscale,
+                    sky_tests=sky_tests,
                     largegalaxy=largegalaxy, pipeline=pipeline)
                 _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix, log=log)
 

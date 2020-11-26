@@ -92,11 +92,13 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
 
         pixnum = radec2pix(nside, cat['RA'], cat['DEC']).data
 
-    galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, datadir), gal)
-                          for pix, gal in zip(pixnum, galaxy)])
+    galaxydir = np.array([os.path.join(datadir, str(pix), gal) for pix, gal in zip(pixnum, galaxy)])
+    #galaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, datadir), gal)
+    #                      for pix, gal in zip(pixnum, galaxy)])
     if html:
-        htmlgalaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, htmldir), gal)
-                                  for pix, gal in zip(pixnum, galaxy)])
+        #htmlgalaxydir = np.array([os.path.join(get_healpix_subdir(nside, pix, htmldir), gal)
+        #                          for pix, gal in zip(pixnum, galaxy)])
+        htmlgalaxydir = np.array([os.path.join(htmldir, str(pix), gal) for pix, gal in zip(pixnum, galaxy)])
 
     if ngal == 1:
         galaxy = galaxy[0]
@@ -314,6 +316,7 @@ def mpi_args():
     parser.add_argument('--no-unwise', action='store_false', dest='unwise', help='Do not build unWISE coadds or do forced unWISE photometry.')
     parser.add_argument('--no-cleanup', action='store_false', dest='cleanup', help='Do not clean up legacypipe files after coadds.')
     parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
+    parser.add_argument('--sky-tests', action='store_true', help='Test choice of sky apertures in ellipse-fitting.')
 
     parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
     parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')

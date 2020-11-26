@@ -435,9 +435,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxyid='',
 
     hdr = legacyhalos_header()
 
-    #for col in out.colnames:
-    #    print(col, out[col])
-    #pdb.set_trace()
+    for col in out.colnames:
+        print(col, out[col])
     hdu = fits.convenience.table_to_hdu(out)
     hdu.header['EXTNAME'] = 'ELLIPSE'
     hdu.header.update(hdr)
@@ -619,6 +618,11 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         image = fitsio.read(filt2imfile[filt]['image'])
         model = fitsio.read(filt2imfile[filt]['model'])
         sz = image.shape
+
+        # optional additional (scalar) sky-subtraction
+        if 'sky' in filt2imfile[filt].keys():
+            image += filt2imfile[filt]['sky']
+            model += filt2imfile[filt]['sky']
 
         # GALEX, unWISE need to be resized.
         if starmask.shape == sz:
@@ -948,11 +952,15 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
                    pixscale=0.262, galex_pixscale=1.5, unwise_pixscale=2.75,
                    sdss_pixscale=0.396, return_sample=False,
-                   galex=False, unwise=False, 
+                   galex=False, unwise=False,
+                   subsky={},
                    #central_galaxy_id=None,
                    sdss=False, largegalaxy=False, pipeline=False, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
     masked array suitable for ellipse-fitting.
+
+    subsky - dictionary of additional scalar value to subtract from the imaging,
+      per band, e.g., {'g': -0.01, 'r': 0.002, 'z': -0.0001}
 
     """
     from legacypipe.bits import MASKBITS
@@ -980,12 +988,20 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         [filt2imfile.update({band: {'image': '{}-image'.format(prefix),
                                     'model': '{}-model'.format(prefix),
                                     'invvar': '{}-invvar'.format(prefix),
-                                    'psf': '{}-psf'.format(prefix)}}) for band in bands]
+                                    'psf': '{}-psf'.format(prefix),
+                                    'sky': 0.0}}) for band in bands]
         [filt2pixscale.update({band: pixscale}) for band in bands]
+
         # Add the tractor and maskbits files.
         filt2imfile.update({'tractor': '{}-tractor'.format(prefix),
                             'sample': '{}-sample'.format(prefix),
                             'maskbits': '{}-maskbits'.format(prefix)})
+
+        # add optional sky-subtraction values
+        if bool(subsky):
+            for band in bands:
+                if band in subsky.keys():
+                    filt2imfile[band]['sky'] = subsky[band]
 
     # Add GALEX and unWISE--
     if galex:
@@ -1003,6 +1019,8 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
     found_data = True
     for filt in bands:
         for ii, imtype in enumerate(filt2imfile[filt].keys()):
+            if imtype == 'sky': # skip this
+                continue
             for suffix in ('.fz', ''):
                 imfile = os.path.join(galaxydir, '{}-{}-{}.fits{}'.format(galaxy, filt2imfile[filt][imtype], filt, suffix))
                 #print(imfile)
