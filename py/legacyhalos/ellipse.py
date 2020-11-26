@@ -840,15 +840,14 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     return ellipsefit
 
 def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
-                               bands=('g', 'r', 'z'),
+                               bands=('g', 'r', 'z'), nproc=1, redshift=None,
                                refband='f', pixscale=0.262, 
                                subsky={},
-                               galex_pixscale=1.5,
-                               unwise_pixscale=2.75,
+                               galex_pixscale=1.5, unwise_pixscale=2.75,
                                galex=False, unwise=False, sdss=False,
-                               verbose=False,
-                               largegalaxy=False,
-                               return_sample=True):
+                               verbose=False, largegalaxy=False,
+                               integrmode='median', nclip=3, sclip=3, 
+                               input_ellipse=None):
     """Wrapper on ellipsefit_multiband which allows me to do sky-subtraction tests. 
 
     """
@@ -948,20 +947,44 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         filesuffix = 'custom'
         #central_galaxy_id = None
 
-    # tests of sky-subtraction
+    # tests of sky-subtraction for the cluster project
     if sky_tests:
-        pdb.set_trace()
+        import fitsio
+        
+        imfile = os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, refband))
+        hdr = fitsio.read_header(imfile, ext=1)
+        #hdrs = [fitsio.read_header(os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, band))) for band in bands]
+        nsky = 9 # get this from the header
+        for isky in np.arange(nsky):
+            subsky = {}
+            for band in bands:
+                refskymed = hdr['SKYMD00{}'.format(band.upper())]
+                skymed = hdr['SKYMD{:02d}{}'.format(isky, band.upper())]
+
+                subsky[band] = refskymed - skymed # *add* the new correction
+                
+            pdb.set_trace()
+            error, filesuffix = _call_ellipsefit_multiband(
+                galaxy, galaxydir, filesuffix,
+                bands=bands, nproc=nproc, redshift=redshift,
+                refband=refband, pixscale=pixscale,
+                subsky=subsky,
+                galex_pixscale=galex_pixscale,
+                unwise_pixscale=unwise_pixscale,
+                galex=galex, unwise=unwise, sdss=sdss,
+                verbose=verbose, largegalaxy=largegalaxy,
+                input_ellipse=input_ellipse,
+                integrmode=integrmode, nclip=nclip, sclip=sclip)
     else:
         error, filesuffix = _call_ellipsefit_multiband(
             galaxy, galaxydir, filesuffix,
-            bands=bands,
+            bands=bands, nproc=nproc, redshift=redshift,
             refband=refband, pixscale=pixscale,
-            subsky=subsky,
             galex_pixscale=galex_pixscale,
             unwise_pixscale=unwise_pixscale,
             galex=galex, unwise=unwise, sdss=sdss,
-            verbose=verbose,
-            largegalaxy=largegalaxy,
-            return_sample=True)
+            verbose=verbose, largegalaxy=largegalaxy,
+            input_ellipse=input_ellipse,
+            integrmode=integrmode, nclip=nclip, sclip=sclip)
 
     return error, filesuffix
