@@ -478,6 +478,8 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         for igal in np.arange(len(data['central_galaxy_id'])):
             central_galaxy_id = data['central_galaxy_id'][igal]
             galaxyid = str(central_galaxy_id)
+            if galaxyid != '':
+                galaxyid = '{}-'.format(galaxyid)
             filesuffix = 'largegalaxy'
 
             ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
@@ -485,18 +487,18 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             if bool(ellipsefit):
                 ellipsefitall.append(ellipsefit)
 
-                sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
+                sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
                 if not os.path.isfile(sbprofilefile) or clobber:
                     display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
                                               png=sbprofilefile, verbose=verbose, minerr=0.0)
 
-                cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
+                cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
                 if not os.path.isfile(cogfile) or clobber:
                     qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
                                      png=cogfile, verbose=verbose)
 
-                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
                 if not os.path.isfile(multibandfile) or clobber:
                     with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
                         display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
@@ -535,18 +537,18 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                      galaxyid=galaxyid, verbose=verbose)
 
         if bool(ellipsefit):
-            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
+            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
             if not os.path.isfile(sbprofilefile) or clobber:
                 display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
                                           png=sbprofilefile, verbose=verbose, minerr=0.0)
 
-            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
+            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
             if not os.path.isfile(cogfile) or clobber:
                 qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
                                  png=cogfile, verbose=verbose)
 
-            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-            thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
+            thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
             if not os.path.isfile(multibandfile) or clobber:
                 with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
                     display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
@@ -579,44 +581,6 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         #
         #    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
         #        qa_maskbits(mask, tractor, ellipsefit, colorimg, largegalaxy=False, png=maskbitsfile)
-
-    #for filesuffix in ('largegalaxy', 'custom'):
-    #    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
-    #
-    #    #sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
-    #    #sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
-    #    #pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
-    #    sky_ellipsefit, sdss_ellipsefit, pipeline_ellipsefit = {}, {}, {}
-    #
-    #    if len(ellipsefit) > 0:
-    #        # Toss out bad fits.
-    #        indx = None
-    #        #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
-    #        #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
-    #
-    #        cogfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-cog.png'.format(galaxy, filesuffix))
-    #        if not os.path.isfile(cogfile) or clobber:
-    #            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
-    #                             png=cogfile, verbose=verbose)
-    #
-    #        sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix))
-    #        if not os.path.isfile(sbprofilefile) or clobber:
-    #            display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
-    #                                      pipeline_ellipsefit=pipeline_ellipsefit,
-    #                                      png=sbprofilefile, verbose=verbose, minerr=0.0,
-    #                                      sdss_ellipsefit=sdss_ellipsefit)
-    #
-    #        multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix))
-    #        if not os.path.isfile(multibandfile) or clobber:
-    #            data = read_multiband(galaxy, galaxydir, bands=bands,
-    #                                  largegalaxy=filesuffix=='largegalaxy')
-    #            
-    #            display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
-    #                              barlabel=barlabel, png=multibandfile, verbose=verbose)
-    #
-    #        ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
-    #        if not os.path.isfile(ellipsefitfile) or clobber:
-    #            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
 
 def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                       clobber=False, verbose=False):
@@ -767,6 +731,9 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         #               clobber=clobber, verbose=verbose)
 
     return 1
+
+def skyserver_link(sdss_objid):
+    return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(sdss_objid)
 
 # Get the viewer link
 def viewer_link(ra, dec, width, sga=False, manga=False):

@@ -57,11 +57,18 @@ def main():
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
     if args.htmlindex and rank == 0:
-        intflux = legacyhalos.legacyhalos.read_integrated_flux(first=args.first, last=args.last,
-                                                               verbose=args.verbose)
-        legacyhalos.legacyhalos.make_html(sample, intflux=intflux, survey=None, pixscale=args.pixscale,
+        #intflux = legacyhalos.legacyhalos.read_integrated_flux(first=args.first, last=args.last,
+        #                                                       verbose=args.verbose)
+        intflux = None
+        #legacyhalos.legacyhalos.make_html(sample, intflux=intflux, survey=None, pixscale=args.pixscale,
+        #                                  zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+        #                                  makeplots=False, verbose=args.verbose, htmldir=args.htmldir)
+        legacyhalos.legacyhalos.make_html(sample, survey=None, pixscale=args.pixscale,
+                                          racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
                                           zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
-                                          makeplots=False, verbose=args.verbose, htmldir=args.htmldir)
+                                          makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                          htmlhome=args.htmlhome, html_raslices=args.html_raslices,
+                                          args=args)
         return
 
     if args.build_refcat or args.integrate and rank == 0:
@@ -75,7 +82,7 @@ def main():
             ref = Table()
             ref['ra'] = fullsample['RA']
             ref['dec'] = fullsample['DEC']
-            ref['sga_id'] = fullsample['MEM_MATCH_ID']
+            ref['sga_id'] = fullsample['ID']
             ref['mag_leda'] = fullsample['IMAG']
             ref['ba'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a
             ref['pa'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
@@ -191,7 +198,12 @@ def main():
 
         # Need the cluster "radius" to build the coadds.
         radius_mosaic_arcsec = onegal[DIAMCOLUMN] # [arcsec]
-        subsky_radii = radius_mosaic_arcsec * np.arange(0.5, 1.6, 0.1)
+        subsky_radii = radius_mosaic_arcsec * np.array([0.4, 0.5, # annulus 0
+                                                        0.2, 0.3, # annulus 1
+                                                        0.3, 0.4, # annulus 2
+                                                        0.5, 0.6, # annulus 3
+                                                        0.6, 0.7, # annulus 4
+                                                        0.7, 0.8])# annulus 5
         
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)

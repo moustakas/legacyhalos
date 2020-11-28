@@ -527,7 +527,10 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            keep = np.where(np.isfinite(sb) * ((sb / sberr) > snrmin))[0]
+            if linear:
+                keep = np.where(np.isfinite(sb))[0]
+            else:
+                keep = np.where(np.isfinite(sb) * ((sb / sberr) > snrmin))[0]
 
         if len(keep) == 0:
             sbprofile['sma_{}'.format(filt)] = np.array([-1.0]).astype('f4')    # [pixels]
@@ -863,7 +866,7 @@ def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
                                                  return_sample=True)
     if bool(data):
         if data['failed']: # all galaxies dropped
-            return 1, filesuffix
+            return 1
 
         if data['central_galaxy_id'] is not None:
             central_galaxy_id_all = data['central_galaxy_id']
@@ -907,15 +910,15 @@ def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
                                               delta_sma=delta_sma,
                                               input_ellipse=input_ellipse, maxsma=maxsma,
                                               fitgeometry=False, galaxyinfo=galaxyinfo)
-        return 1, filesuffix
+        return 1
     else:
         # An object can get here if it's a "known" failure, e.g., if the object
         # falls off the edge of the footprint (and therefore it will never have
         # coadds).
         if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
-            return 1, filesuffix
+            return 1
         else:
-            return 0, filesuffix
+            return 0
 
 def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         sdss_pixscale=0.396, galex_pixscale=1.5, unwise_pixscale=2.75,
@@ -933,6 +936,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
     pipeline - read the pipeline-built images (default is custom)
 
     """
+    import shutil
+    
     if galaxy is None and galaxydir is None:
         galaxy, galaxydir = legacyhalos.io.get_galaxy_galaxydir(onegal)
 
@@ -953,19 +958,19 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         
         imfile = os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, refband))
         hdr = fitsio.read_header(imfile, ext=1)
-        #hdrs = [fitsio.read_header(os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, band))) for band in bands]
-        nsky = 9 # get this from the header
-        for isky in np.arange(nsky):
+        nskyaps = hdr['NSKYRAD'] // 2 # N radii and N//2 annuli
+        for isky in np.arange(nskyaps):
             subsky = {}
             for band in bands:
                 refskymed = hdr['SKYMD00{}'.format(band.upper())]
                 skymed = hdr['SKYMD{:02d}{}'.format(isky, band.upper())]
 
                 subsky[band] = refskymed - skymed # *add* the new correction
-                
-            pdb.set_trace()
-            error, filesuffix = _call_ellipsefit_multiband(
-                galaxy, galaxydir, filesuffix,
+            print(subsky)
+
+            _filesuffix = '{}-skytest{:02d}'.format(filesuffix, isky)
+            success = _call_ellipsefit_multiband(
+                galaxy, galaxydir, _filesuffix,
                 bands=bands, nproc=nproc, redshift=redshift,
                 refband=refband, pixscale=pixscale,
                 subsky=subsky,
@@ -975,8 +980,14 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                 verbose=verbose, largegalaxy=largegalaxy,
                 input_ellipse=input_ellipse,
                 integrmode=integrmode, nclip=nclip, sclip=sclip)
+            # no need to redo the nominal ellipse-fitting
+            if isky == 0:
+                inellipsefile = os.path.join(galaxydir, '{}-custom-skytest00-ellipse.fits'.format(galaxy))
+                outellipsefile = os.path.join(galaxydir, '{}-custom-ellipse.fits'.format(galaxy))
+                shutil.copy2(inellipsefile, outellipsefile)
+
     else:
-        error, filesuffix = _call_ellipsefit_multiband(
+        success = _call_ellipsefit_multiband(
             galaxy, galaxydir, filesuffix,
             bands=bands, nproc=nproc, redshift=redshift,
             refband=refband, pixscale=pixscale,
@@ -987,4 +998,4 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             input_ellipse=input_ellipse,
             integrmode=integrmode, nclip=nclip, sclip=sclip)
 
-    return error, filesuffix
+    return success, filesuffix

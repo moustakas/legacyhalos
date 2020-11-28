@@ -621,6 +621,7 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
 
         # optional additional (scalar) sky-subtraction
         if 'sky' in filt2imfile[filt].keys():
+            #print('Subtracting!!! ', filt2imfile[filt]['sky'])
             image += filt2imfile[filt]['sky']
             model += filt2imfile[filt]['sky']
 
