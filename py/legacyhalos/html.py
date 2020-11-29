@@ -105,6 +105,7 @@ def make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=N
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
 
+    pdb.set_trace()
     if radius_pixel is None:
         radius_pixel = legacyhalos.misc.cutout_radius_kpc(
             redshift=onegal[zcolumn], pixscale=pixscale,
@@ -132,12 +133,16 @@ def make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=N
                    for iccd, _ccd in enumerate(ccds)]
         mp.map(_display_ccdmask_and_sky, ccdargs)
 
-    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
-    if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
-
+    grzfile = glob(os.path.join(galaxydir, '{}-*-image-grz.jpg'.format(galaxy)))[0]
+    if os.path.isfile(grzfile):
+        ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+        if not os.path.isfile(ccdposfile) or clobber:
+            display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
+    else:
+        print('Unable to make ccdpos QA; montage file {} not found.'.format(grzfile))
+        
 def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-                   radius=None, survey=None, clobber=False, verbose=False):
+                   zcolumn='Z', radius=None, survey=None, clobber=False, verbose=False):
     """Build CCD positions QA.
 
     radius in pixels
@@ -175,9 +180,13 @@ def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     #if verbose:
     print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
 
-    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
-    if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
+    grzfile = glob(os.path.join(galaxydir, '{}-*-image-grz.jpg'.format(galaxy)))[0]
+    if os.path.isfile(grzfile):
+        ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+        if not os.path.isfile(ccdposfile) or clobber:
+            display_ccdpos(onegal, ccds, radius, grzfile, png=ccdposfile)
+    else:
+        print('Unable to make ccdpos QA; montage file {} not found.'.format(grzfile))
 
 def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, 
                         barlabel=None, just_coadds=False, clobber=False,
@@ -680,10 +689,16 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         if barlen is None and zcolumn in onegal.colnames:
             barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int') # [kpc]
 
-        if radius_mosaic_arcsec is None:
-            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
-                redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
+        #if radius_mosaic_arcsec is None:
+        #    radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+        #        redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
+
+        # CCD positions
+        make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                       radius=radius_mosaic_pixels, zcolumn=zcolumn, survey=survey,
+                       clobber=clobber, verbose=verbose)
+        pdb.set_trace()
 
         # Build the maskbits figure.
         #make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
@@ -706,11 +721,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                                         #barlen=barlen, barlabel=barlabel,
                                         clobber=clobber, verbose=verbose)
         
-        # CCD positions
-        make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
-                       radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
-                       verbose=verbose)
-
         # Sersic fiting results
         if False:
             make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands,

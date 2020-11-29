@@ -1526,30 +1526,32 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
     _color_vs_sma()       # color vs semi-major axis
     _ellipticity_vs_sma() # ellipticity vs semi-major axis
 
-def display_ccdpos(onegal, ccds, radius, pixscale=0.262, png=None, verbose=False):
+def display_ccdpos(onegal, ccds, radius, grzfile, pixscale=0.262, png=None, verbose=False):
     """Visualize the position of all the CCDs contributing to the image stack of a
     single galaxy.
 
     radius in pixels
 
     """
+    wcs_clust = legacyhalos.misc.simple_wcs(onegal, factor=1.0, radius=radius, pixscale=pixscale)
     wcs = legacyhalos.misc.simple_wcs(onegal, factor=15, radius=radius, pixscale=pixscale)
     width, height = wcs.get_width() * pixscale / 3600, wcs.get_height() * pixscale / 3600 # [degrees]
     bb, bbcc = wcs.radec_bounds(), wcs.radec_center() # [degrees]
-    #if onegal['DEC'] > 33: 
-    #    pad = 0.05 # [degrees]
-    #else:
-    #    pad = 0.1 # [degrees, roughly the DECam CCD size]
     
+    radius_deg = radius * pixscale / 3600 # [degrees]
     #pad = 0.2
-    pad = 2 * radius * pixscale / 3600 # [degrees]
-
+    pad = 2 * radius_deg # [degrees]
+    bb_clust, bbcc_clust = wcs_clust.radec_bounds(), wcs_clust.radec_center() # [degrees]
+    
     delta = np.max( (np.diff(bb[0:2]), np.diff(bb[2:4])) ) / 2 + pad / 2
     xlim = bbcc[0] - delta, bbcc[0] + delta
     ylim = bbcc[1] - delta, bbcc[1] + delta
     #print(xlim, ylim, pad)
+
     #pdb.set_trace()
 
+    col = iter(plt.cm.rainbow(np.linspace(0, 1, len(ccds))))
+    
     fig, allax = plt.subplots(1, 3, figsize=(12, 5), sharey=True, sharex=True)
 
     for ax, band in zip(allax, ('g', 'r', 'z')):
@@ -1559,18 +1561,9 @@ def display_ccdpos(onegal, ccds, radius, pixscale=0.262, png=None, verbose=False
 
         if band == 'g':
             ax.set_ylabel('Dec (deg)')
-        ax.get_xaxis().get_major_formatter().set_useOffset(False)
-        #ax.add_patch(patches.Rectangle((bb[0], bb[2]), bb[1]-bb[0], bb[3]-bb[2],
-        #                               fill=False, edgecolor='black', lw=3, ls='--'))
-        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), radius * pixscale / 3600,
-                                    fill=False, edgecolor='black', lw=2))
-        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), 2*radius * pixscale / 3600, # inner sky annulus
-                                    fill=False, edgecolor='black', lw=1))
-        ax.add_patch(patches.Circle((bbcc[0], bbcc[1]), 5*radius * pixscale / 3600, # outer sky annulus
-                                    fill=False, edgecolor='black', lw=1))
 
         these = np.where(ccds.filter == band)[0]
-        col = plt.cm.Set1(np.linspace(0, 1, len(ccds)))
+        #col = plt.cm.Set1(np.linspace(0, 1, len(ccds)))
         for ii, ccd in enumerate(ccds[these]):
             #print(ccd.expnum, ccd.ccdname, ccd.filter)
             W, H, ccdwcs = legacyhalos.misc.ccdwcs(ccd)
@@ -1578,10 +1571,21 @@ def display_ccdpos(onegal, ccds, radius, pixscale=0.262, png=None, verbose=False
             cc = ccdwcs.radec_bounds()
             ax.add_patch(patches.Rectangle((cc[0], cc[2]), cc[1]-cc[0],
                                            cc[3]-cc[2], fill=False, lw=2, 
-                                           edgecolor=col[these[ii]],
-                                           label='ccd{:02d}'.format(these[ii])))
-            ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=10)
+                                           edgecolor=next(col),
+                                           label='{}-{}'.format(ccds.expnum[these[ii]], ccds.ccdname[these[ii]])))
+                                           #label='ccd{:02d}'.format(these[ii])))
+            ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=8)
 
+        ax.get_xaxis().get_major_formatter().set_useOffset(False)
+        ax.add_patch(patches.Rectangle((bbcc_clust[0]-radius_deg, bbcc_clust[1]-radius_deg), radius_deg*2, radius_deg*2,
+                                       fill=False, edgecolor='black', lw=1, ls='-'))
+
+        if False:
+            ax.add_patch(patches.Circle((bbcc_clust[0], bbcc_clust[1]), 1.1*radius_deg, # inner sky annulus
+                                        fill=False, edgecolor='gray', lw=1))
+            ax.add_patch(patches.Circle((bbcc_clust[0], bbcc_clust[1]), 1.2*radius_deg, # outer sky annulus
+                                        fill=False, edgecolor='gray', lw=1))
+        
         ax.set_ylim(ylim)
         ax.set_xlim(xlim)
         ax.invert_xaxis()

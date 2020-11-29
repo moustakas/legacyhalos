@@ -36,14 +36,17 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
           galaxy, (time.time() - t0)/60), flush=True, file=log)
     
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
-                 debug=False, logfile=None, input_ellipse=None, zcolumn=None,                 
+                 debug=False, logfile=None, input_ellipse=None, zcolumn=None,
                  sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
                  galex=False, galex_pixscale=1.5, largegalaxy=False, pipeline=True,
-                 sky_tests=False):
+                 sky_tests=False, sbthresh=None):
     """Wrapper script to do ellipse-fitting.
 
     """
     import legacyhalos.ellipse
+
+    if sbthresh is None:
+        from legacyhalos.ellipse import REF_SBTHRESH as sbthresh
 
     # Do not force zcolumn here; it's not always wanted or needed in ellipse.
     #if zcolumn is None:
@@ -55,6 +58,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
         err, filesuffix = legacyhalos.ellipse.legacyhalos_ellipse(
             onegal, galaxy=galaxy, galaxydir=galaxydir,
             pixscale=pixscale, nproc=nproc,
+            sbthresh=sbthresh,
             zcolumn=zcolumn, input_ellipse=input_ellipse,
             verbose=verbose, debug=debug,
             sdss=sdss, sdss_pixscale=sdss_pixscale,
@@ -70,6 +74,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
                 err, filesuffix = legacyhalos.ellipse.legacyhalos_ellipse(
                     onegal, galaxy=galaxy, galaxydir=galaxydir,
                     pixscale=pixscale, nproc=nproc,
+                    sbthresh=sbthresh,
                     zcolumn=zcolumn, input_ellipse=input_ellipse,
                     verbose=verbose, debug=debug,
                     sdss=sdss, sdss_pixscale=sdss_pixscale,

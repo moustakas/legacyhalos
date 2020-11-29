@@ -23,6 +23,8 @@ RACOLUMN = 'GROUP_RA'
 DECCOLUMN = 'GROUP_DEC'
 DIAMCOLUMN = 'GROUP_DIAMETER'
 
+SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
+
 ELLIPSEBITS = dict(
     largeshift = 2**0,      # >10-pixel shift in the flux-weighted center
     rex_toosmall = 2**1,    # type == REX & shape_r < 5

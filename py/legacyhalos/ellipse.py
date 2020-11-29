@@ -17,7 +17,7 @@ from photutils.isophote.fitter import CentralEllipseFitter
 
 import legacyhalos.io
 
-SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
+REF_SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
 
 class CogModel(astropy.modeling.Fittable1DModel):
     """Class to empirically model the curve of growth.
@@ -70,7 +70,8 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False, iscir
     return apphot
 
 def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
-                pixscale, centralindx=0, pool=None, seed=1):
+                pixscale, centralindx=0, pool=None, seed=1,
+                sbthresh=REF_SBTHRESH):
     """Measure the curve of growth (CoG) by performing elliptical aperture
     photometry.
 
@@ -100,7 +101,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     sbprofile = ellipse_sbprofile(refellipsefit)
 
     #print('We should measure these radii from the extinction-corrected photometry!')
-    for sbcut in SBTHRESH:
+    for sbcut in sbthresh:
         if sbprofile['mu_r'].max() < sbcut or sbprofile['mu_r'].min() > sbcut:
             print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
             results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
@@ -216,7 +217,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             results['{}_cog_params_alpha1'.format(filt)] = np.float32(-1)
             results['{}_cog_params_alpha2'.format(filt)] = np.float32(-1)
             results['{}_cog_params_chi2'.format(filt)] = np.float32(1e6)
-            for sbcut in SBTHRESH:
+            for sbcut in sbthresh:
                 results['{}_mag_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
                 results['{}_mag_sb{:0g}_err'.format(filt, sbcut)] = np.float32(-1)
             continue
@@ -311,7 +312,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
         #print('Measuring integrated magnitudes to different radii.')
         sb = ellipse_sbprofile(refellipsefit, linear=True)
-        radkeys = ['radius_sb{:0g}'.format(sbcut) for sbcut in SBTHRESH]
+        radkeys = ['radius_sb{:0g}'.format(sbcut) for sbcut in sbthresh]
         for radkey in radkeys:
             magkey = radkey.replace('radius_', '{}_mag_'.format(filt))
             magerrkey = '{}_err'.format(magkey)
@@ -326,12 +327,13 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 try:
                     #print(filt, rr.max(), rmax)
                     yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
+                    yyerr_rmax = interp1d(rr, yyerr)(rmax)
 
                     # append the maximum radius to the end of the array
                     keep = np.where(rr < rmax)[0]
                     _rr = np.hstack((rr[keep], rmax))
                     _yy = np.hstack((yy[keep], yy_rmax))
-                    _yyerr = np.hstack((yyerr[keep], yy_rmax))
+                    _yyerr = np.hstack((yyerr[keep], yyerr_rmax))
 
                     flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
                     fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
@@ -666,6 +668,7 @@ def _fitgeometry_refband(ellipsefit, geometry0, majoraxis, refband='r', verbose=
 def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
                          filesuffix='custom', refband='r', maxsma=None, nproc=1,
                          integrmode='median', nclip=2, sclip=3, delta_sma=1.0,
+                         sbthresh=REF_SBTHRESH,
                          galaxyinfo=None, input_ellipse=None, fitgeometry=False,
                          nowrite=False, verbose=False):
     """Multi-band ellipse-fitting, broadly based on--
@@ -773,8 +776,41 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
         maxsma = 0.95 * (data['refband_width']/2) / np.cos(geometry.pa % (np.pi/4))
     ellipsefit['maxsma'] = np.float32(maxsma) # [pixels]
 
-    sma = np.arange(0, np.ceil(maxsma), delta_sma).astype('f4')
-    #ellipsefit['sma'] = np.arange(np.ceil(maxsma)).astype('f4')
+    logsma = True
+    if logsma:
+
+        #https://stackoverflow.com/questions/12418234/logarithmically-spaced-integers
+        def _mylogspace(limit, n):
+            result = [1]
+            if n > 1:  # just a check to avoid ZeroDivisionError
+                ratio = (float(limit)/result[-1]) ** (1.0/(n-len(result)))
+            while len(result) < n:
+                next_value = result[-1]*ratio
+                if next_value - result[-1] >= 1:
+                    # safe zone. next_value will be a different integer
+                    result.append(next_value)
+                else:
+                    # problem! same integer. we need to find next_value by artificially incrementing previous value
+                    result.append(result[-1]+1)
+                    # recalculate the ratio so that the remaining values will scale correctly
+                    ratio = (float(limit)/result[-1]) ** (1.0/(n-len(result)))
+            # round, re-adjust to 0 indexing (i.e. minus 1) and return np.uint64 array
+            return np.array(list(map(lambda x: round(x)-1, result)), dtype=np.int)
+
+        # this algorithm can fail if there are too few points
+        delta_logsma = 8.0
+        nsma = np.ceil(maxsma / delta_logsma).astype('int')
+        sma = _mylogspace(maxsma, nsma).astype('f4')
+        #sma = np.hstack((0, np.logspace(0, np.ceil(np.log10(maxsma)).astype('int'), nsma, dtype=np.int))).astype('f4')
+        print('  maxsma={:.2f} pix, delta_logsma={:.1f} log-pix, nsma={}'.format(maxsma, delta_logsma, len(sma)))
+    else:
+        sma = np.arange(0, np.ceil(maxsma), delta_sma).astype('f4')
+        #ellipsefit['sma'] = np.arange(np.ceil(maxsma)).astype('f4')
+        print('  maxsma={:.2f} pix, delta_sma={:.1f} pix, nsma={}'.format(maxsma, delta_sma, len(sma)))
+
+    # this assert will fail when integrating the curve of growth using
+    # integrate.simps because the x-axis values have to be unique.
+    assert(len(np.unique(sma)) == len(sma))
 
     nbox = 3
     box = np.arange(nbox)-nbox // 2
@@ -822,7 +858,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
     print('Performing elliptical aperture photometry.')
     t0 = time.time()
     cog = ellipse_cog(bands, data, ellipsefit, 1.0, refpixscale,
-                      centralindx=centralindx, pool=pool)
+                      centralindx=centralindx, pool=pool,
+                      sbthresh=sbthresh)
     ellipsefit.update(cog)
     del cog
     print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
@@ -837,6 +874,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
                                         galaxyid=galaxyid,
                                         galaxyinfo=galaxyinfo,
                                         refband=refband,
+                                        sbthresh=sbthresh,
                                         verbose=True,
                                         filesuffix=filesuffix)
 
@@ -844,8 +882,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
 
 def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
                                bands=('g', 'r', 'z'), nproc=1, redshift=None,
-                               refband='f', pixscale=0.262, 
+                               refband='f', pixscale=0.262,
+                               sbthresh=REF_SBTHRESH,
                                subsky={},
+                               delta_sma=None,
                                galex_pixscale=1.5, unwise_pixscale=2.75,
                                galex=False, unwise=False, sdss=False,
                                verbose=False, largegalaxy=False,
@@ -892,15 +932,19 @@ def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
                     if samp['PGC'] == 31968: # special-case NGC3344
                         print('Special-casing PGC031968==NGC3344!')
                     maxsma = 1.5 * maxis # [pixels]
-                    delta_sma = 0.003 * maxsma
+                    if delta_sma is None:
+                        delta_sma = 0.003 * maxsma
                 else:
                     maxsma = 2 * maxis # [pixels]
-                    delta_sma = 0.0015 * maxsma
+                    if delta_sma is None:
+                        delta_sma = 0.0015 * maxsma
                 if delta_sma < 1:
                     delta_sma = 1.0
                 print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))
             else:
-                maxsma, galaxyid, delta_sma = None, '', 1.0                
+                if delta_sma is None:
+                    delta_sma = 1.0
+                maxsma, galaxyid = None, ''
                 galaxyinfo = {'redshift': (redshift, '')}
 
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, centralindx=igal,
@@ -908,6 +952,7 @@ def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
                                               refband=refband, nproc=nproc, integrmode=integrmode,
                                               nclip=nclip, sclip=sclip, verbose=verbose,
                                               delta_sma=delta_sma,
+                                              sbthresh=sbthresh,
                                               input_ellipse=input_ellipse, maxsma=maxsma,
                                               fitgeometry=False, galaxyinfo=galaxyinfo)
         return 1
@@ -923,10 +968,11 @@ def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
 def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                         sdss_pixscale=0.396, galex_pixscale=1.5, unwise_pixscale=2.75,
                         nproc=1, refband='r', bands=('g', 'r', 'z'), sdss_bands=('g','r','i'),
-                        integrmode='median', nclip=3, sclip=3, zcolumn=None,
-                        largegalaxy=False, pipeline=False, input_ellipse=None, fitgeometry=False,
-                        verbose=False, debug=False, sdss=False, galex=False, unwise=False,
-                        sky_tests=False):
+                        integrmode='median', nclip=3, sclip=3,
+                        sbthresh=REF_SBTHRESH,
+                        zcolumn=None, largegalaxy=False, pipeline=False, input_ellipse=None,
+                        fitgeometry=False, verbose=False, debug=False, sdss=False, galex=False,
+                        unwise=False, sky_tests=False):
                         
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
@@ -974,6 +1020,8 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
                 bands=bands, nproc=nproc, redshift=redshift,
                 refband=refband, pixscale=pixscale,
                 subsky=subsky,
+                delta_sma=10.0, # [pixels]
+                sbthresh=sbthresh,
                 galex_pixscale=galex_pixscale,
                 unwise_pixscale=unwise_pixscale,
                 galex=galex, unwise=unwise, sdss=sdss,
@@ -991,6 +1039,7 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
             galaxy, galaxydir, filesuffix,
             bands=bands, nproc=nproc, redshift=redshift,
             refband=refband, pixscale=pixscale,
+            sbthresh=sbthresh,
             galex_pixscale=galex_pixscale,
             unwise_pixscale=unwise_pixscale,
             galex=galex, unwise=unwise, sdss=sdss,

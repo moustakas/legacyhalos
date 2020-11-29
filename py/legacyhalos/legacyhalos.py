@@ -20,6 +20,8 @@ RICHCOLUMN = 'LAMBDA_CHISQ'
 
 RADIUS_CLUSTER_KPC = 400.0 # default cluster radius [kpc]
 
+SBTHRESH = [23.0, 24.0, 25.0, 26.0] # surface brightness thresholds
+
 def sample_dir():
     sdir = os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample')
     if not os.path.isdir(sdir):
@@ -1732,7 +1734,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         #_html_group_properties(html, gal)
         _html_image_mosaics(html)
         _html_ellipsefit_and_photometry(html, tractor, sample)
-        _html_maskbits(html)
+        #_html_maskbits(html)
         _html_ccd_diagnostics(html)
 
         html.write('<br /><br />\n')
