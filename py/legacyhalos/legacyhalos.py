@@ -401,12 +401,19 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
     # select a subset of the full sample for analysis
     # see https://arxiv.org/pdf/1910.01656.pdf
     if True:
-        cen = fitsio.read(cenfile, columns=[ZCOLUMN, RICHCOLUMN])
         rows = np.arange(nrows)
+        cen = fitsio.read(cenfile, columns=[ZCOLUMN, RICHCOLUMN, 'DEC'])#, 'RA'])
+        #isouth = np.logical_or((cen['DEC'] < 32.275), (cen['RA'] > 45) * (cen['RA'] < 315))
+        
         samplecut = np.where(
-            (cen[ZCOLUMN] >= 0.1) *
-            (cen[ZCOLUMN] <= 0.3) *
-            (cen[RICHCOLUMN] >= 20))[0]
+            (cen[ZCOLUMN] >= 0.2) *
+            (cen[ZCOLUMN] < 0.25) *
+            #(cen[ZCOLUMN] >= 0.25) *
+            #(cen[ZCOLUMN] < 0.3) *
+            #(cen[ZCOLUMN] >= 0.1) *
+            #(cen[ZCOLUMN] < 0.3) *
+            (cen[RICHCOLUMN] >= 20) *
+            (cen['DEC'] < 32.275))[0]
         rows = rows[samplecut]
         nrows = len(rows)
     else:
@@ -445,7 +452,7 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
     if satellites:
         satid = fitsio.read(satfile, columns='MEM_MATCH_ID')
         satrows = np.where(np.isin(satid, cen['MEM_MATCH_ID']))[0]
-        satrows = np.argsort(satrows)
+        satrows = satrows[np.argsort(satrows)]
         sat = Table(fitsio.read(satfile, rows=satrows, ext=1, upper=True))
         #sat['RADIUS_MOSAIC'] = cutout_radius_kpc(redshift=sat[ZCOLUMN], cosmo=cosmo, # [arcsec]
         #                                         radius_kpc=RADIUS_CLUSTER_KPC)
@@ -855,11 +862,8 @@ def obsolete_make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r',
         
         return viewer
 
-    def _skyserver_link(gal):
-        if 'SDSS_OBJID' in gal.colnames:
-            return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
-        else:
-            return ''
+    def _skyserver_link(objid):
+        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(objid)
 
     trendshtml = 'trends.html'
     homehtml = 'index.html'
@@ -1172,7 +1176,8 @@ def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R2
 
 def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
                    racolumn='RA', deccolumn='DEC', diamcolumn='RADIUS_MOSAIC',
-                   maketrends=False, fix_permissions=True, html_raslices=True):
+                   zcolumn='Z_LAMBDA', maketrends=False, fix_permissions=True,
+                   html_raslices=True):
     """Build the home (index.html) page and, optionally, the trends.html top-level
     page.
 
@@ -1196,8 +1201,8 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
         html.write('p {display: inline-block;;}\n')
         html.write('</style>\n')
 
-        html.write('<h1>Virgo Filaments</h1>\n')
-
+        html.write('<h1>LegacyHalos: Central Galaxies</h1>\n')
+        
         html.write('<p style="width: 75%">\n')
         html.write("""This project is super neat.</p>\n""")
 
@@ -1227,7 +1232,10 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
             html.write('<th>Galaxy</th>\n')
             html.write('<th>RA</th>\n')
             html.write('<th>Dec</th>\n')
-            html.write('<th>Diameter (arcmin)</th>\n')
+            html.write('<th>Redshift</th>\n')
+            html.write('<th>Richness</th>\n')
+            html.write('<th>Pcen</th>\n')
+            #html.write('<th>Diameter (arcmin)</th>\n')
             html.write('<th>Viewer</th>\n')
             html.write('</tr>\n')
             
@@ -1248,7 +1256,10 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
                 html.write('<td>{:.7f}</td>\n'.format(ra1))
                 html.write('<td>{:.7f}</td>\n'.format(dec1))
-                html.write('<td>{:.4f}</td>\n'.format(diam1))
+                html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
+                html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
+                html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
+                #html.write('<td>{:.4f}</td>\n'.format(diam1))
                 html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
                 html.write('</tr>\n')
             html.write('</table>\n')
@@ -1405,18 +1416,24 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             cols = ['ref_cat', 'ref_id', 'type', 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
                     'flux_g', 'flux_r', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z', 'ra', 'dec']
             tractor = astropy.table.Table(fitsio.read(tractorfile, lower=True, columns=cols))#, rows=irows
-            # ----------
-            print('Hacking ref_id!')
-            from astropy.table import Table
-            from astrometry.libkd.spherematch import match_radec
-            sample = Table(sample[sample['P'].argmax()])
-            tractor = tractor[tractor['ref_cat'] == 'R1']
-            m1, m2, _ = match_radec(sample['RA'], sample['DEC'], tractor['ra'], tractor['dec'], 1/3600)
-            #srt = np.argsort(m1) ; m1 = m1[srt] ; m2 = m2[srt]
-            sample = sample[m1]
-            tractor = tractor[m2]
-            tractor['ref_id'] = sample['ID']
-            # ----------
+
+            # just keep the central - this needs its own keyword
+            cid = sample[np.argmax(sample['P'])]['ID']
+            tractor = tractor[(tractor['ref_cat'] == 'R1') * (tractor['ref_id'] == cid)]
+            assert(len(tractor) == 1)
+
+            ## ----------
+            #print('Hacking ref_id!')
+            #from astropy.table import Table
+            #from astrometry.libkd.spherematch import match_radec
+            #sample = Table(sample[sample['P'].argmax()])
+            #tractor = tractor[tractor['ref_cat'] == 'R1']
+            #m1, m2, _ = match_radec(sample['RA'], sample['DEC'], tractor['ra'], tractor['dec'], 1/3600)
+            ##srt = np.argsort(m1) ; m1 = m1[srt] ; m2 = m2[srt]
+            #sample = sample[m1]
+            #tractor = tractor[m2]
+            #tractor['ref_id'] = sample['ID']
+            ## ----------
 
             # We just care about the galaxies in our sample
             if prefix == 'custom':
@@ -1424,6 +1441,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                 for ii, sid in enumerate(sample['ID']):
                     ww = np.where(tractor['ref_id'] == sid)[0]
                     if len(ww) > 0:
+                        #print(ii, ww)
                         wt.append(ww)
                         ws.append(ii)
                 if len(wt) == 0:
@@ -1432,35 +1450,41 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                 else:
                     wt = np.hstack(wt)
                     ws = np.hstack(ws)
+                    assert(len(wt) == len(ws)) # there are duplicate satellites in tractor!
+                    
                     tractor = tractor[wt]
                     sample = sample[ws]
                     srt = np.argsort(tractor['flux_r'])[::-1]
+
                     tractor = tractor[srt]
                     sample = sample[srt]
                     assert(np.all(tractor['ref_id'] == sample['ID']))
-
+                    
         return nccds, tractor, sample
 
-    def _html_group_properties(html, gal):
+    def _skyserver_link(objid):
+        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(objid)
+
+    def _html_cluster_properties(html, gal):
         """Build the table of group properties.
 
         """
         ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], gal[diamcolumn]
-        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, sga=True)
+        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1*2*60/pixscale, sga=False)
+        #skyserver_link = _skyserver_link(gal['OBJID'])
 
-        html.write('<h2>Group Properties</h2>\n')
+        html.write('<h2>Cluster Properties</h2>\n')
 
         html.write('<table>\n')
         html.write('<tr>\n')
         #html.write('<th>Number</th>\n')
-        html.write('<th>Index<br />(Primary)</th>\n')
-        html.write('<th>ID<br />(Primary)</th>\n')
-        html.write('<th>Group Name</th>\n')
-        html.write('<th>Group RA</th>\n')
-        html.write('<th>Group Dec</th>\n')
-        html.write('<th>Group Diameter<br />(arcmin)</th>\n')
-        #html.write('<th>Richness</th>\n')
-        #html.write('<th>Pcen</th>\n')
+        #html.write('<th>Index<br />(Primary)</th>\n')
+        html.write('<th>Galaxy</th>\n')
+        html.write('<th>RA</th>\n')
+        html.write('<th>Dec</th>\n')
+        html.write('<th>Redshift</th>\n')
+        html.write('<th>Richness</th>\n')
+        html.write('<th>Pcen</th>\n')
         html.write('<th>Viewer</th>\n')
         #html.write('<th>SkyServer</th>\n')
         html.write('</tr>\n')
@@ -1468,54 +1492,53 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('<tr>\n')
         #html.write('<td>{:g}</td>\n'.format(ii))
         #print(gal['INDEX'], gal['SGA_ID'], gal['GALAXY'])
-        html.write('<td>{}</td>\n'.format(gal['INDEX']))
-        html.write('<td>{}</td>\n'.format(gal['SGA_ID']))
-        html.write('<td>{}</td>\n'.format(gal['GROUP_NAME']))
-        html.write('<td>{:.7f}</td>\n'.format(ra1))
-        html.write('<td>{:.7f}</td>\n'.format(dec1))
-        html.write('<td>{:.4f}</td>\n'.format(diam1))
-        #html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
-        #html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
-        #html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
+        #html.write('<td>{}</td>\n'.format(gal['INDEX']))
+        #html.write('<td>{}</td>\n'.format(gal['SGA_ID']))
+        html.write('<td>{}</td>\n'.format(galaxy1))
+        html.write('<td>{:.7f}</td>\n'.format(gal[RACOLUMN]))
+        html.write('<td>{:.7f}</td>\n'.format(gal[DECCOLUMN]))
+        html.write('<td>{:.5f}</td>\n'.format(gal[ZCOLUMN]))
+        html.write('<td>{:.4f}</td>\n'.format(gal[RICHCOLUMN]))
+        html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
         html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
-        #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
+        #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(skyserver_link))
         html.write('</tr>\n')
         html.write('</table>\n')
 
-        # Add the properties of each galaxy.
-        html.write('<h3>Group Members</h3>\n')
-        html.write('<table>\n')
-        html.write('<tr>\n')
-        html.write('<th>ID</th>\n')
-        html.write('<th>Galaxy</th>\n')
-        #html.write('<th>Morphology</th>\n')
-        html.write('<th>RA</th>\n')
-        html.write('<th>Dec</th>\n')
-        html.write('<th>D(25)<br />(arcmin)</th>\n')
-        #html.write('<th>PA<br />(deg)</th>\n')
-        #html.write('<th>e</th>\n')
-        html.write('</tr>\n')
-        for groupgal in sample:
-            #if '031705' in gal['GALAXY']:
-            #    print(groupgal['GALAXY'])
-            html.write('<tr>\n')
-            html.write('<td>{}</td>\n'.format(groupgal['SGA_ID']))
-            html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
-            #typ = groupgal['MORPHTYPE'].strip()
-            #if typ == '' or typ == 'nan':
-            #    typ = '...'
-            #html.write('<td>{}</td>\n'.format(typ))
-            html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
-            html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
-            html.write('<td>{:.4f}</td>\n'.format(groupgal['DIAM']))
-            #if np.isnan(groupgal['PA']):
-            #    pa = 0.0
-            #else:
-            #    pa = groupgal['PA']
-            #html.write('<td>{:.2f}</td>\n'.format(pa))
-            #html.write('<td>{:.3f}</td>\n'.format(1-groupgal['BA']))
-            html.write('</tr>\n')
-        html.write('</table>\n')
+        ## Add the properties of each galaxy.
+        #html.write('<h3>Group Members</h3>\n')
+        #html.write('<table>\n')
+        #html.write('<tr>\n')
+        #html.write('<th>ID</th>\n')
+        #html.write('<th>Galaxy</th>\n')
+        ##html.write('<th>Morphology</th>\n')
+        #html.write('<th>RA</th>\n')
+        #html.write('<th>Dec</th>\n')
+        #html.write('<th>D(25)<br />(arcmin)</th>\n')
+        ##html.write('<th>PA<br />(deg)</th>\n')
+        ##html.write('<th>e</th>\n')
+        #html.write('</tr>\n')
+        #for groupgal in sample:
+        #    #if '031705' in gal['GALAXY']:
+        #    #    print(groupgal['GALAXY'])
+        #    html.write('<tr>\n')
+        #    html.write('<td>{}</td>\n'.format(groupgal['SGA_ID']))
+        #    html.write('<td>{}</td>\n'.format(groupgal['GALAXY']))
+        #    #typ = groupgal['MORPHTYPE'].strip()
+        #    #if typ == '' or typ == 'nan':
+        #    #    typ = '...'
+        #    #html.write('<td>{}</td>\n'.format(typ))
+        #    html.write('<td>{:.7f}</td>\n'.format(groupgal['RA']))
+        #    html.write('<td>{:.7f}</td>\n'.format(groupgal['DEC']))
+        #    html.write('<td>{:.4f}</td>\n'.format(groupgal['DIAM']))
+        #    #if np.isnan(groupgal['PA']):
+        #    #    pa = 0.0
+        #    #else:
+        #    #    pa = groupgal['PA']
+        #    #html.write('<td>{:.2f}</td>\n'.format(pa))
+        #    #html.write('<td>{:.3f}</td>\n'.format(1-groupgal['BA']))
+        #    html.write('</tr>\n')
+        #html.write('</table>\n')
 
     def _html_image_mosaics(html):
         html.write('<h2>Image Mosaics</h2>\n')
@@ -1731,7 +1754,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('<br />\n')
         html.write('<a href="../../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
 
-        #_html_group_properties(html, gal)
+        _html_cluster_properties(html, gal)
         _html_image_mosaics(html)
         _html_ellipsefit_and_photometry(html, tractor, sample)
         #_html_maskbits(html)
@@ -1754,7 +1777,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         shutil.chown(htmlfile, group='cosmo')
 
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
+              refband='r', pixscale=0.262, zcolumn='Z_LAMBDA', intflux=None,
               racolumn='RA', deccolumn='DEC', diamcolumn='RADIUS_MOSAIC',
               first=None, last=None, galaxylist=None,
               nproc=1, survey=None, makeplots=False,
@@ -1797,7 +1820,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     # Build the home (index.html) page (always, irrespective of clobber)--
     build_htmlhome(sample, htmldir, htmlhome=htmlhome, pixscale=pixscale,
                    racolumn=racolumn, deccolumn=deccolumn, diamcolumn=diamcolumn,
-                   maketrends=maketrends, fix_permissions=fix_permissions,
+                   zcolumn=zcolumn, maketrends=maketrends, fix_permissions=fix_permissions,
                    html_raslices=html_raslices)
 
     # Now build the individual pages in parallel.

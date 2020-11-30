@@ -4,11 +4,15 @@
 legacyhalos-mpi --coadds
 
 """
+import os, time, pdb
+import numpy as np
+
 import matplotlib
 matplotlib.use('Agg')
 
-import os, time, pdb
-import numpy as np
+#import tempfile
+#import matplotlib.pyplot as plt
+#os.environ['MPLCONFIGDIR'] = tempfile.mkdtemp()
 
 def main():
     """Top-level wrapper.
@@ -198,12 +202,10 @@ def main():
 
         # Need the cluster "radius" to build the coadds.
         radius_mosaic_arcsec = onegal[DIAMCOLUMN] # [arcsec]
-        subsky_radii = radius_mosaic_arcsec * np.array([0.9, 1.0,  # annulus 0
-                                                        0.7, 0.8,  # annulus 1
-                                                        1.1, 1.2,  # annulus 2
-                                                        1.2, 1.3,  # annulus 3
-                                                        1.4, 1.5,  # annulus 4
-                                                        1.5, 1.6]) # annulus 5
+        subsky_radii = radius_mosaic_arcsec * np.array([1.4, 1.5,  # annulus 0
+                                                        1.0, 1.1,  # annulus 1
+                                                        2.0, 2.1,  # annulus 2
+                                                        3.0, 3.1]) # annulus 3
         
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)

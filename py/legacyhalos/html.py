@@ -105,7 +105,6 @@ def make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=N
         from legacypipe.survey import LegacySurveyData
         survey = LegacySurveyData()
 
-    pdb.set_trace()
     if radius_pixel is None:
         radius_pixel = legacyhalos.misc.cutout_radius_kpc(
             redshift=onegal[zcolumn], pixscale=pixscale,
@@ -694,21 +693,20 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         #        redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
-        # CCD positions
-        make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
-                       radius=radius_mosaic_pixels, zcolumn=zcolumn, survey=survey,
-                       clobber=clobber, verbose=verbose)
-        pdb.set_trace()
-
-        # Build the maskbits figure.
-        #make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
-
         # Build the ellipse plots.
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
                             verbose=verbose, largegalaxy=largegalaxy, galex=galex,
                             scaledfont=scaledfont)
+
+        # CCD positions
+        make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                       radius=radius_mosaic_pixels, zcolumn=zcolumn, survey=survey,
+                       clobber=clobber, verbose=verbose)
+
+        # Build the maskbits figure.
+        #make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Build the montage coadds.
         make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
@@ -761,7 +759,7 @@ def viewer_link(ra, dec, width, sga=False, manga=False):
     if manga:
         layer1 = layer1+'&manga'
 
-    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8{}'.format(
+    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=ls-dr9{}'.format(
         baseurl, ra, dec, zoom, layer1)
 
     return viewer

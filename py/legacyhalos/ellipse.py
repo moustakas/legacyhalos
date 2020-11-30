@@ -798,7 +798,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, centralindx=0, galaxyid=None,
             return np.array(list(map(lambda x: round(x)-1, result)), dtype=np.int)
 
         # this algorithm can fail if there are too few points
-        delta_logsma = 8.0
+        delta_logsma = 6.0
         nsma = np.ceil(maxsma / delta_logsma).astype('int')
         sma = _mylogspace(maxsma, nsma).astype('f4')
         #sma = np.hstack((0, np.logspace(0, np.ceil(np.log10(maxsma)).astype('int'), nsma, dtype=np.int))).astype('f4')
@@ -1004,12 +1004,12 @@ def legacyhalos_ellipse(onegal, galaxy=None, galaxydir=None, pixscale=0.262,
         
         imfile = os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, refband))
         hdr = fitsio.read_header(imfile, ext=1)
-        nskyaps = hdr['NSKYRAD'] // 2 # N radii and N//2 annuli
+        nskyaps = hdr['NSKYANN'] # number of annuli
         for isky in np.arange(nskyaps):
             subsky = {}
             for band in bands:
-                refskymed = hdr['SKYMD00{}'.format(band.upper())]
-                skymed = hdr['SKYMD{:02d}{}'.format(isky, band.upper())]
+                refskymed = hdr['{}SKYMD00'.format(band.upper())]
+                skymed = hdr['{}SKYMD{:02d}'.format(band.upper(), isky)]
 
                 subsky[band] = refskymed - skymed # *add* the new correction
             print(subsky)
