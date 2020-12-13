@@ -3,6 +3,8 @@ FROM legacysurvey/legacypipe:DR9.6.7b
 RUN for x in \
     ipython \
     pydl \
+    pyyaml \
+    h5py \
     scikit-image \
     ; do pip --no-cache-dir install $x; done
 
