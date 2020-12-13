@@ -305,8 +305,8 @@ def main():
             # No unwise here (we do it in --coadds) and don't care about the
             # model images.
 
-            run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN, M33=args.M33)
-            survey = get_survey(run, output_dir=galaxydir)
+        run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
+        survey = get_survey(run, output_dir=galaxydir)
             
         # Need the object "radius" to build the coadds.
         #if args.customsky:
@@ -325,9 +325,6 @@ def main():
             subsky_radii = (radius_mask_arcsec, 1.5*radius_mask_arcsec, 2*radius_mask_arcsec)
         else:
             subsky_radii = None
-
-        run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN, M33=args.M33)
-        survey = get_survey(run, output_dir=galaxydir)
 
         if args.coadds:
             from legacyhalos.mpi import call_custom_coadds

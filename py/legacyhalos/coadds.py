@@ -32,12 +32,14 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
         if os.path.isfile(outfile) and not clobber:
             return 1
         if os.path.isfile(infile):
-            os.rename(infile, outfile)
+            os.copy2(infile, outfile)
+            #os.rename(infile, outfile)
             if update_header:
                 pass
             return 1
         else:
             if missing_ok:
+                print('Warning: missing file {} but missing_ok=True'.format(infile))
                 return 1
             else:
                 print('Missing file {}; please check the logfile.'.format(infile))
