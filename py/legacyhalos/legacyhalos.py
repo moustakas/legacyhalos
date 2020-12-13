@@ -464,9 +464,10 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
         #isouth = np.logical_or((cen['DEC'] < 32.275), (cen['RA'] > 45) * (cen['RA'] < 315))
         
         samplecut = np.where(
-            #(cen[ZCOLUMN] >= 0.2) *
+            #(cen[ZCOLUMN] >= 0.1) *
+            #(cen[ZCOLUMN] >= 0.15) *
+            #(cen[ZCOLUMN] < 0.2) *
             #(cen[ZCOLUMN] < 0.25) *
-            #(cen[ZCOLUMN] >= 0.25) *
             #(cen[ZCOLUMN] < 0.3) *
             (cen[ZCOLUMN] >= 0.1) *
             (cen[ZCOLUMN] < 0.3) *
