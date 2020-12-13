@@ -332,13 +332,74 @@ def mpi_args():
 
     return args
 
+def legacyhalos_cosmology(WMAP=False, Planck=False):
+    """Establish the default cosmology for the project."""
+
+    if WMAP:
+        from astropy.cosmology import WMAP9 as cosmo
+    elif Planck:
+        from astropy.cosmology import Planck15 as cosmo
+    else:
+        from astropy.cosmology import FlatLambdaCDM
+        #params = dict(H0=70, Om0=0.3, Ob0=0.0457, Tcmb0=2.7255, Neff=3.046)
+        #sigma8 = 0.82
+        #ns = 0.96
+        #cosmo = FlatLambdaCDM(name='FlatLambdaCDM', **params)
+        cosmo = FlatLambdaCDM(H0=70, Om0=0.3, name='FlatLambdaCDM')
+
+    return cosmo
+
+def lambda2mhalo(richness, redshift=0.3, Saro=False):
+    """
+    Convert cluster richness, lambda, to halo mass, given various 
+    calibrations.
+    
+      * Saro et al. 2015: Equation (7) and Table 2 gives M(500).
+      * Melchior et al. 2017: Equation (51) and Table 4 gives M(200).
+      * Simet et al. 2017: 
+    
+    Other SDSS-based calibrations: Li et al. 2016; Miyatake et al. 2016; 
+    Farahi et al. 2016; Baxter et al. 2016.
+
+    TODO: Return the variance!
+
+    """
+    from colossus.halo import mass_defs
+    #from colossus.halo import concentration
+    from colossus.cosmology import cosmology
+
+    #cosmo = legacyhalos_cosmology()
+    #cosmology.setCosmology(cosmology.fromAstropy(cosmo, ns=0.96, sigma8=0.82))
+    params = {'flat': True, 'H0': 70, 'Om0': 0.3, 'Ob0': 0.049, 'sigma8': 0.82, 'ns': 0.95}
+    cosmo = cosmology.setCosmology('myCosmo', params)
+    
+    if Saro:
+        pass
+    
+    # Melchior et al. 2017 (default)
+    logM0, Flam, Gz, lam0, z0 = 14.371, 1.12, 0.18, 30.0, 0.5
+    M200m = 10**logM0 * (richness / lam0)**Flam * ( (1 + redshift) / (1 + z0) )**Gz
+
+    # Convert to M200c
+    #import pdb ; pdb.set_trace()
+    #c200m = concentration.concentration(M200m, '200m', redshift, model='bullock01')
+    #M200c, _, _ = mass_defs.changeMassDefinition(M200m, c200m, redshift, '200m', '200c')
+    #M200c, _, _ = mass_adv.changeMassDefinitionCModel(M200m, redshift, '200m', '200c')
+
+    # Assume a constant concentration.
+    M200c = np.zeros_like(np.atleast_1d(M200m))
+    for ii, (mm, zz) in enumerate(zip(np.atleast_1d(M200m), np.atleast_1d(redshift))):
+        mc, _, _ = mass_defs.changeMassDefinition(mm, 3.5, zz, '200m', '200c')
+        M200c[ii] = mc
+    
+    return np.log10(M200c)
+
 def cutout_radius_kpc(redshift, pixscale=None, radius_kpc=RADIUS_CLUSTER_KPC, cosmo=None):
     """Get a cutout radius of RADIUS_KPC [in pixels] at the redshift of the cluster.
 
     """
     if cosmo is None:
-        from legacyhalos.misc import cosmology
-        cosmo = cosmology()
+        cosmo = legacyhalos_cosmology()
         
     arcsec_per_kpc = cosmo.arcsec_per_kpc_proper(redshift).value
     radius = radius_kpc * arcsec_per_kpc # [float arcsec]
@@ -356,8 +417,7 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
 
     """
     if cosmo is None:
-        from legacyhalos.misc import cosmology
-        cosmo = cosmology()
+        cosmo = legacyhalos_cosmology()
         
     radius_kpc = cluster_radius * 1e3 * cosmo.h # cluster radius in kpc
     radius = np.rint(factor * radius_kpc * cosmo.arcsec_per_kpc_proper(redshift).value / pixscale)
@@ -374,9 +434,7 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
     
     """
     from astropy.table import Table
-    from legacyhalos.misc import cosmology
-
-    cosmo = cosmology()
+    cosmo = legacyhalos_cosmology()
     
     if satellites:
         suffix1, suffix2 = '_members', '-members'
@@ -406,12 +464,12 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
         #isouth = np.logical_or((cen['DEC'] < 32.275), (cen['RA'] > 45) * (cen['RA'] < 315))
         
         samplecut = np.where(
-            (cen[ZCOLUMN] >= 0.2) *
-            (cen[ZCOLUMN] < 0.25) *
+            #(cen[ZCOLUMN] >= 0.2) *
+            #(cen[ZCOLUMN] < 0.25) *
             #(cen[ZCOLUMN] >= 0.25) *
             #(cen[ZCOLUMN] < 0.3) *
-            #(cen[ZCOLUMN] >= 0.1) *
-            #(cen[ZCOLUMN] < 0.3) *
+            (cen[ZCOLUMN] >= 0.1) *
+            (cen[ZCOLUMN] < 0.3) *
             (cen[RICHCOLUMN] >= 20) *
             (cen['DEC'] < 32.275))[0]
         rows = rows[samplecut]

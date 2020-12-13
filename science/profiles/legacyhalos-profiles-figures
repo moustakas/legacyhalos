@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+"""Generate the figures for Paper I (stellar mass density profiles).
+
+"""
+import os, sys, time, pdb
+import argparse
+import numpy as np
+import matplotlib.pyplot as plt
+
+import legacyhalos.io
+from legacyhalos.legacyhalos import ZCOLUMN, RICHCOLUMN, lambda2mhalo
+
+figdir = os.path.join(legacyhalos.io.legacyhalos_dir(), 'science', 'profiles', 'figures')
+
+def plot_style(font_scale=1.2, paper=False, talk=False):
+
+    import seaborn as sns
+    rc = {'font.family': 'serif'}#, 'text.usetex': True}
+    #rc = {'font.family': 'serif', 'text.usetex': True,
+    #       'text.latex.preamble': r'\boldmath'})
+    palette, context = 'Set2', 'talk'
+    
+    if paper:
+        context = 'paper'
+        palette = 'deep'
+        rc.update({'text.usetex': False})
+    
+    if talk:
+        context = 'talk'
+        palette = 'deep'
+        #rc.update({'text.usetex': True})
+
+    sns.set(context=context, style='ticks', font_scale=font_scale, rc=rc)
+    sns.set_palette(palette, 12)
+
+    colors = sns.color_palette()
+    #sns.reset_orig()
+
+    return sns, colors
+
+def fig_richness_vs_redshift(sample, png=None):
+
+    sns, colors = plot_style(talk=True) # paper=True, font_scale=1.5)
+
+    cmap = 'viridis' # 'RdYlBu'
+    xmin, xmax = 0.1, 0.3
+    ymin, ymax = np.log10(20), 2.3
+    
+    j = sns.jointplot(sample[ZCOLUMN], np.log10(sample[RICHCOLUMN]), kind='hex', #space=0, 
+                      stat_func=None, cmap=cmap, mincnt=3, bins='log', gridsize=20,
+                      xlim=(xmin, xmax), ylim=(ymin, ymax),
+                      marginal_kws={'hist_kws': {'color': 'black'}})
+    j.set_axis_labels('Redshift', r'$\log_{10}$ (Richness $\lambda$)')
+    #j.ax_joint.axvline(x=0.05, color='k', lw=2, alpha=0.5)
+    #j.ax_joint.axvline(x=0.6, color='k', lw=2, alpha=0.5)
+    j.ax_joint.margins(0)
+
+    j.fig.set_figwidth(10)
+    j.fig.set_figheight(6)
+    
+    #ax.axhline(y=np.log10(5), ls='--', color='k')
+
+    cax = j.fig.add_axes([0.18, -0.08, 0.65, 0.05])
+    cb = plt.colorbar(orientation='horizontal', cax=cax)
+    cb.set_label(r'$\log_{10}$ (Number of Centrals)')       
+
+    ax2 = j.ax_marg_y.twinx()
+    ax2.set_ylabel(r'$\log_{10}\, (\mathcal{M}_{200}\, /\, \mathcal{M}_{\odot})$ at $z=0.2$')
+    ax2.set_ylim( np.log10(lambda2mhalo(10**ymin, redshift=0.2)), 
+                  np.log10(lambda2mhalo(10**ymax, redshift=0.2)) )
+    #ax2.plot([],[])
+    sns.despine(ax=ax2, left=True, right=False)
+    ax2.spines['bottom'].set_color('white')
+
+    plt.subplots_adjust(left=0.15, bottom=0.15, right=0.8, top=0.8)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        j.fig.savefig(pngfile, bbox_inches='tight', pad_inches=0)
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--skyplot', action='store_true')
+    parser.add_argument('--richness-vs-redshift', action='store_true')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
+    args = parser.parse_args()
+
+    # Fig 1 - distribution on the sky
+    if args.skyplot:
+        sample = legacyhalos.legacyhalos.read_redmapper()
+
+    # Fig 2 - bivariate scatterplot of mass vs richness
+    if args.richness_vs_redshift:
+        sample = legacyhalos.legacyhalos.read_redmapper()
+        fig_richness_vs_redshift(sample, png='richness_vs_redshift.png')
+
+if __name__ == '__main__':
+    main()

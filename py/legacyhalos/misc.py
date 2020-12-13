@@ -120,19 +120,6 @@ def ccdwcs(ccd):
                                         ccd.cd2_1, ccd.cd2_2, W, H]])
     return W, H, ccdwcs
 
-def cosmology(WMAP=False, Planck=False):
-    """Establish the default cosmology for the project."""
-
-    if WMAP:
-        from astropy.cosmology import WMAP9 as cosmo
-    elif Planck:
-        from astropy.cosmology import Planck15 as cosmo
-    else:
-        from astropy.cosmology import FlatLambdaCDM
-        cosmo = FlatLambdaCDM(H0=70, Om0=0.3)        
-
-    return cosmo
-
 def plot_style(font_scale=1.2, paper=False, talk=False):
 
     import seaborn as sns
@@ -292,45 +279,6 @@ def custom_brickname(ra, dec):
         int(1000*ra), 'm' if dec < 0 else 'p',
         int(1000*np.abs(dec)))
     return brickname
-
-def lambda2mhalo(richness, redshift=0.3, Saro=False):
-    """
-    Convert cluster richness, lambda, to halo mass, given various 
-    calibrations.
-    
-      * Saro et al. 2015: Equation (7) and Table 2 gives M(500).
-      * Melchior et al. 2017: Equation (51) and Table 4 gives M(200).
-      * Simet et al. 2017: 
-    
-    Other SDSS-based calibrations: Li et al. 2016; Miyatake et al. 2016; 
-    Farahi et al. 2016; Baxter et al. 2016.
-
-    TODO: Return the variance!
-
-    """
-    from colossus.halo import mass_defs
-    #from colossus.halo import concentration
-    
-    if Saro:
-        pass
-    
-    # Melchior et al. 2017 (default)
-    logM0, Flam, Gz, lam0, z0 = 14.371, 1.12, 0.18, 30.0, 0.5
-    M200m = 10**logM0 * (richness / lam0)**Flam * ( (1 + redshift) / (1 + z0) )**Gz
-
-    # Convert to M200c
-    #import pdb ; pdb.set_trace()
-    #c200m = concentration.concentration(M200m, '200m', redshift, model='bullock01')
-    #M200c, _, _ = mass_defs.changeMassDefinition(M200m, c200m, redshift, '200m', '200c')
-    #M200c, _, _ = mass_adv.changeMassDefinitionCModel(M200m, redshift, '200m', '200c')
-
-    # Assume a constant concentration.
-    M200c = np.zeros_like(M200m)
-    for ii, (mm, zz) in enumerate(zip(M200m, redshift)):
-        mc, _, _ = mass_defs.changeMassDefinition(mm, 3.5, zz, '200m', '200c')
-        M200c[ii] = mc
-    
-    return np.log10(M200c)
 
 def convert_tractor_e1e2(e1, e2):
     """Convert Tractor epsilon1, epsilon2 values to ellipticity and position angle.
