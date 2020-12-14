@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
         
 import legacyhalos.io
-from legacyhalos.legacyhalos import ZCOLUMN, RICHCOLUMN, lambda2mhalo
+from legacyhalos.legacyhalos import ZCOLUMN, RICHCOLUMN
 
 figdir = os.path.join(legacyhalos.io.legacyhalos_dir(), 'science', 'profiles', 'figures')
 
@@ -41,6 +41,8 @@ def plot_style(font_scale=1.2, paper=False, talk=False):
     return sns, colors
 
 def fig_richness_vs_redshift(sample, png=None):
+
+    from legacyhalos.legacyhalos import lambda2mhalo
 
     sns, colors = plot_style(talk=True) # paper=True, font_scale=1.5)
 
@@ -101,11 +103,106 @@ def fig_richness_vs_redshift(sample, png=None):
         print('Writing {}'.format(pngfile))
         j.fig.savefig(pngfile)#, bbox_inches='tight', pad_inches=0)
 
+def fig_skysub_tests(sample, png=None):
+
+    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.ellipse import ellipse_sbprofile    
+    from legacyhalos.legacyhalos import get_galaxy_galaxydir, get_zbins, get_lambdabins
+
+    zbins = get_zbins(verbose=True)
+    lambdabins = get_lambdabins(verbose=True)
+
+    #_zmin, _zmax = zbins.min().astype('f4'), zbins.max().astype('f4')
+    #_lambdamin, _lambdamax = lambdabins.min().astype('f4'), lambdabins.max().astype('f4')
+
+    #nz = np.round( (_zmax - _zmin) / dz ).astype('int')
+    #zmin = np.linspace(_zmin, _zmax - dz, nz)
+    #zmax = np.linspace(_zmin + dz, _zmax, nz)
+    #
+    #nlambda = np.round( (_lambdamax - _lambdamin) / dlambda ).astype('int')
+    #lambdamin = np.linspace(_lambdamin, _lambdamax - dlambda, nlambda)
+    #lambdamax = np.linspace(_lambdamin + dlambda, _lambdamax, nlambda)
+
+    sns, colors = plot_style(talk=True) # paper=True, font_scale=1.5)
+
+    fig, ax = plt.subplots(5, 4, figsize=(15, 15), sharey=True, sharex=True)
+    #pdb.set_trace()
+
+    for iz, (zmin, zmax) in enumerate(zip(zbins[:-1], zbins[1:])):
+        print(zmin, zmax)
+        for il, (lambdamin, lambdamax) in enumerate(zip(lambdabins[:-1], lambdabins[1:])):
+            print(lambdamin, lambdamax)
+            indx = np.where((sample[ZCOLUMN] >= zmin) * (sample[ZCOLUMN] < zmax) *
+                            (sample[RICHCOLUMN] >= lambdamin) * (sample[RICHCOLUMN] < lambdamax))[0]
+            if len(indx) > 0:
+                for onegal in sample[indx][:3]:
+                    galaxy, galaxydir = get_galaxy_galaxydir(onegal)
+
+                    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='custom',
+                                                 galaxyid='', verbose=False)
+                    if not bool(ellipsefit):
+                        continue
+                    sbprofile = ellipse_sbprofile(ellipsefit, linear=True)
+
+                    band = 'r'
+                    rad = sbprofile['radius_{}'.format(band)]**0.25
+                    mu = sbprofile['mu_{}'.format(band)]
+                    ax[il, iz].plot(rad, mu, alpha=0.7, label=galaxy)
+                    #for iband, band in enumerate(ellipsefit['bands']):
+                    #    rad = sbprofile['radius_{}'.format(band)]**0.25
+                    #    mu = sbprofile['mu_{}'.format(band)]
+                    #    ax[iz, il].plot(rad, mu, alpha=0.7, label=galaxy)
+
+            #ax[il, iz].text(0.9, 0.9, r'${:.0g}<\lambda<{:.0g}$'.format(lambdamin, lambdamax),
+            #                transform=ax[il, iz].transAxes, #fontweight='bold',
+            #                ha='right', va='center', color='k', fontsize=16)
+
+
+    for xx, zmin, zmax in zip(ax[0, :], zbins[:-1], zbins[1:]):
+        xx.set_title(r'${:.2f}<z<{:.2f}$'.format(zmin, zmax))
+
+    for xx, lambdamin, lambdamax in zip(ax[:, len(zbins)-2], lambdabins[:-1], lambdabins[1:]):
+        x2 = xx.twinx()
+        x2.set_ylabel(r'${:g}<\lambda<{:g}$'.format(lambdamin, lambdamax))
+        x2.set_yticklabels([])
+
+    for xx in ax.flat:
+        #xx.text(0.9, 0.9, band, transform=xx.transAxes, #fontweight='bold',
+        #       ha='center', va='center', color='k', fontsize=16)
+        xx.set_ylim(-0.05, 0.2)
+        xx.axhline(y=0, color='gray', lw=2, ls='--')
+        xx.set_xlim(1.2, 3.5)
+
+    #for xx, band in zip(ax, ['g', 'r', 'z']):
+    #    xx.text(0.9, 0.9, band, transform=xx.transAxes, #fontweight='bold',
+    #           ha='center', va='center', color='k', fontsize=16)
+    #    xx.set_ylim(-0.05, 0.2)
+    #    xx.axhline(y=0, color='k', lw=2)
+    #    xx.set_xlim(1.2, 3.4)
+
+    bigax = fig.add_subplot()
+    bigax.set_frame_on(False)
+    bigax.xaxis.set_ticks([])
+    bigax.yaxis.set_ticks([])
+    bigax.set_xticklabels([], visible=False)
+    bigax.set_yticklabels([], visible=False)
+    bigax.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)', labelpad=40)
+    bigax.set_ylabel(r'Surface Brightness (nanomaggy arcsec$^{-2}$)', labelpad=60)
+    #bigax.set_ylabel(r'$\mu$ (nanomaggy arcsec$^{-2}$)', labelpad=60)
+
+    plt.subplots_adjust(wspace=0.05, hspace=0.07, bottom=0.22, right=0.95, left=0.13)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)
+
 def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--skyplot', action='store_true')
     parser.add_argument('--richness-vs-redshift', action='store_true')
+    parser.add_argument('--skysub-tests', action='store_true')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
     args = parser.parse_args()
 
@@ -117,6 +214,11 @@ def main():
     if args.richness_vs_redshift:
         sample = legacyhalos.legacyhalos.read_redmapper()
         fig_richness_vs_redshift(sample, png='richness_vs_redshift.png')
+
+    # Fig 3 - sky subtraction diagnostic plots
+    if args.skysub_tests:
+        sample = legacyhalos.legacyhalos.read_redmapper()
+        fig_skysub_tests(sample, png='skysub_tests.png')
 
 if __name__ == '__main__':
     main()
