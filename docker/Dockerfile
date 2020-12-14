@@ -5,6 +5,7 @@ RUN for x in \
     pydl \
     pyyaml \
     h5py \
+    colossus \
     scikit-image \
     ; do pip --no-cache-dir install $x; done
 

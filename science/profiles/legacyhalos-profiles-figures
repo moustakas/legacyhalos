@@ -5,8 +5,10 @@
 import os, sys, time, pdb
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+        
 import legacyhalos.io
 from legacyhalos.legacyhalos import ZCOLUMN, RICHCOLUMN, lambda2mhalo
 
@@ -44,40 +46,60 @@ def fig_richness_vs_redshift(sample, png=None):
 
     cmap = 'viridis' # 'RdYlBu'
     xmin, xmax = 0.1, 0.3
-    ymin, ymax = np.log10(20), 2.3
+    ymin, ymax = np.log10(20), 2.2
+
+    # Convert to a pandas dataframe to handle big vs little endian byte order.
+    df = sample[ZCOLUMN, RICHCOLUMN].to_pandas()
+    df[RICHCOLUMN] = np.log10(df[RICHCOLUMN])
+
+    #fig, _ = plt.subplots(figsize=(12, 8))
     
-    j = sns.jointplot(sample[ZCOLUMN], np.log10(sample[RICHCOLUMN]), kind='hex', #space=0, 
-                      stat_func=None, cmap=cmap, mincnt=3, bins='log', gridsize=20,
+    j = sns.jointplot(data=df, x=ZCOLUMN, y=RICHCOLUMN, kind='hex', #space=0, 
+                      cmap=cmap, mincnt=1, bins='log', gridsize=25,
+                      #height=8, 
                       xlim=(xmin, xmax), ylim=(ymin, ymax),
-                      marginal_kws={'hist_kws': {'color': 'black'}})
+                      marginal_kws={'color': 'black', 'bins': 50})
     j.set_axis_labels('Redshift', r'$\log_{10}$ (Richness $\lambda$)')
     #j.ax_joint.axvline(x=0.05, color='k', lw=2, alpha=0.5)
     #j.ax_joint.axvline(x=0.6, color='k', lw=2, alpha=0.5)
-    j.ax_joint.margins(0)
-
-    j.fig.set_figwidth(10)
-    j.fig.set_figheight(6)
+    j.ax_joint.margins(5)
+    j.ax_joint.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
+    #ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
+    #j.ax_joint.set_yticklabels([])
+    
+    j.fig.set_figwidth(12)
+    j.fig.set_figheight(9)
+    j.fig.subplots_adjust(left=0.12, bottom=0.3, right=0.85, top=0.95)
     
     #ax.axhline(y=np.log10(5), ls='--', color='k')
 
-    cax = j.fig.add_axes([0.18, -0.08, 0.65, 0.05])
+    cax = j.fig.add_axes([0.12, 0.13, 0.6, 0.05])
     cb = plt.colorbar(orientation='horizontal', cax=cax)
-    cb.set_label(r'$\log_{10}$ (Number of Centrals)')       
+    cb.set_label('Number of Galaxies')
+    #cb.set_label(r'$\log_{10}$ (Number of Galaxies)')
+    cb.set_ticks([2, 5, 10, 20, 40])
+    cb.ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+    
+    #cax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%.1f'))
+    #cb.set_ticks([10, 40])
 
-    ax2 = j.ax_marg_y.twinx()
-    ax2.set_ylabel(r'$\log_{10}\, (\mathcal{M}_{200}\, /\, \mathcal{M}_{\odot})$ at $z=0.2$')
-    ax2.set_ylim( np.log10(lambda2mhalo(10**ymin, redshift=0.2)), 
-                  np.log10(lambda2mhalo(10**ymax, redshift=0.2)) )
-    #ax2.plot([],[])
+    ax2 = j.ax_joint.twinx()
+    ax2.spines['right'].set_position(('axes', 1.25))
+    #ax2 = j.ax_marg_y.twinx()
+    ax2.set_ylabel(r'$\log_{10}\, (\mathcal{M}_{200c}\, /\, \mathcal{M}_{\odot})$ at $z=0.2$')
+    ax2.set_ylim(lambda2mhalo(10**ymin, redshift=0.2), lambda2mhalo(10**ymax, redshift=0.2))
+    #ax2.set_yticklabels([])
     sns.despine(ax=ax2, left=True, right=False)
-    ax2.spines['bottom'].set_color('white')
 
-    plt.subplots_adjust(left=0.15, bottom=0.15, right=0.8, top=0.8)
+    if False:
+        #ax2.set_yticks([])
+        #ax2.plot([],[])
+        ax2.spines['bottom'].set_color('white')
 
     if png:
         pngfile = os.path.join(figdir, png)
         print('Writing {}'.format(pngfile))
-        j.fig.savefig(pngfile, bbox_inches='tight', pad_inches=0)
+        j.fig.savefig(pngfile)#, bbox_inches='tight', pad_inches=0)
 
 def main():
 

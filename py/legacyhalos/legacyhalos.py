@@ -391,7 +391,7 @@ def lambda2mhalo(richness, redshift=0.3, Saro=False):
     for ii, (mm, zz) in enumerate(zip(np.atleast_1d(M200m), np.atleast_1d(redshift))):
         mc, _, _ = mass_defs.changeMassDefinition(mm, 3.5, zz, '200m', '200c')
         M200c[ii] = mc
-    
+
     return np.log10(M200c)
 
 def cutout_radius_kpc(redshift, pixscale=None, radius_kpc=RADIUS_CLUSTER_KPC, cosmo=None):
@@ -446,7 +446,7 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
     cenfile = os.path.join(os.getenv('REDMAPPER_DIR'), rmversion, 
                           'dr8_run_redmapper_{}_{}_catalog.fit'.format(rmversion, lgt))
     satfile = os.path.join(os.getenv('REDMAPPER_DIR'), rmversion, 
-                             'dr8_run_redmapper_{}_{}_catalog_members.fit'.format(rmversion, lgt))
+                           'dr8_run_redmapper_{}_{}_catalog_members.fit'.format(rmversion, lgt))
 
     if first and last:
         if first > last:
