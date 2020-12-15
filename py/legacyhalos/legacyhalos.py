@@ -551,52 +551,41 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
         cen = fitsio.read(cenfile, columns=[ZCOLUMN, RICHCOLUMN, 'DEC'])#, 'RA'])
         #isouth = np.logical_or((cen['DEC'] < 32.275), (cen['RA'] > 45) * (cen['RA'] < 315))
 
-        cut01 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
-        cut02 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
-        cut03 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
-        cut04 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
-        cut05 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
-        
-        cut06 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
-        cut07 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
-        cut08 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
-        cut09 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
-        cut10 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
-
-        cut11 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
-        cut12 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
-        cut13 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
-        cut14 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
-        cut15 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
-
-        cut16 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
-        cut17 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
-        cut18 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
-        cut19 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
-        cut20 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
-
-        samplecut = np.hstack((
-            cut01, cut02, cut03, cut04, cut05,
-            cut06, cut07, cut08, cut09, cut10,
-            cut11, cut12, cut13, cut14, cut15,
-            cut16, cut17, cut18, cut19, cut20))
-
         if False:
+            cut01 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
+            cut02 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
+            cut03 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
+            cut04 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
+            cut05 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
+
+            cut06 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
+            cut07 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
+            cut08 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
+            cut09 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
+            cut10 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.20) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
+
+            cut11 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
+            cut12 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
+            cut13 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
+            cut14 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
+            cut15 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.20) * (cen[ZCOLUMN] < 0.25) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
+
+            cut16 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
+            cut17 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
+            cut18 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
+            cut19 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
+            cut20 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
+
+            samplecut = np.hstack((
+                cut01, cut02, cut03, cut04, cut05,
+                cut06, cut07, cut08, cut09, cut10,
+                cut11, cut12, cut13, cut14, cut15,
+                cut16, cut17, cut18, cut19, cut20))
+        else:
             samplecut = np.where(
-                (cen[ZCOLUMN] >= 0.1) * (cen[ZCOLUMN] < 0.15) *
-                #(cen[ZCOLUMN] >= 0.15) * (cen[ZCOLUMN] < 0.2) *
-                #(cen[ZCOLUMN] >= 0.2) * (cen[ZCOLUMN] < 0.25) *
-                #(cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.3) *
-
-                (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25) *
-                #(cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30) *
-                #(cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40) *
-                #(cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60) *
-                #(cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100) *
-
-                #(cen[ZCOLUMN] >= 0.1) *
-                #(cen[ZCOLUMN] < 0.3) *
-                #(cen[RICHCOLUMN] >= 20) *
+                (cen[ZCOLUMN] >= 0.1) *
+                (cen[ZCOLUMN] < 0.3) *
+                (cen[RICHCOLUMN] >= 20) *
                 (cen['DEC'] < 32.275))[0]
         rows = rows[samplecut]
         nrows = len(rows)

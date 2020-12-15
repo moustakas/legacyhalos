@@ -38,7 +38,7 @@ cb_colors = {'blue': '#377eb8',
              'red': '#e41a1c',
              'yellow': '#dede00'}
 
-def _sbprofile_colors():
+def _sbprofile_colors(makeiter=True):
     """Return an iterator of colors good for the surface brightness profile plots.
     https://seaborn.pydata.org/generated/seaborn.color_palette.html#seaborn.color_palette
 
@@ -47,7 +47,9 @@ def _sbprofile_colors():
         _colors = sns.color_palette('Set1', n_colors=8, desat=0.75)
     except:
         _colors = ['red', 'green', 'blue', 'orange', 'purple']
-    colors = iter([_colors[1], _colors[2], _colors[0], _colors[3], _colors[4]])
+    colors = [_colors[1], _colors[2], _colors[0], _colors[3], _colors[4]]
+    if makeiter:
+        colors = iter(colors)
     return colors
 
 def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,

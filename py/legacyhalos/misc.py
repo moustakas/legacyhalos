@@ -183,12 +183,12 @@ def destroy_logger(log):
         hndl.flush()
         hndl.close()
 
-def arcsec2kpc(redshift):
+def arcsec2kpc(redshift, cosmo=None):
     """Compute and return the scale factor to convert a physical axis in arcseconds
     to kpc.
 
     """
-    cosmo = cosmology()
+    #cosmo = cosmology()
     return 1 / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/arcsec]
 
 def statsinbins(xx, yy, binsize=0.1, minpts=10, xmin=None, xmax=None):
