@@ -32,8 +32,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
         if os.path.isfile(outfile) and not clobber:
             return 1
         if os.path.isfile(infile):
-            os.copy2(infile, outfile)
-            #os.rename(infile, outfile)
+            os.rename(infile, outfile)
             if update_header:
                 pass
             return 1

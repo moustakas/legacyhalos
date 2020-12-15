@@ -8,9 +8,7 @@
 # Example: build the coadds using 16 MPI tasks with 8 cores per node (and therefore 16*8/32=4 nodes)
 
 #salloc -N 8 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v0.0.5
-#srun -n 64 -c 4 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-mpi.sh coadds 4 > coadds.log.1 2>&1 &
-#srun -n 64 -c 4 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-mpi.sh ellipse 4 > ellipse.log.1 2>&1 &
-#srun -n 64 -c 1 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-mpi.sh htmlplots 1 > htmlplots.log.1 2>&1 &
+#srun -n 4 -c 8 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-mpi.sh coadds 8 > coadds.log.1 2>&1 &
 
 # Grab the input arguments--
 stage=$1
@@ -18,9 +16,9 @@ ncores=$2
 
 source $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-env
 
-maxmem=134217728 # Cori/Haswell = 128 GB (limit the memory per job).
-grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
-let usemem=${maxmem}*${ncores}/32
+#maxmem=134217728 # Cori/Haswell = 128 GB (limit the memory per job).
+#grep -q "Xeon Phi" /proc/cpuinfo && maxmem=100663296 # Cori/KNL = 98 GB
+#let usemem=${maxmem}*${ncores}/32
 
 if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-mpi --help
