@@ -904,6 +904,7 @@ def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
                                                  verbose=verbose,
                                                  largegalaxy=largegalaxy,
                                                  return_sample=True)
+    pdb.set_trace()
     if bool(data):
         if data['failed']: # all galaxies dropped
             return 1

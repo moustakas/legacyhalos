@@ -456,27 +456,25 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
         
     return out
 
-def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
-                   central_galaxy=None, central_galaxy_id=None, fill_value=0.0,
-                   starmask=None, verbose=False, largegalaxy=False):
-    """Helper function for read_multiband. Read the multi-band imaging and build a
-    mask.
-
-    central_galaxy - indices of objects in the tractor catalog to *not* mask
+def _read_data(data, filt2imfile, starmask=None, fill_value=0.0,
+               verbose=False):
+    """Helper function for read_multiband. Read the multi-band images and inverse
+    variance images and pack them into a dictionary. Also create an initial
+    pixel-level mask and handle images with different pixel scales (e.g., GALEX
+    and WISE images).
 
     """
-    from scipy.ndimage.filters import gaussian_filter
-    from scipy.ndimage.morphology import binary_dilation
-    from skimage.transform import resize
     from astropy.stats import sigma_clipped_stats
+    from scipy.ndimage.morphology import binary_dilation
+    from scipy.ndimage.filters import gaussian_filter
+    from skimage.transform import resize
 
     from tractor.psf import PixelizedPSF
     from tractor.tractortime import TAITime
     from astrometry.util.util import Tan
     from legacypipe.survey import LegacySurveyWcs
 
-    from legacyhalos.mge import find_galaxy
-    from legacyhalos.misc import srcs2image, ellipse_mask
+    bands, refband = data['bands'], data['refband']
 
     # Loop on each filter and return the masked data.
     residual_mask = None
@@ -512,12 +510,22 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             invvar = None
             mask = np.zeros_like(image).astype(bool)
 
-        # Cache the reference image header for the next step.
+        # Build the PSF and WCS in the reference band.
         if filt == refband:
             HH, WW = sz
-            data['refband_width'] = np.int16(WW)
-            data['refband_height'] = np.int16(HH)
+            data['refband_width'] = WW
+            data['refband_height'] = HH
             refhdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
+
+            if verbose:
+                print('Reading {}'.format(filt2imfile[refband]['psf']))
+            psfimg = fitsio.read(filt2imfile[refband]['psf'])
+            data['refband_psf'] = PixelizedPSF(psfimg)
+
+            wcs = Tan(filt2imfile[refband]['image'], 1)
+            mjd_tai = refhdr['MJD_MEAN'] # [TAI]
+
+            data['wcs'] = LegacySurveyWcs(wcs, TAITime(None, mjd=mjd_tai))
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
         if doresize:
@@ -559,27 +567,38 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
                 print('Warning! Negative pixels in the {}-band inverse variance map!'.format(filt))
                 #pdb.set_trace()
 
-    # Now, build the model image in the reference band using the mean PSF.
-    if verbose:
-        print('Reading {}'.format(filt2imfile[refband]['psf']))
-    psfimg = fitsio.read(filt2imfile[refband]['psf'])
-    psf = PixelizedPSF(psfimg)
-    xobj, yobj = np.ogrid[0:HH, 0:WW]
+    data['residual_mask'] = residual_mask
+
+    return data
+
+def _largegalaxy_sample():
+    """Read 
+
+
+    """
+
+def _largegalaxy_mask(data, tractor, filt2pixscale, fill_value=0.0,
+                      central_galaxy=None, central_galaxy_id=None,
+                      verbose=False):
+    """Wrapper to prepare the data for the SGA / large-galaxy project.
+
+    """
+    from legacyhalos.mge import find_galaxy
+    from legacyhalos.misc import srcs2image, ellipse_mask
+
+    bands, refband = data['bands'], data['refband']
+    residual_mask = data['residual_mask']
 
     nbox = 5
     box = np.arange(nbox)-nbox // 2
     #box = np.meshgrid(np.arange(nbox), np.arange(nbox))[0]-nbox//2
 
-    wcs = Tan(filt2imfile[refband]['image'], 1)
-    mjd_tai = refhdr['MJD_MEAN'] # [TAI]
-
-    twcs = LegacySurveyWcs(wcs, TAITime(None, mjd=mjd_tai))
-    data['wcs'] = twcs
+    xobj, yobj = np.ogrid[0:data['refband_height'], 0:data['refband_width']]
 
     # If the row-index of the central galaxy is not provided, use the source
     # nearest to the center of the field.
     if central_galaxy is None:
-        central_galaxy = np.array([np.argmin((tractor.bx - HH/2)**2 + (tractor.by - WW/2)**2)])
+        central_galaxy = np.array([np.argmin((tractor.bx - data['refband_height']/2)**2 + (tractor.by - data['refband_width']/2)**2)])
         central_galaxy_id = None
     data['central_galaxy_id'] = central_galaxy_id
 
@@ -598,7 +617,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
         nocentral = np.delete(np.arange(len(tractor)), central)
         srcs = tractor.copy()
         srcs.cut(nocentral)
-        model_nocentral = srcs2image(srcs, twcs, band=refband.lower(), pixelized_psf=psf)
+        model_nocentral = srcs2image(srcs, data['wcs'], band=refband.lower(),
+                                     pixelized_psf=data['refband_psf'])
 
         # Mask all previous (brighter) central galaxies, if any.
         img, newmask = ma.getdata(data[refband]) - model_nocentral, ma.getmask(data[refband])
@@ -796,7 +816,8 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             # Need to be smarter about the srcs list...
             srcs = tractor.copy()
             srcs.cut(nocentral)
-            model_nocentral = srcs2image(srcs, twcs, band=filt.lower(), pixelized_psf=psf)
+            model_nocentral = srcs2image(srcs, data['wcs'], band=filt.lower(),
+                                         pixelized_psf=data['refband_psf'])
 
             # Convert to surface brightness and 32-bit precision.
             img = (ma.getdata(data[filt]) - model_nocentral) / thispixscale**2 # [nanomaggies/arcsec**2]
@@ -813,12 +834,44 @@ def _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale, tractor,
             #    import matplotlib.pyplot as plt ; from astropy.visualization import simple_norm ; plt.clf()
             #    thisimg = np.log10(data[imagekey][ii]) ; norm = simple_norm(thisimg, 'log') ; plt.imshow(thisimg, origin='lower', norm=norm) ; plt.savefig('junk{}.png'.format(ii+1))
             #    pdb.set_trace()
-            
+
+
     # Cleanup?
     for filt in bands:
         del data[filt]
         del data['{}_var_'.format(filt)]
 
+    return data            
+
+def _read_and_mask(data, filt2imfile, filt2pixscale, tractor,
+                   fill_value=0.0,
+                   central_galaxy=None, central_galaxy_id=None,
+                   starmask=None, verbose=False,
+                   cluster=True, largegalaxy=False):
+    """Helper function for read_multiband. Read the multi-band imaging and build a
+    mask.
+
+    central_galaxy - indices of objects in the tractor catalog to *not* mask
+
+    """
+    # Read the initial data.
+    data = _read_data(data, filt2imfile, starmask=starmask,
+                      fill_value=fill_value, verbose=verbose)
+
+    largegalaxy = True
+    if largegalaxy:
+        data = _largegalaxy_mask(data, tractor, filt2pixscale,
+                                 fill_value=fill_value,
+                                 central_galaxy=central_galaxy,
+                                 central_galaxy_id=central_galaxy_id,
+                                 verbose=verbose)
+    elif cluster:
+        pass
+    else:
+        raise NotImplemented('Write me!')
+
+    pdb.set_trace()
+            
     return data
 
 def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
@@ -1060,7 +1113,7 @@ def read_multiband(galaxy, galaxydir, bands=('g', 'r', 'z'), refband='r',
         sample = None
         central_galaxy, central_galaxy_id = None, None
 
-    data = _read_and_mask(data, bands, refband, filt2imfile, filt2pixscale,
+    data = _read_and_mask(data, filt2imfile, filt2pixscale,
                           tractor, central_galaxy=central_galaxy,
                           central_galaxy_id=central_galaxy_id,
                           starmask=starmask, verbose=verbose,

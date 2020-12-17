@@ -41,6 +41,249 @@ def plot_style(font_scale=1.2, paper=False, talk=True):
 
     return sns, colors
 
+def fig_radec(sample):
+
+    matplotlib.rcParams['figure.figsize'] = (12,8)
+
+    #from astrometry.util.fits import *
+    #from astrometry.util.starutil_numpy import *
+    #from astrometry.util.util import *
+    #from astrometry.libkd.spherematch import *
+    #from scipy.ndimage.morphology import *
+    #from scipy.ndimage.measurements import *
+
+    from scipy.interpolate import UnivariateSpline
+
+    zoom = 1
+    W,H = 1000,500
+    #W,H = 2000,1000
+    ra_center = 265.
+    wcs = anwcs_create_hammer_aitoff(ra_center, 0., zoom, W, H, False)
+
+    Bs = fits_table('/global/cfs/cdirs/cosmo/data/legacysurvey/dr9/south/survey-bricks-dr9-south.fits.gz')
+    Bn = fits_table('/global/cfs/cdirs/cosmo/data/legacysurvey/dr9/north/survey-bricks-dr9-north.fits.gz')
+
+    Bs.l,Bs.b = radectolb(Bs.ra, Bs.dec)
+    Bn.l,Bn.b = radectolb(Bn.ra, Bn.dec)
+    ok,Bs.x,Bs.y = wcs.radec2pixelxy(Bs.ra, Bs.dec)
+    ok,Bn.x,Bn.y = wcs.radec2pixelxy(Bn.ra, Bn.dec)
+    decsplit = 32.375
+    Bn.cut((Bn.b > 0) * (Bn.dec > decsplit))
+    Bs.cut(np.logical_or(Bs.b <= 0, (Bs.b > 0) * (Bs.dec <= decsplit)))
+
+
+    Bn.cut(Bn.dec >= -10)
+    Bs.cut(Bs.dec >= -30)
+
+
+    # SDSS plates
+    S = fits_table('/global/cfs/cdirs/cosmo/webapp/viewer-dev/data/sdss/plates-dr14.fits')
+    rotate = 122.0
+    
+    # Cut to unique RA,Dec
+    x,I = np.unique(np.vstack((S.racen, S.deccen)), axis=1, return_index=True)
+    S.cut(I)
+    print(len(S), 'unique RA,Dec')
+
+    I = match_radec(S.racen, S.deccen, S.racen, S.deccen, 5., notself=True, indexlist=True)
+    n = np.array([0 if i is None else len(i) for i in I])
+    I = np.flatnonzero(n > 10)
+    S.cut(I)
+    print(len(S), 'in large areas')
+    S.rax = S.racen - 360*(S.racen < (rotate+180))
+    S.decx = S.deccen
+    ok,x,y = wcs.radec2pixelxy(S.rax, S.decx)
+    sdssgrid = np.zeros((H,W), bool)
+    sdssgrid[(np.round(y)-1).astype(int), (np.round(x)-1).astype(int)] = True
+    # Plate radius = 1.5 degrees
+    #rpix = int(np.ceil(1.5 / pixscale))
+    rpix = 5
+    print('Plate radius', rpix)
+    dpix = 2*rpix+1
+    plate = np.zeros((dpix, dpix), bool)
+    plate[np.hypot((np.arange(dpix)-rpix)[:,np.newaxis], (np.arange(dpix)-rpix)[np.newaxis,:]) <= rpix] = True
+    grid2 = binary_dilation(sdssgrid, structure=plate)
+    
+    def traverse_xy(x, y, r):
+        I,J,D = match_xy(x, y, x, y, r, notself=True)
+        matchlist = dict()
+        for i,j,d in zip(I,J,D):
+            if not i in matchlist:
+                matchlist[i] = [j]
+            else:
+                matchlist[i].append(j)
+        II = []
+        inext = []
+        # initialize with only "clockwise" matches to build a "fire break"
+        iveto = set()
+        cx = np.mean(x)
+        cy = np.mean(y)
+        t0 = np.arctan2(y[0]-cy, x[0]-cx)
+        for j in matchlist[0]:
+            if np.arctan2(y[j]-cy, x[j]-cx) < t0:
+                II.append(j)
+                continue
+            inext.append(j)
+        II.append(0)
+        while len(inext):
+            ii = inext.pop(0)
+            if ii in II:
+                continue
+            II.append(ii)
+            inext.extend(matchlist[ii])
+        return II
+    
+    sdss_boundaries = []
+    blobs,nb = label(grid2)
+    for b in range(1,nb+1):
+        thisblob = (blobs == b)
+        boundary = np.logical_xor(binary_dilation(thisblob, iterations=1), thisblob)
+        y,x = np.nonzero(boundary)
+        I = traverse_xy(x, y, 5)
+        xtr,ytr = x[I],y[I]
+        xloop = np.append(xtr, xtr[:20])
+        yloop = np.append(ytr, ytr[:20])
+        nl = len(xloop)
+        xr = np.arange(nl) / float(nl)
+        roundness = 2
+        splx = UnivariateSpline(xr, xloop, s=nl*roundness)
+        sply = UnivariateSpline(xr, yloop, s=nl*roundness)
+        sdss_boundaries.append((splx, sply))
+
+
+    plt.imshow(grid2, origin='lower');
+    for fx,fy in sdss_boundaries:
+        tt = np.linspace(0, 1, 1000)
+        plt.plot(fx(tt), fy(tt), 'r-')
+
+    band = 'z'
+    #lo,hi = { 'g':(23.0,25.0), 'r':(22.4,24.4), 'z':(21.5,23.5) }[band]
+    lo,hi = (22.5, 24.5)
+    dec_lo = -30
+    ra_labels_dec = -30
+    depth_cmap='Blues'
+
+    plt.clf()
+    plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95)
+
+    kw = dict(s=1, vmin=lo, vmax=hi, cmap=depth_cmap)
+    plt.scatter(Bn.x, Bn.y, c=Bn.get('galdepth_'+band) - Bn.get('ext_'+band), **kw)
+    plt.scatter(Bs.x, Bs.y, c=Bs.get('galdepth_'+band) - Bs.get('ext_'+band), **kw)
+    c = plt.colorbar(orientation='horizontal')
+    c.set_label('%s-band depth (mag)' % band)
+
+    dec_gridlines = list(range(dec_lo, 90, 10))
+    dec_gridlines_ras = np.arange(ra_center-180, ra_center+180, 1)
+    ra_gridlines = range(0, 360, 30)
+    ra_gridlines_decs = np.arange(dec_lo, 90, 1.)
+    dec_gridlines_slope = []
+    for d in dec_gridlines:
+        rr = dec_gridlines_ras
+        dd = np.zeros_like(rr) + d
+        ok,xx,yy = wcs.radec2pixelxy(rr, dd)
+        plt.plot(xx, yy, 'k-', alpha=0.1)
+        dec_gridlines_slope.append((yy[-2]-yy[-1]) / (xx[-2] - xx[-1]))
+    for r in ra_gridlines:
+        dd = ra_gridlines_decs
+        rr = np.zeros_like(dd) + r
+        ok,xx,yy = wcs.radec2pixelxy(rr, dd)
+        plt.plot(xx, yy, 'k-', alpha=0.1)
+
+    ra_gridlines2 = [ra_center-180, ra_center+180]
+    ra_gridlines2_decs = np.arange(dec_lo, 91, 1.)
+    for r in ra_gridlines2:
+        dd = ra_gridlines2_decs
+        rr = np.zeros_like(dd) + r
+        ok,xx,yy = wcs.radec2pixelxy(rr, dd)
+        plt.plot(xx, yy, 'k-', alpha=0.5)
+
+    ra_labels = ra_gridlines
+    dec_labels = dec_gridlines
+    dec_labels_ra = ra_center+180
+
+    ok,xx,yy = wcs.radec2pixelxy(ra_labels, ra_labels_dec)
+    for x,y,v in zip(xx, yy, ra_labels):
+        plt.text(x, y, '%i'%(v%360), ha='center', va='top', alpha=0.5)
+    ok,xx,yy = wcs.radec2pixelxy(dec_labels_ra, dec_labels)
+    for i,(x,y,v,slope) in enumerate(zip(xx, yy, dec_labels, dec_gridlines_slope)):
+        dx = -20
+        dy = dx * slope
+        r = np.hypot(dx,dy)
+        dx = dx * 15 / r
+        dy = dy * 15 / r
+        #print(v, 'dx,dy', dx, dy)
+        plt.text(x+dx, y+dy, '%+i'%v, ha='center', va='center', alpha=0.5)
+        if v == 50:
+            #angle = np.rad2deg(np.arctan2(dy, dx))
+            angle = np.rad2deg(np.arctan2(yy[i+1]-yy[i-1], xx[i+1]-xx[i-1]))
+            plt.text(x+dx*3, y+dy*3, 'Dec (deg)', ha='center', va='center', rotation=angle)
+            
+    # Galactic plane
+    ll = np.linspace(0., 360., 720)
+    bb = np.zeros_like(ll)
+    rr,dd = lbtoradec(ll, bb)
+    ok,xx,yy = wcs.radec2pixelxy(rr, dd)
+
+    # Label
+    ii = np.argmin(np.abs(rr - 285))
+    angle = 180+np.rad2deg(np.arctan2(yy[ii+1]-yy[ii-1], xx[ii+1]-xx[ii-1]))
+    plt.text(xx[ii], yy[ii], 'Galactic plane', ha='center', va='bottom', rotation=angle)
+
+    # Plot segments that are above Dec=-30 and not discontinuous
+    d = np.append([0], np.hypot(np.diff(xx), np.diff(yy)))
+    ok = (d < 100) * (dd > -30)
+    istart = 0
+    while istart < len(ok):
+        while istart < len(ok) and ok[istart] == False:
+            istart += 1
+        iend = istart
+        while iend < len(ok) and ok[iend] == True:
+            iend += 1
+        if iend != istart:
+            #print('Plotting from', istart, 'to', iend, 'ok', ok[istart:iend])
+            plt.plot(xx[istart:iend], yy[istart:iend], '-', color='0.6', lw=2)
+        istart = iend
+
+    # Label regions
+    #for r,d,n in [(30, 0, 'DES'),
+    #              (0, 20, 'DECaLS'),
+    #              (180, 10, 'DECaLS'),
+    #              (180, 50, 'MzLS+BASS')]:
+    #    ok,x,y = wcs.radec2pixelxy(r, d)
+    #    plt.text(x, y, n, fontsize=16, ha='center', va='center')
+
+    #P = fits_table('/global/cfs/cdirs/cosmo/webapp/viewer-dev/data/sdss/plates-dr14.fits')
+    #ok,x,y = wcs.radec2pixelxy(P.racen, P.deccen)
+    #plt.plot(x, y, 'ro')
+
+    for fx,fy in sdss_boundaries:
+        tt = np.linspace(0, 1, 1000)
+        plt.plot(fx(tt), fy(tt), 'r-')
+
+    T = fits_table('/global/cscratch1/sd/dstn/sample.fits')
+    ok,x,y = wcs.radec2pixelxy(T.ra, T.dec)
+    plt.plot(x, y, 'k.')
+
+    ok,x,y = wcs.radec2pixelxy(ra_center, -40)
+    plt.text(x, y, 'RA (deg)')
+    ok,x,y = wcs.radec2pixelxy(ra_center, -40)
+    plt.text(x, y, 'RA (deg)')
+
+    plt.xticks([])
+    plt.yticks([])
+    #plt.axis('equal');
+    ax = [0,W, 0.2*H, H]
+    plt.axis(ax)
+    plt.axis('equal')
+    plt.axis(ax)
+    plt.gca().set_frame_on(False)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)
+        plt.close(fig)            
+
 def fig_richness_vs_redshift(sample, png=None):
 
     from legacyhalos.legacyhalos import lambda2mhalo
@@ -389,24 +632,74 @@ def fig_ccdpos(sample, thisgalaxy, pixscale=0.262, mosaic_pixscale=1.0, png=None
         fig.savefig(pngfile, bbox_inches='tight', pad_inches=0.25)
         plt.close(fig)
 
+def fig_gallery(sample, png):
+
+    from glob import glob
+    from legacyhalos.legacyhalos import lambda2mhalo
+
+    def make_gallery(infiles, pngfile):
+        ncol, nrow = 8, 6
+        cmd = 'montage -bordercolor white -borderwidth 1 -quality 90 -tile {}x{} -geometry 128x128 '.format(ncol, nrow)
+        cmd = cmd+' '.join([inff for inff in infiles])
+        cmd = cmd+' {}'.format(pngfile)
+        print(cmd)
+        print('Writing {}'.format(pngfile))
+        os.system(cmd)
+
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+
+    print('Hack on subsample!')
+    idone = np.where([os.path.isfile(os.path.join(gdir, '{}-custom-image-grz.jpg'.format(gal)))
+                      for gal, gdir in zip(galaxy, galaxydir)])[0]
+    samp = sample[idone]
+
+    galaxy, galaxydir = get_galaxy_galaxydir(samp)
+    M200c = lambda2mhalo(samp[RICHCOLUMN].data, redshift=samp[ZCOLUMN].data)
+    
+    rand = np.random.RandomState(seed=1)
+    these = rand.choice(len(galaxy), 48, replace=False)
+    srt = np.argsort(M200c[these])
+    indx = these[srt]
+    indx[3] = indx[3]+1
+    #indx[27] = indx[27]+1
+    #indx[28] = indx[28]+1
+    print(M200c[indx])
+
+    #pdb.set_trace()
+
+    infiles = [os.path.join(galdir, '{}-custom-image-grz.jpg'.format(gal)) for gal, galdir in zip(galaxy[indx], galaxydir[indx])]
+    if png:
+        pngfile = os.path.join(figdir, png)
+        make_gallery(infiles, pngfile)
+    else:
+        print('Nothing to do.')
+
 def main():
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--radec', action='store_true')
     parser.add_argument('--skyplot', action='store_true')
+    parser.add_argument('--gallery', action='store_true')
     parser.add_argument('--richness-vs-redshift', action='store_true')
     parser.add_argument('--skysub-tests', action='store_true')
     parser.add_argument('--ccdpos', action='store_true')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
     args = parser.parse_args()
 
-    # Fig 1 - distribution on the sky
-    if args.skyplot:
+    # Fig - spatial distribution on the sky
+    if args.radec:
         sample = legacyhalos.legacyhalos.read_redmapper()
+        fig_radec(sample, png='radec.png')
 
-    # Fig 2 - bivariate scatterplot of mass vs richness
+    # Fig - bivariate scatterplot of mass vs richness
     if args.richness_vs_redshift:
         sample = legacyhalos.legacyhalos.read_redmapper()
         fig_richness_vs_redshift(sample, png='richness_vs_redshift.png')
+
+    # Fig - gallery of clusters
+    if args.gallery:
+        sample = legacyhalos.legacyhalos.read_redmapper()        
+        fig_gallery(sample, png='gallery.png')
 
     # Fig XX - CCD position
     if args.ccdpos:
