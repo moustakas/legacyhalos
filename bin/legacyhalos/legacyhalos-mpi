@@ -22,7 +22,7 @@ def main():
     import legacyhalos.legacyhalos
     from legacypipe.runs import get_survey
 
-    from legacyhalos.legacyhalos import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN, SBTHRESH
+    from legacyhalos.legacyhalos import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
 
     basedir = legacyhalos.io.legacyhalos_dir()
     datadir = legacyhalos.io.legacyhalos_data_dir()
@@ -247,11 +247,20 @@ def main():
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
-            from legacyhalos.mpi import call_ellipse
+            from legacyhalos.legacyhalos import call_ellipse
+            call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, filesuffix='custom', 
+                         bands=['g', 'r', 'z'], refband='r',
+                         pixscale=args.pixscale, nproc=args.nproc,
+                         verbose=args.verbose, debug=args.debug,
+                         sky_tests=args.sky_tests, unwise=False,
+                         logfile=logfile)
+            pdb.set_trace()
+
+            
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
                          nproc=args.nproc, verbose=args.verbose, debug=args.debug,
                          zcolumn=ZCOLUMN, sbthresh=SBTHRESH,
-                         unwise=False, sky_tests=args.sky_tests,
+                         unwise=False, 
                          logfile=logfile, largegalaxy=False, pipeline=False)
                              
         if args.htmlplots:

@@ -35,18 +35,14 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
     print('Finished galaxy {} in {:.3f} minutes.'.format(
           galaxy, (time.time() - t0)/60), flush=True, file=log)
     
-def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
-                 debug=False, logfile=None, input_ellipse=None, zcolumn=None,
-                 sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
-                 galex=False, galex_pixscale=1.5, largegalaxy=False, pipeline=True,
-                 sky_tests=False, sbthresh=None):
+def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
+                 pixscale=0.262, nproc=1, bands=['g', 'r', 'z'], refband='r',
+                 verbose=False, debug=False,
+                 logfile=None, input_ellipse=None, sbthresh=None):
     """Wrapper script to do ellipse-fitting.
 
     """
     import legacyhalos.ellipse
-
-    if sbthresh is None:
-        from legacyhalos.ellipse import REF_SBTHRESH as sbthresh
 
     # Do not force zcolumn here; it's not always wanted or needed in ellipse.
     #if zcolumn is None:
@@ -55,34 +51,24 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=Fal
     t0 = time.time()
     if debug:
         _start(galaxy)
-        err, filesuffix = legacyhalos.ellipse.legacyhalos_ellipse(
-            onegal, galaxy=galaxy, galaxydir=galaxydir,
+        err = legacyhalos.ellipse.legacyhalos_ellipse(
+            galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
+            bands=bands, refband=refband,
             pixscale=pixscale, nproc=nproc,
-            sbthresh=sbthresh,
-            zcolumn=zcolumn, input_ellipse=input_ellipse,
-            verbose=verbose, debug=debug,
-            sdss=sdss, sdss_pixscale=sdss_pixscale,
-            unwise=unwise, unwise_pixscale=unwise_pixscale,
-            galex=galex, galex_pixscale=galex_pixscale,
-            sky_tests=sky_tests,
-            largegalaxy=largegalaxy, pipeline=pipeline)
-        _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix)
+            sbthresh=sbthresh, input_ellipse=input_ellipse,
+            verbose=verbose, debug=debug)
+        _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'])
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
                 err, filesuffix = legacyhalos.ellipse.legacyhalos_ellipse(
-                    onegal, galaxy=galaxy, galaxydir=galaxydir,
+                    galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
+                    bands=bands, refband=refband,
                     pixscale=pixscale, nproc=nproc,
-                    sbthresh=sbthresh,
-                    zcolumn=zcolumn, input_ellipse=input_ellipse,
-                    verbose=verbose, debug=debug,
-                    sdss=sdss, sdss_pixscale=sdss_pixscale,
-                    unwise=unwise, unwise_pixscale=unwise_pixscale,
-                    galex=galex, galex_pixscale=galex_pixscale,
-                    sky_tests=sky_tests,
-                    largegalaxy=largegalaxy, pipeline=pipeline)
-                _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix, log=log)
+                    sbthresh=sbthresh, input_ellipse=input_ellipse,
+                    verbose=verbose)
+                _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
 
 def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile):
     """Wrapper script to do Sersic-fitting.

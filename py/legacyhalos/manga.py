@@ -321,6 +321,20 @@ def _get_diameter(ellipse):
 
     return diam, diamref
 
+def call_ellipse_manga(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
+                       debug=False, logfile=None, input_ellipse=None, zcolumn=None,
+                       sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
+                       galex=False, galex_pixscale=1.5, largegalaxy=False, pipeline=True,
+                       sky_tests=False, sbthresh=None):
+    """Wrapper on legacyhalos.mpi.call_ellipse but with specific preparatory work
+    and hooks for the manga project.
+
+    """
+    from legacyhalos.mpi import call_ellipse
+
+    filesuffix = 'largegalaxy'
+
+
 def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
     res = []
     for band in ('g', 'r', 'z'):
