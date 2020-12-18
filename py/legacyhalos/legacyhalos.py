@@ -895,9 +895,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
     return data            
 
-def read_multiband(onegal, galaxy, galaxydir, filesuffix='custom',
+def read_multiband(galaxy, galaxydir, filesuffix='custom',
                    refband='r', bands=['g', 'r', 'z'], pixscale=0.262,
-                   fill_value=0.0, sky_tests=False, verbose=False):
+                   redshift=None, fill_value=0.0, sky_tests=False, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
     masked array suitable for ellipse-fitting.
 
@@ -1029,7 +1029,10 @@ def read_multiband(onegal, galaxy, galaxydir, filesuffix='custom',
 
     # Gather some additional info that we want propagated to the output ellipse
     # catalogs.
-    galaxyinfo = {'redshift': (onegal[ZCOLUMN], '')} # (value, units) tuple for the FITS header
+    if redshift:
+        galaxyinfo = {'redshift': (redshift, '')} # (value, units) tuple for the FITS header
+    else:
+        galaxyinfo = None
 
     return data, galaxyinfo
 
@@ -1109,9 +1112,10 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     #
     #return success, filesuffix
 
-    data, galaxyinfo = read_multiband(onegal, galaxy, galaxydir, bands=bands,
+    data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
                                       filesuffix=filesuffix,
                                       refband=refband, pixscale=pixscale,
+                                      redshift=onegal[ZCOLUMN],
                                       sky_tests=sky_tests, verbose=verbose)
 
     mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,

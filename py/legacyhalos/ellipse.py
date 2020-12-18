@@ -871,13 +871,15 @@ def ellipsefit_multiband(galaxy, galaxydir, data, galaxy_indx=0, galaxy_id='',
 
     # Write out
     if not nowrite:
-        if galaxyinfo is not None:
+        if galaxyinfo is None:
+            outgalaxyinfo = None
+        else:
+            outgalaxyinfo = galaxyinfo[galaxy_indx]
             ellipsefit.update(galaxyinfo[galaxy_indx])
 
-        pdb.set_trace()
         legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
                                         galaxy_id=galaxy_id,
-                                        galaxyinfo=galaxyinfo,
+                                        galaxyinfo=outgalaxyinfo,
                                         refband=refband,
                                         sbthresh=sbthresh,
                                         verbose=True,
@@ -997,7 +999,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
                                               galaxyinfo=galaxyinfo,
                                               galaxy_indx=galindx, galaxy_id=galid,
-                                              delta_logsma=15,
+                                              delta_logsma=15, maxsma=100,
                                               refband=refband, nproc=nproc, sbthresh=sbthresh,
                                               integrmode=integrmode, nclip=nclip, sclip=sclip,                                           
                                               input_ellipse=input_ellipse, 

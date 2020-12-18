@@ -255,7 +255,7 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=False, png=N
         plt.show()
     
 def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
-                     plot_sbradii=False, verbose=True):
+                     plot_sbradii=False, cosmo=None, verbose=True):
     """Plot up the curve of growth versus semi-major axis.
 
     """
@@ -268,7 +268,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
     if 'redshift' in ellipsefit.keys():
         redshift = ellipsefit['redshift']
-        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+        smascale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
     else:
         redshift, smascale = None, None
         
@@ -395,7 +395,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     else:
         plt.show()
 
-def display_sersic(sersic, png=None, verbose=False):
+def display_sersic(sersic, png=None, cosmo=None, verbose=False):
     """Plot a wavelength-dependent surface brightness profile and model fit.
 
     """
@@ -403,7 +403,7 @@ def display_sersic(sersic, png=None, verbose=False):
     colors = _sbprofile_colors()
 
     if sersic['success']:
-        smascale = legacyhalos.misc.arcsec2kpc(sersic['redshift'])
+        smascale = legacyhalos.misc.arcsec2kpc(sersic['redshift'], cosmo=cosmo)
         model = sersic['bestfit']
     else:
         smascale = 1
@@ -784,7 +784,7 @@ def display_sersic(sersic, png=None, verbose=False):
         plt.show()
 
 def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
-                      centralindx=0, inchperband=8, contours=False, barlen=None,
+                      galaxy_indx=0, inchperband=8, contours=False, barlen=None,
                       barlabel=None, png=None, verbose=True, vertical=False,
                       scaledfont=False):
     """Display the multi-band images and, optionally, the isophotal fits based on
@@ -876,8 +876,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
 
     # ...now the individual bandpasses.        
     for ii, (filt, ax1) in enumerate(zip(band, ax[1:])):
-        #mge = data['mge'][centralindx]
-        dat = data['{}_masked'.format(filt)][centralindx]
+        #mge = data['mge'][galaxy_indx]
+        dat = data['{}_masked'.format(filt)][galaxy_indx]
         img = ma.masked_array(dat.data, dat.mask)
         mask = ma.masked_array(dat.data, ~dat.mask)
 
@@ -1025,7 +1025,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     else:
         plt.show()
 
-def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
+def display_ellipsefit(ellipsefit, xlog=False, cosmo=None, png=None, verbose=True):
     """Display the isophote fitting results."""
 
     from matplotlib.ticker import FormatStrFormatter, ScalarFormatter
@@ -1039,7 +1039,7 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         
         band, refband = ellipsefit['bands'], ellipsefit['refband']
         refpixscale, redshift = ellipsefit['refpixscale'], ellipsefit['redshift']
-        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+        smascale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
         
@@ -1146,7 +1146,8 @@ def display_ellipsefit(ellipsefit, xlog=False, png=None, verbose=True):
         
 def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit={}, 
                               sdss_ellipsefit={}, minerr=0.0, plot_radius=True,
-                              plot_sbradii=False, png=None, use_ylim=None, verbose=True):
+                              plot_sbradii=False, cosmo=None, png=None, use_ylim=None,
+                              verbose=True):
     """Display the multi-band surface brightness profile.
 
     2-panel
@@ -1167,7 +1168,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
             refband = ellipsefit['refband']
             if 'redshift' in ellipsefit.keys():
                 redshift = ellipsefit['redshift']
-                radscale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+                radscale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
             else:
                 redshift = None
         else:
@@ -1179,7 +1180,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 pixscale = ellipsefit['pixscale'][0]
             if 'redshift' in ellipsefit.colnames:
                 sbprofile['redshift'] = ellipsefit['redshift'][0]
-                radscale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+                radscale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
             else:
                 redshift = None
 
@@ -1387,7 +1388,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         else:
             plt.show()
         
-def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)):
+def sample_trends(sample, htmldir, analysisdir=None, verbose=True, cosmo=None, xlim=(0, 100)):
     """Trends with the whole sample.
 
     """
@@ -1417,7 +1418,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:                    
                     refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
-                    smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+                    smascale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
                     sbprofile = ellipse_sbprofile(ellipsefit, minerr=0.01)
 
                     sma = sbprofile['sma'] * smascale
@@ -1498,7 +1499,7 @@ def sample_trends(sample, htmldir, analysisdir=None, verbose=True, xlim=(0, 100)
             if len(ellipsefit) > 0:
                 if ellipsefit['success']:
                     refband, redshift = ellipsefit['refband'], ellipsefit['redshift']
-                    smascale = ellipsefit['refpixscale'] * legacyhalos.misc.arcsec2kpc(redshift) # [kpc/pixel]
+                    smascale = ellipsefit['refpixscale'] * legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/pixel]
                     
                     good = (ellipsefit[refband].stop_code < 4)
                     #good = np.arange( len(ellipsefit[refband].sma) )
@@ -1825,7 +1826,7 @@ def _display_ccdmask_and_sky(ccdargs):
     plt.close(fig)
 
 def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
-                              png=None, verbose=True):
+                              cosmo=None, png=None, verbose=True):
     """Display the multi-band surface brightness profile.
 
     4-panel including PA and ellipticity
@@ -1839,7 +1840,7 @@ def _display_ellipse_sbprofile(ellipsefit, skyellipsefit={}, minerr=0.0,
         
         band, refband = ellipsefit['bands'], ellipsefit['refband']
         redshift, refpixscale = ellipsefit['redshift'], ellipsefit['refpixscale']
-        smascale = legacyhalos.misc.arcsec2kpc(redshift) # [kpc/arcsec]
+        smascale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
 
         if png:
             sbfile = png.replace('.png', '.txt')

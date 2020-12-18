@@ -116,9 +116,9 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
 def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1, 
                    verbose=False, debug=False, clobber=False, ccdqa=False,
                    logfile=None, zcolumn='Z', datadir=None, htmldir=None,                   
-                   largegalaxy=False, galex=False, just_coadds=False,
+                   cosmo=None, galex=False, just_coadds=False,
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
-                   get_galaxy_galaxydir=None):
+                   get_galaxy_galaxydir=None, read_multiband=None):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
@@ -131,8 +131,9 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
             radius_mosaic_arcsec=radius_mosaic_arcsec,
             maketrends=False, ccdqa=ccdqa,
             clobber=clobber, verbose=verbose, 
-            largegalaxy=largegalaxy, galex=galex, just_coadds=just_coadds,
-            get_galaxy_galaxydir=get_galaxy_galaxydir)
+            cosmo=cosmo, galex=galex, just_coadds=just_coadds,
+            get_galaxy_galaxydir=get_galaxy_galaxydir,
+            read_multiband=read_multiband)
         _done(galaxy, survey.output_dir, err, t0, 'html')
     else:
         with open(logfile, 'a') as log:
@@ -145,8 +146,9 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                     radius_mosaic_arcsec=radius_mosaic_arcsec,
                     maketrends=False, ccdqa=ccdqa,
                     clobber=clobber, verbose=verbose,
-                    largegalaxy=largegalaxy, galex=galex, just_coadds=just_coadds,
-                    get_galaxy_galaxydir=get_galaxy_galaxydir)
+                    cosmo=cosmo, galex=galex, just_coadds=just_coadds,
+                    get_galaxy_galaxydir=get_galaxy_galaxydir,
+                    read_multiband=read_multiband)
                 _done(galaxy, survey.output_dir, err, t0, 'html')
 
 def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,

@@ -141,7 +141,8 @@ def make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=N
         print('Unable to make ccdpos QA; montage file {} not found.'.format(grzfile))
         
 def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-                   zcolumn='Z', radius=None, survey=None, clobber=False, verbose=False):
+                   zcolumn='Z', radius=None, survey=None, clobber=False,
+                   verbose=False):
     """Build CCD positions QA.
 
     radius in pixels
@@ -453,78 +454,84 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
         qa_maskbits(mask, tractor, png=maskbitsfile)
 
 def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                    refband='r', pixscale=0.262, barlen=None, barlabel=None,
-                    clobber=False, verbose=False, largegalaxy=False, galex=False,
-                    scaledfont=False):
+                    refband='r', pixscale=0.262, read_multiband=None,
+                    barlen=None, barlabel=None, clobber=False, verbose=False,
+                    cosmo=None, galex=False, scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
 
     """
     import fitsio
     from PIL import Image
     from astropy.table import Table
-    from legacyhalos.io import read_multiband, read_ellipsefit
+    from legacyhalos.io import read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth,
                                 qa_maskbits)
 
     Image.MAX_IMAGE_PIXELS = None
     
-    # Read the data--
-    data = read_multiband(galaxy, galaxydir, bands=bands,
-                          refband=refband, pixscale=pixscale,
-                          verbose=verbose,
-                          largegalaxy=largegalaxy)
+    # Read the data.
+    if read_multiband is None:
+        print('Unable to build ellipse QA without specifying read_multiband method.')
+        return
+    
+    data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
+                                      refband=refband, pixscale=pixscale,
+                                      verbose=verbose)
     if not bool(data):
         return
 
     if data['failed']: # all galaxies dropped
         return
-    
-    # One set of QA plots per galaxy.
-    if largegalaxy:
-        ellipsefitall = []
-        for igal in np.arange(len(data['central_galaxy_id'])):
-            central_galaxy_id = data['central_galaxy_id'][igal]
-            galaxyid = str(central_galaxy_id)
-            if galaxyid != '':
-                galaxyid = '{}-'.format(galaxyid)
-            filesuffix = 'largegalaxy'
 
-            ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
-                                         galaxyid=galaxyid, verbose=verbose)
-            if bool(ellipsefit):
-                ellipsefitall.append(ellipsefit)
+    if 'galaxy_indx' in data.keys() and 'galaxy_id' in data.keys():
+        galaxy_indx, galaxy_id = data['galaxy_indx'], data['galaxy_id']
+    else:
+        galaxy_indx, galaxy_id = 0, ''
 
-                sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
-                if not os.path.isfile(sbprofilefile) or clobber:
-                    display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
-                                              png=sbprofilefile, verbose=verbose, minerr=0.0)
+    ellipsefitall = []
+    for galindx, galid in zip(np.atleast_1d(galaxy_indx), np.atleast_1d(galaxy_id)):
 
-                cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
-                if not os.path.isfile(cogfile) or clobber:
-                    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
-                                     png=cogfile, verbose=verbose)
+        if galid != '':
+            galid = '{}-'.format(galid)
 
-                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-                if not os.path.isfile(multibandfile) or clobber:
-                    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
-                        display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
-                                          centralindx=igal, barlen=barlen, barlabel=barlabel,
-                                          png=multibandfile, verbose=verbose, scaledfont=scaledfont)
+        ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=data['filesuffix'],
+                                     galaxy_id=galid, verbose=verbose)
+        if bool(ellipsefit):
+            ellipsefitall.append(ellipsefit)
 
-                    # Create a thumbnail.
-                    cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
-                    if os.path.isfile(thumbfile):
-                        os.remove(thumbfile)
-                    print('Writing {}'.format(thumbfile))
-                    subprocess.call(cmd.split())
+            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(sbprofilefile) or clobber:
+                display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
+                                          png=sbprofilefile, verbose=verbose, minerr=0.0,
+                                          cosmo=cosmo)
 
-        # maskbits QA
-        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
+            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(cogfile) or clobber:
+                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
+                                 png=cogfile, verbose=verbose, cosmo=cosmo)
+
+            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
+            thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(multibandfile) or clobber:
+                with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
+                    display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+                                      galaxy_indx=galindx, barlen=barlen, barlabel=barlabel,
+                                      png=multibandfile, verbose=verbose, scaledfont=scaledfont)
+
+                # Create a thumbnail.
+                cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
+                if os.path.isfile(thumbfile):
+                    os.remove(thumbfile)
+                print('Writing {}'.format(thumbfile))
+                subprocess.call(cmd.split())
+
+    # maskbits QA
+    if False:
+        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, data['filesuffix']))
         if not os.path.isfile(maskbitsfile) or clobber:
-            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
-            tractorfile = os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix))
+            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, data['filesuffix']))
+            tractorfile = os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, data['filesuffix']))
             if not os.path.isfile(fitsfile):
                 if verbose:
                     print('File {} not found!'.format(fitsfile))
@@ -537,61 +544,11 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             mask = fitsio.read(fitsfile)
             tractor = Table(fitsio.read(tractorfile, upper=True))
 
-            with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
+            with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
                 qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=True, png=maskbitsfile)
-    else:
-        filesuffix, galaxyid = 'custom', ''
-        ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
-                                     galaxyid=galaxyid, verbose=verbose)
-
-        if bool(ellipsefit):
-            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
-            if not os.path.isfile(sbprofilefile) or clobber:
-                display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
-                                          png=sbprofilefile, verbose=verbose, minerr=0.0)
-
-            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
-            if not os.path.isfile(cogfile) or clobber:
-                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
-                                 png=cogfile, verbose=verbose)
-
-            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-            thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-            if not os.path.isfile(multibandfile) or clobber:
-                with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
-                    display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
-                                      centralindx=0, barlen=barlen, barlabel=barlabel,
-                                      png=multibandfile, verbose=verbose, scaledfont=scaledfont)
-
-                # Create a thumbnail.
-                cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
-                if os.path.isfile(thumbfile):
-                    os.remove(thumbfile)
-                print('Writing {}'.format(thumbfile))
-                subprocess.call(cmd.split())
-
-        ## maskbits QA
-        #maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
-        #if not os.path.isfile(maskbitsfile) or clobber:
-        #    fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
-        #    tractorfile = os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix))
-        #    if not os.path.isfile(fitsfile):
-        #        if verbose:
-        #            print('File {} not found!'.format(fitsfile))
-        #        return
-        #    if not os.path.isfile(tractorfile):
-        #        if verbose:
-        #            print('File {} not found!'.format(tractorfile))
-        #        return
-        #
-        #    mask = fitsio.read(fitsfile)
-        #    tractor = Table(fitsio.read(tractorfile, upper=True))
-        #
-        #    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
-        #        qa_maskbits(mask, tractor, ellipsefit, colorimg, largegalaxy=False, png=maskbitsfile)
 
 def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                      clobber=False, verbose=False):
+                   cosmo=None, clobber=False, verbose=False):
     """Generate QAplots from the Sersic modeling.
 
     """
@@ -603,49 +560,50 @@ def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     if bool(double):
         doublefile = os.path.join(htmlgalaxydir, '{}-sersic-double.png'.format(galaxy))
         if not os.path.isfile(doublefile) or clobber:
-            display_sersic(double, png=doublefile, verbose=verbose)
+            display_sersic(double, cosmo=cosmo, png=doublefile, verbose=verbose)
 
     # Double Sersic, no wavelength dependence
     double = read_sersic(galaxy, galaxydir, modeltype='double-nowavepower')
     if bool(double):
         doublefile = os.path.join(htmlgalaxydir, '{}-sersic-double-nowavepower.png'.format(galaxy))
         if not os.path.isfile(doublefile) or clobber:
-            display_sersic(double, png=doublefile, verbose=verbose)
+            display_sersic(double, cosmo=cosmo, png=doublefile, verbose=verbose)
 
     # Single Sersic, no wavelength dependence
     single = read_sersic(galaxy, galaxydir, modeltype='single-nowavepower')
     if bool(single):
         singlefile = os.path.join(htmlgalaxydir, '{}-sersic-single-nowavepower.png'.format(galaxy))
         if not os.path.isfile(singlefile) or clobber:
-            display_sersic(single, png=singlefile, verbose=verbose)
+            display_sersic(single, cosmo=cosmo, png=singlefile, verbose=verbose)
 
     # Single Sersic
     single = read_sersic(galaxy, galaxydir, modeltype='single')
     if bool(single):
         singlefile = os.path.join(htmlgalaxydir, '{}-sersic-single.png'.format(galaxy))
         if not os.path.isfile(singlefile) or clobber:
-            display_sersic(single, png=singlefile, verbose=verbose)
+            display_sersic(single, cosmo=cosmo, png=singlefile, verbose=verbose)
 
     # Sersic-exponential
     serexp = read_sersic(galaxy, galaxydir, modeltype='exponential')
     if bool(serexp):
         serexpfile = os.path.join(htmlgalaxydir, '{}-sersic-exponential.png'.format(galaxy))
         if not os.path.isfile(serexpfile) or clobber:
-            display_sersic(serexp, png=serexpfile, verbose=verbose)
+            display_sersic(serexp, cosmo=cosmo, png=serexpfile, verbose=verbose)
 
     # Sersic-exponential, no wavelength dependence
     serexp = read_sersic(galaxy, galaxydir, modeltype='exponential-nowavepower')
     if bool(serexp):
         serexpfile = os.path.join(htmlgalaxydir, '{}-sersic-exponential-nowavepower.png'.format(galaxy))
         if not os.path.isfile(serexpfile) or clobber:
-            display_sersic(serexp, png=serexpfile, verbose=verbose)
+            display_sersic(serexp, cosmo=cosmo, png=serexpfile, verbose=verbose)
 
 def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', 
                nproc=1, barlen=None, barlabel=None,
                radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
-               largegalaxy=False, galex=False, just_coadds=False, scaledfont=False):
+               read_multiband=None, cosmo=None, galex=False, just_coadds=False,
+               scaledfont=False):
     """Make QA plots.
 
     """
@@ -686,7 +644,8 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
             #shutil.chown(htmlgalaxydir, group='cosmo')
 
         if barlen is None and zcolumn in onegal.colnames:
-            barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int') # [kpc]
+            barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(
+                onegal[zcolumn], cosmo=cosmo) / pixscale).astype('int') # [kpc]
 
         #if radius_mosaic_arcsec is None:
         #    radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
@@ -697,8 +656,8 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
-                            verbose=verbose, largegalaxy=largegalaxy, galex=galex,
-                            scaledfont=scaledfont)
+                            verbose=verbose, galex=galex, cosmo=cosmo,
+                            scaledfont=scaledfont, read_multiband=read_multiband)
 
         # CCD positions
         make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
@@ -722,7 +681,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         # Sersic fiting results
         if False:
             make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands,
-                           clobber=clobber, verbose=verbose)
+                           clobber=clobber, cosmo=cosmo, verbose=verbose)
 
         # Build the CCD-level QA.  This QA script needs to be last, because we
         # check the completeness of the HTML portion of legacyhalos-mpi based on

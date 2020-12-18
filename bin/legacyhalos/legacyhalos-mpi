@@ -254,17 +254,12 @@ def main():
                          verbose=args.verbose, debug=args.debug,
                          sky_tests=args.sky_tests, unwise=False,
                          logfile=logfile)
-            pdb.set_trace()
-
-            
-            call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
-                         nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                         zcolumn=ZCOLUMN, sbthresh=SBTHRESH,
-                         unwise=False, 
-                         logfile=logfile, largegalaxy=False, pipeline=False)
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
+            from legacyhalos.legacyhalos import legacyhalos_cosmology
+
+            cosmo = legacyhalos_cosmology()
             barlabel = '30 arcsec'
             barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
             call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
@@ -273,8 +268,9 @@ def main():
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
-                           largegalaxy=False, just_coadds=args.just_coadds,
-                           get_galaxy_galaxydir=legacyhalos.legacyhalos.get_galaxy_galaxydir)
+                           cosmo=cosmo, just_coadds=args.just_coadds,
+                           get_galaxy_galaxydir=legacyhalos.legacyhalos.get_galaxy_galaxydir,
+                           read_multiband=legacyhalos.legacyhalos.read_multiband)
 
     # Wait for all ranks to finish.
     if comm is not None:
