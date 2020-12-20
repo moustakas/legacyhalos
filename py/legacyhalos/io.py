@@ -491,11 +491,11 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
 
         sz = image.shape
 
-        # optional additional (scalar) sky-subtraction
-        if 'sky' in filt2imfile[filt].keys():
-            #print('Subtracting!!! ', filt2imfile[filt]['sky'])
-            image += filt2imfile[filt]['sky']
-            model += filt2imfile[filt]['sky']
+        ## optional additional (scalar) sky-subtraction
+        #if 'sky' in filt2imfile[filt].keys():
+        #    #print('Subtracting!!! ', filt2imfile[filt]['sky'])
+        #    image += filt2imfile[filt]['sky']
+        #    model += filt2imfile[filt]['sky']
 
         # GALEX, unWISE need to be resized.
         if starmask.shape == sz:

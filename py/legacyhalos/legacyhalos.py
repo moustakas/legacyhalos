@@ -233,55 +233,6 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
 
     return suffix, todo_indices, done_indices, fail_indices
 
-def obsolete_missing_files(sample, filetype='coadds', size=1, htmldir=None,
-                  sdss=False, clobber=False):
-    """Find missing data of a given filetype."""    
-
-    if filetype == 'coadds':
-        filesuffix = '-pipeline-resid-grz.jpg'
-    elif filetype == 'custom-coadds':
-        filesuffix = '-custom-resid-grz.jpg'
-    elif filetype == 'ellipse':
-        filesuffix = '-ellipsefit.p'
-    elif filetype == 'sersic':
-        filesuffix = '-sersic-single.p'
-    elif filetype == 'html':
-        filesuffix = '-ccdpos.png'
-        #filesuffix = '-sersic-exponential-nowavepower.png'
-    elif filetype == 'sdss-coadds':
-        filesuffix = '-sdss-image-gri.jpg'
-    elif filetype == 'sdss-custom-coadds':
-        filesuffix = '-sdss-resid-gri.jpg'
-    elif filetype == 'sdss-ellipse':
-        filesuffix = '-sdss-ellipsefit.p'
-    else:
-        print('Unrecognized file type!')
-        raise ValueError
-
-    if type(sample) is astropy.table.row.Row:
-        ngal = 1
-    else:
-        ngal = len(sample)
-    indices = np.arange(ngal)
-    todo = np.ones(ngal, dtype=bool)
-
-    if filetype == 'html':
-        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir, html=True)
-    else:
-        galaxy, galaxydir = get_galaxy_galaxydir(sample, htmldir=htmldir)
-
-    for ii, (gal, gdir) in enumerate( zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)) ):
-        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
-        if os.path.exists(checkfile) and clobber is False:
-            todo[ii] = False
-
-    if np.sum(todo) == 0:
-        return list()
-    else:
-        indices = indices[todo]
-        
-    return np.array_split(indices, size)
-
 def mpi_args():
     import argparse
 
@@ -666,6 +617,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     else:
         galaxy_indx = np.array([np.argmin((tractor.bx - data['refband_height']/2)**2 +
                                           (tractor.by - data['refband_width']/2)**2)])
+        data['galaxy_indx'] = galaxy_indx
+        data['galaxy_id'] = ''
 
     #print('Import hack!')
     #norm = simple_norm(img, 'log', min_percent=0.05, clip=True)
@@ -817,9 +770,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             data[imagekey].append(img)
             data[varkey].append(var)
 
-        test = data['r_masked'][0]
-        plt.clf() ; plt.imshow(np.log(test.clip(test[mgegalaxy.xpeak, mgegalaxy.ypeak]/1e4)), origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
-        pdb.set_trace()
+        #test = data['r_masked'][0]
+        #plt.clf() ; plt.imshow(np.log(test.clip(test[mgegalaxy.xpeak, mgegalaxy.ypeak]/1e4)), origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+        #pdb.set_trace()
 
     # Cleanup?
     for filt in bands:
@@ -883,10 +836,6 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     data['refpixscale'] = np.float32(pixscale)
     data['failed'] = False # be optimistic!
 
-    # Add ellipse parameters like maxsma, delta_logsma, etc.?
-
-
-    
     # We ~have~ to read the tractor catalog using fits_table because we will
     # turn these catalog entries into Tractor sources later.
     tractorfile = os.path.join(galaxydir, '{}-{}.fits'.format(galaxy, filt2imfile['tractor']))
@@ -931,7 +880,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         nskyaps = hdr['NSKYANN'] # number of annuli
 
         # Add a list of dictionaries to iterate over different sky backgrounds.
-        filt2imfile.update({'sky': []})
+        data.update({'sky': []})
         
         for isky in np.arange(nskyaps):
             subsky = {}
@@ -939,20 +888,21 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
             for band in bands:
                 refskymed = hdr['{}SKYMD00'.format(band.upper())]
                 skymed = hdr['{}SKYMD{:02d}'.format(band.upper(), isky)]
-
                 subsky[band] = refskymed - skymed # *add* the new correction
-            
             print(subsky)
-            filt2imfile['sky'].append(subsky)
+            data['sky'].append(subsky)
 
     # Read the basic imaging data and masks.
     data = _read_image_data(data, filt2imfile, starmask=starmask,
                             fill_value=fill_value, verbose=verbose)
 
     print('ASSIGN A GALAXY_INDX USING REF_ID!')
+    #data['galaxy_indx'] = np.array([0])
+    #data['galaxy_id'] = np.array([''])
 
     # Now build the multiband mask.
-    data = _build_multiband_mask(data, tractor, filt2pixscale, fill_value=fill_value,
+    data = _build_multiband_mask(data, tractor, filt2pixscale,
+                                 fill_value=fill_value,
                                  verbose=verbose)
 
     #import matplotlib.pyplot as plt
@@ -980,83 +930,43 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     """
     from legacyhalos.mpi import call_ellipse as mpi_call_ellipse
 
-    ## Grab some info from the full-sample catalog.
-    #samplefile = os.path.join(galaxydir, '{}-{}.fits'.format(galaxy, filt2imfile['sample']))
-    #if os.path.isfile(samplefile):
-    #    sample = Table(fitsio.read(samplefile, upper=True))
-    #    if verbose:
-    #        print('Read {} galaxy(ies) from {}'.format(len(sample), samplefile))
-
-    ## Figure out which galaxies we are going to ellipse-fit by iterating on all
-    ## the SGA sources in the field and gather the data we need.
-    #tractorfile = os.path.join(galaxydir, '{}-{}.fits'.format(galaxy, filt2imfile['tractor']))
-    #tractor = fits_table(tractorfile)#, columns=cols)
-    #
-    #samplefile = os.path.join(galaxydir, '{}-redmapper-sample.fits'.format(galaxy))
-    #sample = Table(fitsio.read(samplefile, upper=True))    
-
-    ## tests of sky-subtraction for the cluster project
-    #if sky_tests:
-    #    import fitsio
-    #    
-    #    imfile = os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, refband))
-    #    hdr = fitsio.read_header(imfile, ext=1)
-    #    nskyaps = hdr['NSKYANN'] # number of annuli
-    #    for isky in np.arange(nskyaps):
-    #        subsky = {}
-    #        for band in bands:
-    #            refskymed = hdr['{}SKYMD00'.format(band.upper())]
-    #            skymed = hdr['{}SKYMD{:02d}'.format(band.upper(), isky)]
-    #
-    #            subsky[band] = refskymed - skymed # *add* the new correction
-    #        print(subsky)
-    #
-    #        _filesuffix = '{}-skytest{:02d}'.format(filesuffix, isky)
-    #        success = _call_ellipsefit_multiband(
-    #            galaxy, galaxydir, _filesuffix,
-    #            bands=bands, nproc=nproc, redshift=redshift,
-    #            refband=refband, pixscale=pixscale,
-    #            subsky=subsky,
-    #            delta_sma=10.0, # [pixels]
-    #            sbthresh=sbthresh,
-    #            galex_pixscale=galex_pixscale,
-    #            unwise_pixscale=unwise_pixscale,
-    #            galex=galex, unwise=unwise, sdss=sdss,
-    #            verbose=verbose, largegalaxy=largegalaxy,
-    #            input_ellipse=input_ellipse,
-    #            integrmode=integrmode, nclip=nclip, sclip=sclip)
-    #        # no need to redo the nominal ellipse-fitting
-    #        if isky == 0:
-    #            inellipsefile = os.path.join(galaxydir, '{}-custom-skytest00-ellipse.fits'.format(galaxy))
-    #            outellipsefile = os.path.join(galaxydir, '{}-custom-ellipse.fits'.format(galaxy))
-    #            shutil.copy2(inellipsefile, outellipsefile)
-    #
-    #else:
-    #    success = _call_ellipsefit_multiband(
-    #        galaxy, galaxydir, filesuffix,
-    #        bands=bands, nproc=nproc, redshift=redshift,
-    #        refband=refband, pixscale=pixscale,
-    #        sbthresh=sbthresh,
-    #        galex_pixscale=galex_pixscale,
-    #        unwise_pixscale=unwise_pixscale,
-    #        galex=galex, unwise=unwise, sdss=sdss,
-    #        verbose=verbose, largegalaxy=largegalaxy,
-    #        input_ellipse=input_ellipse,
-    #        integrmode=integrmode, nclip=nclip, sclip=sclip)
-    #
-    #return success, filesuffix
-
     data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
                                       filesuffix=filesuffix,
                                       refband=refband, pixscale=pixscale,
                                       redshift=onegal[ZCOLUMN],
                                       sky_tests=sky_tests, verbose=verbose)
 
-    mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
-                     pixscale=pixscale, nproc=nproc, 
-                     bands=bands, refband=refband, sbthresh=SBTHRESH,
-                     verbose=verbose, debug=debug, logfile=logfile)
+    maxsma, delta_logsma = 100, 10
 
+    if sky_tests:
+        skydata = data.copy()
+        for isky in np.arange(len(data['sky'])):
+            skydata['filesuffix'] = data['sky'][isky]['skysuffix']
+            for band in bands:
+                extrasky = data['sky'][isky][band]
+                print('  Subtracting {:4g} nanomaggies from {}'.format(extrasky, band))
+                for igal in np.arange(len(np.atleast_1d(data['galaxy_indx']))):
+                    skydata['{}_masked'.format(band)][igal] = data['{}_masked'.format(band)][igal] - extrasky # additional sky
+
+            mpi_call_ellipse(galaxy, galaxydir, skydata, galaxyinfo=galaxyinfo,
+                             pixscale=pixscale, nproc=nproc, 
+                             bands=bands, refband=refband, sbthresh=SBTHRESH,
+                             delta_logsma=delta_logsma, maxsma=maxsma,
+                             verbose=verbose, debug=debug, logfile=logfile)
+
+            # no need to redo the nominal ellipse-fitting
+            if isky == 0:
+                inellipsefile = os.path.join(galaxydir, '{}-{}-ellipse.fits'.format(galaxy, skydata['filesuffix']))
+                outellipsefile = os.path.join(galaxydir, '{}-{}-ellipse.fits'.format(galaxy, data['filesuffix']))
+                print('Copying {} --> {}'.format(inellipsefile, outellipsefile))
+                shutil.copy2(inellipsefile, outellipsefile)
+                
+    else:
+        mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
+                         pixscale=pixscale, nproc=nproc, 
+                         bands=bands, refband=refband, sbthresh=SBTHRESH,
+                         delta_logsma=delta_logsma, maxsma=maxsma,
+                         verbose=verbose, debug=debug, logfile=logfile)
 
 def get_integrated_filename():
     """Return the name of the file containing the integrated photometry."""
@@ -1174,65 +1084,6 @@ def read_jackknife(verbose=False, dr='dr6-dr7'):
         print('Read {} rows from {}'.format(len(jack), jackfile))
     return Table(jack), nside
 
-def obsolete_read_sample(first=None, last=None, dr='dr6-dr7', sfhgrid=1,
-                         isedfit_lsphot=False, isedfit_sdssphot=False,
-                         isedfit_lhphot=False, candidates=False,
-                         kcorr=False, verbose=False):
-    """Read the sample.
-
-    """
-    if candidates:
-        prefix = 'candidate-centrals'
-    else:
-        prefix = 'centrals'
-
-    if isedfit_lsphot:
-        samplefile = os.path.join(sample_dir(), '{}-sfhgrid{:02d}-lsphot-{}.fits'.format(prefix, sfhgrid, dr))
-    elif isedfit_sdssphot:
-        samplefile = os.path.join(sample_dir(), '{}-sfhgrid{:02d}-sdssphot-dr14.fits'.format(prefix, sfhgrid))
-    elif isedfit_lhphot:
-        samplefile = os.path.join(sample_dir(), '{}-sfhgrid{:02d}-lhphot.fits'.format(prefix, sfhgrid))
-    else:
-        samplefile = os.path.join(sample_dir(), 'legacyhalos-{}-{}.fits'.format(prefix, dr))
-        
-    if not os.path.isfile(samplefile):
-        print('File {} not found.'.format(samplefile))
-        return None
-
-    if first and last:
-        if first > last:
-            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
-            raise ValueError()
-
-    if kcorr:
-        ext = 2
-    else:
-        ext = 1
-
-    info = fitsio.FITS(samplefile)
-    nrows = info[ext].get_nrows()
-
-    if first is None:
-        first = 0
-    if last is None:
-        last = nrows
-        rows = np.arange(first, last)
-    else:
-        if last >= nrows:
-            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
-            raise ValueError()
-        rows = np.arange(first, last + 1)
-    
-    sample = Table(info[ext].read(rows=rows))
-    if verbose:
-        if len(rows) == 1:
-            print('Read galaxy index {} from {}'.format(first, samplefile))
-        else:
-            print('Read galaxy indices {} through {} (N={}) from {}'.format(
-                first, last, len(sample), samplefile))
-            
-    return sample
-
 def _read_paper_sample(paper='profiles', first=None, last=None, dr='dr8',
                        sfhgrid=1, isedfit_lsphot=False, isedfit_sdssphot=False,
                        isedfit_lhphot=False, candidates=False, kcorr=False,
@@ -1317,19 +1168,6 @@ def read_smf_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=F
                                 candidates=candidates, verbose=verbose)
     return sample
     
-def obsolete_read_profiles_sample(first=None, last=None, dr='dr8', sfhgrid=1, isedfit_lsphot=False,
-                                  isedfit_sdssphot=False, isedfit_lhphot=False, candidates=False,
-                                  kcorr=False, verbose=False):
-    """Read the profiles paper sample.
-
-    """
-    sample = _read_paper_sample(paper='profiles', first=first, last=last, dr=dr,
-                                sfhgrid=1, isedfit_lsphot=isedfit_lsphot,
-                                isedfit_sdssphot=isedfit_sdssphot,
-                                isedfit_lhphot=isedfit_lhphot, kcorr=kcorr,
-                                candidates=candidates, verbose=verbose)
-    return sample
-
 def literature(kravtsov=True, gonzalez=False):
     """Assemble some data from the literature here.
 

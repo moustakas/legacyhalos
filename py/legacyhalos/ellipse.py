@@ -70,7 +70,7 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False, iscir
     return apphot
 
 def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
-                pixscale, galaxy_indx=0, pool=None, seed=1,
+                pixscale, igal=0, pool=None, seed=1,
                 sbthresh=REF_SBTHRESH):
     """Measure the curve of growth (CoG) by performing elliptical aperture
     photometry.
@@ -142,8 +142,8 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(sigrcut)
 
     for filt in bands:
-        img = ma.getdata(data['{}_masked'.format(filt)][galaxy_indx]) # [nanomaggies/arcsec2]
-        mask = ma.getmask(data['{}_masked'.format(filt)][galaxy_indx])
+        img = ma.getdata(data['{}_masked'.format(filt)][igal]) # [nanomaggies/arcsec2]
+        mask = ma.getmask(data['{}_masked'.format(filt)][igal])
 
         deltaa_filt = deltaa * pixscalefactor
 
@@ -181,7 +181,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                     cogflux = np.array([0.0])
 
                 if '{}_var'.format(filt) in data.keys():
-                    var = data['{}_var'.format(filt)][galaxy_indx] # [nanomaggies**2/arcsec**4]
+                    var = data['{}_var'.format(filt)][igal] # [nanomaggies**2/arcsec**4]
                     cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True, iscircle)
                                                     for aa, bb in zip(sma, smb)])
                     if len(cogferr) > 0:
@@ -665,10 +665,10 @@ def _fitgeometry_refband(ellipsefit, geometry0, majoraxis, refband='r', verbose=
 
     return ellipsefit
 
-def ellipsefit_multiband(galaxy, galaxydir, data, galaxy_indx=0, galaxy_id='',
+def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                          refband='r', nproc=1, 
                          integrmode='median', nclip=2, sclip=3,
-                         maxsma=None, logsma=True, delta_logsma=6.0, delta_sma=1.0,
+                         maxsma=None, logsma=True, delta_logsma=5.0, delta_sma=1.0,
                          sbthresh=REF_SBTHRESH,
                          galaxyinfo=None, input_ellipse=None, fitgeometry=False,
                          nowrite=False, verbose=False):
@@ -723,8 +723,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, galaxy_indx=0, galaxy_id='',
         if key in data.keys():
             ellipsefit[key] = data[key]
 
-    img = data['{}_masked'.format(refband)][galaxy_indx]
-    mge = data['mge'][galaxy_indx]
+    img = data['{}_masked'.format(refband)][igal]
+    mge = data['mge'][igal]
 
     # Fix the center to be the peak (pixel) values. Could also use bx,by here
     # from Tractor.  Also initialize the geometry with the moment-derived
@@ -825,7 +825,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, galaxy_indx=0, galaxy_id='',
     tall = time.time()
     for filt in bands:
         print('Fitting {}-band took...'.format(filt), end='')
-        img = data['{}_masked'.format(filt)][galaxy_indx]
+        img = data['{}_masked'.format(filt)][igal]
 
         # Loop on the reference band isophotes.
         t0 = time.time()
@@ -861,7 +861,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, galaxy_indx=0, galaxy_id='',
     print('Performing elliptical aperture photometry.')
     t0 = time.time()
     cog = ellipse_cog(bands, data, ellipsefit, 1.0, refpixscale,
-                      galaxy_indx=galaxy_indx, pool=pool,
+                      igal=igal, pool=pool,
                       sbthresh=sbthresh)
     ellipsefit.update(cog)
     del cog
@@ -874,8 +874,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, galaxy_indx=0, galaxy_id='',
         if galaxyinfo is None:
             outgalaxyinfo = None
         else:
-            outgalaxyinfo = galaxyinfo[galaxy_indx]
-            ellipsefit.update(galaxyinfo[galaxy_indx])
+            outgalaxyinfo = galaxyinfo[igal]
+            ellipsefit.update(galaxyinfo[igal])
 
         legacyhalos.io.write_ellipsefit(galaxy, galaxydir, ellipsefit,
                                         galaxy_id=galaxy_id,
@@ -955,7 +955,7 @@ def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
                 maxsma, galaxy_id = None, ''
                 galaxyinfo = {'redshift': (redshift, '')}
 
-            ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, galaxy_indx=igal,
+            ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, igal=igal,
                                               galaxy_id=galaxy_id, filesuffix=filesuffix,
                                               refband=refband, nproc=nproc, integrmode=integrmode,
                                               nclip=nclip, sclip=sclip, verbose=verbose,
@@ -977,6 +977,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                         pixscale=0.262, nproc=1, refband='r',
                         bands=['g', 'r', 'z'], integrmode='median',
                         nclip=3, sclip=3, sbthresh=REF_SBTHRESH,
+                        delta_logsma=5, maxsma=None,
                         input_ellipse=None, fitgeometry=False,
                         verbose=False, debug=False):
                         
@@ -990,16 +991,16 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
         if data['failed']: # all galaxies dropped
             return 1
 
-        if 'galaxy_indx' in data.keys() and 'galaxy_id' in data.keys():
-            galaxy_indx, galaxy_id = data['galaxy_indx'], data['galaxy_id']
+        if 'galaxy_id' in data.keys():
+            galaxy_id = data['galaxy_id']
         else:
-            galaxy_indx, galaxy_id = 0, ''
+            galaxy_id = ''
             
-        for galindx, galid in zip(np.atleast_1d(galaxy_indx), np.atleast_1d(galaxy_id)):
+        for igal, galid in enumerate(np.atleast_1d(galaxy_id)):
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
                                               galaxyinfo=galaxyinfo,
-                                              galaxy_indx=galindx, galaxy_id=galid,
-                                              delta_logsma=10, #maxsma=100,
+                                              igal=igal, galaxy_id=galid,
+                                              delta_logsma=delta_logsma, maxsma=maxsma,
                                               refband=refband, nproc=nproc, sbthresh=sbthresh,
                                               integrmode=integrmode, nclip=nclip, sclip=sclip,                                           
                                               input_ellipse=input_ellipse, 
