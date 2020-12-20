@@ -486,7 +486,9 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             print('Reading {}'.format(filt2imfile[filt]['image']))
             print('Reading {}'.format(filt2imfile[filt]['model']))
         image = fitsio.read(filt2imfile[filt]['image'])
+        hdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
         model = fitsio.read(filt2imfile[filt]['model'])
+
         sz = image.shape
 
         # optional additional (scalar) sky-subtraction
@@ -511,22 +513,21 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             invvar = None
             mask = np.zeros_like(image).astype(bool)
 
-        # Build the PSF and WCS in the reference band.
+        # Retrieve the PSF and WCS.
         if filt == refband:
             HH, WW = sz
             data['refband_width'] = WW
             data['refband_height'] = HH
-            refhdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
+            
+        if verbose:
+            print('Reading {}'.format(filt2imfile[filt]['psf']))
+        psfimg = fitsio.read(filt2imfile[filt]['psf'])
+        data['{}_psf'.format(filt)] = PixelizedPSF(psfimg)
 
-            if verbose:
-                print('Reading {}'.format(filt2imfile[refband]['psf']))
-            psfimg = fitsio.read(filt2imfile[refband]['psf'])
-            data['refband_psf'] = PixelizedPSF(psfimg)
+        mjd_tai = hdr['MJD_MEAN'] # [TAI]
+        wcs = Tan(filt2imfile[filt]['image'], 1)
 
-            wcs = Tan(filt2imfile[refband]['image'], 1)
-            mjd_tai = refhdr['MJD_MEAN'] # [TAI]
-
-            data['wcs'] = LegacySurveyWcs(wcs, TAITime(None, mjd=mjd_tai))
+        data['{}_wcs'.format(filt)] = LegacySurveyWcs(wcs, TAITime(None, mjd=mjd_tai))
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
         if doresize:
@@ -539,6 +540,7 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
         # (we will restore the pixels of the galaxies of interest below).
         resid = gaussian_filter(image - model, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
+        data['{}_sigma'.format(filt)] = sig
         if residual_mask is None:
             residual_mask = np.abs(resid) > 5*sig
         else:
