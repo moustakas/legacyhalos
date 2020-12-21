@@ -527,7 +527,7 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
             cut19 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
             cut20 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
 
-            samplecut = cut01
+            samplecut = cut20
             #samplecut = np.hstack((
             #    cut01, cut02, cut03, cut04, cut05,
             #    cut06, cut07, cut08, cut09, cut10,
@@ -931,6 +931,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     and hooks for the legacyhalos project.
 
     """
+    from copy import deepcopy
     from legacyhalos.mpi import call_ellipse as mpi_call_ellipse
 
     data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
@@ -939,11 +940,11 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                       redshift=onegal[ZCOLUMN],
                                       sky_tests=sky_tests, verbose=verbose)
 
-    maxsma, delta_logsma = None, 5
-    #maxsma, delta_logsma = 100, 10
+    #maxsma, delta_logsma = None, 5
+    maxsma, delta_logsma = 200, 10
 
     if sky_tests:
-        skydata = data.copy()
+        skydata = deepcopy(data) # necessary?
         for isky in np.arange(len(data['sky'])):
             skydata['filesuffix'] = data['sky'][isky]['skysuffix']
             for band in bands:
@@ -967,6 +968,8 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                 print('Copying {} --> {}'.format(inellipsefile, outellipsefile))
                 shutil.copy2(inellipsefile, outellipsefile)
                 
+            pdb.set_trace()
+
     else:
         mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                          pixscale=pixscale, nproc=nproc, 
