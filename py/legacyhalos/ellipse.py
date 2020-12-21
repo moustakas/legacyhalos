@@ -87,7 +87,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
     rand = np.random.RandomState(seed)
     
-    deltaa = 0.5 # pixel spacing
+    deltaa = 1.0 # pixel spacing
 
     #theta, eps = refellipsefit['geometry'].pa, refellipsefit['geometry'].eps
     theta, eps = np.radians(refellipsefit['pa']-90), refellipsefit['eps']
@@ -483,7 +483,7 @@ def integrate_isophot_one(img, sma, theta, eps, x0, y0, pixscalefactor,
     return out
 
 def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
-                      sdss=False, linear=False):
+                      cut_on_cog=False, sdss=False, linear=False):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
 
@@ -492,6 +492,9 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
 
     sma_not_radius - if True, then store the semi-major axis in the 'radius' key
       (converted to arcsec) rather than the circularized radius
+
+    cut_on_cog - if True, limit the sma to where we have successfully measured
+      the curve of growth
 
     """
     sbprofile = dict()
@@ -530,9 +533,14 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             if linear:
-                keep = np.where(np.isfinite(sb))[0]
+                keep = np.isfinite(sb)
             else:
-                keep = np.where(np.isfinite(sb) * ((sb / sberr) > snrmin))[0]
+                keep = np.isfinite(sb) * ((sb / sberr) > snrmin)
+            if cut_on_cog:
+                keep *= ellipsefit['{}_sma'.format(filt)] <= np.max(ellipsefit['{}_cog_sma'.format(filt)])
+            keep = np.where(keep)[0]
+                
+            sbprofile['{}_keep'.format(filt)] = keep
 
         if len(keep) == 0:
             sbprofile['sma_{}'.format(filt)] = np.array([-1.0]).astype('f4')    # [pixels]

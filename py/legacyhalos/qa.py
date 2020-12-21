@@ -784,7 +784,7 @@ def display_sersic(sersic, png=None, cosmo=None, verbose=False):
         plt.show()
 
 def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
-                      galaxy_indx=0, inchperband=8, contours=False, barlen=None,
+                      igal=0, inchperband=8, contours=False, barlen=None,
                       barlabel=None, png=None, verbose=True, vertical=False,
                       scaledfont=False):
     """Display the multi-band images and, optionally, the isophotal fits based on
@@ -876,8 +876,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
 
     # ...now the individual bandpasses.        
     for ii, (filt, ax1) in enumerate(zip(band, ax[1:])):
-        #mge = data['mge'][galaxy_indx]
-        dat = data['{}_masked'.format(filt)][galaxy_indx]
+        #mge = data['mge'][igal]
+        dat = data['{}_masked'.format(filt)][igal]
         img = ma.masked_array(dat.data, dat.mask)
         mask = ma.masked_array(dat.data, ~dat.mask)
 

@@ -502,7 +502,7 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
         cen = fitsio.read(cenfile, columns=[ZCOLUMN, RICHCOLUMN, 'DEC'])#, 'RA'])
         #isouth = np.logical_or((cen['DEC'] < 32.275), (cen['RA'] > 45) * (cen['RA'] < 315))
 
-        if False:
+        if True:
             cut01 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
             cut02 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
             cut03 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
@@ -527,11 +527,12 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
             cut19 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
             cut20 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
 
-            samplecut = np.hstack((
-                cut01, cut02, cut03, cut04, cut05,
-                cut06, cut07, cut08, cut09, cut10,
-                cut11, cut12, cut13, cut14, cut15,
-                cut16, cut17, cut18, cut19, cut20))
+            samplecut = cut01
+            #samplecut = np.hstack((
+            #    cut01, cut02, cut03, cut04, cut05,
+            #    cut06, cut07, cut08, cut09, cut10,
+            #    cut11, cut12, cut13, cut14, cut15,
+            #    cut16, cut17, cut18, cut19, cut20))
         else:
             samplecut = np.where(
                 (cen[ZCOLUMN] >= 0.1) *
@@ -659,7 +660,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     # Now, loop through each 'galaxy_indx' from bright to faint.
     data['mge'] = []
     for ii, central in enumerate(galaxy_indx):
-        print('Determing galaxy geometry for galaxy {}/{}.'.format(
+        print('Determing the geometry for galaxy {}/{}.'.format(
                 ii+1, len(galaxy_indx)))
 
         # [1] Determine the non-parametricc geometry of the galaxy of interest
@@ -715,7 +716,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             plt.savefig('/mnt/legacyhalos-data/debug.png')
 
         # [2] Create the satellite mask in all the bandpasses.
-        print('Building satellite mask.')
+        print('Building the satellite mask.')
         satmask = np.zeros(data[refband].shape, bool)
         for filt in bands:
             satflux = getattr(tractor, 'flux_{}'.format(filt))
@@ -750,15 +751,17 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
             varkey = '{}_var'.format(filt)
             imagekey = '{}_masked'.format(filt)
+            psfimgkey = '{}_psfimg'.format(filt)
             thispixscale = filt2pixscale[filt]
             if imagekey not in data.keys():
-                data[imagekey], data[varkey] = [], []
+                data[imagekey], data[varkey], data[psfimgkey] = [], [], []
 
             img = ma.getdata(data[filt]).copy()
             if psfsrcs:
                 psfimg = srcs2image(psfsrcs, data['{}_wcs'.format(filt)],
                                     band=filt.lower(),
                                     pixelized_psf=data['{}_psf'.format(filt)])
+                #data[psfimgkey].append(psfimg)
                 img -= psfimg
 
             img = ma.masked_array((img / thispixscale**2).astype('f4'), mask) # [nanomaggies/arcsec**2]
@@ -936,17 +939,20 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                       redshift=onegal[ZCOLUMN],
                                       sky_tests=sky_tests, verbose=verbose)
 
-    maxsma, delta_logsma = 100, 10
+    maxsma, delta_logsma = None, 5
+    #maxsma, delta_logsma = 100, 10
 
     if sky_tests:
         skydata = data.copy()
         for isky in np.arange(len(data['sky'])):
             skydata['filesuffix'] = data['sky'][isky]['skysuffix']
             for band in bands:
-                extrasky = data['sky'][isky][band]
-                print('  Subtracting {:4g} nanomaggies from {}'.format(extrasky, band))
+                # We want to *add* this delta-sky because it is defined as
+                #   sky_annulus_0 - sky_annulus_isky
+                delta_sky = data['sky'][isky][band] 
+                print('  Adjusting {}-band sky backgroud by {:4g} nanomaggies.'.format(band, delta_sky))
                 for igal in np.arange(len(np.atleast_1d(data['galaxy_indx']))):
-                    skydata['{}_masked'.format(band)][igal] = data['{}_masked'.format(band)][igal] - extrasky # additional sky
+                    skydata['{}_masked'.format(band)][igal] = data['{}_masked'.format(band)][igal] + delta_sky
 
             mpi_call_ellipse(galaxy, galaxydir, skydata, galaxyinfo=galaxyinfo,
                              pixscale=pixscale, nproc=nproc, 

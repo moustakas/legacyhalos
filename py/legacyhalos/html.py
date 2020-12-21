@@ -484,16 +484,13 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     if data['failed']: # all galaxies dropped
         return
 
-    if 'galaxy_indx' in data.keys() and 'galaxy_id' in data.keys():
-        galaxy_indx, galaxy_id = data['galaxy_indx'], data['galaxy_id']
+    if 'galaxy_id' in data.keys():
+        galaxy_id = data['galaxy_id']
     else:
-        galaxy_indx, galaxy_id = 0, ''
+        galaxy_id = ''
 
     ellipsefitall = []
-    for galindx, galid in zip(np.atleast_1d(galaxy_indx), np.atleast_1d(galaxy_id)):
-
-        if galid != '':
-            galid = '{}-'.format(galid)
+    for igal, galid in enumerate(np.atleast_1d(galaxy_id)):
 
         ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=data['filesuffix'],
                                      galaxy_id=galid, verbose=verbose)
@@ -516,7 +513,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             if not os.path.isfile(multibandfile) or clobber:
                 with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
                     display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
-                                      galaxy_indx=galindx, barlen=barlen, barlabel=barlabel,
+                                      igal=igal, barlen=barlen, barlabel=barlabel,
                                       png=multibandfile, verbose=verbose, scaledfont=scaledfont)
 
                 # Create a thumbnail.
