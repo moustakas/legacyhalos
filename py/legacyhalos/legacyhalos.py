@@ -940,8 +940,8 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                       redshift=onegal[ZCOLUMN],
                                       sky_tests=sky_tests, verbose=verbose)
 
-    #maxsma, delta_logsma = None, 5
-    maxsma, delta_logsma = 200, 10
+    maxsma, delta_logsma = None, 6
+    #maxsma, delta_logsma = 200, 10
 
     if sky_tests:
         skydata = deepcopy(data) # necessary?
@@ -967,9 +967,6 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                 outellipsefile = os.path.join(galaxydir, '{}-{}-ellipse.fits'.format(galaxy, data['filesuffix']))
                 print('Copying {} --> {}'.format(inellipsefile, outellipsefile))
                 shutil.copy2(inellipsefile, outellipsefile)
-                
-            pdb.set_trace()
-
     else:
         mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                          pixscale=pixscale, nproc=nproc, 

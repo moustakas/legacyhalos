@@ -985,7 +985,7 @@ def fig_surface_brightness(sample, thisgalaxy, png):
     minerr, use_ylim, plot_radius = 0.0, None, True
     
     sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr, sma_not_radius=~plot_radius,
-                                  cut_on_cog=True)
+                                  cut_on_cog=False)
     colors = _sbprofile_colors(makeiter=True)
 
     bands = ellipsefit['bands']
@@ -1020,38 +1020,38 @@ def fig_surface_brightness(sample, thisgalaxy, png):
         if np.nanmax(radius) > xminmax[1]:
             xminmax[1] = np.nanmax(radius)
 
-        ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
-        #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
+    ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
+    #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
 
-        ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
-        if ylim[0] < 17:
-            ylim[0] = 17
-        if ylim[1] > 33:
-            ylim[1] = 33
+    ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
+    if ylim[0] < 17:
+        ylim[0] = 17
+    if ylim[1] > 33:
+        ylim[1] = 33
 
-        if use_ylim is not None:
-            ax1.set_ylim(use_ylim)
-        else:
-            ax1.set_ylim(ylim)
-        ax1.invert_yaxis()
+    if use_ylim is not None:
+        ax1.set_ylim(use_ylim)
+    else:
+        ax1.set_ylim(ylim)
+    ax1.invert_yaxis()
 
-        xlim = [xminmax[0], xminmax[1]*1.01]
-        ax1.set_xlim(xlim)
+    xlim = [xminmax[0], xminmax[1]*1.01]
+    ax1.set_xlim(xlim)
 
-        ax1_twin = ax1.twiny()
-        ax1_twin.set_xlim(xlim)
-        kpc = np.array([1, 3, 5, 10, 20, 30, 50, 75, 100, 150, 200])
-        kpc = kpc[(kpc >= radscale*xlim[0]**4) * (kpc <= radscale*xlim[1]**4)]
-        ax1_twin.set_xticks((kpc / radscale)**0.25)
-        ax1_twin.set_xticklabels(['{:g}'.format(kk) for kk in kpc])
-        if plot_radius:
-            ax1_twin.set_xlabel(r'Galactocentric radius (kpc)')
-        else:
-            ax1_twin.set_xlabel(r'Semi-major axis (kpc)')
+    ax1_twin = ax1.twiny()
+    ax1_twin.set_xlim(xlim)
+    kpc = np.array([1, 3, 5, 10, 20, 30, 50, 75, 100, 150, 200])
+    kpc = kpc[(kpc >= radscale*xlim[0]**4) * (kpc <= radscale*xlim[1]**4)]
+    ax1_twin.set_xticks((kpc / radscale)**0.25)
+    ax1_twin.set_xticklabels(['{:g}'.format(kk) for kk in kpc])
+    if plot_radius:
+        ax1_twin.set_xlabel(r'Galactocentric radius (kpc)')
+    else:
+        ax1_twin.set_xlabel(r'Semi-major axis (kpc)')
 
-        hh, ll = ax1.get_legend_handles_labels()
-        if len(hh) > 0:
-            leg1 = ax1.legend(loc='upper right', fontsize=18, frameon=True)
+    hh, ll = ax1.get_legend_handles_labels()
+    if len(hh) > 0:
+        leg1 = ax1.legend(loc='upper right', fontsize=18, frameon=True)
 
     # Now the color-radius plot
     if sbprofile['radius_gr'][0] != -1:
@@ -1197,7 +1197,12 @@ def fig_choose_skyannulus(sample, png):
     nskyaps = 4 # get this from the header
 
     bands = ['g', 'r', 'z']
+
     galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    thisgalaxy = '0000195-052316929'
+    this = np.where(galaxy == thisgalaxy)[0]
+
+    sample, galaxy, galaxydir = sample[this], galaxy[this], galaxydir[this]
 
     # gather up the data into a dictionary so we can plot the individual profiles
     data = []
@@ -1278,6 +1283,10 @@ def main():
     args = parser.parse_args()
 
     sample = legacyhalos.legacyhalos.read_redmapper()
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    for onegal in sample:
+        _galaxy, _ = get_galaxy_galaxydir(onegal)
+        print(_galaxy, onegal[ZCOLUMN], onegal[RICHCOLUMN])
     
     # Fig - spatial distribution on the sky
     if args.radec:
@@ -1313,7 +1322,11 @@ def main():
 
     # Fig - surface brightness
     if args.surface_brightness:
-        fig_surface_brightness(sample, thisgalaxy='0001129-034040952', png='surface_brightness.png')
+        #fig_surface_brightness(sample, thisgalaxy='0000195-052316929', png='test-surface_brightness.png')
+        for gal in galaxy:
+            fig_surface_brightness(sample, thisgalaxy=gal, png='surface_brightness_{}.png'.format(gal))
+        #fig_surface_brightness(sample, thisgalaxy='0000195-052316929', png='surface_brightness.png')
+        #fig_surface_brightness(sample, thisgalaxy='0001129-034040952', png='surface_brightness.png')
 
 if __name__ == '__main__':
     main()
