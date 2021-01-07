@@ -38,6 +38,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             return 1
         else:
             if missing_ok:
+                print('Warning: missing file {} but missing_ok=True'.format(infile))
                 return 1
             else:
                 print('Missing file {}; please check the logfile.'.format(infile))
@@ -375,10 +376,13 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             galaxydir=survey.output_dir, galaxy=galaxy, stagesuffix=stagesuffix)
         if os.path.isfile(checkpointfile):
             os.remove(checkpointfile)
-    if subsky_radii: # implies --no-subsky
-        if len(subsky_radii) != 3:
-            raise ValueError('subsky_radii must be a 3-element vector')
-        cmd += '--no-subsky --ubercal-sky --subsky-radii {} {} {} '.format(subsky_radii[0], subsky_radii[1], subsky_radii[2]) # [arcsec]
+    if subsky_radii is not None: # implies --no-subsky
+        #if len(subsky_radii) != 3:
+        #    raise ValueError('subsky_radii must be a 3-element vector')
+        #cmd += '--no-subsky --ubercal-sky --subsky-radii {} {} {} '.format(subsky_radii[0], subsky_radii[1], subsky_radii[2]) # [arcsec]
+        cmd += '--no-subsky --ubercal-sky --subsky-radii'
+        for rad in subsky_radii:
+            cmd += ' {} '.format(rad)
     #if ubercal_sky: # implies --no-subsky
     #    cmd += '--no-subsky --ubercal-sky '
 

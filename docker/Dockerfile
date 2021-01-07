@@ -3,6 +3,9 @@ FROM legacysurvey/legacypipe:DR9.6.7b
 RUN for x in \
     ipython \
     pydl \
+    pyyaml \
+    h5py \
+    colossus \
     scikit-image \
     ; do pip --no-cache-dir install $x; done
 
@@ -10,15 +13,17 @@ RUN for x in \
 # error when we build mosaics for very large systems.
 RUN echo '<policymap></policymap>' > /etc/ImageMagick-6/policy.xml
 
+ENV IPYTHONDIR /tmp/ipython-config
+
 # legacyhalos
 WORKDIR /src
 RUN git clone https://github.com/moustakas/legacyhalos.git legacyhalos \
     && cd legacyhalos && git describe
 
-RUN echo 'PYTHONPATH=/src/legacyhalos/py:$PYTHONPATH'
-RUN echo 'PATH=/src/legacyhalos/bin:$PATH'
+ENV PYTHONPATH=/src/legacyhalos/py:$PYTHONPATH
+ENV PATH=/src/legacyhalos/bin:$PATH
 
 # update legacyhalos
-RUN cd /src/legacyhalos && git pull && git describe && echo 1
+RUN cd /src/legacyhalos && git pull && git describe && echo 2
 
 LABEL Maintainer="John Moustakas jmoustakas@siena.edu"

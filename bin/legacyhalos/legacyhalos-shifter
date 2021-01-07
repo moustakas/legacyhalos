@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Load the legacyhalos Docker container using shifter.
+#-c 'PATH=/mnt/code/legacyhalos/bin/legacyhalos:$PATH' 
+
+if [[ -z "$NERSC_HOST" ]]; then
+    DOCKER=legacysurvey/legacyhalos:v0.0.5
+    echo 'Updating and loading the Docker container '$DOCKER
+    echo 'Load the environment with: '
+    echo '  source /mnt/code/legacyhalos/bin/legacyhalos/legacyhalos-env'
+    docker pull $DOCKER
+    docker run -it -v $HOME/repos/legacyhalos:/mnt/code/legacyhalos \
+           -v $HOME/repos/legacysurvey/legacypipe:/mnt/code/legacypipe \
+           -v $HOME/research/projects/legacyhalos-data:/mnt/legacyhalos-data \
+           -v $HOME/research/projects/legacyhalos-html:/mnt/legacyhalos-html \
+           -v $HOME/research/projects/legacyhalos:/mnt/legacyhalos \
+           -v $HOME/research/data/redmapper:/mnt/redmapper \
+           -e LEGACYHALOS_DIR=/mnt/legacyhalos \
+           -e LEGACYHALOS_DATA_DIR=/mnt/legacyhalos-data \
+           -e LEGACYHALOS_HTML_DIR=/mnt/legacyhalos-html \
+           -e LEGACYHALOS_CODE_DIR=/mnt/code/legacyhalos \
+           -e LEGACYPIPE_CODE_DIR=/mnt/code/legacypipe \
+           -e REDMAPPER_DIR=/mnt/redmapper \
+           $DOCKER
+else
+    SHIFTER=docker:legacysurvey/legacyhalos:v0.0.5
+    echo 'Updating and loading the shifter image '$SHIFTER
+    echo 'Load the environment with: '
+    echo '  source '$LEGACYHALOS_CODE_DIR'/bin/'legacyhalos'/'legacyhalos'-env'
+    shifterimg pull $SHIFTER
+    shifter --image $SHIFTER bash
+fi

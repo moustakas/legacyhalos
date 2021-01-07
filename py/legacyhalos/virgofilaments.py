@@ -439,6 +439,51 @@ def build_catalog_one(onegal, fullsample, verbose=False):
 
     return tractor, fullsample
 
+def call_ellipse_virgofilaments(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
+                                debug=False, logfile=None, input_ellipse=None, zcolumn=None,
+                                sdss=False, sdss_pixscale=0.396, unwise=False, unwise_pixscale=2.75,
+                                galex=False, galex_pixscale=1.5, largegalaxy=False, pipeline=True,
+                                sky_tests=False, sbthresh=None):
+    """Wrapper on legacyhalos.mpi.call_ellipse but with specific preparatory work
+    and hooks for the virgofilaments project.
+
+    """
+    from legacyhalos.mpi import call_ellipse
+
+    filesuffix = 'largegalaxy'
+
+    #galex_pixscale=1.5, unwise_pixscale=2.75, sdss_pixscale=0.396, 
+
+    if sdss:
+        masksuffix = 'sdss-mask-gri'
+        bands = ('g', 'r', 'i')
+        tractorprefix = None
+        maskbitsprefix = None
+        [filt2imfile.update({band: {'image': 'sdss-image',
+                                    'model': 'sdss-model',
+                                    'model-nocentral': 'sdss-model-nocentral'}}) for band in bands]
+        [filt2pixscale.update({band: sdss_pixscale}) for band in bands]
+    else:
+
+    # Add GALEX and unWISE--
+    if galex:
+        for band in ['FUV', 'NUV']:
+            #bands = bands + tuple([band])
+            filt2pixscale.update({band: galex_pixscale})
+            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(prefix), 'invvar': 'invvar'}})
+    if unwise:
+        for band in ['W1', 'W2', 'W3', 'W4']:
+            #bands = bands + tuple([band])
+            filt2pixscale.update({band: unwise_pixscale})
+            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(prefix), 'invvar': 'invvar'}})
+
+    if 'NUV' in bands:
+        data['galex_pixscale'] = galex_pixscale
+    if 'W1' in bands:
+        data['unwise_pixscale'] = unwise_pixscale
+
+
+
 def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
     res = []
     for band in ('g', 'r', 'z'):

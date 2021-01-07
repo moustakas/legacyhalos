@@ -132,12 +132,17 @@ def make_ccd_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262, ccds=N
                    for iccd, _ccd in enumerate(ccds)]
         mp.map(_display_ccdmask_and_sky, ccdargs)
 
-    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
-    if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
-
+    grzfile = glob(os.path.join(galaxydir, '{}-*-image-grz.jpg'.format(galaxy)))[0]
+    if os.path.isfile(grzfile):
+        ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+        if not os.path.isfile(ccdposfile) or clobber:
+            display_ccdpos(onegal, ccds, png=ccdposfile, zcolumn=zcolumn)
+    else:
+        print('Unable to make ccdpos QA; montage file {} not found.'.format(grzfile))
+        
 def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
-                   radius=None, survey=None, clobber=False, verbose=False):
+                   zcolumn='Z', radius=None, survey=None, clobber=False,
+                   verbose=False):
     """Build CCD positions QA.
 
     radius in pixels
@@ -175,9 +180,13 @@ def make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=0.262,
     #if verbose:
     print('Read {} CCDs from {}'.format(len(ccds), ccdsfile))
 
-    ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
-    if not os.path.isfile(ccdposfile) or clobber:
-        display_ccdpos(onegal, ccds, radius=radius, png=ccdposfile, verbose=verbose)
+    grzfile = glob(os.path.join(galaxydir, '{}-*-image-grz.jpg'.format(galaxy)))[0]
+    if os.path.isfile(grzfile):
+        ccdposfile = os.path.join(htmlgalaxydir, '{}-ccdpos.png'.format(galaxy))
+        if not os.path.isfile(ccdposfile) or clobber:
+            display_ccdpos(onegal, ccds, radius, grzfile, png=ccdposfile)
+    else:
+        print('Unable to make ccdpos QA; montage file {} not found.'.format(grzfile))
 
 def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, 
                         barlabel=None, just_coadds=False, clobber=False,
@@ -445,76 +454,81 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
         qa_maskbits(mask, tractor, png=maskbitsfile)
 
 def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                    refband='r', pixscale=0.262, barlen=None, barlabel=None,
-                    clobber=False, verbose=False, largegalaxy=False, galex=False,
-                    scaledfont=False):
+                    refband='r', pixscale=0.262, read_multiband=None,
+                    barlen=None, barlabel=None, clobber=False, verbose=False,
+                    cosmo=None, galex=False, scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
 
     """
     import fitsio
     from PIL import Image
     from astropy.table import Table
-    from legacyhalos.io import read_multiband, read_ellipsefit
+    from legacyhalos.io import read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth,
                                 qa_maskbits)
 
     Image.MAX_IMAGE_PIXELS = None
     
-    # Read the data--
-    data = read_multiband(galaxy, galaxydir, bands=bands,
-                          refband=refband, pixscale=pixscale,
-                          verbose=verbose,
-                          largegalaxy=largegalaxy)
+    # Read the data.
+    if read_multiband is None:
+        print('Unable to build ellipse QA without specifying read_multiband method.')
+        return
+    
+    data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
+                                      refband=refband, pixscale=pixscale,
+                                      verbose=verbose)
     if not bool(data):
         return
 
     if data['failed']: # all galaxies dropped
         return
-    
-    # One set of QA plots per galaxy.
-    if largegalaxy:
-        ellipsefitall = []
-        for igal in np.arange(len(data['central_galaxy_id'])):
-            central_galaxy_id = data['central_galaxy_id'][igal]
-            galaxyid = str(central_galaxy_id)
-            filesuffix = 'largegalaxy'
 
-            ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
-                                         galaxyid=galaxyid, verbose=verbose)
-            if bool(ellipsefit):
-                ellipsefitall.append(ellipsefit)
+    if 'galaxy_id' in data.keys():
+        galaxy_id = data['galaxy_id']
+    else:
+        galaxy_id = ''
 
-                sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
-                if not os.path.isfile(sbprofilefile) or clobber:
-                    display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
-                                              png=sbprofilefile, verbose=verbose, minerr=0.0)
+    ellipsefitall = []
+    for igal, galid in enumerate(np.atleast_1d(galaxy_id)):
 
-                cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
-                if not os.path.isfile(cogfile) or clobber:
-                    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
-                                     png=cogfile, verbose=verbose)
+        ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=data['filesuffix'],
+                                     galaxy_id=galid, verbose=verbose)
+        if bool(ellipsefit):
+            ellipsefitall.append(ellipsefit)
 
-                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-                if not os.path.isfile(multibandfile) or clobber:
-                    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
-                        display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
-                                          centralindx=igal, barlen=barlen, barlabel=barlabel,
-                                          png=multibandfile, verbose=verbose, scaledfont=scaledfont)
+            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(sbprofilefile) or clobber:
+                display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
+                                          png=sbprofilefile, verbose=verbose, minerr=0.0,
+                                          cosmo=cosmo)
 
-                    # Create a thumbnail.
-                    cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
-                    if os.path.isfile(thumbfile):
-                        os.remove(thumbfile)
-                    print('Writing {}'.format(thumbfile))
-                    subprocess.call(cmd.split())
+            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(cogfile) or clobber:
+                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
+                                 png=cogfile, verbose=verbose, cosmo=cosmo)
 
-        # maskbits QA
-        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
+            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
+            thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(multibandfile) or clobber:
+                with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
+                    display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+                                      igal=igal, barlen=barlen, barlabel=barlabel,
+                                      png=multibandfile, verbose=verbose, scaledfont=scaledfont)
+
+                # Create a thumbnail.
+                cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
+                if os.path.isfile(thumbfile):
+                    os.remove(thumbfile)
+                print('Writing {}'.format(thumbfile))
+                subprocess.call(cmd.split())
+
+    # maskbits QA
+    if False:
+        maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, data['filesuffix']))
         if not os.path.isfile(maskbitsfile) or clobber:
-            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
-            tractorfile = os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix))
+            fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, data['filesuffix']))
+            tractorfile = os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, data['filesuffix']))
             if not os.path.isfile(fitsfile):
                 if verbose:
                     print('File {} not found!'.format(fitsfile))
@@ -527,99 +541,11 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             mask = fitsio.read(fitsfile)
             tractor = Table(fitsio.read(tractorfile, upper=True))
 
-            with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
+            with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
                 qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=True, png=maskbitsfile)
-    else:
-        filesuffix, galaxyid = 'custom', ''
-        ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
-                                     galaxyid=galaxyid, verbose=verbose)
-
-        if bool(ellipsefit):
-            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix, galaxyid))
-            if not os.path.isfile(sbprofilefile) or clobber:
-                display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=True, # note, False!
-                                          png=sbprofilefile, verbose=verbose, minerr=0.0)
-
-            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-cog.png'.format(galaxy, filesuffix, galaxyid))
-            if not os.path.isfile(cogfile) or clobber:
-                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=True,
-                                 png=cogfile, verbose=verbose)
-
-            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-            thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix, galaxyid))
-            if not os.path.isfile(multibandfile) or clobber:
-                with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
-                    display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
-                                      centralindx=0, barlen=barlen, barlabel=barlabel,
-                                      png=multibandfile, verbose=verbose, scaledfont=scaledfont)
-
-                # Create a thumbnail.
-                cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
-                if os.path.isfile(thumbfile):
-                    os.remove(thumbfile)
-                print('Writing {}'.format(thumbfile))
-                subprocess.call(cmd.split())
-
-        ## maskbits QA
-        #maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, filesuffix))
-        #if not os.path.isfile(maskbitsfile) or clobber:
-        #    fitsfile = os.path.join(galaxydir, '{}-{}-maskbits.fits.fz'.format(galaxy, filesuffix))
-        #    tractorfile = os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix))
-        #    if not os.path.isfile(fitsfile):
-        #        if verbose:
-        #            print('File {} not found!'.format(fitsfile))
-        #        return
-        #    if not os.path.isfile(tractorfile):
-        #        if verbose:
-        #            print('File {} not found!'.format(tractorfile))
-        #        return
-        #
-        #    mask = fitsio.read(fitsfile)
-        #    tractor = Table(fitsio.read(tractorfile, upper=True))
-        #
-        #    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as colorimg:
-        #        qa_maskbits(mask, tractor, ellipsefit, colorimg, largegalaxy=False, png=maskbitsfile)
-
-    #for filesuffix in ('largegalaxy', 'custom'):
-    #    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, verbose=verbose)
-    #
-    #    #sky_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sky')
-    #    #sdss_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='sdss')
-    #    #pipeline_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='pipeline')
-    #    sky_ellipsefit, sdss_ellipsefit, pipeline_ellipsefit = {}, {}, {}
-    #
-    #    if len(ellipsefit) > 0:
-    #        # Toss out bad fits.
-    #        indx = None
-    #        #indx = (isophotfit[refband].stop_code < 4) * (isophotfit[refband].intens > 0)
-    #        #indx = (isophotfit[refband].stop_code <= 4) * (isophotfit[refband].intens > 0)
-    #
-    #        cogfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-cog.png'.format(galaxy, filesuffix))
-    #        if not os.path.isfile(cogfile) or clobber:
-    #            qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=pipeline_ellipsefit,
-    #                             png=cogfile, verbose=verbose)
-    #
-    #        sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-sbprofile.png'.format(galaxy, filesuffix))
-    #        if not os.path.isfile(sbprofilefile) or clobber:
-    #            display_ellipse_sbprofile(ellipsefit, sky_ellipsefit=sky_ellipsefit,
-    #                                      pipeline_ellipsefit=pipeline_ellipsefit,
-    #                                      png=sbprofilefile, verbose=verbose, minerr=0.0,
-    #                                      sdss_ellipsefit=sdss_ellipsefit)
-    #
-    #        multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-multiband.png'.format(galaxy, filesuffix))
-    #        if not os.path.isfile(multibandfile) or clobber:
-    #            data = read_multiband(galaxy, galaxydir, bands=bands,
-    #                                  largegalaxy=filesuffix=='largegalaxy')
-    #            
-    #            display_multiband(data, ellipsefit=ellipsefit, indx=indx, barlen=barlen,
-    #                              barlabel=barlabel, png=multibandfile, verbose=verbose)
-    #
-    #        ellipsefitfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-ellipsefit.png'.format(galaxy, filesuffix))
-    #        if not os.path.isfile(ellipsefitfile) or clobber:
-    #            display_ellipsefit(ellipsefit, png=ellipsefitfile, xlog=False, verbose=verbose)
 
 def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
-                      clobber=False, verbose=False):
+                   cosmo=None, clobber=False, verbose=False):
     """Generate QAplots from the Sersic modeling.
 
     """
@@ -631,49 +557,50 @@ def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     if bool(double):
         doublefile = os.path.join(htmlgalaxydir, '{}-sersic-double.png'.format(galaxy))
         if not os.path.isfile(doublefile) or clobber:
-            display_sersic(double, png=doublefile, verbose=verbose)
+            display_sersic(double, cosmo=cosmo, png=doublefile, verbose=verbose)
 
     # Double Sersic, no wavelength dependence
     double = read_sersic(galaxy, galaxydir, modeltype='double-nowavepower')
     if bool(double):
         doublefile = os.path.join(htmlgalaxydir, '{}-sersic-double-nowavepower.png'.format(galaxy))
         if not os.path.isfile(doublefile) or clobber:
-            display_sersic(double, png=doublefile, verbose=verbose)
+            display_sersic(double, cosmo=cosmo, png=doublefile, verbose=verbose)
 
     # Single Sersic, no wavelength dependence
     single = read_sersic(galaxy, galaxydir, modeltype='single-nowavepower')
     if bool(single):
         singlefile = os.path.join(htmlgalaxydir, '{}-sersic-single-nowavepower.png'.format(galaxy))
         if not os.path.isfile(singlefile) or clobber:
-            display_sersic(single, png=singlefile, verbose=verbose)
+            display_sersic(single, cosmo=cosmo, png=singlefile, verbose=verbose)
 
     # Single Sersic
     single = read_sersic(galaxy, galaxydir, modeltype='single')
     if bool(single):
         singlefile = os.path.join(htmlgalaxydir, '{}-sersic-single.png'.format(galaxy))
         if not os.path.isfile(singlefile) or clobber:
-            display_sersic(single, png=singlefile, verbose=verbose)
+            display_sersic(single, cosmo=cosmo, png=singlefile, verbose=verbose)
 
     # Sersic-exponential
     serexp = read_sersic(galaxy, galaxydir, modeltype='exponential')
     if bool(serexp):
         serexpfile = os.path.join(htmlgalaxydir, '{}-sersic-exponential.png'.format(galaxy))
         if not os.path.isfile(serexpfile) or clobber:
-            display_sersic(serexp, png=serexpfile, verbose=verbose)
+            display_sersic(serexp, cosmo=cosmo, png=serexpfile, verbose=verbose)
 
     # Sersic-exponential, no wavelength dependence
     serexp = read_sersic(galaxy, galaxydir, modeltype='exponential-nowavepower')
     if bool(serexp):
         serexpfile = os.path.join(htmlgalaxydir, '{}-sersic-exponential-nowavepower.png'.format(galaxy))
         if not os.path.isfile(serexpfile) or clobber:
-            display_sersic(serexp, png=serexpfile, verbose=verbose)
+            display_sersic(serexp, cosmo=cosmo, png=serexpfile, verbose=verbose)
 
 def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', 
                nproc=1, barlen=None, barlabel=None,
                radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
-               largegalaxy=False, galex=False, just_coadds=False, scaledfont=False):
+               read_multiband=None, cosmo=None, galex=False, just_coadds=False,
+               scaledfont=False):
     """Make QA plots.
 
     """
@@ -714,22 +641,28 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
             #shutil.chown(htmlgalaxydir, group='cosmo')
 
         if barlen is None and zcolumn in onegal.colnames:
-            barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(onegal[zcolumn]) / pixscale).astype('int') # [kpc]
+            barlen = np.round(barlen_kpc / legacyhalos.misc.arcsec2kpc(
+                onegal[zcolumn], cosmo=cosmo) / pixscale).astype('int') # [kpc]
 
-        if radius_mosaic_arcsec is None:
-            radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
-                redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
+        #if radius_mosaic_arcsec is None:
+        #    radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
+        #        redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
-
-        # Build the maskbits figure.
-        #make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Build the ellipse plots.
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
-                            verbose=verbose, largegalaxy=largegalaxy, galex=galex,
-                            scaledfont=scaledfont)
+                            verbose=verbose, galex=galex, cosmo=cosmo,
+                            scaledfont=scaledfont, read_multiband=read_multiband)
+
+        # CCD positions
+        make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
+                       radius=radius_mosaic_pixels, zcolumn=zcolumn, survey=survey,
+                       clobber=clobber, verbose=verbose)
+
+        # Build the maskbits figure.
+        #make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
         # Build the montage coadds.
         make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
@@ -742,15 +675,10 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                                         #barlen=barlen, barlabel=barlabel,
                                         clobber=clobber, verbose=verbose)
         
-        # CCD positions
-        make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
-                       radius=radius_mosaic_pixels, survey=survey, clobber=clobber,
-                       verbose=verbose)
-
         # Sersic fiting results
         if False:
             make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands,
-                           clobber=clobber, verbose=verbose)
+                           clobber=clobber, cosmo=cosmo, verbose=verbose)
 
         # Build the CCD-level QA.  This QA script needs to be last, because we
         # check the completeness of the HTML portion of legacyhalos-mpi based on
@@ -768,6 +696,9 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
 
     return 1
 
+def skyserver_link(sdss_objid):
+    return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(sdss_objid)
+
 # Get the viewer link
 def viewer_link(ra, dec, width, sga=False, manga=False):
     baseurl = 'http://legacysurvey.org/viewer-dev/'
@@ -784,339 +715,8 @@ def viewer_link(ra, dec, width, sga=False, manga=False):
     if manga:
         layer1 = layer1+'&manga'
 
-    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8{}'.format(
+    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=ls-dr9{}'.format(
         baseurl, ra, dec, zoom, layer1)
 
     return viewer
 
-def skyserver_link(gal):
-    if 'SDSS_OBJID' in gal.colnames:
-        return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
-    else:
-        return ''
-
-def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
-              refband='r', pixscale=0.262, zcolumn='Z', intflux=None,
-              first=None, last=None, nproc=1, survey=None, makeplots=True,
-              clobber=False, verbose=True, maketrends=False, ccdqa=False):
-    """Make the HTML pages.
-
-    """
-    import subprocess
-    import fitsio
-    from legacyhalos.misc import RADIUS_CLUSTER_KPC as radius_mosaic_kpc
-
-    if datadir is None:
-        datadir = legacyhalos.io.legacyhalos_data_dir()
-    if htmldir is None:
-        htmldir = legacyhalos.io.legacyhalos_html_dir()
-
-    if sample is None:
-        sample = legacyhalos.io.read_sample(first=first, last=last)
-
-    if type(sample) is astropy.table.row.Row:
-        sample = astropy.table.Table(sample)
-
-    if zcolumn is None:
-        zcolumn = ZCOLUMN
-        
-    galaxy, galaxydir, htmlgalaxydir = legacyhalos.io.get_galaxy_galaxydir(sample, html=True)
-
-    # Write the last-updated date to a webpage.
-    js = html_javadate()       
-
-    # Get the viewer link
-    def _viewer_link(gal):
-        baseurl = 'http://legacysurvey.org/viewer/'
-        width = 2 * legacyhalos.misc.cutout_radius_kpc(
-            redshift=gal[zcolumn], pixscale=0.262,
-            radius_kpc=radius_mosaic_kpc) # [pixels]
-        if width > 400:
-            zoom = 14
-        else:
-            zoom = 15
-        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=dr8'.format(
-            baseurl, gal['RA'], gal['DEC'], zoom)
-        
-        return viewer
-
-    def _skyserver_link(gal):
-        if 'SDSS_OBJID' in gal.colnames:
-            return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(gal['SDSS_OBJID'])
-        else:
-            return ''
-
-    trendshtml = 'trends.html'
-    homehtml = 'index.html'
-
-    # Build the home (index.html) page--
-    if not os.path.exists(htmldir):
-        os.makedirs(htmldir)
-        #shutil.chown(htmldir, group='cosmo')
-    homehtmlfile = os.path.join(htmldir, homehtml)
-
-    #if verbose:
-    print('Writing {}'.format(homehtmlfile))
-    with open(homehtmlfile, 'w') as html:
-        html.write('<html><body>\n')
-        html.write('<style type="text/css">\n')
-        html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
-        html.write('</style>\n')
-
-        html.write('<h1>LegacyHalos: Central Galaxies</h1>\n')
-        if maketrends:
-            html.write('<p>\n')
-            html.write('<a href="{}">Sample Trends</a><br />\n'.format(trendshtml))
-            html.write('<a href="https://github.com/moustakas/legacyhalos">Code and documentation</a>\n')
-            html.write('</p>\n')
-
-        html.write('<table>\n')
-        html.write('<tr>\n')
-        html.write('<th>Number</th>\n')
-        html.write('<th>Galaxy</th>\n')
-        html.write('<th>RA</th>\n')
-        html.write('<th>Dec</th>\n')
-        html.write('<th>Redshift</th>\n')
-        html.write('<th>Richness</th>\n')
-        html.write('<th>Pcen</th>\n')
-        html.write('<th>Viewer</th>\n')
-        html.write('<th>SkyServer</th>\n')
-        html.write('</tr>\n')
-        for ii, (gal, galaxy1, htmlgalaxydir1) in enumerate(zip(
-            sample, np.atleast_1d(galaxy), np.atleast_1d(htmlgalaxydir) )):
-
-            htmlfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}.html'.format(galaxy1))
-
-            html.write('<tr>\n')
-            html.write('<td>{:g}</td>\n'.format(ii))
-            html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
-            html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
-            html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
-            html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
-            html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
-            html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
-            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
-            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
-            html.write('</tr>\n')
-        html.write('</table>\n')
-        
-        html.write('<br /><br />\n')
-        html.write('<b><i>Last updated {}</b></i>\n'.format(js))
-        html.write('</html></body>\n')
-        html.close()
-
-    # Build the trends (trends.html) page--
-    if maketrends:
-        trendshtmlfile = os.path.join(htmldir, trendshtml)
-        if verbose:
-            print('Writing {}'.format(trendshtmlfile))
-        with open(trendshtmlfile, 'w') as html:
-            html.write('<html><body>\n')
-            html.write('<style type="text/css">\n')
-            html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
-            html.write('</style>\n')
-
-            html.write('<h1>LegacyHalos: Sample Trends</h1>\n')
-            html.write('<p><a href="https://github.com/moustakas/legacyhalos">Code and documentation</a></p>\n')
-            html.write('<a href="trends/ellipticity_vs_sma.png"><img src="trends/ellipticity_vs_sma.png" alt="Missing file ellipticity_vs_sma.png" height="auto" width="50%"></a>')
-            html.write('<a href="trends/gr_vs_sma.png"><img src="trends/gr_vs_sma.png" alt="Missing file gr_vs_sma.png" height="auto" width="50%"></a>')
-            html.write('<a href="trends/rz_vs_sma.png"><img src="trends/rz_vs_sma.png" alt="Missing file rz_vs_sma.png" height="auto" width="50%"></a>')
-
-            html.write('<br /><br />\n')
-            html.write('<b><i>Last updated {}</b></i>\n'.format(js))
-            html.write('</html></body>\n')
-            html.close()
-
-    nextgalaxy = np.roll(np.atleast_1d(galaxy), -1)
-    prevgalaxy = np.roll(np.atleast_1d(galaxy), 1)
-    nexthtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), -1)
-    prevhtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), 1)
-
-    # Make a separate HTML page for each object.
-    for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate( zip(
-        sample, np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir) ) ):
-
-        radius_mosaic_arcsec = legacyhalos.misc.cutout_radius_kpc(
-            redshift=gal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
-        diam_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale)
-
-        ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, verbose=verbose)
-        
-        if not os.path.exists(htmlgalaxydir1):
-            os.makedirs(htmlgalaxydir1, mode=0o775)
-            #shutil.chown(htmlgalaxydir1, group='cosmo')
-
-        ccdsfile = os.path.join(galaxydir1, '{}-ccds.fits'.format(galaxy1))
-        if os.path.isfile(ccdsfile):
-            nccds = fitsio.FITS(ccdsfile)[1].get_nrows()
-        else:
-            nccds = None
-
-        nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
-        prevhtmlgalaxydir1 = os.path.join('{}'.format(prevhtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(prevgalaxy[ii]))
-
-        htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
-        with open(htmlfile, 'w') as html:
-            html.write('<html><body>\n')
-            html.write('<style type="text/css">\n')
-            html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
-            html.write('</style>\n')
-
-            html.write('<h1>Central Galaxy {}</h1>\n'.format(galaxy1))
-
-            html.write('<a href="../../../../{}">Home</a>\n'.format(homehtml))
-            html.write('<br />\n')
-            html.write('<a href="../../../../{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
-            html.write('<br />\n')
-            html.write('<a href="../../../../{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
-            html.write('<br />\n')
-            html.write('<br />\n')
-
-            # Table of properties
-            html.write('<table>\n')
-            html.write('<tr>\n')
-            html.write('<th>Number</th>\n')
-            html.write('<th>Galaxy</th>\n')
-            html.write('<th>RA</th>\n')
-            html.write('<th>Dec</th>\n')
-            html.write('<th>Redshift</th>\n')
-            html.write('<th>Richness</th>\n')
-            html.write('<th>Pcen</th>\n')
-            html.write('<th>Viewer</th>\n')
-            html.write('<th>SkyServer</th>\n')
-            html.write('</tr>\n')
-
-            html.write('<tr>\n')
-            html.write('<td>{:g}</td>\n'.format(ii))
-            html.write('<td>{}</td>\n'.format(galaxy1))
-            html.write('<td>{:.7f}</td>\n'.format(gal['RA']))
-            html.write('<td>{:.7f}</td>\n'.format(gal['DEC']))
-            html.write('<td>{:.5f}</td>\n'.format(gal[zcolumn]))
-            html.write('<td>{:.4f}</td>\n'.format(gal['LAMBDA_CHISQ']))
-            html.write('<td>{:.3f}</td>\n'.format(gal['P_CEN'][0]))
-            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(gal)))
-            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
-            html.write('</tr>\n')
-            html.write('</table>\n')
-
-            html.write('<h2>Image Mosaics</h2>\n')
-            html.write('<p>Each mosaic (left to right: data, model of all but the central galaxy, and residual image containing just the central galaxy) is {:.0f} kpc = {:.3f} arcsec = {:.0f} pixels in diameter.</p>\n'.format(2*radius_mosaic_kpc, 2*radius_mosaic_arcsec, diam_mosaic_pixels))
-            #html.write('<br />\n')
-
-            html.write('<table width="90%">\n')
-            html.write('<tr><td><a href="{}-grz-montage.png"><img src="{}-grz-montage.png" alt="Missing file {}-grz-montage.png" height="auto" width="100%"></a></td></tr>\n'.format(galaxy1, galaxy1, galaxy1))
-            #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
-            html.write('</table>\n')
-            #html.write('<br />\n')
-            
-            html.write('<h2>Elliptical Isophote Analysis</h2>\n')
-            html.write('<table width="90%">\n')
-            html.write('<tr>\n')
-            pngfile = '{}-ellipse-multiband.png'.format(galaxy1)
-            html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-            html.write('</tr>\n')
-            html.write('</table>\n')
-
-            html.write('<table width="90%">\n')
-            html.write('<tr>\n')
-            #html.write('<td><a href="{}-ellipse-ellipsefit.png"><img src="{}-ellipse-ellipsefit.png" alt="Missing file {}-ellipse-ellipsefit.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-            pngfile = '{}-ellipse-sbprofile.png'.format(galaxy1)
-            html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-            pngfile = '{}-ellipse-cog.png'.format(galaxy1)
-            html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-            html.write('<td></td>\n')
-            html.write('</tr>\n')
-            html.write('</table>\n')
-
-            if False:
-                html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
-                html.write('<table width="90%">\n')
-
-                # single-sersic
-                html.write('<tr>\n')
-                html.write('<th>Single Sersic (No Wavelength Dependence)</th><th>Single Sersic</th>\n')
-                html.write('</tr>\n')
-                html.write('<tr>\n')
-                html.write('<td><a href="{}-sersic-single-nowavepower.png"><img src="{}-sersic-single-nowavepower.png" alt="Missing file {}-sersic-single-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                html.write('<td><a href="{}-sersic-single.png"><img src="{}-sersic-single.png" alt="Missing file {}-sersic-single.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                html.write('</tr>\n')
-
-                # Sersic+exponential
-                html.write('<tr>\n')
-                html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
-                html.write('</tr>\n')
-                html.write('<tr>\n')
-                html.write('<td><a href="{}-sersic-exponential-nowavepower.png"><img src="{}-sersic-exponential-nowavepower.png" alt="Missing file {}-sersic-exponential-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                html.write('<td><a href="{}-sersic-exponential.png"><img src="{}-sersic-exponential.png" alt="Missing file {}-sersic-exponential.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                html.write('</tr>\n')
-
-                # double-sersic
-                html.write('<tr>\n')
-                html.write('<th>Double Sersic (No Wavelength Dependence)</th><th>Double Sersic</th>\n')
-                html.write('</tr>\n')
-                html.write('<tr>\n')
-                html.write('<td><a href="{}-sersic-double-nowavepower.png"><img src="{}-sersic-double-nowavepower.png" alt="Missing file {}-sersic-double-nowavepower.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                html.write('<td><a href="{}-sersic-double.png"><img src="{}-sersic-double.png" alt="Missing file {}-sersic-double.png" height="auto" width="100%"></a></td>\n'.format(galaxy1, galaxy1, galaxy1))
-                html.write('</tr>\n')
-
-                html.write('</table>\n')
-
-                html.write('<br />\n')
-
-            if nccds and ccdqa:
-                html.write('<h2>CCD Diagnostics</h2>\n')
-                html.write('<table width="90%">\n')
-                html.write('<tr>\n')
-                pngfile = '{}-ccdpos.png'.format(galaxy1)
-                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-                    pngfile))
-                html.write('</tr>\n')
-
-                for iccd in range(nccds):
-                    html.write('<tr>\n')
-                    pngfile = '{}-2d-ccd{:02d}.png'.format(galaxy1, iccd)
-                    html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-                        pngfile))
-                    html.write('</tr>\n')
-                html.write('</table>\n')
-                html.write('<br />\n')
-
-            html.write('<a href="../../../../{}">Home</a>\n'.format(homehtml))
-            html.write('<br />\n')
-            html.write('<a href="{}">Next Central Galaxy ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
-            html.write('<br />\n')
-            html.write('<a href="{}">Previous Central Galaxy ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
-            html.write('<br />\n')
-
-            html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
-            html.write('<br />\n')
-            html.write('</html></body>\n')
-            html.close()
-
-    # Make the plots.
-    if makeplots:
-        err = make_plots(sample, datadir=datadir, htmldir=htmldir, refband=refband,
-                         bands=bands, pixscale=pixscale, zcolumn=zcolumn, survey=survey,
-                         clobber=clobber, verbose=verbose, nproc=nproc, ccdqa=ccdqa,
-                         maketrends=maketrends)
-
-    try:
-        cmd = '/usr/bin/chgrp -R cosmo {}'.format(htmldir)
-        print(cmd)
-        err1 = subprocess.call(cmd.split())
-
-        cmd = 'find {} -type d -exec chmod 775 {{}} +'.format(htmldir)
-        print(cmd)
-        err2 = subprocess.call(cmd.split())
-
-        cmd = 'find {} -type f -exec chmod 664 {{}} +'.format(htmldir)
-        print(cmd)
-        err3 = subprocess.call(cmd.split())
-    except:
-        pass
-
-    #if err1 != 0 or err2 != 0 or err3 != 0:
-    #    print('Something went wrong updating permissions; please check the logfile.')
-    #    return 0
-    
-    return 1

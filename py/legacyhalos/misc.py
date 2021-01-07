@@ -5,14 +5,8 @@ legacyhalos.misc
 Miscellaneous utility code used by various scripts.
 
 """
-from __future__ import absolute_import, division, print_function
-
 import os, sys
 import numpy as np
-
-RADIUS_CLUSTER_KPC = 500.0     # default cluster radius
-#SURVEY_DIR = '/global/project/projectdirs/cosmo/data/legacysurvey/dr8'
-ZCOLUMN = 'Z_LAMBDA'    
 
 def viewer_inspect(cat, galaxycolname='GALAXY'):
     """Write a little catalog that can be uploaded to the viewer.
@@ -126,26 +120,6 @@ def ccdwcs(ccd):
                                         ccd.cd2_1, ccd.cd2_2, W, H]])
     return W, H, ccdwcs
 
-def area():
-    """Return the area of the DR6+DR7 sample.  See the
-    `legacyhalos-sample-selection.ipynb` notebook for this calculation.
-
-    """
-    return 6717.906
-
-def cosmology(WMAP=False, Planck=False):
-    """Establish the default cosmology for the project."""
-
-    if WMAP:
-        from astropy.cosmology import WMAP9 as cosmo
-    elif Planck:
-        from astropy.cosmology import Planck15 as cosmo
-    else:
-        from astropy.cosmology import FlatLambdaCDM
-        cosmo = FlatLambdaCDM(H0=70, Om0=0.3)        
-
-    return cosmo
-
 def plot_style(font_scale=1.2, paper=False, talk=False):
 
     import seaborn as sns
@@ -209,42 +183,12 @@ def destroy_logger(log):
         hndl.flush()
         hndl.close()
 
-def cutout_radius_kpc(redshift, pixscale=None, radius_kpc=RADIUS_CLUSTER_KPC):
-    """Get a cutout radius of RADIUS_KPC [in pixels] at the redshift of the cluster.
-
-    """
-    cosmo = cosmology()
-    arcsec_per_kpc = cosmo.arcsec_per_kpc_proper(redshift).value
-    radius = radius_kpc * arcsec_per_kpc # [float arcsec]
-    if pixscale:
-        radius = np.rint(radius / pixscale).astype(int) # [integer/rounded pixels]
-    return radius
-
-def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
-                          rmin=50, rmax=500, bound=False):
-    """Get a cutout radius which depends on the richness radius (in h^-1 Mpc)
-    R_LAMBDA of each cluster (times an optional fudge factor).
-
-    Optionally bound the radius to (rmin, rmax).
-
-    """
-    cosmo = cosmology()
-
-    radius_kpc = cluster_radius * 1e3 * cosmo.h # cluster radius in kpc
-    radius = np.rint(factor * radius_kpc * cosmo.arcsec_per_kpc_proper(redshift).value / pixscale)
-
-    if bound:
-        radius[radius < rmin] = rmin
-        radius[radius > rmax] = rmax
-
-    return radius # [pixels]
-
-def arcsec2kpc(redshift):
+def arcsec2kpc(redshift, cosmo=None):
     """Compute and return the scale factor to convert a physical axis in arcseconds
     to kpc.
 
     """
-    cosmo = cosmology()
+    #cosmo = cosmology()
     return 1 / cosmo.arcsec_per_kpc_proper(redshift).value # [kpc/arcsec]
 
 def statsinbins(xx, yy, binsize=0.1, minpts=10, xmin=None, xmax=None):
@@ -335,45 +279,6 @@ def custom_brickname(ra, dec):
         int(1000*ra), 'm' if dec < 0 else 'p',
         int(1000*np.abs(dec)))
     return brickname
-
-def lambda2mhalo(richness, redshift=0.3, Saro=False):
-    """
-    Convert cluster richness, lambda, to halo mass, given various 
-    calibrations.
-    
-      * Saro et al. 2015: Equation (7) and Table 2 gives M(500).
-      * Melchior et al. 2017: Equation (51) and Table 4 gives M(200).
-      * Simet et al. 2017: 
-    
-    Other SDSS-based calibrations: Li et al. 2016; Miyatake et al. 2016; 
-    Farahi et al. 2016; Baxter et al. 2016.
-
-    TODO: Return the variance!
-
-    """
-    from colossus.halo import mass_defs
-    #from colossus.halo import concentration
-    
-    if Saro:
-        pass
-    
-    # Melchior et al. 2017 (default)
-    logM0, Flam, Gz, lam0, z0 = 14.371, 1.12, 0.18, 30.0, 0.5
-    M200m = 10**logM0 * (richness / lam0)**Flam * ( (1 + redshift) / (1 + z0) )**Gz
-
-    # Convert to M200c
-    #import pdb ; pdb.set_trace()
-    #c200m = concentration.concentration(M200m, '200m', redshift, model='bullock01')
-    #M200c, _, _ = mass_defs.changeMassDefinition(M200m, c200m, redshift, '200m', '200c')
-    #M200c, _, _ = mass_adv.changeMassDefinitionCModel(M200m, redshift, '200m', '200c')
-
-    # Assume a constant concentration.
-    M200c = np.zeros_like(M200m)
-    for ii, (mm, zz) in enumerate(zip(M200m, redshift)):
-        mc, _, _ = mass_defs.changeMassDefinition(mm, 3.5, zz, '200m', '200c')
-        M200c[ii] = mc
-    
-    return np.log10(M200c)
 
 def convert_tractor_e1e2(e1, e2):
     """Convert Tractor epsilon1, epsilon2 values to ellipticity and position angle.
@@ -479,85 +384,6 @@ def pixarea2nside(area):
             return nside//2
 
     return nside
-
-def get_lambdabins(verbose=False):
-    """Fixed bins of richness.
-    
-    nn = 7
-    ll = 10**np.linspace(np.log10(5), np.log10(500), nn)
-    #ll = np.linspace(5, 500, nn)
-    mh = np.log10(lambda2mhalo(ll))
-    for ii in range(nn):
-        print('{:.3f}, {:.3f}'.format(ll[ii], mh[ii]))    
-
-    """
-    # Roughly 13.5, 13.9, 14.2, 14.6, 15, 15.7 Msun
-    #lambdabins = np.array([5.0, 10.0, 20.0, 40.0, 80.0, 250.0])
-
-    # Roughly 13.9, 14.2, 14.6, 15, 15.7 Msun
-    lambdabins = np.array([10.0, 20.0, 40.0, 80.0, 250.0])
-    #lambdabins = np.array([5, 25, 50, 100, 500])
-    nlbins = len(lambdabins)
-    
-    mhalobins = np.log10(lambda2mhalo(lambdabins))
-
-    if verbose:
-        for ii in range(nlbins - 1):
-            print('Bin {}: lambda={:03d}-{:03d}, Mhalo={:.3f}-{:.3f} Msun'.format(
-                ii, lambdabins[ii].astype('int'), lambdabins[ii+1].astype('int'),
-                mhalobins[ii], mhalobins[ii+1]))
-            
-    return lambdabins
-
-def get_zbins(zmin=0.05, zmax=0.35, dt=0.5, verbose=False):
-    """Establish redshift bins which are equal in lookback time."""
-    import astropy.units as u
-    from astropy.cosmology import z_at_value
-    
-    cosmo = cosmology()
-    tmin, tmax = cosmo.lookback_time([zmin, zmax])
-    if verbose:
-        print('Cosmic time spanned = {:.3f} Gyr'.format(tmax - tmin))
-    
-    ntbins = np.round( (tmax.value - tmin.value) / dt + 1 ).astype('int')
-    #tbins = np.arange(tmin.value, tmax.value, dt) * u.Gyr
-    tbins = np.linspace(tmin.value, tmax.value, ntbins) * u.Gyr
-    zbins = np.around([z_at_value(cosmo.lookback_time, tt) for tt in tbins], decimals=3)
-    tbins = tbins.value
-    
-    # Now fix the bins:
-    # zbins = np.array([0.05, 0.15, 0.25, 0.35, 0.45, 0.6])
-    zbins = np.array([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35])
-    #zbins = np.array([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6])
-    tbins = cosmo.lookback_time(zbins).value
-    
-    if verbose:
-        for ii in range(ntbins - 1):
-            print('Bin {}: z={:.3f}-{:.3f}, t={:.3f}-{:.3f} Gyr, dt={:.3f} Gyr'.format(
-                ii, zbins[ii], zbins[ii+1], tbins[ii], tbins[ii+1], tbins[ii+1]-tbins[ii]))
-            
-    return zbins
-
-def get_mstarbins(deltam=0.1, satellites=False):
-    """Fixed bins of stellar mass.
-    
-    nn = 7
-    ll = 10**np.linspace(np.log10(5), np.log10(500), nn)
-    #ll = np.linspace(5, 500, nn)
-    mh = np.log10(lambda2mhalo(ll))
-    for ii in range(nn):
-        print('{:.3f}, {:.3f}'.format(ll[ii], mh[ii]))    
-    """
-
-    if satellites:
-        pass # code me
-    else:
-        mstarmin, mstarmax = 9.0, 14.0
-
-    nmstarbins = np.round( (mstarmax - mstarmin) / deltam ).astype('int') + 1
-    mstarbins = np.linspace(mstarmin, mstarmax, nmstarbins)
-    
-    return mstarbins
 
 def missing_files(sample, size=1, filetype='coadds', clobber=False):
     """Find missing data of a given filetype."""    

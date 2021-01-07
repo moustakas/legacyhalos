@@ -1,0 +1,1332 @@
+#!/usr/bin/env python
+"""Generate the figures for Paper I (stellar mass density profiles).
+
+"""
+import os, sys, time, pdb
+import argparse
+import numpy as np
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+        
+import legacyhalos.io
+from legacyhalos.legacyhalos import ZCOLUMN, RICHCOLUMN, DIAMCOLUMN, RACOLUMN, DECCOLUMN
+from legacyhalos.legacyhalos import get_galaxy_galaxydir
+
+from legacyhalos.legacyhalos import legacyhalos_cosmology
+
+cosmo = legacyhalos_cosmology()
+
+figdir = os.path.join(legacyhalos.io.legacyhalos_dir(), 'science', 'profiles', 'figures')
+fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
+
+def plot_style(font_scale=1.2, paper=False, talk=True):
+
+    import seaborn as sns
+    rc = {'font.family': 'serif'}#, 'text.usetex': True}
+    #rc = {'font.family': 'serif', 'text.usetex': True,
+    #       'text.latex.preamble': r'\boldmath'})
+    palette, context = 'Set2', 'talk'
+    
+    if paper:
+        context = 'paper'
+        palette = 'deep'
+        rc.update({'text.usetex': False})
+    
+    if talk:
+        context = 'talk'
+        palette = 'deep'
+        #rc.update({'text.usetex': True})
+
+    sns.set(context=context, style='ticks', font_scale=font_scale, rc=rc)
+    sns.set_palette(palette, 12)
+
+    colors = sns.color_palette()
+    #sns.reset_orig()
+
+    return sns, colors
+
+def fig_radec(sample):
+
+    matplotlib.rcParams['figure.figsize'] = (12,8)
+
+    #from astrometry.util.fits import *
+    #from astrometry.util.starutil_numpy import *
+    #from astrometry.util.util import *
+    #from astrometry.libkd.spherematch import *
+    #from scipy.ndimage.morphology import *
+    #from scipy.ndimage.measurements import *
+
+    from scipy.interpolate import UnivariateSpline
+
+    zoom = 1
+    W,H = 1000,500
+    #W,H = 2000,1000
+    ra_center = 265.
+    wcs = anwcs_create_hammer_aitoff(ra_center, 0., zoom, W, H, False)
+
+    Bs = fits_table('/global/cfs/cdirs/cosmo/data/legacysurvey/dr9/south/survey-bricks-dr9-south.fits.gz')
+    Bn = fits_table('/global/cfs/cdirs/cosmo/data/legacysurvey/dr9/north/survey-bricks-dr9-north.fits.gz')
+
+    Bs.l,Bs.b = radectolb(Bs.ra, Bs.dec)
+    Bn.l,Bn.b = radectolb(Bn.ra, Bn.dec)
+    ok,Bs.x,Bs.y = wcs.radec2pixelxy(Bs.ra, Bs.dec)
+    ok,Bn.x,Bn.y = wcs.radec2pixelxy(Bn.ra, Bn.dec)
+    decsplit = 32.375
+    Bn.cut((Bn.b > 0) * (Bn.dec > decsplit))
+    Bs.cut(np.logical_or(Bs.b <= 0, (Bs.b > 0) * (Bs.dec <= decsplit)))
+
+
+    Bn.cut(Bn.dec >= -10)
+    Bs.cut(Bs.dec >= -30)
+
+
+    # SDSS plates
+    S = fits_table('/global/cfs/cdirs/cosmo/webapp/viewer-dev/data/sdss/plates-dr14.fits')
+    rotate = 122.0
+    
+    # Cut to unique RA,Dec
+    x,I = np.unique(np.vstack((S.racen, S.deccen)), axis=1, return_index=True)
+    S.cut(I)
+    print(len(S), 'unique RA,Dec')
+
+    I = match_radec(S.racen, S.deccen, S.racen, S.deccen, 5., notself=True, indexlist=True)
+    n = np.array([0 if i is None else len(i) for i in I])
+    I = np.flatnonzero(n > 10)
+    S.cut(I)
+    print(len(S), 'in large areas')
+    S.rax = S.racen - 360*(S.racen < (rotate+180))
+    S.decx = S.deccen
+    ok,x,y = wcs.radec2pixelxy(S.rax, S.decx)
+    sdssgrid = np.zeros((H,W), bool)
+    sdssgrid[(np.round(y)-1).astype(int), (np.round(x)-1).astype(int)] = True
+    # Plate radius = 1.5 degrees
+    #rpix = int(np.ceil(1.5 / pixscale))
+    rpix = 5
+    print('Plate radius', rpix)
+    dpix = 2*rpix+1
+    plate = np.zeros((dpix, dpix), bool)
+    plate[np.hypot((np.arange(dpix)-rpix)[:,np.newaxis], (np.arange(dpix)-rpix)[np.newaxis,:]) <= rpix] = True
+    grid2 = binary_dilation(sdssgrid, structure=plate)
+    
+    def traverse_xy(x, y, r):
+        I,J,D = match_xy(x, y, x, y, r, notself=True)
+        matchlist = dict()
+        for i,j,d in zip(I,J,D):
+            if not i in matchlist:
+                matchlist[i] = [j]
+            else:
+                matchlist[i].append(j)
+        II = []
+        inext = []
+        # initialize with only "clockwise" matches to build a "fire break"
+        iveto = set()
+        cx = np.mean(x)
+        cy = np.mean(y)
+        t0 = np.arctan2(y[0]-cy, x[0]-cx)
+        for j in matchlist[0]:
+            if np.arctan2(y[j]-cy, x[j]-cx) < t0:
+                II.append(j)
+                continue
+            inext.append(j)
+        II.append(0)
+        while len(inext):
+            ii = inext.pop(0)
+            if ii in II:
+                continue
+            II.append(ii)
+            inext.extend(matchlist[ii])
+        return II
+    
+    sdss_boundaries = []
+    blobs,nb = label(grid2)
+    for b in range(1,nb+1):
+        thisblob = (blobs == b)
+        boundary = np.logical_xor(binary_dilation(thisblob, iterations=1), thisblob)
+        y,x = np.nonzero(boundary)
+        I = traverse_xy(x, y, 5)
+        xtr,ytr = x[I],y[I]
+        xloop = np.append(xtr, xtr[:20])
+        yloop = np.append(ytr, ytr[:20])
+        nl = len(xloop)
+        xr = np.arange(nl) / float(nl)
+        roundness = 2
+        splx = UnivariateSpline(xr, xloop, s=nl*roundness)
+        sply = UnivariateSpline(xr, yloop, s=nl*roundness)
+        sdss_boundaries.append((splx, sply))
+
+
+    plt.imshow(grid2, origin='lower');
+    for fx,fy in sdss_boundaries:
+        tt = np.linspace(0, 1, 1000)
+        plt.plot(fx(tt), fy(tt), 'r-')
+
+    band = 'z'
+    #lo,hi = { 'g':(23.0,25.0), 'r':(22.4,24.4), 'z':(21.5,23.5) }[band]
+    lo,hi = (22.5, 24.5)
+    dec_lo = -30
+    ra_labels_dec = -30
+    depth_cmap='Blues'
+
+    plt.clf()
+    plt.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.95)
+
+    kw = dict(s=1, vmin=lo, vmax=hi, cmap=depth_cmap)
+    plt.scatter(Bn.x, Bn.y, c=Bn.get('galdepth_'+band) - Bn.get('ext_'+band), **kw)
+    plt.scatter(Bs.x, Bs.y, c=Bs.get('galdepth_'+band) - Bs.get('ext_'+band), **kw)
+    c = plt.colorbar(orientation='horizontal')
+    c.set_label('%s-band depth (mag)' % band)
+
+    dec_gridlines = list(range(dec_lo, 90, 10))
+    dec_gridlines_ras = np.arange(ra_center-180, ra_center+180, 1)
+    ra_gridlines = range(0, 360, 30)
+    ra_gridlines_decs = np.arange(dec_lo, 90, 1.)
+    dec_gridlines_slope = []
+    for d in dec_gridlines:
+        rr = dec_gridlines_ras
+        dd = np.zeros_like(rr) + d
+        ok,xx,yy = wcs.radec2pixelxy(rr, dd)
+        plt.plot(xx, yy, 'k-', alpha=0.1)
+        dec_gridlines_slope.append((yy[-2]-yy[-1]) / (xx[-2] - xx[-1]))
+    for r in ra_gridlines:
+        dd = ra_gridlines_decs
+        rr = np.zeros_like(dd) + r
+        ok,xx,yy = wcs.radec2pixelxy(rr, dd)
+        plt.plot(xx, yy, 'k-', alpha=0.1)
+
+    ra_gridlines2 = [ra_center-180, ra_center+180]
+    ra_gridlines2_decs = np.arange(dec_lo, 91, 1.)
+    for r in ra_gridlines2:
+        dd = ra_gridlines2_decs
+        rr = np.zeros_like(dd) + r
+        ok,xx,yy = wcs.radec2pixelxy(rr, dd)
+        plt.plot(xx, yy, 'k-', alpha=0.5)
+
+    ra_labels = ra_gridlines
+    dec_labels = dec_gridlines
+    dec_labels_ra = ra_center+180
+
+    ok,xx,yy = wcs.radec2pixelxy(ra_labels, ra_labels_dec)
+    for x,y,v in zip(xx, yy, ra_labels):
+        plt.text(x, y, '%i'%(v%360), ha='center', va='top', alpha=0.5)
+    ok,xx,yy = wcs.radec2pixelxy(dec_labels_ra, dec_labels)
+    for i,(x,y,v,slope) in enumerate(zip(xx, yy, dec_labels, dec_gridlines_slope)):
+        dx = -20
+        dy = dx * slope
+        r = np.hypot(dx,dy)
+        dx = dx * 15 / r
+        dy = dy * 15 / r
+        #print(v, 'dx,dy', dx, dy)
+        plt.text(x+dx, y+dy, '%+i'%v, ha='center', va='center', alpha=0.5)
+        if v == 50:
+            #angle = np.rad2deg(np.arctan2(dy, dx))
+            angle = np.rad2deg(np.arctan2(yy[i+1]-yy[i-1], xx[i+1]-xx[i-1]))
+            plt.text(x+dx*3, y+dy*3, 'Dec (deg)', ha='center', va='center', rotation=angle)
+            
+    # Galactic plane
+    ll = np.linspace(0., 360., 720)
+    bb = np.zeros_like(ll)
+    rr,dd = lbtoradec(ll, bb)
+    ok,xx,yy = wcs.radec2pixelxy(rr, dd)
+
+    # Label
+    ii = np.argmin(np.abs(rr - 285))
+    angle = 180+np.rad2deg(np.arctan2(yy[ii+1]-yy[ii-1], xx[ii+1]-xx[ii-1]))
+    plt.text(xx[ii], yy[ii], 'Galactic plane', ha='center', va='bottom', rotation=angle)
+
+    # Plot segments that are above Dec=-30 and not discontinuous
+    d = np.append([0], np.hypot(np.diff(xx), np.diff(yy)))
+    ok = (d < 100) * (dd > -30)
+    istart = 0
+    while istart < len(ok):
+        while istart < len(ok) and ok[istart] == False:
+            istart += 1
+        iend = istart
+        while iend < len(ok) and ok[iend] == True:
+            iend += 1
+        if iend != istart:
+            #print('Plotting from', istart, 'to', iend, 'ok', ok[istart:iend])
+            plt.plot(xx[istart:iend], yy[istart:iend], '-', color='0.6', lw=2)
+        istart = iend
+
+    # Label regions
+    #for r,d,n in [(30, 0, 'DES'),
+    #              (0, 20, 'DECaLS'),
+    #              (180, 10, 'DECaLS'),
+    #              (180, 50, 'MzLS+BASS')]:
+    #    ok,x,y = wcs.radec2pixelxy(r, d)
+    #    plt.text(x, y, n, fontsize=16, ha='center', va='center')
+
+    #P = fits_table('/global/cfs/cdirs/cosmo/webapp/viewer-dev/data/sdss/plates-dr14.fits')
+    #ok,x,y = wcs.radec2pixelxy(P.racen, P.deccen)
+    #plt.plot(x, y, 'ro')
+
+    for fx,fy in sdss_boundaries:
+        tt = np.linspace(0, 1, 1000)
+        plt.plot(fx(tt), fy(tt), 'r-')
+
+    T = fits_table('/global/cscratch1/sd/dstn/sample.fits')
+    ok,x,y = wcs.radec2pixelxy(T.ra, T.dec)
+    plt.plot(x, y, 'k.')
+
+    ok,x,y = wcs.radec2pixelxy(ra_center, -40)
+    plt.text(x, y, 'RA (deg)')
+    ok,x,y = wcs.radec2pixelxy(ra_center, -40)
+    plt.text(x, y, 'RA (deg)')
+
+    plt.xticks([])
+    plt.yticks([])
+    #plt.axis('equal');
+    ax = [0,W, 0.2*H, H]
+    plt.axis(ax)
+    plt.axis('equal')
+    plt.axis(ax)
+    plt.gca().set_frame_on(False)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)
+        plt.close(fig)            
+
+def fig_richness_vs_redshift(sample, png=None):
+
+    from legacyhalos.legacyhalos import lambda2mhalo
+
+    sns, colors = plot_style(talk=True) # paper=True, font_scale=1.5)
+
+    cmap = 'viridis' # 'RdYlBu'
+    xmin, xmax = 0.1, 0.3
+    ymin, ymax = np.log10(20), 2.2
+
+    # Convert to a pandas dataframe to handle big vs little endian byte order.
+    df = sample[ZCOLUMN, RICHCOLUMN].to_pandas()
+    df[RICHCOLUMN] = np.log10(df[RICHCOLUMN])
+
+    #fig, _ = plt.subplots(figsize=(12, 8))
+    
+    j = sns.jointplot(data=df, x=ZCOLUMN, y=RICHCOLUMN, kind='hex', #space=0, 
+                      cmap=cmap, mincnt=1, bins='log', gridsize=25,
+                      #height=8, 
+                      xlim=(xmin, xmax), ylim=(ymin, ymax),
+                      marginal_kws={'color': 'black', 'bins': 50})
+    j.set_axis_labels('Redshift', r'$\log_{10}$ (Richness $\lambda$)')
+    #j.ax_joint.axvline(x=0.05, color='k', lw=2, alpha=0.5)
+    #j.ax_joint.axvline(x=0.6, color='k', lw=2, alpha=0.5)
+    j.ax_joint.margins(5)
+    j.ax_joint.xaxis.set_major_locator(ticker.MultipleLocator(0.05))
+    #ax.xaxis.set_major_locator(ticker.MultipleLocator(tick_spacing))
+    #j.ax_joint.set_yticklabels([])
+    
+    j.fig.set_figwidth(12)
+    j.fig.set_figheight(9)
+    j.fig.subplots_adjust(left=0.12, bottom=0.3, right=0.85, top=0.95)
+    
+    #ax.axhline(y=np.log10(5), ls='--', color='k')
+
+    cax = j.fig.add_axes([0.12, 0.13, 0.6, 0.05])
+    cb = plt.colorbar(orientation='horizontal', cax=cax)
+    cb.set_label('Number of Galaxies')
+    #cb.set_label(r'$\log_{10}$ (Number of Galaxies)')
+    cb.set_ticks([2, 5, 10, 20, 40])
+    cb.ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%g'))
+    
+    #cax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%.1f'))
+    #cb.set_ticks([10, 40])
+
+    ax2 = j.ax_joint.twinx()
+    ax2.spines['right'].set_position(('axes', 1.25))
+    #ax2 = j.ax_marg_y.twinx()
+    ax2.set_ylabel(r'$\log_{10}\, (\mathcal{M}_{200c}\, /\, \mathcal{M}_{\odot})$ at $z=0.2$')
+    ax2.set_ylim(lambda2mhalo(10**ymin, redshift=0.2), lambda2mhalo(10**ymax, redshift=0.2))
+    #ax2.set_yticklabels([])
+    sns.despine(ax=ax2, left=True, right=False)
+
+    if False:
+        #ax2.set_yticks([])
+        #ax2.plot([],[])
+        ax2.spines['bottom'].set_color('white')
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        j.fig.savefig(pngfile)#, bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+
+def fig_skysub_tests(sample, png=None):
+
+    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.qa import _sbprofile_colors
+    from legacyhalos.ellipse import ellipse_sbprofile    
+    from legacyhalos.legacyhalos import get_zbins, get_lambdabins
+
+    sns, _ = plot_style(talk=True, font_scale=1.3)
+
+    zbins = get_zbins(verbose=True)
+    lambdabins = get_lambdabins(verbose=True)
+    lambdabins = lambdabins[::-1]
+
+    bands = ['z', 'r', 'g'] # ['g', 'r', 'z']
+
+    # gather up the data into a dictionary so we can plot the individual profiles
+    data = []
+    for iz, (zmin, zmax) in enumerate(zip(zbins[:-1], zbins[1:])):
+        print(zmin, zmax)
+        for il, (lambdamax, lambdamin) in enumerate(zip(lambdabins[:-1], lambdabins[1:])):
+            print(lambdamin, lambdamax)
+            indx = np.where((sample[ZCOLUMN] >= zmin) * (sample[ZCOLUMN] < zmax) *
+                            (sample[RICHCOLUMN] >= lambdamin) * (sample[RICHCOLUMN] < lambdamax))[0]
+
+            prof = {
+                'g': {'allrad': [], 'allmu': []},
+                'r': {'allrad': [], 'allmu': []},
+                'z': {'allrad': [], 'allmu': []},
+                }
+            if len(indx) > 0:
+                for onegal in sample[indx]:#[:3]:
+                    galaxy, galaxydir = get_galaxy_galaxydir(onegal)
+
+                    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='custom',
+                                                 galaxy_id='', verbose=False)
+                    if not bool(ellipsefit):
+                        continue
+                    sbprofile = ellipse_sbprofile(ellipsefit, linear=True)
+
+                    for band in bands:
+                        rad = sbprofile['radius_{}'.format(band)]**0.25
+                        mu = sbprofile['mu_{}'.format(band)]
+                        prof[band]['allrad'].append(rad)
+                        prof[band]['allmu'].append(mu)
+
+            # get the median profile in each band
+            for band in bands:
+                allrad, allmu = prof[band]['allrad'], prof[band]['allmu']
+                nobj = len(allmu)
+                if nobj > 0:
+                    rmin = np.max([np.min(rad) for rad in allrad])
+                    rmax = np.min([np.max(rad) for rad in allrad])
+                    refrad = np.arange(rmin, rmax, 0.06)
+                    bigmu = np.zeros((len(refrad), nobj))
+                    for iobj, (rad, mu) in enumerate(zip(allrad, allmu)):
+                        bigmu[:, iobj] = np.interp(refrad, rad, mu)
+
+                    prof[band].update({
+                        'refrad': refrad,
+                        'mu_iq50': np.percentile(bigmu, 50, axis=1),
+                        'mu_iq75': np.percentile(bigmu, 75, axis=1),
+                        'mu_iq25': np.percentile(bigmu, 25, axis=1)})
+
+            data.append(prof)
+
+    fig, ax = plt.subplots(5, 4, figsize=(15, 15), sharey=True, sharex=True)
+    #pdb.set_trace()
+
+    bincount = 0
+    for iz, (zmin, zmax) in enumerate(zip(zbins[:-1], zbins[1:])):
+        print(zmin, zmax)
+        for il, (lambdamax, lambdamin) in enumerate(zip(lambdabins[:-1], lambdabins[1:])):
+            print(lambdamin, lambdamax)
+            indx = np.where((sample[ZCOLUMN] >= zmin) * (sample[ZCOLUMN] < zmax) *
+                            (sample[RICHCOLUMN] >= lambdamin) * (sample[RICHCOLUMN] < lambdamax))[0]
+            if len(indx) > 0:
+                colors = iter(_sbprofile_colors(makeiter=False)[:3][::-1]) # reverse the colors for zrg
+                for band in bands:
+                    if len(data[bincount][band]['allrad']) > 0:
+                        rad = data[bincount][band]['refrad']
+                        mu = data[bincount][band]['mu_iq50']
+                        mu_up = data[bincount][band]['mu_iq75']
+                        mu_lo = data[bincount][band]['mu_iq25']
+
+                        col = next(colors)
+                        if iz == 3 and il == 0:
+                            ax[il, iz].fill_between(rad, mu_lo, mu_up, color=col, alpha=0.7, label=band)
+                        else:
+                            ax[il, iz].fill_between(rad, mu_lo, mu_up, color=col, alpha=0.7)
+                if iz == 3 and il == 0:
+                    hh, ll = ax[il, iz].get_legend_handles_labels()
+                    ax[il, iz].legend(hh[::-1], ll[::-1], loc='upper right', fontsize=16)
+                bincount += 1
+
+    for xx, zmin, zmax in zip(ax[0, :], zbins[:-1], zbins[1:]):
+        xx.set_title(r'${:.2f}<z<{:.2f}$'.format(zmin, zmax))
+
+    for xx, lambdamax, lambdamin in zip(ax[:, len(zbins)-2], lambdabins[:-1], lambdabins[1:]):
+        x2 = xx.twinx()
+        x2.set_ylabel(r'${:g}<\lambda<{:g}$'.format(lambdamin, lambdamax))
+        x2.set_yticklabels([])
+
+    for xx in ax.flat:
+        #xx.text(0.9, 0.9, band, transform=xx.transAxes, #fontweight='bold',
+        #       ha='center', va='center', color='k', fontsize=16)
+        xx.set_ylim(-0.03, 0.1)
+        xx.axhline(y=0, color='gray', lw=2, ls='--')
+        xx.set_xlim(1.3, 3.5)
+        #xx.xaxis.set_major_locator(ticker.MultipleLocator(0.5))
+
+    #for xx, band in zip(ax, ['g', 'r', 'z']):
+    #    xx.text(0.9, 0.9, band, transform=xx.transAxes, #fontweight='bold',
+    #           ha='center', va='center', color='k', fontsize=16)
+    #    xx.set_ylim(-0.05, 0.2)
+    #    xx.axhline(y=0, color='k', lw=2)
+    #    xx.set_xlim(1.2, 3.4)
+
+    bigax = fig.add_subplot()
+    bigax.set_frame_on(False)
+    bigax.xaxis.set_ticks([])
+    bigax.yaxis.set_ticks([])
+    bigax.set_xticklabels([], visible=False)
+    bigax.set_yticklabels([], visible=False)
+    bigax.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)', labelpad=40)
+    bigax.set_ylabel(r'Surface Brightness (nanomaggy arcsec$^{-2}$)', labelpad=70)
+    #bigax.set_ylabel(r'$\mu$ (nanomaggy arcsec$^{-2}$)', labelpad=60)
+
+    plt.subplots_adjust(wspace=0.07, hspace=0.08, bottom=0.09, right=0.92, left=0.11, top=0.94)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)
+        plt.close(fig)
+
+def fig_ccdpos(sample, thisgalaxy, pixscale=0.262, mosaic_pixscale=1.0, png=None):
+    """Visualize the position of all the CCDs contributing to the image stack of a
+    single galaxy.
+
+    """
+    import matplotlib.patches as patches
+    from astropy.wcs import WCS
+    from PIL import Image
+    from glob import glob
+    from astrometry.util.fits import fits_table
+    
+    from legacyhalos.misc import simple_wcs, ccdwcs, arcsec2kpc
+    from legacyhalos.coadds import _mosaic_width
+
+    sns, _ = plot_style(talk=True, font_scale=0.7)
+    
+    Image.MAX_IMAGE_PIXELS = None
+
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    this = np.where(galaxy == thisgalaxy)[0][0]
+    
+    onegal, galaxy, galaxydir = sample[this], galaxy[this], galaxydir[this]
+
+    ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
+    ccds = fits_table(ccdsfile[0])
+
+    ra, dec = onegal[RACOLUMN], onegal[DECCOLUMN]
+
+    cluster_diam_arcsec = 2 * onegal[DIAMCOLUMN]                               # [arcsec]
+    cluster_radius_pixels = _mosaic_width(cluster_diam_arcsec/2, pixscale) / 2 # [pixels]
+    cluster_radius_pixels = np.round(cluster_radius_pixels).astype(np.int)
+    cluster_wcs = simple_wcs(onegal, factor=1.0, radius=cluster_radius_pixels, pixscale=pixscale)
+
+    cluster_corners, cluster_center = cluster_wcs.radec_bounds(), cluster_wcs.radec_center() # [degrees]
+
+    mosaic_diam_arcsec = 7.5 * cluster_diam_arcsec                                # [arcsec]
+    print('Mosaic diameter = {:.3f} degrees'.format(mosaic_diam_arcsec))
+    mosaic_radius_pixels = _mosaic_width(mosaic_diam_arcsec, mosaic_pixscale) / 2 # [pixels]
+    mosaic_radius_pixels = np.round(mosaic_radius_pixels).astype(np.int)    
+    mosaic_wcs = simple_wcs(onegal, factor=1.0, radius=mosaic_radius_pixels, pixscale=mosaic_pixscale)
+
+    mosaic_corners, mosaic_center = mosaic_wcs.radec_bounds(), mosaic_wcs.radec_center() # [degrees]
+    print(cluster_corners)
+    #print(mosaic_corners)
+
+    # get the wide-field mosaic if we don't already have it
+    mosaicfile = os.path.join(figdir, 'wide-field-{}.jpg'.format(galaxy))
+    size = np.round(mosaic_radius_pixels).astype(np.int)
+    cmd = 'wget -O {} https://www.legacysurvey.org/viewer-dev/jpeg-cutout?ra={}&dec={}&layer=ls-dr9&size={:d}&pixscale={:.4f}'.format(
+        mosaicfile, ra, dec, size, mosaic_pixscale)
+    print(cmd)
+    if not os.path.isfile(mosaicfile):
+        os.system(cmd)
+
+    # read the mosaic
+    img = Image.open(mosaicfile)
+
+    pdb.set_trace()
+
+    wcs = WCS(naxis=2)
+    wcs.array_shape = img.size
+    wcs.wcs.crpix = mosaic_wcs.crpix
+    wcs.wcs.crval = mosaic_wcs.crval
+    wcs.wcs.cunit = ['deg', 'deg']
+    wcs.wcs.ctype = ['RA---TAN', 'DEC--TAN']
+    wcs.wcs.cdelt = [-mosaic_pixscale / 3600.0, mosaic_pixscale / 3600.0]
+
+    barlen_kpc = 1000.0 # [kpc]
+    col = iter(plt.cm.rainbow(np.linspace(0, 1, len(ccds))))
+
+    fig, allax = plt.subplots(1, 3, figsize=(12, 5), sharey=True, sharex=True, subplot_kw={'projection': wcs})
+
+    for ax, band in zip(allax, ('g', 'r', 'z')):
+        ax.text(0.9, 0.05, band, ha='center', va='bottom',
+                transform=ax.transAxes, fontsize=18, color='white')
+
+        ax.imshow(img, interpolation='nearest')
+        xra = ax.coords['ra']
+        xra.set_major_formatter('d.d')
+
+        xdec = ax.coords['dec']
+        xdec.set_major_formatter('d.d')
+
+        if band == 'g':
+            xdec.set_axislabel('Declination')
+            
+            barlen = barlen_kpc / arcsec2kpc(onegal[ZCOLUMN], cosmo=cosmo) / 3600.0 # [degrees]
+            print(barlen)
+            plt.text(mosaic_corners[1]-0.05-barlen/2, mosaic_corners[2]+0.09, '1 Mpc',
+                     ha='center', va='center', color='white', 
+                     transform=ax.get_transform('icrs'))
+            
+            ax.arrow(mosaic_corners[1]-0.05-barlen, mosaic_corners[2]+0.05,
+                     barlen, 0.0, head_width=0, head_length=0,
+                     fc='white', ec='white', width=0.005,
+                     transform=ax.get_transform('icrs'))
+        else:
+            xdec.set_ticklabel_visible(False)
+
+        if band == 'r':
+            xra.set_axislabel('Right Ascension')
+        else:
+            xra.set_axislabel(' ')
+
+        ax.tick_params('both', length=5, width=1, which='major')
+
+        ax.add_patch(patches.Rectangle((cluster_corners[1]-cluster_diam_arcsec/3600,
+                                        cluster_corners[2]),#-cluster_radius_arcsec/3600),
+                                        cluster_diam_arcsec/3600,
+                                        cluster_diam_arcsec/3600,
+                                        transform=ax.get_transform('icrs'),
+                                        fill=False, edgecolor='white', lw=2, ls='-'))
+            
+        ax.add_patch(patches.Circle((cluster_center[0], cluster_center[1]),
+                                    1.4*cluster_diam_arcsec/3600, # inner sky annulus
+                                    transform=ax.get_transform('icrs'),
+                                    fill=False, edgecolor='white', lw=1))
+        ax.add_patch(patches.Circle((cluster_center[0], cluster_center[1]),
+                                    1.5*cluster_diam_arcsec/3600, # outer sky annulus
+                                    transform=ax.get_transform('icrs'),
+                                    fill=False, edgecolor='white', lw=1))
+
+        these = np.where(ccds.filter == band)[0]
+        for ii, ccd in enumerate(ccds[these]):
+            W, H, cwcs = ccdwcs(ccd)
+            ccd_corners = cwcs.radec_bounds()
+            ccd_width_arcsec = W * cwcs.pixel_scale()
+            ccd_height_arcsec = H * cwcs.pixel_scale()
+            print(band, ccd_corners, ccd_width_arcsec, ccd_height_arcsec)
+            ax.add_patch(patches.Rectangle((ccd_corners[1]-ccd_height_arcsec/3600,
+                                            ccd_corners[2]),
+                                            ccd_height_arcsec/3600,
+                                            ccd_width_arcsec/3600,
+                                            fill=False, lw=2, 
+                                            edgecolor=next(col),
+                                            transform=ax.get_transform('icrs'),
+                                            label='{}-{}'.format(ccd.expnum, ccd.ccdname)))
+        print()
+        leg = ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=8)
+        for txt in leg.get_texts():
+            txt.set_color('white')
+
+    plt.subplots_adjust(bottom=0.07, wspace=0.05, left=0.05, right=0.97, top=0.95)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile, bbox_inches='tight', pad_inches=0.25)
+        plt.close(fig)
+
+def fig_gallery(sample, png):
+
+    from glob import glob
+    from legacyhalos.legacyhalos import lambda2mhalo
+
+    def make_gallery(infiles, pngfile):
+        ncol, nrow = 8, 6
+        cmd = 'montage -bordercolor white -borderwidth 1 -quality 90 -tile {}x{} -geometry 128x128 '.format(ncol, nrow)
+        cmd = cmd+' '.join([inff for inff in infiles])
+        cmd = cmd+' {}'.format(pngfile)
+        print(cmd)
+        print('Writing {}'.format(pngfile))
+        os.system(cmd)
+
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+
+    print('Hack on subsample!')
+    idone = np.where([os.path.isfile(os.path.join(gdir, '{}-custom-image-grz.jpg'.format(gal)))
+                      for gal, gdir in zip(galaxy, galaxydir)])[0]
+    samp = sample[idone]
+
+    galaxy, galaxydir = get_galaxy_galaxydir(samp)
+    M200c = lambda2mhalo(samp[RICHCOLUMN].data, redshift=samp[ZCOLUMN].data)
+    
+    rand = np.random.RandomState(seed=1)
+    these = rand.choice(len(galaxy), 48, replace=False)
+    srt = np.argsort(M200c[these])
+    indx = these[srt]
+    indx[3] = indx[3]+1
+    #indx[27] = indx[27]+1
+    #indx[28] = indx[28]+1
+    print(M200c[indx])
+
+    #pdb.set_trace()
+
+    infiles = [os.path.join(galdir, '{}-custom-image-grz.jpg'.format(gal)) for gal, galdir in zip(galaxy[indx], galaxydir[indx])]
+    if png:
+        pngfile = os.path.join(figdir, png)
+        make_gallery(infiles, pngfile)
+    else:
+        print('Nothing to do.')
+
+def fig_model_and_mask(sample, thisgalaxy, png):
+    """Show the data, model, and satellite mask.
+
+    """
+    import numpy.ma as ma
+    from PIL import Image, ImageDraw, ImageFont
+    from astropy.visualization import make_lupton_rgb
+
+    from legacypipe.survey import get_rgb, sdss_rgb, imsave_jpeg
+
+    from legacyhalos.qa import addbar_to_png
+    from legacyhalos.legacyhalos import read_multiband
+
+    #print(sample)
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    this = np.where(galaxy == thisgalaxy)[0][0]
+
+    onegal, galaxy, galaxydir = sample[this], galaxy[this], galaxydir[this]
+
+    filesuffix = 'custom'
+
+    # Read the data and the Tractor catalog (see read_multiband for this code).
+    data, _ = read_multiband(galaxy, galaxydir, filesuffix=filesuffix, verbose=True)
+
+    arcsec2kpc = legacyhalos.misc.arcsec2kpc(onegal[ZCOLUMN], cosmo=cosmo) # [kpc/arcsec]
+
+    scaledfont = True
+    barlen_arcsec = 60.0 # [arcsec]
+    barlen = np.ceil(barlen_arcsec / data['refpixscale']).astype(int) # [pixels]
+    barlen_kpc = barlen_arcsec * arcsec2kpc
+    
+    barlabel = '1 arcmin'
+    #barlabel = '1 arcmin = {:.0f} kpc'.format(barlen_kpc)
+
+    fig, ax = plt.subplots(1, 3, figsize=(8*3, 8), sharex=True)
+
+    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as img:
+        if barlen and barlabel:
+            sz = img.size
+            draw = ImageDraw.Draw(img)
+            width = np.round(sz[0]/150).astype('int')
+            if scaledfont:
+                fntsize = np.round(sz[0]/30).astype('int')
+            else:
+                fntsize = 20 # np.round(sz[0]/20).astype('int')
+            font = ImageFont.truetype(fonttype, size=fntsize)
+            # Add a scale bar and label--
+            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            draw.line((x0, y1, x1, y1), fill='white', width=width)
+            ww, hh = draw.textsize(barlabel, font=font)
+            dx = ((x1-x0) - ww)//2
+            #print(x0, x1, y0, y1, ww, x0+dx, sz)
+            draw.text((x0+dx, y0), barlabel, font=font)
+            
+        # First display the data mosaic
+        ax[0].imshow(img, interpolation='nearest')
+        ax[0].xaxis.set_ticklabels([])
+        ax[0].yaxis.set_ticklabels([])
+        ax[0].xaxis.set_ticks([])
+        ax[0].yaxis.set_ticks([])
+
+    # Now the model mosaic
+    with Image.open(os.path.join(galaxydir, '{}-{}-model-grz.jpg'.format(galaxy, filesuffix))) as img:
+        ax[1].imshow(img, interpolation='nearest')
+        ax[1].xaxis.set_ticklabels([])
+        ax[1].yaxis.set_ticklabels([])
+        ax[1].xaxis.set_ticks([])
+        ax[1].yaxis.set_ticks([])
+
+    # Finally the data but with the point sources subtracted and the masked
+    # pixels (from the r-band mask) set to white. Unfortunately, we need to
+    # build the color montage on-the-fly.
+    tmpfile = '/tmp/data.jpg'
+    #tmpfile = '/mnt/legacyhalos-data/zdata.jpg'
+    coimgs = [data['g_masked'][0].data*0.262**2, # convert back to nanomaggies
+              data['r_masked'][0].data*0.262**2,
+              data['z_masked'][0].data*0.262**2]
+    #coimgs = [data['g'],
+    #          data['r'],
+    #          data['z']]
+    #_ = make_lupton_rgb(coimgs[2], coimgs[1], coimgs[0], Q=10, stretch=0.5, filename=tmpfile)    
+    #imsave_jpeg(tmpfile, get_rgb(coimgs, data['bands']), origin='lower')
+    imsave_jpeg(tmpfile, sdss_rgb(coimgs, data['bands'], Q=200, m=0.0), origin='lower')
+    
+    with Image.open(tmpfile) as img:
+    #with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as img:
+        mask = data['r_masked'][0].mask
+        pixdata = img.load()
+        W, H = img.size
+        assert((W, H)==mask.shape)
+        for iy in range(H):
+            these = np.where(mask[H-1-iy, :])[0]
+            if len(these) > 0:
+                for ix in these:
+                    pixdata[int(ix), int(iy)] = (255, 255, 255, 0)
+        ax[2].imshow(img, interpolation='nearest')
+        
+    ax[2].xaxis.set_ticklabels([])
+    ax[2].yaxis.set_ticklabels([])
+    ax[2].xaxis.set_ticks([])
+    ax[2].yaxis.set_ticks([])
+
+    plt.subplots_adjust(wspace=0.03, bottom=0.05, right=0.95, left=0.02, top=0.98)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile, bbox_inches='tight')
+        plt.close(fig)
+
+def fig_ellipse_multiband(sample, thisgalaxy, png):
+    """Show the ellipse-fitting multipanel montage.
+
+    """
+    import numpy.ma as ma
+
+    from photutils import EllipticalAperture
+    import matplotlib.patches as mpatches
+
+    from astropy.visualization import ImageNormalize
+    from astropy.visualization import AsinhStretch as Stretch
+    from astropy.visualization import ZScaleInterval as Interval
+
+    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.legacyhalos import read_multiband
+
+    # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+    #cmap = plt.cm.plasma
+    #cmap = plt.cm.cividis
+    cmap = plt.cm.inferno
+    #cmap = plt.cm.viridis
+    stretch = Stretch(a=0.9)
+    interval = Interval(contrast=0.5, nsamples=10000)
+
+    #print(sample)
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    this = np.where(galaxy == thisgalaxy)[0][0]
+
+    onegal, galaxy, galaxydir = sample[this], galaxy[this], galaxydir[this]
+
+    filesuffix = 'custom'
+
+    # Read the data and the ellipse-fitting results.
+    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
+                                 galaxy_id='', verbose=True)
+
+    data, _ = read_multiband(galaxy, galaxydir, filesuffix=filesuffix, verbose=True)
+
+    band = data['bands']
+    nband = len(band)
+    igal = 0
+    nplot = 12
+    sma_lw = 2
+    sma_alpha = 0.8
+
+    fig, ax = plt.subplots(1, 3, figsize=(8*3, 8), sharex=True)
+
+    for ii, (filt, ax1) in enumerate(zip(band, ax)):
+        dat = data['{}_masked'.format(filt)][igal]
+        img = ma.masked_array(dat.data, dat.mask)
+        mask = ma.masked_array(dat.data, ~dat.mask)
+
+        try:
+            norm = ImageNormalize(img, interval=interval, stretch=stretch)
+        except:
+            norm = ImageNormalize(img, interval=interval)
+
+        ax1.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
+                   interpolation='nearest')
+        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, #fontweight='bold',
+                 ha='center', va='center', color='k', fontsize=32)
+
+        smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)].max(), nplot)
+        for sma in smas:
+            this = np.argmin(np.abs(ellipsefit['{}_sma'.format(filt)]-sma))
+            ax1.add_patch(mpatches.Ellipse((ellipsefit['{}_x0'.format(filt)][this], ellipsefit['{}_y0'.format(filt)][this]),
+                                           2*ellipsefit['{}_sma'.format(filt)][this],
+                                           2*ellipsefit['{}_sma'.format(filt)][this]*(1-ellipsefit['{}_eps'.format(filt)][this]),
+                                           ellipsefit['{}_pa'.format(filt)][this]-90,
+                                           color='k', lw=sma_lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
+
+        ## Visualize the mean geometry
+        #maxis = ellipsefit['majoraxis'] # [pixels]
+        #ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
+        #                             maxis, maxis*(1 - ellipsefit['eps']),
+        #                             np.radians(ellipsefit['pa']-90))
+        #ellaper.plot(lw=5, axes=ax1, alpha=1.0, label='Moment geometry',
+        #             color=cb_colors['green'])
+
+
+        ax1.xaxis.set_ticklabels([])
+        ax1.yaxis.set_ticklabels([])
+        ax1.xaxis.set_ticks([])
+        ax1.yaxis.set_ticks([])
+
+        #ax1.get_xaxis().set_visible(False)
+        #ax1.get_yaxis().set_visible(False)
+        #ax1.axis('off')
+        ##ax1.set_adjustable('box-forced')
+        #ax1.autoscale(False)
+
+    fig.subplots_adjust(wspace=0.01, top=0.99, bottom=0.01, left=0.01, right=0.99)
+        
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile, bbox_inches='tight')
+        plt.close(fig)
+
+def fig_surface_brightness(sample, thisgalaxy, png):
+    """Make one large figure with the surface brightness profile fitting results for
+    a single galaxy.
+
+    """
+    import numpy.ma as ma
+
+    from photutils import EllipticalAperture
+    import matplotlib.patches as mpatches
+
+    from astropy.visualization import ImageNormalize
+    from astropy.visualization import AsinhStretch as Stretch
+    from astropy.visualization import ZScaleInterval as Interval
+
+    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.ellipse import ellipse_sbprofile, CogModel
+    from legacyhalos.qa import _sbprofile_colors
+    from legacyhalos.legacyhalos import read_multiband
+
+    sns, _ = plot_style(talk=True, font_scale=1.4)
+    
+    # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+    #cmap = plt.cm.plasma
+    #cmap = plt.cm.cividis
+    cmap = plt.cm.inferno
+    #cmap = plt.cm.viridis
+    stretch = Stretch(a=0.9)
+    interval = Interval(contrast=0.5, nsamples=10000)
+
+    #print(sample)
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    this = np.where(galaxy == thisgalaxy)[0][0]
+
+    onegal, galaxy, galaxydir = sample[this], galaxy[this], galaxydir[this]
+    print(thisgalaxy, onegal[ZCOLUMN], onegal[RICHCOLUMN])
+
+    filesuffix = 'custom'
+
+    # Read the data and the ellipse-fitting results.
+    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
+                                 galaxy_id='', verbose=True)
+
+    data, _ = read_multiband(galaxy, galaxydir, filesuffix=filesuffix, verbose=True)
+
+    band = data['bands']
+    nband = len(band)
+    igal = 0
+    nplot = 12
+    sma_lw = 2
+    sma_alpha = 0.8
+
+    #fig, ax = plt.subplots(1, 3, figsize=(8*3, 8), sharex=True)
+    fig = plt.figure(figsize=(16, 16))
+    gs1 = fig.add_gridspec(3, 1, bottom=0.04, top=0.96, left=0.02, right=0.35,
+                           height_ratios=[1, 1, 1], hspace=0.01)
+
+    # [1] vertical 3-panel showing the grz data and ellipse samples
+    for ii, filt in enumerate(band):
+        xx = fig.add_subplot(gs1[ii])
+        
+        dat = data['{}_masked'.format(filt)][igal]
+        img = ma.masked_array(dat.data, dat.mask)
+        mask = ma.masked_array(dat.data, ~dat.mask)
+
+        try:
+            norm = ImageNormalize(img, interval=interval, stretch=stretch)
+        except:
+            norm = ImageNormalize(img, interval=interval)
+
+        xx.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
+                   interpolation='nearest')
+        plt.text(0.1, 0.9, filt, transform=xx.transAxes, fontweight='bold',
+                 ha='center', va='center', color='k', fontsize=26)
+
+        smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)].max(), nplot)
+        for sma in smas:
+            this = np.argmin(np.abs(ellipsefit['{}_sma'.format(filt)]-sma))
+            xx.add_patch(mpatches.Ellipse((ellipsefit['{}_x0'.format(filt)][this], ellipsefit['{}_y0'.format(filt)][this]),
+                                           2*ellipsefit['{}_sma'.format(filt)][this],
+                                           2*ellipsefit['{}_sma'.format(filt)][this]*(1-ellipsefit['{}_eps'.format(filt)][this]),
+                                           ellipsefit['{}_pa'.format(filt)][this]-90,
+                                           color='k', lw=sma_lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
+
+        xx.xaxis.set_ticklabels([])
+        xx.yaxis.set_ticklabels([])
+        xx.xaxis.set_ticks([])
+        xx.yaxis.set_ticks([])
+
+    # [2] surface brightness and color profile
+    gs2 = fig.add_gridspec(3, 1, bottom=0.08, top=0.93, left=0.42,
+                           right=0.98, hspace=0.04, height_ratios=[2.9, 1.4, 2])
+    
+    minerr, use_ylim, plot_radius = 0.0, None, True
+    
+    sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr, sma_not_radius=~plot_radius,
+                                  cut_on_cog=False)
+    colors = _sbprofile_colors(makeiter=True)
+
+    bands = ellipsefit['bands']
+    refband = ellipsefit['refband']
+    redshift = ellipsefit['redshift']
+    radscale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
+
+    yminmax = [40, 0]
+    xminmax = [0.9, 0]
+    #xminmax = [1, 0]
+
+    #fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
+    #                               gridspec_kw = {'height_ratios':[2, 1]})
+    ax1 = fig.add_subplot(gs2[0])
+    ax2 = fig.add_subplot(gs2[1], sharex=ax1)
+    for filt in bands:
+        col = next(colors)
+
+        mu = sbprofile['mu_{}'.format(filt)]
+        muerr = sbprofile['muerr_{}'.format(filt)]
+        if len(mu) == 0 or mu[0] == -1: # no good data
+            continue
+        radius = sbprofile['radius_{}'.format(filt)]**0.25
+
+        ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt),
+                         facecolor=col, edgecolor='k', lw=2, alpha=0.75)
+
+        if np.nanmin(mu-muerr) < yminmax[0]:
+            yminmax[0] = np.nanmin(mu-muerr)
+        if np.nanmax(mu+muerr) > yminmax[1]:
+            yminmax[1] = np.nanmax(mu+muerr)
+        if np.nanmax(radius) > xminmax[1]:
+            xminmax[1] = np.nanmax(radius)
+
+    ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
+    #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
+
+    ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
+    if ylim[0] < 17:
+        ylim[0] = 17
+    if ylim[1] > 33:
+        ylim[1] = 33
+
+    if use_ylim is not None:
+        ax1.set_ylim(use_ylim)
+    else:
+        ax1.set_ylim(ylim)
+    ax1.invert_yaxis()
+
+    xlim = [xminmax[0], xminmax[1]*1.01]
+    ax1.set_xlim(xlim)
+
+    ax1_twin = ax1.twiny()
+    ax1_twin.set_xlim(xlim)
+    kpc = np.array([1, 3, 5, 10, 20, 30, 50, 75, 100, 150, 200])
+    kpc = kpc[(kpc >= radscale*xlim[0]**4) * (kpc <= radscale*xlim[1]**4)]
+    ax1_twin.set_xticks((kpc / radscale)**0.25)
+    ax1_twin.set_xticklabels(['{:g}'.format(kk) for kk in kpc])
+    if plot_radius:
+        ax1_twin.set_xlabel(r'Galactocentric radius (kpc)')
+    else:
+        ax1_twin.set_xlabel(r'Semi-major axis (kpc)')
+
+    hh, ll = ax1.get_legend_handles_labels()
+    if len(hh) > 0:
+        leg1 = ax1.legend(loc='upper right', fontsize=18, frameon=True)
+
+    # Now the color-radius plot
+    if sbprofile['radius_gr'][0] != -1:
+        ax2.fill_between(sbprofile['radius_gr']**0.25,
+                         sbprofile['gr'] - sbprofile['gr_err'],
+                         sbprofile['gr'] + sbprofile['gr_err'],
+                         label=r'$g - r$', facecolor=next(colors), alpha=0.75,
+                         edgecolor='k', lw=2)
+
+    if sbprofile['radius_rz'][0] != -1:
+        ax2.fill_between(sbprofile['radius_rz']**0.25,
+                         sbprofile['rz'] - sbprofile['rz_err'],
+                         sbprofile['rz'] + sbprofile['rz_err'],
+                         label=r'$r - z$', facecolor=next(colors), alpha=0.75,
+                         edgecolor='k', lw=2)
+
+    #if plot_radius:
+    #    ax2.set_xlabel(r'(Galactocentric radius)$^{1/4}$ (arcsec)')
+    #else:
+    #    ax2.set_xlabel(r'(Semi-major axis)$^{1/4}$ (arcsec)')
+    #ax2.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
+
+    hh, ll = ax2.get_legend_handles_labels()
+    if len(hh) > 0:
+        ax2.legend(loc='upper right', fontsize=18, frameon=True)
+        #ax2.legend(bbox_to_anchor=(0.25, 0.98))
+
+    ax2.set_ylabel('Color (mag)')
+    ax2.set_ylim(-1, 3)
+    ax2.set_xlim(xlim)
+    #ax2.autoscale(False) # do not scale further
+
+    for xx in (ax1, ax2):
+        xx.margins(x=0)
+        #xx.xaxis.set_ticklabels([])
+        ylim = xx.get_ylim()
+        xx.fill_between([0, (2*ellipsefit['psfsize_r'])**0.25],
+                        [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
+
+    #ax2.text(0.05, 0.15, 'PSF\n(3$\sigma$)', ha='center', va='center',
+    #    transform=ax2.transAxes, fontsize=10)
+    ax1.text(0.05, 0.1, 'PSF\n(2$\sigma$)', ha='center', va='center',
+             transform=ax1.transAxes, fontsize=18)
+
+    # [3] curve of growth
+    ax3 = fig.add_subplot(gs2[2], sharex=ax1)
+    colors = _sbprofile_colors()
+
+    maxsma = 0
+    eps = ellipsefit['eps']
+    
+    yfaint, ybright = 0, 50
+    for filt in bands:
+        col = next(colors) # iterate here in case we're missing a bandpass
+
+        sma = ellipsefit['{}_cog_sma'.format(filt)]
+        radius = (sma * np.sqrt(1-eps) * data['refpixscale'])**0.25 # circularized radius [arcsec]
+
+        cog = ellipsefit['{}_cog_mag'.format(filt)]
+        cogerr = ellipsefit['{}_cog_magerr'.format(filt)]
+        chi2 = ellipsefit['{}_cog_params_chi2'.format(filt)]
+        if np.atleast_1d(cog)[0] == -1 or chi2 == 1e6: # no measurement, or failed
+            continue
+        magtot = ellipsefit['{}_cog_params_mtot'.format(filt)]
+        m0 = ellipsefit['{}_cog_params_m0'.format(filt)]
+        alpha1 = ellipsefit['{}_cog_params_alpha1'.format(filt)]
+        alpha2 = ellipsefit['{}_cog_params_alpha2'.format(filt)]
+
+        label = r'{}={:.3f} ($\chi^2_\nu={:.1f}$)'.format(filt, magtot, chi2)
+            
+        ax3.fill_between(radius, cog-cogerr, cog+cogerr, label=label, color=col)
+        #ax3.fill_between(sma, cog-cogerr, cog+cogerr, label=label, color=col)
+
+        cogmodel = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
+        if False:
+            ax3.plot(radius, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
+            #ax3.plot(sma, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
+        if sma.max() > maxsma:
+            maxsma = sma.max()
+
+        inrange = np.where((radius >= xlim[0]) * (radius <= xlim[1]))[0]
+            
+        if cog[inrange].max() > yfaint:
+            yfaint = cog[inrange].max()
+        if cog[inrange].min() < ybright:
+            ybright = cog[inrange].min()
+
+    #ax3.set_xlabel(r'Semi-major axis (arcsec)')
+    #ax3.set_ylabel('Cumulative brightness (AB mag)')
+    ax3.set_xlabel(r'(Galactocentric radius $r$)$^{1/4}$ (arcsec)')    
+    ax3.set_ylabel(r'm$(<r)$ (mag)')
+    ax3.margins(x=0)
+
+    ax3.set_xlim(xlim)
+    #if maxsma > 0:
+    #    ax3.set_xlim(0, maxsma*1.01)
+    #else:
+    #    ax3.set_xlim(0, 1) # hack!
+        
+    if False:
+        xlim = ax.get_xlim()
+        ax_twin = ax.twiny()
+        ax_twin.set_xlim(xlim[0]*radscale, xlim[1]*radscale)
+        ax_twin.set_xlabel('Semi-major axis (kpc)')
+        #ax_twin.margins(x=0)
+
+    yfaint += 0.5
+    ybright += -0.5
+    ax3.set_ylim(yfaint, ybright)
+    ax3.xaxis.set_major_locator(ticker.MultipleLocator(0.5))
+
+    if False:
+        ax_twin = ax.twinx()
+        ax_twin.set_ylim(yfaint, ybright)
+        ax_twin.set_ylabel('Cumulative Flux (AB mag)')#, rotation=-90)
+
+    if False:
+        hh, ll = ax3.get_legend_handles_labels()
+        if len(hh) > 0:
+            leg1 = ax3.legend(loc='lower right', fontsize=14)#, ncol=3)
+
+    ylim = ax3.get_ylim()
+    ax3.fill_between([0, (2*ellipsefit['psfsize_r'])**0.25],
+                     [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
+    #ax3.text(0.05, 0.15, 'PSF\n(3$\sigma$)', ha='center', va='center',
+    #         transform=ax3.transAxes, fontsize=16)
+
+        
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)#, bbox_inches='tight')
+        plt.close(fig)
+
+def fig_choose_skyannulus(sample, png):
+    """Diagnostic plot to try to figure out which sky annulus to use for
+    sky-subtraction.
+
+    """
+    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.ellipse import ellipse_sbprofile
+    
+    nskyaps = 4 # get this from the header
+
+    bands = ['g', 'r', 'z']
+
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    thisgalaxy = '0000195-052316929'
+    this = np.where(galaxy == thisgalaxy)[0]
+
+    sample, galaxy, galaxydir = sample[this], galaxy[this], galaxydir[this]
+
+    # gather up the data into a dictionary so we can plot the individual profiles
+    data = []
+    for gal, gdir in zip(galaxy, galaxydir):
+        prof = {
+            'g': {},
+            'r': {},
+            'z': {},
+            #'g': {'allrad': [], 'allmu': []},
+            #'r': {'allrad': [], 'allmu': []},
+            #'z': {'allrad': [], 'allmu': []},
+            }
+        for isky in np.arange(nskyaps):
+            filesuffix = 'custom-skytest{:02d}'.format(isky)
+            ellipsefit = read_ellipsefit(gal, gdir, filesuffix=filesuffix)
+            if not bool(ellipsefit):
+                continue
+            sbprofile = ellipse_sbprofile(ellipsefit, linear=True)
+            for band in bands:
+                thisrad = sbprofile['radius_{}'.format(band)]**0.25
+                thismu = sbprofile['mu_{}'.format(band)]
+                if isky == 0:
+                    prof[band]['refrad'] = thisrad
+                    prof[band]['refmu'] = thismu
+                    prof[band]['delta_mu'] = np.zeros((len(thisrad), nskyaps-1))
+                else:
+                    prof[band]['delta_mu'][:, isky-1] = np.interp(prof[band]['refrad'], thisrad, thismu) - prof[band]['refmu']
+                    pdb.set_trace()
+                    plt.clf() ; plt.plot(thisrad, thismu) ; plt.plot(prof[band]['refrad'], prof[band]['refmu']) ; plt.ylim(-0.1, 0.1) ; plt.xlim(1.5, 3.5) ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+                    #plt.clf() ; plt.plot(thisrad, thismu) ; plt.ylim(-0.1, 0.1) ; plt.xlim(1.5, 3.5) ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+
+        if bool(prof['r']):
+            data.append(prof)
+        pdb.set_trace()
+
+            
+    # now make the plot
+    fig, ax = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+
+    for igal in np.arange(len(data)):
+        prof = data[igal]
+        for iband, band in enumerate(bands):
+            for isky in np.arange(nskyaps-1):
+                if igal == 0:
+                    ax[iband].plot(prof[band]['refrad'], prof[band]['delta_mu'][:, isky], alpha=0.5,
+                                   label='Annulus {}'.format(isky+2))
+                else:
+                    ax[iband].plot(prof[band]['refrad'], prof[band]['delta_mu'][:, isky], alpha=0.5)
+    
+    for xx in ax:    
+        xx.set_ylim(-0.1, 0.1)
+        xx.axhline(y=0, color='k', lw=2)
+        xx.set_xlim(1.6, 3.5)
+        xx.legend()
+
+    plt.subplots_adjust(wspace=0.1)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)#, bbox_inches='tight')
+        plt.close(fig)
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--radec', action='store_true')
+    parser.add_argument('--skyplot', action='store_true')
+    parser.add_argument('--gallery', action='store_true')
+    parser.add_argument('--richness-vs-redshift', action='store_true')
+    parser.add_argument('--skysub-tests', action='store_true')
+    parser.add_argument('--choose-skyannulus', action='store_true')
+    parser.add_argument('--ccdpos', action='store_true')
+    parser.add_argument('--model-and-mask', action='store_true')
+    parser.add_argument('--ellipse-multiband', action='store_true')
+    parser.add_argument('--surface-brightness', action='store_true')
+    parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')
+    args = parser.parse_args()
+
+    sample = legacyhalos.legacyhalos.read_redmapper()
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    for onegal in sample:
+        _galaxy, _ = get_galaxy_galaxydir(onegal)
+        print(_galaxy, onegal[ZCOLUMN], onegal[RICHCOLUMN])
+    
+    # Fig - spatial distribution on the sky
+    if args.radec:
+        fig_radec(sample, png='radec.png')
+
+    # Fig - bivariate scatterplot of mass vs richness
+    if args.richness_vs_redshift:
+        fig_richness_vs_redshift(sample, png='richness_vs_redshift.png')
+
+    # Fig - gallery of clusters
+    if args.gallery:
+        fig_gallery(sample, png='gallery.png')
+
+    # Fig XX - CCD position
+    if args.ccdpos:
+        fig_ccdpos(sample, thisgalaxy='0000139-017663658', png='ccdpos.png')
+
+    # Fig - sky subtraction diagnostic plots
+    if args.skysub_tests:
+        fig_skysub_tests(sample, png='skysub_tests.png')
+
+    # Fig - sky subtraction annulus diagnostic plot
+    if args.choose_skyannulus:
+        fig_choose_skyannulus(sample, png='choose_skyannulus.png')
+
+    # Fig - model and mask multipanel plot
+    if args.model_and_mask:
+        fig_model_and_mask(sample, thisgalaxy='0001129-034040952', png='model_and_mask.png')
+
+    # Fig - ellipse_multiband
+    if args.ellipse_multiband:
+        fig_ellipse_multiband(sample, thisgalaxy='0001129-034040952', png='ellipse_multiband.png')
+
+    # Fig - surface brightness
+    if args.surface_brightness:
+        #fig_surface_brightness(sample, thisgalaxy='0000195-052316929', png='test-surface_brightness.png')
+        for gal in galaxy:
+            fig_surface_brightness(sample, thisgalaxy=gal, png='surface_brightness_{}.png'.format(gal))
+        #fig_surface_brightness(sample, thisgalaxy='0000195-052316929', png='surface_brightness.png')
+        #fig_surface_brightness(sample, thisgalaxy='0001129-034040952', png='surface_brightness.png')
+
+if __name__ == '__main__':
+    main()

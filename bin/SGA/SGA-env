@@ -11,7 +11,8 @@ export PYTHONPATH=$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
 
 # Specifiy the location of the input and output data.
 export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/$project
-export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9alpha
+#export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9alpha
+export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis
 export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr9alpha
 #export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9delta
 #export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr9delta
