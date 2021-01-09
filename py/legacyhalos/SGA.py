@@ -140,7 +140,8 @@ def SGA_version():
     version = 'v7.0' # more dr9 testing
     
     """
-    version = 'v3.0'  # DR9
+    #version = 'v3.0'  # DR9
+    version = 'v3.2'  # nearly identical to v3.0 but with some minor fixes
     return version
 
 def mpi_args():
@@ -369,14 +370,23 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     """
     import fitsio
             
-    version = SGA_version()
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', version, 'SGA-parent-{}.fits'.format(version))
-
     if first and last:
         if first > last:
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
+        
     ext = 1
+
+    version = SGA_version()
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', version, 'SGA-parent-{}.fits'.format(version))
+
+    # the file used to be in this location for production but was moved for the data release
+    if not os.path.isfile(samplefile):
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'SGA-parent-{}.fits'.format(version))
+
+    if not os.path.isfile(samplefile):
+        raise IOError('Sample file not found! {}'.format(samplefile))
+    
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
@@ -546,7 +556,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     # Add an (internal) index number:
     sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
-    
+
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-ellipse-outdated.txt', str)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-refit-ispsf-dropped.txt', str)
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/north-refit-ispsf2.txt', str)
