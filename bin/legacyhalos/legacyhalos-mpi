@@ -248,7 +248,7 @@ def main():
 
         if args.ellipse:
             from legacyhalos.legacyhalos import call_ellipse
-            call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, filesuffix='custom', 
+            call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, 
                          bands=['g', 'r', 'z'], refband='r',
                          pixscale=args.pixscale, nproc=args.nproc,
                          verbose=args.verbose, debug=args.debug,

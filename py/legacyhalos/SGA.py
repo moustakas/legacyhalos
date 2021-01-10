@@ -1231,8 +1231,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         nocentral = np.delete(np.arange(len(tractor)), central)
         srcs = tractor.copy()
         srcs.cut(nocentral)
-        model_nocentral = srcs2image(srcs, data['wcs'], band=refband.lower(),
-                                     pixelized_psf=data['refband_psf'])
+        model_nocentral = srcs2image(srcs, data['{}_wcs'.format(refband)], band=refband.lower(),
+                                     pixelized_psf=data['{}_psf'.format(refband)])
 
         # Mask all previous (brighter) central galaxies, if any.
         img, newmask = ma.getdata(data[refband]) - model_nocentral, ma.getmask(data[refband])
@@ -1373,8 +1373,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #    plt.savefig('junk.png')
         #    pdb.set_trace()
             
-        radec_med = data['wcs'].pixelToPosition(mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
-        radec_peak = data['wcs'].pixelToPosition(mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
+        radec_med = data['{}_wcs'.format(refband)].pixelToPosition(mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
+        radec_peak = data['{}_wcs'.format(refband)].pixelToPosition(mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
         mge = {'largeshift': largeshift,
             'ra': tractor.ra[central], 'dec': tractor.dec[central],
             'bx': tractor.bx[central], 'by': tractor.by[central],
@@ -1430,8 +1430,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             # Need to be smarter about the srcs list...
             srcs = tractor.copy()
             srcs.cut(nocentral)
-            model_nocentral = srcs2image(srcs, data['wcs'], band=filt.lower(),
-                                         pixelized_psf=data['refband_psf'])
+            model_nocentral = srcs2image(srcs, data['{}_wcs'.format(refband)], band=filt.lower(),
+                                         pixelized_psf=data['{}_psf'.format(refband)])
 
             # Convert to surface brightness and 32-bit precision.
             img = (ma.getdata(data[filt]) - model_nocentral) / thispixscale**2 # [nanomaggies/arcsec**2]
@@ -1464,6 +1464,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='largegalaxy', refband='r',
 
     """
     import fitsio
+    import astropy.units as u
     from astropy.table import Table
     from astrometry.util.fits import fits_table
     from legacypipe.bits import MASKBITS
@@ -1658,41 +1659,17 @@ def read_multiband(galaxy, galaxydir, filesuffix='largegalaxy', refband='r',
 
     # Gather some additional info that we want propagated to the output ellipse
     # catalogs.
-    if data['galaxy_id'] is not None:
-        central_galaxy_id_all = data['central_galaxy_id']
-    else:
-        central_galaxy_id_all = np.atleast_1d(1)
+    allgalaxyinfo = []
+    for igal, (galaxy_id, galaxy_indx) in enumerate(zip(data['galaxy_id'], data['galaxy_indx'])):
+        samp = sample[sample['SGA_ID'] == galaxy_id]
+        galaxyinfo = {'sga_id': (str(galaxy_id), ''),
+                      'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
+        for key, unit in zip(['ra', 'dec', 'pgc', 'pa_leda', 'ba_leda', 'd25_leda'],
+                             [u.deg, u.deg, '', u.deg, '', u.arcmin]):
+            galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
+        allgalaxyinfo.append(galaxyinfo)
 
-    for igal in np.arange(len(central_galaxy_id_all)):
-        central_galaxy_id = central_galaxy_id_all[igal]
-        galaxy_id = str(central_galaxy_id)
-        print('Starting ellipse-fitting for galaxy {} with {} core(s)'.format(galaxy_id, nproc))
-        if largegalaxy:
-            import astropy.units as u
-            # Supplement the fit results dictionary with some additional info.
-            samp = sample[sample['SGA_ID'] == central_galaxy_id]
-            galaxyinfo = {'sga_id': (central_galaxy_id, ''),
-                          'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
-            for key, unit in zip(['ra', 'dec', 'pgc', 'pa_leda', 'ba_leda', 'd25_leda'],
-                                 [u.deg, u.deg, '', u.deg, '', u.arcmin]):
-                galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
-            # Specify the fitting range
-            maxis = data['mge'][igal]['majoraxis'] # [pixels]
-            if samp['D25_LEDA'] > 10 or samp['PGC'] == 31968: # e.g., NGC5457
-                if samp['PGC'] == 31968: # special-case NGC3344
-                    print('Special-casing PGC031968==NGC3344!')
-                maxsma = 1.5 * maxis # [pixels]
-                if delta_sma is None:
-                    delta_sma = 0.003 * maxsma
-            else:
-                maxsma = 2 * maxis # [pixels]
-                if delta_sma is None:
-                    delta_sma = 0.0015 * maxsma
-            if delta_sma < 1:
-                delta_sma = 1.0
-            print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))
-
-    return data, galaxyinfo
+    return data, allgalaxyinfo
 
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                  filesuffix='largegalaxy', bands=['g', 'r', 'z'], refband='r',
@@ -1703,14 +1680,28 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     """
     from legacyhalos.mpi import call_ellipse as mpi_call_ellipse
 
-
     data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
                                       filesuffix=filesuffix,
                                       refband=refband, pixscale=pixscale,
                                       verbose=verbose)
 
+    maxis = data['mge'][igal]['majoraxis'] # [pixels]        
+
+    igal = 0
+    if galaxyinfo[igal]['d25_leda'] > 10 or galaxyinfo[igal]['pgc'] == 31968: # e.g., NGC5457, NGC3344
+        if galaxyinfo[igal]['pgc'] == 31968: # special-case NGC3344
+            print('Special-casing PGC031968==NGC3344!')
+        maxsma = 1.5 * maxis # [pixels]
+        delta_sma = 0.003 * maxsma
+    else:
+        maxsma = 2 * maxis # [pixels]
+        delta_sma = 0.0015 * maxsma
+    if delta_sma < 1:
+        delta_sma = 1.0
+        
     mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
-                     pixscale=pixscale, nproc=nproc, 
+                     pixscale=pixscale, nproc=nproc,
+                     logsma=False, delta_sma=delta_sma, maxsma=maxsma,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      verbose=verbose, debug=debug, logfile=logfile)
 
