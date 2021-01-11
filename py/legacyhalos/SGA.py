@@ -226,7 +226,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         if args.just_coadds:
             filesuffix = '-largegalaxy-grz-montage.png'
         else:
-            filesuffix = '-ccdpos.png'
+            filesuffix = '-largegalaxy-grz-montage.png'
+            #filesuffix = '-ccdpos.png'
             #filesuffix = '-largegalaxy-maskbits.png'
             #dependson = '-largegalaxy-ellipse.isdone'
             dependson = None
@@ -1121,7 +1122,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             # Update the nominal diameter--
             tractor['DIAM'][match] = 1.25 * tractor['DIAM'][match]
         else:
-            ellipse = read_ellipsefit(galaxy, galaxydir, galaxyid=str(sga_id),
+            ellipse = read_ellipsefit(galaxy, galaxydir, galaxy_id=str(sga_id),
                                       filesuffix='largegalaxy', verbose=True)
 
             # Objects with "largeshift" shifted positions significantly during
@@ -1503,7 +1504,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='largegalaxy', refband='r',
                 break
     
     if missing_data:
-        return data
+        return data, []
 
     # Pack some preliminary info into the output dictionary.
     data['filesuffix'] = filesuffix
@@ -1513,8 +1514,6 @@ def read_multiband(galaxy, galaxydir, filesuffix='largegalaxy', refband='r',
     data['failed'] = False # be optimistic!
 
     # Add ellipse parameters like maxsma, delta_logsma, etc.?
-
-
     
     # We ~have~ to read the tractor catalog using fits_table because we will
     # turn these catalog entries into Tractor sources later.
@@ -1624,7 +1623,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='largegalaxy', refband='r',
         sample = sample[keep_galaxy]
     else:
         data['failed'] = True
-        return data
+        return data, []
 
     #sample = sample[np.searchsorted(sample['SGA_ID'], tractor.ref_id[galaxy_indx])]
     assert(np.all(sample['SGA_ID'] == tractor.ref_id[galaxy_indx]))
@@ -2150,7 +2149,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
             galaxyid = str(tt['ref_id'])
             ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
-                                                     galaxyid=galaxyid, verbose=False)
+                                                     galaxy_id=galaxyid, verbose=False)
             if bool(ellipse):
                 html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
                     ellipse['d25_leda']*60/2, ellipse['pa_leda'], 1-ellipse['ba_leda']))
@@ -2201,7 +2200,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
             galaxyid = str(tt['ref_id'])
             ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
-                                                        galaxyid=galaxyid, verbose=False)
+                                                        galaxy_id=galaxyid, verbose=False)
             if bool(ellipse):
                 g, r, z = _get_mags(ellipse, R24=True)
                 html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
@@ -2225,8 +2224,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('<h4>{} - {}</h4>\n'.format(galaxyid, sample['GALAXY'][igal]))
 
             ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='largegalaxy',
-                                                     galaxyid=galaxyid, verbose=verbose)
-            if not bool(ellipse):
+                                                     galaxy_id=galaxyid, verbose=verbose)
+            if not bool(ellipse) or np.atleast_1d(ellipse['r_sma'])[0] == -1:
                 html.write('<p>Ellipse-fitting not done or failed.</p>\n')
                 continue
             #if False:
@@ -2334,8 +2333,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         _html_group_properties(html, gal)
         _html_image_mosaics(html)
         _html_ellipsefit_and_photometry(html, tractor, sample)
-        _html_maskbits(html)
-        _html_ccd_diagnostics(html)
+        #_html_maskbits(html)
+        #_html_ccd_diagnostics(html)
 
         html.write('<br /><br />\n')
         html.write('<a href="../../{}">Home</a>\n'.format(htmlhome))

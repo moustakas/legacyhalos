@@ -4,11 +4,14 @@
 SGA-mpi --coadds
 
 """
-import matplotlib
-matplotlib.use('Agg')
-
 import os, time, pdb
 import numpy as np
+
+import tempfile # ridiculousness!
+os.environ['MPLCONFIGDIR'] = tempfile.mkdtemp()
+
+#import matplotlib
+#matplotlib.use('Agg')
 
 def main():
     """Top-level wrapper.
@@ -289,21 +292,31 @@ def main():
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
-        galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(onegal)
-        if not os.path.isdir(galaxydir):
-            os.makedirs(galaxydir, exist_ok=True)
-
-        #if (count+1) % 10 == 0:
-        print('Rank {:03d} ({} / {}): {} (index {})'.format(
-            rank, count+1, len(groups[rank]), galaxydir, ii), flush=True)
+        
+        if args.htmlplots:
+            galaxy, galaxydir, htmlgalaxydir = legacyhalos.SGA.get_galaxy_galaxydir(onegal, htmldir=htmldir, html=True)
+            if not os.path.isdir(htmlgalaxydir):
+                os.makedirs(htmlgalaxydir, exist_ok=True)
+            print('Rank {:03d} ({} / {}): {} {} (index {})'.format(
+                rank, count+1, len(groups[rank]), galaxydir, htmlgalaxydir, ii), flush=True)
+        else:
+            galaxy, galaxydir = legacyhalos.SGA.get_galaxy_galaxydir(onegal)
+            if not os.path.isdir(galaxydir):
+                os.makedirs(galaxydir, exist_ok=True)
+            print('Rank {:03d} ({} / {}): {} (index {})'.format(
+                rank, count+1, len(groups[rank]), galaxydir, ii), flush=True)
 
         if args.debug:
             logfile = None
         else:
-            logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
+            # write the HTML log to the output directory
+            if args.htmlplots:
+                logfile = os.path.join(htmlgalaxydir, '{}-{}.log'.format(galaxy, suffix))
+            else:
+                logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
-            # No unwise here (we do it in --coadds) and don't care about the
-            # model images.
+        # No unwise here (we do it in --coadds) and don't care about the
+        # model images.
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
@@ -382,8 +395,10 @@ def main():
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
-                           largegalaxy=True, just_coadds=args.just_coadds,
-                           get_galaxy_galaxydir=legacyhalos.SGA.get_galaxy_galaxydir)
+                           just_coadds=args.just_coadds,
+                           write_donefile=False,
+                           get_galaxy_galaxydir=legacyhalos.SGA.get_galaxy_galaxydir,
+                           read_multiband=legacyhalos.SGA.read_multiband)
 
     # Wait for all ranks to finish.
     if comm is not None:

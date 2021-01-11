@@ -21,8 +21,10 @@ else
     # Specifiy the location of the input and output data.
     export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/$project
     #export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9alpha
+    #export LEGACYHALOS_DATA_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/sga-dr9
     export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/SGA-data-2020
-    export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/SGA-html-2020
+    export LEGACYHALOS_HTML_DIR=/global/cscratch1/sd/ioannis/SGA-html-2020
+    #export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/SGA-html-2020
     #export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9delta
     #export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr9delta
     
