@@ -37,7 +37,7 @@ elif [ $stage = "pipeline-coadds" ]; then
 elif [ $stage = "ellipse" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --ellipse --nproc ${ncores} --mpi --verbose # --clobber
 elif [ $stage = "htmlplots" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --htmlplots --nproc ${ncores} --mpi --verbose --d25max 1
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --htmlplots --nproc ${ncores} --mpi --verbose --d25min 3 --d25max 20
 elif [ $stage = "buildSGA" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --build-SGA --nproc ${ncores} --mpi --verbose --clobber
 else

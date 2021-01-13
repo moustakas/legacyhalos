@@ -1356,14 +1356,14 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 ax1.add_artist(leg1)
             
         # Now the color-radius plot
-        if sbprofile['radius_gr'][0] != -1:
+        if len(sbprofile['radius_gr']) > 0 and sbprofile['radius_gr'][0] != -1:
             ax2.fill_between(sbprofile['radius_gr']**0.25,
                              sbprofile['gr'] - sbprofile['gr_err'],
                              sbprofile['gr'] + sbprofile['gr_err'],
                              label=r'$g - r$', facecolor=next(colors), alpha=0.75,
                              edgecolor='k', lw=2)
 
-        if sbprofile['radius_rz'][0] != -1:
+        if len(sbprofile['radius_rz']) > 0 and sbprofile['radius_rz'][0] != -1:
             ax2.fill_between(sbprofile['radius_rz']**0.25,
                              sbprofile['rz'] - sbprofile['rz_err'],
                              sbprofile['rz'] + sbprofile['rz_err'],

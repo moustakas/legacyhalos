@@ -85,13 +85,16 @@ def missing_files_one(checkfile, dependsfile, clobber):
     #checkfile = os.path.join(galaxydir, '{}{}'.format(galaxy, filesuffix))
     #print('missing_files_one: ', checkfile)
     #print(checkfile, dependsfile, clobber)
-    if os.path.isfile(checkfile) and clobber is False:
+    from pathlib import Path
+    #if os.path.isfile(checkfile) and clobber is False:
+    if Path(checkfile).exists() and clobber is False:
         # Is the stage that this stage depends on done, too?
         #print(checkfile, dependsfile, clobber)
         if dependsfile is None:
             return 'done'
         else:
-            if os.path.isfile(dependsfile):
+            if Path(dependsfile).exists():
+            #if os.path.isfile(dependsfile):
                 return 'done'
             else:
                 return 'todo'
@@ -100,7 +103,8 @@ def missing_files_one(checkfile, dependsfile, clobber):
         # Did this object fail?
         if checkfile[-6:] == 'isdone':
             failfile = checkfile[:-6]+'isfail'
-            if os.path.isfile(failfile):
+            if Path(failfile).exists():
+            #if os.path.isfile(failfile):
                 if clobber is False:
                     return 'fail'
                 else:
