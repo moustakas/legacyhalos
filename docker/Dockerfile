@@ -1,4 +1,4 @@
-FROM legacysurvey/legacypipe:DR9.6.7b
+FROM legacysurvey/legacypipe:DR9.7.0
 
 RUN for x in \
     ipython \
@@ -6,6 +6,7 @@ RUN for x in \
     pyyaml \
     h5py \
     colossus \
+    corner \
     scikit-image \
     ; do pip --no-cache-dir install $x; done
 
