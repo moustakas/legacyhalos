@@ -37,7 +37,7 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
     
 def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                  pixscale=0.262, nproc=1, bands=['g', 'r', 'z'], refband='r',
-                 delta_logsma=5, maxsma=None,
+                 delta_logsma=5, maxsma=None, logsma=True,
                  verbose=False, debug=False,
                  logfile=None, input_ellipse=None, sbthresh=None):
     """Wrapper script to do ellipse-fitting.
@@ -57,7 +57,7 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
             bands=bands, refband=refband,
             pixscale=pixscale, nproc=nproc,
             sbthresh=sbthresh, input_ellipse=input_ellipse,
-            delta_logsma=delta_logsma, maxsma=maxsma,
+            delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
             verbose=verbose, debug=debug)
         _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'])
     else:
@@ -69,7 +69,7 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                     bands=bands, refband=refband,
                     pixscale=pixscale, nproc=nproc,
                     sbthresh=sbthresh, input_ellipse=input_ellipse,
-                    delta_logsma=delta_logsma, maxsma=maxsma,
+                    delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
                     verbose=verbose)
                 _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
 
@@ -120,6 +120,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                    verbose=False, debug=False, clobber=False, ccdqa=False,
                    logfile=None, zcolumn='Z', datadir=None, htmldir=None,                   
                    cosmo=None, galex=False, just_coadds=False,
+                   write_donefile=True,
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                    get_galaxy_galaxydir=None, read_multiband=None):
     """Wrapper script to build the pipeline coadds."""
@@ -137,7 +138,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
             cosmo=cosmo, galex=galex, just_coadds=just_coadds,
             get_galaxy_galaxydir=get_galaxy_galaxydir,
             read_multiband=read_multiband)
-        _done(galaxy, survey.output_dir, err, t0, 'html')
+        if write_donefile:
+            _done(galaxy, survey.output_dir, err, t0, 'html')
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
@@ -152,7 +154,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                     cosmo=cosmo, galex=galex, just_coadds=just_coadds,
                     get_galaxy_galaxydir=get_galaxy_galaxydir,
                     read_multiband=read_multiband)
-                _done(galaxy, survey.output_dir, err, t0, 'html')
+                if write_donefile:
+                    _done(galaxy, survey.output_dir, err, t0, 'html')
 
 def call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic, nproc=1,
                        pixscale=0.262, racolumn='RA', deccolumn='DEC',

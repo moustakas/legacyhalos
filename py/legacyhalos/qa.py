@@ -260,6 +260,9 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
     """
     from legacyhalos.ellipse import CogModel
+
+    if ellipsefit['success'] is False or np.atleast_1d(ellipsefit['r_sma'])[0] == -1:
+        return
     
     colors = _sbprofile_colors()
     
@@ -282,12 +285,15 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         #flux = ellipsefit['apphot_mag_{}'.format(filt)]
         #good = np.where( np.isfinite(flux) * (flux > 0) )[0]
         #mag = 22.5-2.5*np.log10(flux[good])
-        sma = ellipsefit['{}_cog_sma'.format(filt)]
         cog = ellipsefit['{}_cog_mag'.format(filt)]
         cogerr = ellipsefit['{}_cog_magerr'.format(filt)]
         chi2 = ellipsefit['{}_cog_params_chi2'.format(filt)]
         if np.atleast_1d(cog)[0] == -1 or chi2 == 1e6: # no measurement, or failed
             continue
+        sma = ellipsefit['{}_cog_sma'.format(filt)]
+        radius = sma**0.25
+        xlim = (0.9, radius.max()*1.01)
+        
         magtot = ellipsefit['{}_cog_params_mtot'.format(filt)]
         m0 = ellipsefit['{}_cog_params_m0'.format(filt)]
         alpha1 = ellipsefit['{}_cog_params_alpha1'.format(filt)]
@@ -298,10 +304,12 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             pipeline_magtot = pipeline_ellipsefit['cog_params_{}'.format(filt)]['mtot']
             label = '{}={:.3f} ({:.3f})'.format(filt, magtot, pipeline_magtot)
         else:
-            label = r'{}={:.3f} ($\chi^2_\nu={:.1f}$)'.format(filt, magtot, chi2)
+            label = r'${}$'.format(filt)
+            #label = r'${}_{{\mathrm{{tot}}}}={:.3f}$'.format(filt, magtot)
+            #label = r'{}={:.3f} ($\chi^2_\nu={:.1f}$)'.format(filt, magtot, chi2)
             
         #ax.plot(sma, cog, label=label)
-        ax.fill_between(sma, cog-cogerr, cog+cogerr, label=label, color=col)
+        ax.fill_between(radius, cog-cogerr, cog+cogerr, label=label, color=col)
                         #facecolor=col, edgecolor='k', lw=2)
         #if np.any(np.iscomplex(sma)) or np.any(np.iscomplex(cog)) or np.any(np.iscomplex(cogerr)):
         #    pdb.set_trace()
@@ -315,7 +323,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
                             facecolor=col, alpha=0.5)#, edgecolor='k', lw=1)
 
         cogmodel = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
-        ax.plot(sma, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
+        ax.plot(radius, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
         if sma.max() > maxsma:
             maxsma = sma.max()
         
@@ -323,20 +331,24 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         #print(filt, mag[-5:], np.mean(mag[-5:])
         #print(filt, np.min(mag))
 
-        if cog.max() > yfaint:
-            yfaint = cog.max()
-        if cog.min() < ybright:
-            ybright = cog.min()
+        inrange = np.where((radius >= xlim[0]) * (radius <= xlim[1]))[0]
+        if cog[inrange].max() > yfaint:
+            yfaint = cog[inrange].max()
+        if cog[inrange].min() < ybright:
+            ybright = cog[inrange].min()
         #if filt == 'r':
         #    pdb.set_trace()
 
-    ax.set_xlabel(r'Semi-major axis (arcsec)')
-    ax.set_ylabel('Cumulative brightness (AB mag)')
+    #ax.set_xlabel(r'Semi-major axis (arcsec)')
+    #ax.set_ylabel('Cumulative brightness (AB mag)')
+    ax.set_xlabel(r'(Semi-major axis $r$)$^{1/4}$ (arcsec)')
+    ax.set_ylabel('$m(<r)$ (mag)')
 
     if maxsma > 0:
-        ax.set_xlim(0, maxsma*1.01)
+        ax.set_xlim(0.9, (maxsma**0.25)*1.01)
+        #ax.set_xlim(0, maxsma*1.01)
     else:
-        ax.set_xlim(0, 1) # hack!
+        ax.set_xlim(0, 3) # hack!
         
     #ax.margins(x=0)
     xlim = ax.get_xlim()
@@ -350,9 +362,11 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     ybright += -0.5
     
     ax.set_ylim(yfaint, ybright)
-    ax_twin = ax.twinx()
-    ax_twin.set_ylim(yfaint, ybright)
-    ax_twin.set_ylabel('Cumulative Flux (AB mag)')#, rotation=-90)
+
+    if False:
+        ax_twin = ax.twinx()
+        ax_twin.set_ylim(yfaint, ybright)
+        ax_twin.set_ylabel('Cumulative Flux (AB mag)')#, rotation=-90)
 
     hh, ll = ax.get_legend_handles_labels()
     if len(hh) > 0:
@@ -383,9 +397,11 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             ax.add_artist(leg1)
         
     if smascale:
-        fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
+        fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.95)
+        #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
     else:
-        fig.subplots_adjust(left=0.12, bottom=0.15, top=0.95, right=0.88)
+        fig.subplots_adjust(left=0.12, bottom=0.15, top=0.95, right=0.95)
+        #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.95, right=0.88)
 
     if png:
         #if verbose:
@@ -472,7 +488,7 @@ def display_sersic(sersic, png=None, cosmo=None, verbose=False):
         mu = 22.5 - 2.5 * np.log10(sb)
         muerr = 2.5 * sberr / np.log(10) / sb
             
-        ax.fill_between(rad, mu-muerr, mu+muerr, facecolor=col, label=label, alpha=0.9)
+        ax.fill_between(rad, mu-muerr, mu+muerr, facecolor=col, label=label, alpha=1)
 
         if np.nanmin(mu-muerr) < ymnmax[0]:
             ymnmax[0] = np.nanmin(mu-muerr)
@@ -833,13 +849,14 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     # First display the color mosaic...
     if ellipsefit and ellipsefit['success']:
         sz = colorimg.size
-        if 'd25_leda' in ellipsefit.keys():
-            draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], ellipsefit['ba_leda'],
-                                ellipsefit['pa_leda'], ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
-                                color=cb_colors['red']) # '#3388ff')        
-        draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
-                            ellipsefit['pa'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
-                            ellipsefit['refpixscale'], color=cb_colors['green']) # '#ffaa33')
+        if False:
+            if 'd25_leda' in ellipsefit.keys():
+                draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], ellipsefit['ba_leda'],
+                                    ellipsefit['pa_leda'], ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
+                                    color=cb_colors['red']) # '#3388ff')        
+            draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
+                                ellipsefit['pa'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
+                                ellipsefit['refpixscale'], color=cb_colors['green']) # '#ffaa33')
                             
         if ellipsefit['radius_sb26'] > 0:
             sbr = ellipsefit['radius_sb26']
@@ -902,7 +919,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             ax1.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
                        interpolation='nearest')
         plt.text(0.1, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
-                 ha='center', va='center', color='k', fontsize=32)
+                 ha='center', va='center', color='k', fontsize=34)
 
         # Add a scale bar and label
         if barlen and ii == 0 and False:
@@ -922,8 +939,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #nfit = len(ellipsefit['{}_sma'.format(filt)])
             #nplot = np.rint(0.01*nfit).astype('int')
             nplot = 12
-            sma_lw = 1
-            sma_alpha = 0.8
+            sma_lw = 3
+            sma_alpha = 1.0
             #if nplot < 10:
             #    nplot = 10
             #    sma_lw = 3
@@ -954,8 +971,9 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                          maxis, maxis*(1 - ellipsefit['eps']),
                                          np.radians(ellipsefit['pa']-90))
-            ellaper.plot(lw=5, axes=ax1, alpha=1.0, label='Moment geometry',
-                         color=cb_colors['green'])
+            if False:
+                ellaper.plot(lw=5, axes=ax1, alpha=1.0, label='Moment geometry',
+                             color=cb_colors['green'])
 
             # Visualize the ellipse-fitted geometry
             maxis = sbr / ellipsefit['refpixscale'] # [pixels]
@@ -963,7 +981,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                              maxis, maxis*(1 - ellipsefit['eps']),
                                              np.radians(ellipsefit['pa']-90))
-                ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='Ellipse geometry')
+                #ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='Ellipse geometry')
+                ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='R(26)')
 
             # Visualize the LSLGA geometry, if present.
             if ('pa_leda' in ellipsefit.keys()) * ('ba_leda' in ellipsefit.keys()) * ('d25_leda' in ellipsefit.keys()):
@@ -971,7 +990,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
                                              maxis, maxis * ellipsefit['ba_leda'],
                                              np.radians(ellipsefit['pa_leda']-90))
-                ellaper.plot(color=cb_colors['red'], lw=5, axes=ax1, alpha=1.0, label='Hyperleda geometry')
+                if False:
+                    ellaper.plot(color=cb_colors['red'], lw=5, axes=ax1, alpha=1.0, label='Hyperleda geometry')
             #pdb.set_trace()
             ## Visualize the fitted geometry
             #maxis = mge['majoraxis'] * 1.2
@@ -997,7 +1017,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 #print('Font size {}'.format(fntsize))
                 hh, ll = ax1.get_legend_handles_labels()
                 if len(hh) > 0:
-                    ax1.legend(loc='lower right', fontsize=fntsize, frameon=True)
+                    ax1.legend(loc='lower right', fontsize=fntsize, frameon=True,
+                               borderaxespad=1.0)
         else:
             pass
             #from photutils import EllipticalAperture
@@ -1157,8 +1178,8 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
     from legacyhalos.ellipse import ellipse_sbprofile
 
     isdict = type(ellipsefit) is dict
-    
-    if ellipsefit['success']:
+
+    if ellipsefit['success'] and np.atleast_1d(ellipsefit['r_sma'])[0] != -1:
         sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr, sma_not_radius=~plot_radius)
 
         colors = _sbprofile_colors()
@@ -1185,7 +1206,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 redshift = None
 
         yminmax = [40, 0]
-        xminmax = [1, 0]
+        xminmax = [0.9, 0]
 
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
                                        gridspec_kw = {'height_ratios':[2, 1]})
@@ -1259,7 +1280,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt),
                                  facecolor='k', alpha=0.2, edgecolor='k', lw=3)
                 
-        ax1.set_ylabel(r'$\mu$ (mag arcsec$^{-2}$)')
+        ax1.set_ylabel(r'$\mu(r)$ (mag arcsec$^{-2}$)')
         #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
 
         ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
@@ -1335,14 +1356,14 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 ax1.add_artist(leg1)
             
         # Now the color-radius plot
-        if sbprofile['radius_gr'][0] != -1:
+        if len(sbprofile['radius_gr']) > 0 and sbprofile['radius_gr'][0] != -1:
             ax2.fill_between(sbprofile['radius_gr']**0.25,
                              sbprofile['gr'] - sbprofile['gr_err'],
                              sbprofile['gr'] + sbprofile['gr_err'],
                              label=r'$g - r$', facecolor=next(colors), alpha=0.75,
                              edgecolor='k', lw=2)
 
-        if sbprofile['radius_rz'][0] != -1:
+        if len(sbprofile['radius_rz']) > 0 and sbprofile['radius_rz'][0] != -1:
             ax2.fill_between(sbprofile['radius_rz']**0.25,
                              sbprofile['rz'] - sbprofile['rz_err'],
                              sbprofile['rz'] + sbprofile['rz_err'],
@@ -1352,7 +1373,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         if plot_radius:
             ax2.set_xlabel(r'(Galactocentric radius)$^{1/4}$ (arcsec)')
         else:
-            ax2.set_xlabel(r'(Semi-major axis)$^{1/4}$ (arcsec)')
+            ax2.set_xlabel(r'(Semi-major axis $r$)$^{1/4}$ (arcsec)')
         #ax2.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
 
         hh, ll = ax2.get_legend_handles_labels()
@@ -1367,11 +1388,11 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 
         for xx in (ax1, ax2):
             ylim = xx.get_ylim()
-            xx.fill_between([0, (3*ellipsefit['psfsize_r'])**0.25],
+            xx.fill_between([0, (2*ellipsefit['psfsize_r'])**0.25],
                             [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
             
-        ax2.text(0.05, 0.15, 'PSF\n(3$\sigma$)', ha='center', va='center',
-            transform=ax2.transAxes, fontsize=10)
+        ax1.text(0.07, 0.1, 'PSF\n(2$\sigma$)', ha='center', va='center',
+            transform=ax1.transAxes, fontsize=10)
         #ax2.text(0.03, 0.1, 'PSF\n(3$\sigma$)', ha='center', va='center',
         #    transform=ax2.transAxes, fontsize=10)
 
