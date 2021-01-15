@@ -527,12 +527,12 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
             cut19 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 40) * (cen[RICHCOLUMN] < 60))[0][:10]
             cut20 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.25) * (cen[ZCOLUMN] < 0.30) * (cen[RICHCOLUMN] >= 60) * (cen[RICHCOLUMN] < 100))[0][:10]
 
-            samplecut = cut20
-            #samplecut = np.hstack((
-            #    cut01, cut02, cut03, cut04, cut05,
-            #    cut06, cut07, cut08, cut09, cut10,
-            #    cut11, cut12, cut13, cut14, cut15,
-            #    cut16, cut17, cut18, cut19, cut20))
+            #samplecut = cut20
+            samplecut = np.hstack((
+                cut01, cut02, cut03, cut04, cut05,
+                cut06, cut07, cut08, cut09, cut10,
+                cut11, cut12, cut13, cut14, cut15,
+                cut16, cut17, cut18, cut19, cut20))
         else:
             samplecut = np.where(
                 (cen[ZCOLUMN] >= 0.1) *
@@ -570,7 +570,7 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(cen), cenfile))
 
-    # pre-compute the radius of the mosaic (=500 kpc) for each cluster
+    # pre-compute the radius of the mosaic (=RADIUS_CLUSTER_KPC kpc) for each cluster
     cen['RADIUS_MOSAIC'] = cutout_radius_kpc(redshift=cen[ZCOLUMN], cosmo=cosmo, # [arcsec]
                                              radius_kpc=RADIUS_CLUSTER_KPC) 
 
