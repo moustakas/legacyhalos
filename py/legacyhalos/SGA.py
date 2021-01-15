@@ -597,16 +597,17 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #galaxylist = np.loadtxt('/global/homes/i/ioannis/south-ispsf.txt', str)
 
     if galaxylist is not None:
-        if final_sample:
-            galcolumn = 'GALAXY'
-        else:
-            galcolumn = 'GROUP_NAME'
         if verbose:
             print('Selecting specific galaxies.')
-        these = np.isin(sample[galcolumn], galaxylist)
+        these = np.isin(sample['GROUP_NAME'], galaxylist)
         if np.count_nonzero(these) == 0:
-            print('No matching galaxies!')
-            return astropy.table.Table()
+            print('No matching galaxies using column GROUP_NAME!')
+            these = np.isin(sample['GALAXY'], galaxylist)
+            if np.count_nonzero(these) == 0:
+                print('No matching galaxies using column GALAXY!')
+                return astropy.table.Table()
+            else:
+                sample = sample[these]
         else:
             sample = sample[these]
 
@@ -2219,6 +2220,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('</table>\n')
 
         html.write('<h3>Photometry</h3>\n')
+        html.write('<p style="width: 75%">The table below provides the Tractor model photometry and the cumulative flux measured within the R(24), R(25), and R(26) radii (corresponding to the size of the galaxy at the 24, 25, and 26 magnitude per square arcsec surface brightness thresholds, respectively). The last three columns provide the total, integrated magnitude based on fitting the curve of growth in each bandpass with an empirical model (shown as a thin dashed line in the curve-of-growth figure, below).</p>\n')
         html.write('<table>\n')
         html.write('<tr><th></th><th></th>\n')
         html.write('<th colspan="3"></th>\n')
