@@ -1110,7 +1110,6 @@ def fig_surface_brightness(sample, thisgalaxy, png):
 
         sma = ellipsefit['{}_cog_sma'.format(filt)]
         radius = (sma * np.sqrt(1-eps) * data['refpixscale'])**0.25 # circularized radius [arcsec]
-        pdb.set_trace()
 
         cog = ellipsefit['{}_cog_mag'.format(filt)]
         cogerr = ellipsefit['{}_cog_magerr'.format(filt)]
@@ -1219,7 +1218,7 @@ def fig_skystats(sample, png, clobber=False):
         for band in bands:
             data.add_column(Column(name='{}_median'.format(band), length=ngal, shape=(nskyaps, ), dtype='f8'))
             data.add_column(Column(name='{}_mean'.format(band), length=ngal, shape=(nskyaps, ), dtype='f8'))
-            data.add_column(Column(name='{}_sigma'.format(band), length=ngal, shape=(nskyaps, ), dtype='f8'))
+            data.add_column(Column(name='{}_sb'.format(band), length=ngal, shape=(nskyaps, ), dtype='f8'))
 
         #thisgalaxy = '0000195-052316929'
         #this = np.where(galaxy == thisgalaxy)[0]
@@ -1235,7 +1234,12 @@ def fig_skystats(sample, png, clobber=False):
                 for band in bands:
                     data['{}_median'.format(band)][ii][jj] = hdr['{}SKYMD{:02d}'.format(band.upper(), jj)]
                     data['{}_mean'.format(band)][ii][jj] = hdr['{}SKYMN{:02d}'.format(band.upper(), jj)]
-                    data['{}_sigma'.format(band)][ii][jj] = hdr['{}SKYSG{:02d}'.format(band.upper(), jj)]
+
+                    # get the surface brightness
+                    sig = hdr['{}SKYSG{:02d}'.format(band.upper(), jj)]
+                    npix = hdr['{}SKYNP{:02d}'.format(band.upper(), jj)]
+                    #pdb.set_trace()
+                    #data['{}_sigma'.format(band)][ii][jj] = sb
                     
         print('Writing {}'.format(statsfile))
         data.write(statsfile, overwrite=True)
@@ -1353,7 +1357,8 @@ def main():
 
     # Fig - surface brightness
     if args.surface_brightness:
-        #fig_surface_brightness(sample, thisgalaxy='0000195-052316929', png='test-surface_brightness.png')
+        fig_surface_brightness(sample, thisgalaxy='0006789-004861920', png='test-surface_brightness.png')
+        pdb.set_trace()
         for gal in galaxy:
             fig_surface_brightness(sample, thisgalaxy=gal, png='surface_brightness_{}.png'.format(gal))
             pdb.set_trace()
