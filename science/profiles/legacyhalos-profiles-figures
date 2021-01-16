@@ -704,7 +704,8 @@ def fig_model_and_mask(sample, thisgalaxy, png):
     filesuffix = 'custom'
 
     # Read the data and the Tractor catalog (see read_multiband for this code).
-    data, _ = read_multiband(galaxy, galaxydir, filesuffix=filesuffix, verbose=True)
+    data, _ = read_multiband(galaxy, galaxydir, onegal['ID_CENT'][0],
+                             filesuffix=filesuffix, verbose=True)
 
     arcsec2kpc = legacyhalos.misc.arcsec2kpc(onegal[ZCOLUMN], cosmo=cosmo) # [kpc/arcsec]
 
@@ -928,12 +929,14 @@ def fig_surface_brightness(sample, thisgalaxy, png):
     print(thisgalaxy, onegal[ZCOLUMN], onegal[RICHCOLUMN])
 
     filesuffix = 'custom'
+    galaxy_id = onegal['ID_CENT'][0]
 
     # Read the data and the ellipse-fitting results.
     ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
-                                 galaxy_id='', verbose=True)
+                                 galaxy_id=str(galaxy_id), verbose=True)
 
-    data, _ = read_multiband(galaxy, galaxydir, filesuffix=filesuffix, verbose=True)
+    data, _ = read_multiband(galaxy, galaxydir, galaxy_id=galaxy_id,
+                             filesuffix=filesuffix, verbose=True)
 
     band = data['bands']
     nband = len(band)
