@@ -614,7 +614,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     # If the row-index of the central galaxy is not provided, use the source
     # nearest to the center of the field.
     if 'galaxy_indx' in data.keys():
-        galaxy_indx = data['galaxy_indx']
+        galaxy_indx = np.atleast_1d(data['galaxy_indx'])
     else:
         galaxy_indx = np.array([np.argmin((tractor.bx - data['refband_height']/2)**2 +
                                           (tractor.by - data['refband_width']/2)**2)])
@@ -784,7 +784,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
     return data            
 
-def read_multiband(galaxy, galaxydir, filesuffix='custom',
+def read_multiband(galaxy, galaxydir, galaxy_id, filesuffix='custom',
                    refband='r', bands=['g', 'r', 'z'], pixscale=0.262,
                    redshift=None, fill_value=0.0, sky_tests=False, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
@@ -809,7 +809,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
                                    }})
         filt2pixscale.update({band: pixscale})
     filt2imfile.update({'tractor': '{}-tractor'.format(filesuffix),
-                        #'sample': '{}-sample'.format(filesuffix),
+                        'sample': 'redmapper-sample',
                         'maskbits': '{}-maskbits'.format(filesuffix),
                         })
 
@@ -898,10 +898,17 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     # Read the basic imaging data and masks.
     data = _read_image_data(data, filt2imfile, starmask=starmask,
                             fill_value=fill_value, verbose=verbose)
-
-    print('ASSIGN A GALAXY_INDX USING REF_ID!')
-    #data['galaxy_indx'] = np.array([0])
-    #data['galaxy_id'] = np.array([''])
+    
+    # Find the central.
+    samplefile = os.path.join(galaxydir, '{}-{}.fits'.format(galaxy, filt2imfile['sample']))
+    sample = Table(fitsio.read(samplefile))
+    print('Read {} sources from {}'.format(len(sample), samplefile))
+    
+    galaxy_indx = np.where((tractor.ref_cat == 'R1') * (tractor.ref_id == galaxy_id))[0]
+    if len(galaxy_indx) != 1:
+        raise ValueError('Problem finding the central galaxy! {}'.format(len(galaxy_indx)))
+    data['galaxy_indx'] = np.asscalar(galaxy_indx)
+    data['galaxy_id'] = str(np.asscalar(galaxy_id))
 
     # Now build the multiband mask.
     data = _build_multiband_mask(data, tractor, filt2pixscale,
@@ -917,7 +924,9 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     # Gather some additional info that we want propagated to the output ellipse
     # catalogs.
     if redshift:
-        galaxyinfo = {'redshift': (redshift, '')} # (value, units) tuple for the FITS header
+        galaxyinfo = { # (value, units) tuple for the FITS header
+            'id_cent': (str(np.asscalar(galaxy_id)), ''),
+            'redshift': (redshift, '')} 
     else:
         galaxyinfo = None
 
@@ -934,8 +943,9 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     from copy import deepcopy
     from legacyhalos.mpi import call_ellipse as mpi_call_ellipse
 
-    data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
-                                      filesuffix=filesuffix,
+    galaxy_id = onegal['ID_CENT'][0]
+    data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id,
+                                      bands=bands, filesuffix=filesuffix,
                                       refband=refband, pixscale=pixscale,
                                       redshift=onegal[ZCOLUMN],
                                       sky_tests=sky_tests, verbose=verbose)
@@ -963,8 +973,8 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
 
             # no need to redo the nominal ellipse-fitting
             if isky == 0:
-                inellipsefile = os.path.join(galaxydir, '{}-{}-ellipse.fits'.format(galaxy, skydata['filesuffix']))
-                outellipsefile = os.path.join(galaxydir, '{}-{}-ellipse.fits'.format(galaxy, data['filesuffix']))
+                inellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, skydata['filesuffix'], galaxy_id))
+                outellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, data['filesuffix'], galaxy_id))
                 print('Copying {} --> {}'.format(inellipsefile, outellipsefile))
                 shutil.copy2(inellipsefile, outellipsefile)
     else:

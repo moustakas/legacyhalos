@@ -1988,7 +1988,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
     htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
     if os.path.isfile(htmlfile) and not clobber:
-        print('File {} exists and clobber=False'.format(htmlfile))
+        if verbose:
+            print('File {} exists and clobber=False'.format(htmlfile))
         return
     
     nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
@@ -2413,7 +2414,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               first=None, last=None, galaxylist=None,
               nproc=1, survey=None, makeplots=False,
               htmlhome='index.html', html_raslices=False,
-              clobber=False, verbose=True, maketrends=False, ccdqa=False,
+              clobber=False, verbose=False, maketrends=False, ccdqa=False,
               args=None, fix_permissions=True):
     """Make the HTML pages.
 

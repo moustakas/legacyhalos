@@ -54,6 +54,9 @@ def main():
             sample = legacyhalos.legacyhalos.read_redmapper(
                 first=args.first, last=args.last, verbose=args.verbose)
 
+    print('Hack!')
+    sample = sample[sample['ID_CENT'][:, 0] == 4861920]
+    
     if comm is not None:
         sample = comm.bcast(sample, root=0)
         fullsample = comm.bcast(fullsample, root=0)
@@ -77,12 +80,16 @@ def main():
 
     if args.build_refcat or args.integrate and rank == 0:
         if args.build_refcat:
-            # build a reference catalog for use with the pipeline
+            # Build a reference catalog for use with the pipeline. satellites
+            # can belong to more than one cluster, so trim to unique IDs.
             
             import fitsio
             from astropy.table import Table
 
+            _, uindx = np.unique(fullsample['ID'], return_index=True)
+            fullsample = fullsample[uindx]
             ngal = len(fullsample)
+
             ref = Table()
             ref['ra'] = fullsample['RA']
             ref['dec'] = fullsample['DEC']
@@ -202,10 +209,10 @@ def main():
 
         # Need the cluster "radius" to build the coadds.
         radius_mosaic_arcsec = onegal[DIAMCOLUMN] # [arcsec]
-        subsky_radii = radius_mosaic_arcsec * np.array([1.4, 1.5,  # annulus 0
-                                                        1.0, 1.1,  # annulus 1
-                                                        2.0, 2.1,  # annulus 2
-                                                        3.0, 3.1]) # annulus 3
+        subsky_radii = radius_mosaic_arcsec * np.array([1.0, 1.1,  # annulus 0
+                                                        1.2, 1.3,  # annulus 1
+                                                        1.3, 1.4,  # annulus 2
+                                                        1.4, 1.5]) # annulus 3
         
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
@@ -221,7 +228,7 @@ def main():
                 thissample = fullsample[np.where(onegal['MEM_MATCH_ID'] == fullsample['MEM_MATCH_ID'])[0]]
                 samplefile = os.path.join(galaxydir, '{}-redmapper-sample.fits'.format(galaxy))
                 if args.clobber or not os.path.isfile(samplefile):
-                    print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+                    #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
                     thissample.write(samplefile, overwrite=True)
 
                 call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,

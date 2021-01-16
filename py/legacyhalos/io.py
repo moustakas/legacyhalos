@@ -239,7 +239,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     from astropy.io import fits
     from astropy.table import QTable
 
-    if galaxy_id.strip() == '':
+    if str(galaxy_id).strip() == '':
         galid = ''
     else:
         galid = '-{}'.format(galaxy_id)
