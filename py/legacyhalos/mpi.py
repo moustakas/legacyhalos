@@ -38,7 +38,7 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
 def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                  pixscale=0.262, nproc=1, bands=['g', 'r', 'z'], refband='r',
                  delta_logsma=5, maxsma=None, logsma=True,
-                 verbose=False, debug=False,
+                 verbose=False, debug=False, write_donefile=True,
                  logfile=None, input_ellipse=None, sbthresh=None):
     """Wrapper script to do ellipse-fitting.
 
@@ -59,7 +59,8 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
             sbthresh=sbthresh, input_ellipse=input_ellipse,
             delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
             verbose=verbose, debug=debug)
-        _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'])
+        if write_donefile:
+            _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'])
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
@@ -71,7 +72,10 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                     sbthresh=sbthresh, input_ellipse=input_ellipse,
                     delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
                     verbose=verbose)
-                _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
+                if write_donefile:
+                    _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
+
+    return err
 
 def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile):
     """Wrapper script to do Sersic-fitting.

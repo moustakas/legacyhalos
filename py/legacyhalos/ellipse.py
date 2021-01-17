@@ -913,14 +913,14 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
             return 1
 
         if 'galaxy_id' in data.keys():
-            galaxy_id = str(data['galaxy_id'])
+            galaxy_id = np.atleast_1d(data['galaxy_id'])
         else:
-            galaxy_id = ''
+            galaxy_id = ['']
             
-        for igal, galid in enumerate(np.atleast_1d(galaxy_id)):
+        for igal, galid in enumerate(galaxy_id):
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
                                               galaxyinfo=galaxyinfo,
-                                              igal=igal, galaxy_id=galid,
+                                              igal=igal, galaxy_id=str(galid),
                                               delta_logsma=delta_logsma, maxsma=maxsma,
                                               delta_sma=delta_sma, logsma=logsma,
                                               refband=refband, nproc=nproc, sbthresh=sbthresh,

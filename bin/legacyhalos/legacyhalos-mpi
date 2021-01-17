@@ -54,9 +54,9 @@ def main():
             sample = legacyhalos.legacyhalos.read_redmapper(
                 first=args.first, last=args.last, verbose=args.verbose)
 
-    print('Hack!')
-    sample = sample[sample['ID_CENT'][:, 0] == 4861920]
-    
+    #print('Hack!')
+    #sample = sample[sample['ID_CENT'][:, 0] == 41301617]
+
     if comm is not None:
         sample = comm.bcast(sample, root=0)
         fullsample = comm.bcast(fullsample, root=0)

@@ -5,7 +5,7 @@ legacyhalos.legacyhalos
 Code to support the legacyhalos sample and project.
 
 """
-import os, time, shutil, pdb
+import os, time, shutil, subprocess, pdb
 import numpy as np
 import astropy
 import fitsio
@@ -618,7 +618,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     else:
         galaxy_indx = np.array([np.argmin((tractor.bx - data['refband_height']/2)**2 +
                                           (tractor.by - data['refband_width']/2)**2)])
-        data['galaxy_indx'] = galaxy_indx
+        data['galaxy_indx'] = np.atleast_1d(galaxy_indx)
         data['galaxy_id'] = ''
 
     #print('Import hack!')
@@ -797,6 +797,12 @@ def read_multiband(galaxy, galaxydir, galaxy_id, filesuffix='custom',
     from legacypipe.bits import MASKBITS
     from legacyhalos.io import _get_psfsize_and_depth, _read_image_data
 
+    #galaxy_id = np.atleast_1d(galaxy_id)
+    #if len(galaxy_id) > 1:
+    #    raise ValueError('galaxy_id in read_multiband cannot be a >1-element vector for now!')
+    #galaxy_id = galaxy_id[0]
+    #assert(np.isscalar(galaxy_id))
+
     # Dictionary mapping between optical filter and filename coded up in
     # coadds.py, galex.py, and unwise.py, which depends on the project.
     data, filt2imfile, filt2pixscale = {}, {}, {}
@@ -903,12 +909,15 @@ def read_multiband(galaxy, galaxydir, galaxy_id, filesuffix='custom',
     samplefile = os.path.join(galaxydir, '{}-{}.fits'.format(galaxy, filt2imfile['sample']))
     sample = Table(fitsio.read(samplefile))
     print('Read {} sources from {}'.format(len(sample), samplefile))
-    
-    galaxy_indx = np.where((tractor.ref_cat == 'R1') * (tractor.ref_id == galaxy_id))[0]
-    if len(galaxy_indx) != 1:
-        raise ValueError('Problem finding the central galaxy! {}'.format(len(galaxy_indx)))
-    data['galaxy_indx'] = np.asscalar(galaxy_indx)
-    data['galaxy_id'] = str(np.asscalar(galaxy_id))
+
+    data['galaxy_indx'] = []
+    data['galaxy_id'] = []
+    for galid in np.atleast_1d(galaxy_id):
+        galindx = np.where((tractor.ref_cat == 'R1') * (tractor.ref_id == galid))[0]
+        if len(galindx) != 1:
+            raise ValueError('Problem finding the central galaxy {} in the tractor catalog!'.format(galid))
+        data['galaxy_indx'].append(galindx[0])
+        data['galaxy_id'].append(galid)
 
     # Now build the multiband mask.
     data = _build_multiband_mask(data, tractor, filt2pixscale,
@@ -924,13 +933,16 @@ def read_multiband(galaxy, galaxydir, galaxy_id, filesuffix='custom',
     # Gather some additional info that we want propagated to the output ellipse
     # catalogs.
     if redshift:
-        galaxyinfo = { # (value, units) tuple for the FITS header
-            'id_cent': (str(np.asscalar(galaxy_id)), ''),
-            'redshift': (redshift, '')} 
+        allgalaxyinfo = []
+        for galaxy_id, galaxy_indx in zip(data['galaxy_id'], data['galaxy_indx']):
+            galaxyinfo = { # (value, units) tuple for the FITS header
+                'id_cent': (str(galaxy_id), ''),
+                'redshift': (redshift, '')}
+            allgalaxyinfo.append(galaxyinfo)
     else:
-        galaxyinfo = None
+        allgalaxyinfo = None
 
-    return data, galaxyinfo
+    return data, allgalaxyinfo
 
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                  filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
@@ -940,43 +952,71 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     and hooks for the legacyhalos project.
 
     """
+    import astropy.table
     from copy import deepcopy
     from legacyhalos.mpi import call_ellipse as mpi_call_ellipse
 
+    if type(onegal) == astropy.table.Table:
+        onegal = onegal[0] # create a Row object
     galaxy_id = onegal['ID_CENT'][0]
-    data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id,
-                                      bands=bands, filesuffix=filesuffix,
-                                      refband=refband, pixscale=pixscale,
-                                      redshift=onegal[ZCOLUMN],
-                                      sky_tests=sky_tests, verbose=verbose)
+
+    if logfile:
+        from contextlib import redirect_stdout, redirect_stderr
+        with open(logfile, 'a') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id, bands=bands,
+                                                  filesuffix=filesuffix, refband=refband,
+                                                  pixscale=pixscale, redshift=onegal[ZCOLUMN],
+                                                  sky_tests=sky_tests, verbose=verbose)
+    else:
+        data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id, bands=bands,
+                                          filesuffix=filesuffix, refband=refband,
+                                          pixscale=pixscale, redshift=onegal[ZCOLUMN],
+                                          sky_tests=sky_tests, verbose=verbose)
 
     maxsma, delta_logsma = None, 6
     #maxsma, delta_logsma = 200, 10
 
     if sky_tests:
-        skydata = deepcopy(data) # necessary?
-        for isky in np.arange(len(data['sky'])):
-            skydata['filesuffix'] = data['sky'][isky]['skysuffix']
-            for band in bands:
-                # We want to *add* this delta-sky because it is defined as
-                #   sky_annulus_0 - sky_annulus_isky
-                delta_sky = data['sky'][isky][band] 
-                print('  Adjusting {}-band sky backgroud by {:4g} nanomaggies.'.format(band, delta_sky))
-                for igal in np.arange(len(np.atleast_1d(data['galaxy_indx']))):
-                    skydata['{}_masked'.format(band)][igal] = data['{}_masked'.format(band)][igal] + delta_sky
+        from legacyhalos.mpi import _done
 
-            mpi_call_ellipse(galaxy, galaxydir, skydata, galaxyinfo=galaxyinfo,
-                             pixscale=pixscale, nproc=nproc, 
-                             bands=bands, refband=refband, sbthresh=SBTHRESH,
-                             delta_logsma=delta_logsma, maxsma=maxsma,
-                             verbose=verbose, debug=debug, logfile=logfile)
+        def _wrap_call_ellipse():
+            skydata = deepcopy(data) # necessary?
+            for isky in np.arange(len(data['sky'])):
+                skydata['filesuffix'] = data['sky'][isky]['skysuffix']
+                for band in bands:
+                    # We want to *add* this delta-sky because it is defined as
+                    #   sky_annulus_0 - sky_annulus_isky
+                    delta_sky = data['sky'][isky][band] 
+                    print('  Adjusting {}-band sky backgroud by {:4g} nanomaggies.'.format(band, delta_sky))
+                    for igal in np.arange(len(np.atleast_1d(data['galaxy_indx']))):
+                        skydata['{}_masked'.format(band)][igal] = data['{}_masked'.format(band)][igal] + delta_sky
 
-            # no need to redo the nominal ellipse-fitting
-            if isky == 0:
-                inellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, skydata['filesuffix'], galaxy_id))
-                outellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, data['filesuffix'], galaxy_id))
-                print('Copying {} --> {}'.format(inellipsefile, outellipsefile))
-                shutil.copy2(inellipsefile, outellipsefile)
+                err = mpi_call_ellipse(galaxy, galaxydir, skydata, galaxyinfo=galaxyinfo,
+                                       pixscale=pixscale, nproc=nproc, 
+                                       bands=bands, refband=refband, sbthresh=SBTHRESH,
+                                       delta_logsma=delta_logsma, maxsma=maxsma,
+                                       write_donefile=False,
+                                       verbose=verbose, debug=True)#, logfile=logfile)# no logfile and debug=True, otherwise this will crash
+
+                # no need to redo the nominal ellipse-fitting
+                if isky == 0:
+                    inellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, skydata['filesuffix'], galaxy_id))
+                    outellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, data['filesuffix'], galaxy_id))
+                    print('Copying {} --> {}'.format(inellipsefile, outellipsefile))
+                    shutil.copy2(inellipsefile, outellipsefile)
+            return err
+        
+        t0 = time.time()
+        if logfile:
+            with open(logfile, 'a') as log:
+                with redirect_stdout(log), redirect_stderr(log):
+                    err = _wrap_call_ellipse()
+                    _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
+        else:
+            log = None
+            err = _wrap_call_ellipse()
+            _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
     else:
         mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                          pixscale=pixscale, nproc=nproc, 
