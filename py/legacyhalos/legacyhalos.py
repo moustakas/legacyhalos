@@ -634,6 +634,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         psfsrcs = None
 
     def tractor2mge(indx, factor=1.0):
+    #def tractor2mge(indx, majoraxis=None):
         # Convert a Tractor catalog entry to an MGE object.
         class MGEgalaxy(object):
             pass
@@ -648,7 +649,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         mgegalaxy.ymed = tractor.bx[indx]
         mgegalaxy.eps = 1-ba
         mgegalaxy.theta = (270 - pa) % 180
-        mgegalaxy.majoraxis = factor * tractor.shape_r[indx] # [pixels]
+        mgegalaxy.majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
 
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                mgegalaxy.majoraxis,
@@ -667,7 +668,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # in the reference band. First, subtract all models except the galaxy
         # and galaxies "near" it. Also restore the original pixels of the
         # central in case there was a poor deblend.
-        mge, centralmask = tractor2mge(central, factor=6.0)
+        
+        mge, centralmask = tractor2mge(central, factor=5.0)
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -715,31 +717,38 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             plt.clf() ; mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=True, plot=True)
             plt.savefig('/mnt/legacyhalos-data/debug.png')
 
-        # [2] Create the satellite mask in all the bandpasses.
+        # [2] Create the satellite mask in all the bandpasses. Use srcs here,
+        # which has had the satellites nearest to the central galaxy trimmed
+        # out.
         print('Building the satellite mask.')
         satmask = np.zeros(data[refband].shape, bool)
         for filt in bands:
-            satflux = getattr(tractor, 'flux_{}'.format(filt))
             cenflux = getattr(tractor, 'flux_{}'.format(filt))[central]
+            satflux = getattr(srcs, 'flux_{}'.format(filt))
             if cenflux <= 0.0:
                 print('Central galaxy flux is negative!')
                 raise ValueError
             
-            satindx = np.where((tractor.type != 'PSF') * (tractor.shape_r > r50mask) *
-                               (satflux > 0.0) * ((satflux / cenflux) > threshmask))[0]
-            if np.isin(central, satindx):
-                satindx = satindx[np.logical_not(np.isin(satindx, central))]
+            satindx = np.where(np.logical_or(
+                (srcs.type != 'PSF') * (srcs.shape_r > r50mask) *
+                (satflux > 0.0) * ((satflux / cenflux) > threshmask),
+                srcs.ref_cat == 'R1'))[0]
+            #if np.isin(central, satindx):
+            #    satindx = satindx[np.logical_not(np.isin(satindx, central))]
             if len(satindx) == 0:
-                print('All satellites have been dropped!')
-                raise ValueError
+                raise ValueError('All satellites have been dropped!')
 
-            satsrcs = tractor.copy()
+            satsrcs = srcs.copy()
+            #satsrcs = tractor.copy()
             satsrcs.cut(satindx)
             satimg = srcs2image(satsrcs, data['{}_wcs'.format(filt)],
                                 band=filt.lower(),
                                 pixelized_psf=data['{}_psf'.format(filt)])
             satmask = np.logical_or(satmask, satimg > 10*data['{}_sigma'.format(filt)])
-            #plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+            #if True:
+            #    import matplotlib.pyplot as plt
+            #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+            #    pdb.set_trace()
 
         # [3] Build the final image (in each filter) for ellipse-fitting. First,
         # subtract out the PSF sources. Then update the mask (but ignore the

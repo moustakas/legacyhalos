@@ -482,7 +482,7 @@ def integrate_isophot_one(img, sma, theta, eps, x0, y0, pixscalefactor,
         
     return out
 
-def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
+def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
                       cut_on_cog=False, sdss=False, linear=False):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
@@ -537,7 +537,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
             else:
                 keep = np.isfinite(sb) * ((sb / sberr) > snrmin)
             if cut_on_cog:
-                keep *= ellipsefit['{}_sma'.format(filt)] <= np.max(ellipsefit['{}_cog_sma'.format(filt)])
+                keep *= (ellipsefit['{}_sma'.format(filt)] * pixscale) <= np.max(ellipsefit['{}_cog_sma'.format(filt)])
             keep = np.where(keep)[0]
                 
             sbprofile['{}_keep'.format(filt)] = keep

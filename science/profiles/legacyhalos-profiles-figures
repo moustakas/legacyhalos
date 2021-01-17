@@ -387,9 +387,10 @@ def fig_skysub_tests(sample, png=None):
             if len(indx) > 0:
                 for onegal in sample[indx]:#[:3]:
                     galaxy, galaxydir = get_galaxy_galaxydir(onegal)
+                    galaxyid = str(onegal['ID_CENT'][0])
 
                     ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='custom',
-                                                 galaxy_id='', verbose=False)
+                                                 galaxy_id=galaxyid, verbose=False)
                     if not bool(ellipsefit):
                         continue
                     sbprofile = ellipse_sbprofile(ellipsefit, linear=True)
@@ -941,7 +942,7 @@ def fig_surface_brightness(sample, thisgalaxy, png):
     band = data['bands']
     nband = len(band)
     igal = 0
-    nplot = 12
+    nplot = 9
     sma_lw = 2
     sma_alpha = 0.8
 
@@ -968,7 +969,8 @@ def fig_surface_brightness(sample, thisgalaxy, png):
         plt.text(0.1, 0.9, filt, transform=xx.transAxes, fontweight='bold',
                  ha='center', va='center', color='k', fontsize=26)
 
-        smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)].max(), nplot)
+        smas = ellipsefit['{}_sma'.format(filt)][::len(ellipsefit['{}_sma'.format(filt)]) // nplot]
+        #smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)].max(), nplot)
         for sma in smas:
             this = np.argmin(np.abs(ellipsefit['{}_sma'.format(filt)]-sma))
             xx.add_patch(mpatches.Ellipse((ellipsefit['{}_x0'.format(filt)][this], ellipsefit['{}_y0'.format(filt)][this]),
@@ -1111,8 +1113,8 @@ def fig_surface_brightness(sample, thisgalaxy, png):
     for filt in bands:
         col = next(colors) # iterate here in case we're missing a bandpass
 
-        sma = ellipsefit['{}_cog_sma'.format(filt)]
-        radius = (sma * np.sqrt(1-eps) * data['refpixscale'])**0.25 # circularized radius [arcsec]
+        sma = ellipsefit['{}_cog_sma'.format(filt)] # [arcsec]
+        radius = (sma * np.sqrt(1-eps))**0.25 # circularized radius [arcsec]
 
         cog = ellipsefit['{}_cog_mag'.format(filt)]
         cogerr = ellipsefit['{}_cog_magerr'.format(filt)]
@@ -1251,7 +1253,7 @@ def fig_skystats(sample, png, clobber=False):
         data = Table(fitsio.read(statsfile))
 
     # now make the plot
-    stat = 'mean'
+    stat = 'median'
 
 
     #xcol = 'z'
@@ -1266,7 +1268,7 @@ def fig_skystats(sample, png, clobber=False):
     for iband, band in enumerate(bands):
         skyref = data['{}_{}'.format(band, stat)][:, 0].data # sky in reference aperture
 
-        for isky in [1]:#np.arange(nsky-1)+1:
+        for isky in [3]:#np.arange(nsky-1)+1:
         #for isky in np.arange(nsky-1)+1:
             skyratio = data['{}_{}'.format(band, stat)][:, isky].data / skyref
             #print(skyref, skyratio)
@@ -1360,11 +1362,11 @@ def main():
 
     # Fig - surface brightness
     if args.surface_brightness:
-        fig_surface_brightness(sample, thisgalaxy='0006789-004861920', png='test-surface_brightness.png')
-        pdb.set_trace()
-        for gal in galaxy:
+        #fig_surface_brightness(sample, thisgalaxy='0006789-004861920', png='test-surface_brightness.png')
+        #pdb.set_trace()
+        for gal in galaxy[:4]:
             fig_surface_brightness(sample, thisgalaxy=gal, png='surface_brightness_{}.png'.format(gal))
-            pdb.set_trace()
+        pdb.set_trace()
         #fig_surface_brightness(sample, thisgalaxy='0000195-052316929', png='surface_brightness.png')
         #fig_surface_brightness(sample, thisgalaxy='0001129-034040952', png='surface_brightness.png')
 
