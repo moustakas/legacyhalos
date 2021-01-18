@@ -502,7 +502,7 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
         cen = fitsio.read(cenfile, columns=[ZCOLUMN, RICHCOLUMN, 'DEC'])#, 'RA'])
         #isouth = np.logical_or((cen['DEC'] < 32.275), (cen['RA'] > 45) * (cen['RA'] < 315))
 
-        if True:
+        if False:
             cut01 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
             cut02 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
             cut03 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
