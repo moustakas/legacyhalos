@@ -98,13 +98,11 @@ def simple_wcs(onegal, radius=None, factor=1.0, pixscale=0.262, zcolumn='Z'):
 
     if radius is None:
         if zcolumn in onegal.colnames:
-            galdiam = 2 * cutout_radius_kpc(redshift=onegal[zcolumn], pixscale=pixscale)
+            radius = 2 * cutout_radius_kpc(redshift=onegal[zcolumn], pixscale=pixscale)
         else:
-            galdiam = 100 # hack! [pixels]
-    else:
-        galdiam = radius
+            radius = 100 # hack! [pixels]
     
-    diam = np.ceil(factor * galdiam).astype('int') # [pixels]
+    diam = np.ceil(factor * 2 * radius).astype('int') # [pixels]
     simplewcs = Tan(onegal['RA'], onegal['DEC'], diam/2+0.5, diam/2+0.5,
                     -pixscale/3600.0, 0.0, 0.0, pixscale/3600.0, 
                     float(diam), float(diam))

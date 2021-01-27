@@ -1,0 +1,229 @@
+#!/usr/bin/env python
+"""Generate the figures for the paper.
+
+/mnt/code/legacyhalos/bin/legacystreams/legacystreams-figures --ccdpos
+
+"""
+import os, sys, time, pdb
+import argparse
+import numpy as np
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+        
+import legacyhalos.io
+from legacyhalos.streams import ZCOLUMN, DIAMCOLUMN, RACOLUMN, DECCOLUMN, MASKCOLUMN
+from legacyhalos.streams import get_galaxy_galaxydir
+
+#from legacyhalos.streams import legacyhalos_cosmology
+#cosmo = legacyhalos_cosmology()
+
+figdir = legacyhalos.io.legacyhalos_dir()
+#figdir = os.path.join(legacyhalos.io.legacyhalos_dir(), 'streams')
+fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
+
+def plot_style(font_scale=1.2, paper=False, talk=True):
+
+    import seaborn as sns
+    rc = {'font.family': 'serif'}#, 'text.usetex': True}
+    #rc = {'font.family': 'serif', 'text.usetex': True,
+    #       'text.latex.preamble': r'\boldmath'})
+    palette, context = 'Set2', 'talk'
+    
+    if paper:
+        context = 'paper'
+        palette = 'deep'
+        rc.update({'text.usetex': False})
+    
+    if talk:
+        context = 'talk'
+        palette = 'deep'
+        #rc.update({'text.usetex': True})
+
+    sns.set(context=context, style='ticks', font_scale=font_scale, rc=rc)
+    sns.set_palette(palette, 12)
+
+    colors = sns.color_palette()
+    #sns.reset_orig()
+
+    return sns, colors
+
+def fig_ccdpos(sample, thisgalaxy, pixscale=0.262, mosaic_pixscale=2.0, png=None):
+    """Visualize the position of all the CCDs contributing to the image stack of a
+    single galaxy.
+
+    """
+    import matplotlib.patches as patches
+    from astropy.wcs import WCS
+    from PIL import Image
+    from glob import glob
+    from astrometry.util.fits import fits_table
+    
+    from legacyhalos.misc import simple_wcs, ccdwcs, arcsec2kpc
+    from legacyhalos.coadds import _mosaic_width
+
+    sns, _ = plot_style(talk=True, font_scale=0.7)
+    
+    Image.MAX_IMAGE_PIXELS = None
+
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    this = np.where(galaxy == thisgalaxy)[0][0]
+    
+    onegal, galaxy, galaxydir = sample[this], galaxy[this], galaxydir[this]
+
+    ccdsfile = glob(os.path.join(galaxydir, '{}-ccds-*.fits'.format(galaxy))) # north, south
+    ccds = fits_table(ccdsfile[0])
+
+    ra, dec = onegal[RACOLUMN], onegal[DECCOLUMN]
+
+    cluster_diam_arcsec = onegal[DIAMCOLUMN] * 60.0                        # [arcsec]
+    cluster_radius_pixels = _mosaic_width(cluster_diam_arcsec/2, pixscale) / 2 # [pixels]
+    cluster_radius_pixels = np.round(cluster_radius_pixels).astype(np.int)
+    cluster_wcs = simple_wcs(onegal, factor=1.0, radius=cluster_radius_pixels, pixscale=pixscale)
+
+    cluster_corners, cluster_center = cluster_wcs.radec_bounds(), cluster_wcs.radec_center() # [degrees]
+
+    mosaic_diam_arcsec = 1.5*cluster_diam_arcsec                                # [arcsec]
+    print('Mosaic diameter = {:.3f} arcsec'.format(mosaic_diam_arcsec))
+    mosaic_radius_pixels = _mosaic_width(mosaic_diam_arcsec/2, mosaic_pixscale) / 2 # [pixels]
+    mosaic_radius_pixels = np.round(mosaic_radius_pixels).astype(np.int)    
+    mosaic_wcs = simple_wcs(onegal, factor=1.0, radius=mosaic_radius_pixels, pixscale=mosaic_pixscale)
+
+    mosaic_corners, mosaic_center = mosaic_wcs.radec_bounds(), mosaic_wcs.radec_center() # [degrees]
+    print(cluster_corners, cluster_center)
+    #print(mosaic_corners)
+
+    # get the wide-field mosaic if we don't already have it
+    if True:
+        mosaicfile = os.path.join(figdir, 'wide-field-{}.jpg'.format(galaxy))
+        size = np.round(2*mosaic_radius_pixels).astype(np.int)
+        cmd = 'wget -O {} "https://www.legacysurvey.org/viewer-dev/jpeg-cutout?ra={}&dec={}&layer=ls-dr9&size={:d}&pixscale={:.4f}"'.format(
+            mosaicfile, ra, dec, size, mosaic_pixscale)
+        print(cmd)
+        if not os.path.isfile(mosaicfile):
+            os.system(cmd)
+    else:
+        mosaicfile = os.path.join(galaxydir, '{}-custom-image-grz.jpg'.format(galaxy))
+
+    # read the mosaic
+    img = Image.open(mosaicfile)
+
+    wcs = WCS(naxis=2)
+    wcs.array_shape = img.size
+    wcs.wcs.crpix = mosaic_wcs.crpix
+    wcs.wcs.crval = mosaic_wcs.crval
+    wcs.wcs.cunit = ['deg', 'deg']
+    wcs.wcs.ctype = ['RA---TAN', 'DEC--TAN']
+    wcs.wcs.cdelt = [-mosaic_pixscale / 3600.0, mosaic_pixscale / 3600.0]
+
+    #pdb.set_trace()
+
+    barlen_kpc = 1000.0 # [kpc]
+    col = iter(plt.cm.rainbow(np.linspace(0, 1, len(ccds))))
+
+    fig, allax = plt.subplots(1, 3, figsize=(12, 5), sharey=True, sharex=True, subplot_kw={'projection': wcs})
+
+    for ax, band in zip(allax, ('g', 'r', 'z')):
+        ax.text(0.9, 0.05, band, ha='center', va='bottom',
+                transform=ax.transAxes, fontsize=18, color='white')
+
+        ax.imshow(img, interpolation='nearest')
+        xra = ax.coords['ra']
+        xra.set_major_formatter('d.d')
+
+        xdec = ax.coords['dec']
+        xdec.set_major_formatter('d.d')
+
+        if band == 'g':
+            ax.text(0.05, 0.91, galaxy, ha='left', va='center',
+                    transform=ax.transAxes, fontsize=18, color='white')
+            
+            xdec.set_axislabel('Declination')
+            
+            if False:
+                barlen = barlen_kpc / arcsec2kpc(onegal[ZCOLUMN], cosmo=cosmo) / 3600.0 # [degrees]
+                print(barlen)
+                plt.text(mosaic_corners[1]-0.05-barlen/2, mosaic_corners[2]+0.09, '1 Mpc',
+                         ha='center', va='center', color='white', 
+                         transform=ax.get_transform('icrs'))
+                
+                ax.arrow(mosaic_corners[1]-0.05-barlen, mosaic_corners[2]+0.05,
+                         barlen, 0.0, head_width=0, head_length=0,
+                         fc='white', ec='white', width=0.005,
+                         transform=ax.get_transform('icrs'))
+        else:
+            xdec.set_ticklabel_visible(False)
+
+        if band == 'r':
+            xra.set_axislabel('Right Ascension')
+        else:
+            xra.set_axislabel(' ')
+
+        ax.tick_params('both', length=5, width=1, which='major')
+
+        these = np.where(ccds.filter == band)[0]
+        for ii, ccd in enumerate(ccds[these]):
+            W, H, cwcs = ccdwcs(ccd)
+            ccd_corners = cwcs.radec_bounds()
+            ccd_width_arcsec = W * cwcs.pixel_scale()
+            ccd_height_arcsec = H * cwcs.pixel_scale()
+            print(band, ccd_corners, ccd_width_arcsec, ccd_height_arcsec)
+            ax.add_patch(patches.Rectangle((ccd_corners[0]+ccd_width_arcsec/3600/2,
+                                            ccd_corners[2]),
+                                            ccd_height_arcsec/3600,
+                                            ccd_width_arcsec/3600,
+                                            fill=False, lw=1, alpha=1,
+                                            edgecolor=next(col),
+                                            transform=ax.get_transform('icrs'),
+                                            label='{}-{}'.format(ccd.expnum, ccd.ccdname)))
+        if False:
+            print()
+            leg = ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=8)
+            for txt in leg.get_texts():
+                txt.set_color('white')
+
+        ax.add_patch(patches.Rectangle((cluster_corners[0]+cluster_diam_arcsec/3600/2,
+                                        cluster_corners[2]),#-cluster_radius_arcsec/3600),
+                                        cluster_diam_arcsec/3600,
+                                        cluster_diam_arcsec/3600,
+                                        transform=ax.get_transform('icrs'),
+                                        fill=False, edgecolor='white', lw=2, ls='-'))
+
+        if False:
+            ax.add_patch(patches.Circle((cluster_center[0], cluster_center[1]),
+                                        1.4*cluster_diam_arcsec/3600, # inner sky annulus
+                                        transform=ax.get_transform('icrs'),
+                                        fill=False, edgecolor='white', lw=1))
+            ax.add_patch(patches.Circle((cluster_center[0], cluster_center[1]),
+                                        1.5*cluster_diam_arcsec/3600, # outer sky annulus
+                                        transform=ax.get_transform('icrs'),
+                                        fill=False, edgecolor='white', lw=1))
+
+    plt.subplots_adjust(bottom=0.07, wspace=0.05, left=0.05, right=0.97, top=0.95)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile, bbox_inches='tight', pad_inches=0.25)
+        plt.close(fig)
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ccdpos', action='store_true')
+    args = parser.parse_args()
+
+    sample = legacyhalos.streams.read_sample(verbose=True)
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    if False:
+        for onegal in sample:
+            _galaxy, _ = get_galaxy_galaxydir(onegal)
+            print(_galaxy, onegal[ZCOLUMN], onegal[RICHCOLUMN])
+    
+    # Fig XX - CCD position
+    if args.ccdpos:
+        fig_ccdpos(sample, thisgalaxy='NGC2460', png='NGC2460-ccdpos.png')
+
+if __name__ == '__main__':
+    main()
