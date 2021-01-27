@@ -108,9 +108,10 @@ def fig_ccdpos(sample, thisgalaxy, pixscale=0.262, mosaic_pixscale=2.0, png=None
 
     # read the mosaic
     img = Image.open(mosaicfile)
+    sz = img.size
 
     wcs = WCS(naxis=2)
-    wcs.array_shape = img.size
+    wcs.array_shape = sz
     wcs.wcs.crpix = mosaic_wcs.crpix
     wcs.wcs.crval = mosaic_wcs.crval
     wcs.wcs.cunit = ['deg', 'deg']
@@ -165,30 +166,53 @@ def fig_ccdpos(sample, thisgalaxy, pixscale=0.262, mosaic_pixscale=2.0, png=None
         these = np.where(ccds.filter == band)[0]
         for ii, ccd in enumerate(ccds[these]):
             W, H, cwcs = ccdwcs(ccd)
-            ccd_corners = cwcs.radec_bounds()
-            ccd_width_arcsec = W * cwcs.pixel_scale()
-            ccd_height_arcsec = H * cwcs.pixel_scale()
-            print(band, ccd_corners, ccd_width_arcsec, ccd_height_arcsec)
-            ax.add_patch(patches.Rectangle((ccd_corners[0]+ccd_width_arcsec/3600/2,
-                                            ccd_corners[2]),
-                                            ccd_height_arcsec/3600,
-                                            ccd_width_arcsec/3600,
+            ccd_pixscale = cwcs.pixel_scale()
+
+            width = W * ccd_pixscale / mosaic_pixscale
+            height = H * ccd_pixscale / mosaic_pixscale
+
+            radec = cwcs.radec_center()
+            _, x0, y0 = mosaic_wcs.radec2pixelxy(radec[0], radec[1])
+            x0 -= width / 2
+            y0 -= height / 2
+            #x0 = x0 + mosaic_wcs.crpix[0]
+            #y0 = y0 + mosaic_wcs.crpix[1]
+            print(band, x0, y0, width, height, ccd_pixscale)
+            #pdb.set_trace()
+
+            ax.add_patch(patches.Rectangle((x0, y0), width, height, 
                                             fill=False, lw=1, alpha=1,
                                             edgecolor=next(col),
-                                            transform=ax.get_transform('icrs'),
+                                            #transform=ax.get_transform('icrs'),
                                             label='{}-{}'.format(ccd.expnum, ccd.ccdname)))
+            #ax.add_patch(patches.Rectangle((ccd_corners[0]+ccd_width_arcsec/3600/2,
+            #                                ccd_corners[2]),
+            #                                ccd_height_arcsec/3600,
+            #                                ccd_width_arcsec/3600,
+            #                                fill=False, lw=1, alpha=1,
+            #                                edgecolor=next(col),
+            #                                transform=ax.get_transform('icrs'),
+            #                                label='{}-{}'.format(ccd.expnum, ccd.ccdname)))
+            
         if False:
             print()
             leg = ax.legend(ncol=2, frameon=False, loc='upper left', fontsize=8)
             for txt in leg.get_texts():
                 txt.set_color('white')
 
-        ax.add_patch(patches.Rectangle((cluster_corners[0]+cluster_diam_arcsec/3600/2,
-                                        cluster_corners[2]),#-cluster_radius_arcsec/3600),
-                                        cluster_diam_arcsec/3600,
-                                        cluster_diam_arcsec/3600,
-                                        transform=ax.get_transform('icrs'),
+        width = 2*cluster_radius_pixels*pixscale/mosaic_pixscale
+        x0, y0 = sz[0]/2-width/2, sz[1]/2-width/2
+        #print(x0, y0, width)
+        ax.add_patch(patches.Rectangle((x0, y0), width, width, 
+                                        #transform=ax.get_transform('icrs'),
                                         fill=False, edgecolor='white', lw=2, ls='-'))
+        
+        #ax.add_patch(patches.Rectangle((cluster_corners[0]+cluster_diam_arcsec/3600/2,
+        #                                cluster_corners[2]),#-cluster_radius_arcsec/3600),
+        #                                cluster_diam_arcsec/3600,
+        #                                cluster_diam_arcsec/3600,
+        #                                #transform=ax.get_transform('icrs'),
+        #                                fill=False, edgecolor='white', lw=2, ls='-'))
 
         if False:
             ax.add_patch(patches.Circle((cluster_center[0], cluster_center[1]),
