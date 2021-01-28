@@ -55,7 +55,7 @@ def main():
                 first=args.first, last=args.last, verbose=args.verbose)
 
     #print('Hack!')
-    #sample = sample[sample['ID_CENT'][:, 0] == 41301617]
+    #sample = sample[sample['ID_CENT'][:, 0] == 1018996]
 
     if comm is not None:
         sample = comm.bcast(sample, root=0)
