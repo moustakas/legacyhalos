@@ -675,7 +675,7 @@ def _fitgeometry_refband(ellipsefit, geometry0, majoraxis, refband='r', verbose=
 
 def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                          refband='r', nproc=1, 
-                         integrmode='median', nclip=2, sclip=3,
+                         integrmode='median', nclip=3, sclip=3,
                          maxsma=None, logsma=True, delta_logsma=5.0, delta_sma=1.0,
                          sbthresh=REF_SBTHRESH,
                          galaxyinfo=None, input_ellipse=None, fitgeometry=False,
