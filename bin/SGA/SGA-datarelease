@@ -81,7 +81,8 @@ def main():
         'SHAPE_R_IVAR', 'SHAPE_E1', 'SHAPE_E1_IVAR', 'SHAPE_E2', 'SHAPE_E2_IVAR']
         
     sgacols = [
-        'DIAM', 'DIAM_REF', 'PA', 'BA', 'ELLIPSEBIT', 'DROPBIT',
+        'DIAM', 'DIAM_REF', 'PA', 'BA', 'ELLIPSEBIT',
+        #'DROPBIT',
         'RADIUS_SB22', 'RADIUS_SB22.5', 'RADIUS_SB23', 'RADIUS_SB23.5',
         'RADIUS_SB24', 'RADIUS_SB24.5', 'RADIUS_SB25', 'RADIUS_SB25.5',
         'RADIUS_SB26', 'G_MAG_SB22', 'R_MAG_SB22', 'Z_MAG_SB22', 'G_MAG_SB22.5',
@@ -96,6 +97,9 @@ def main():
     for col in tractorcols:
         sga.remove_column(col)
         sga_leda.remove_column(col)
+
+    sga.rename_column('SGA_RA', 'RA')
+    sga.rename_column('SGA_DEC', 'DEC')
 
     for col in sgacols:
         sga_leda.remove_column(col)
@@ -119,7 +123,7 @@ def main():
     print('Wrote {} galaxies to {}'.format(len(sga), outfile))
 
     # SGA - LEDA
-    outfile = os.path.join(outdir, 'SGA-leda-2020.fits')
+    outfile = os.path.join(outdir, 'SGA-2020-leda.fits')
     hdu_primary = fits.PrimaryHDU()
     hdu_sga_leda = fits.convenience.table_to_hdu(sga_leda)
     hdu_sga_leda.header['EXTNAME'] = 'SGA-LEDA'
