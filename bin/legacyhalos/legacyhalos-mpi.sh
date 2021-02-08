@@ -9,7 +9,7 @@
 
 #salloc -N 8 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v0.0.5
 #srun -n 32 -c 16 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-mpi.sh coadds 16 > legacyhalos-coadds.log.1 2>&1 &
-#srun -n 8 -c 32 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-mpi.sh ellipse 32 > legacyhalos-ellipse.log.1 2>&1 &
+#srun -n 64 -c 16 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/legacyhalos/legacyhalos-mpi.sh ellipse 16 > legacyhalos-ellipse.log.1 2>&1 &
 
 # Grab the input arguments--
 stage=$1

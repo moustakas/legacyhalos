@@ -586,7 +586,8 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
         return cen
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=0.001, r50mask=0.1, verbose=False):
+                          threshmask=0.001, r50mask=0.1, maxshift=5,
+                          verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -647,6 +648,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         mgegalaxy = MGEgalaxy()
         mgegalaxy.xmed = tractor.by[indx]
         mgegalaxy.ymed = tractor.bx[indx]
+        mgegalaxy.xpeak = tractor.by[indx]
+        mgegalaxy.ypeak = tractor.bx[indx]
         mgegalaxy.eps = 1-ba
         mgegalaxy.theta = (270 - pa) % 180
         mgegalaxy.majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
@@ -668,7 +671,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # in the reference band. First, subtract all models except the galaxy
         # and galaxies "near" it. Also restore the original pixels of the
         # central in case there was a poor deblend.
-        
+        largeshift = False
         mge, centralmask = tractor2mge(central, factor=5.0)
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
@@ -683,21 +686,34 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         img = data[refband].data - model
         img[centralmask] = data[refband].data[centralmask]
 
-        mask = ma.getmask(data[refband])
+        mask = np.logical_or(ma.getmask(data[refband]), data['residual_mask'])
         #mask = np.logical_or(data[refband].mask, data['residual_mask'])
         mask[centralmask] = False
 
         img = ma.masked_array(img, mask)
         ma.set_fill_value(img, fill_value)
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False, plot=True) ; plt.savefig('debug.png')
+        #if True:
+        #    import matplotlib.pyplot as plt
+        #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('debug.png')
+        #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+        #    pdb.set_trace()
+        pdb.set_trace()
+
+        # Did the galaxy position move? If so, revert back to the Tractor geometry.
+        if np.abs(mgegalaxy.xmed-mge.xmed) > maxshift or np.abs(mgegalaxy.ymed-mge.ymed) > maxshift:
+            largeshift = True
+            print('Fix large shift!')
+            raise ValueError
+            #mgegalaxy = mge
 
         radec_med = data['{}_wcs'.format(refband)].pixelToPosition(
             mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
         radec_peak = data['{}_wcs'.format(refband)].pixelToPosition(
             mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
         mge = {
-            'largeshift': False,
+            'largeshift': largeshift,
             'ra': tractor.ra[central], 'dec': tractor.dec[central],
             'bx': tractor.bx[central], 'by': tractor.by[central],
             'mw_transmission_g': tractor.mw_transmission_g[central],
@@ -747,7 +763,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             satmask = np.logical_or(satmask, satimg > 10*data['{}_sigma'.format(filt)])
             #if True:
             #    import matplotlib.pyplot as plt
-            #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+            #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('debug.png')
+            #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
             #    pdb.set_trace()
 
         # [3] Build the final image (in each filter) for ellipse-fitting. First,
