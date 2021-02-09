@@ -11,12 +11,13 @@ import os, pdb
 import numpy as np
 import fitsio
 import astropy.units as u
-from astropy.table import QTable
+from astropy.table import QTable, Column
 from astropy.io import fits
 
 def main():
 
-    ellipsefile = '/global/cfs/cdirs/cosmo/staging/largegalaxies/v3.2/SGA-ellipse-v3.2.fits'
+    ellipsefile = '/global/cscratch1/sd/ioannis/SGA-data-2020/SGA-ellipse-v3.0.fits'
+    #ellipsefile = '/global/cfs/cdirs/cosmo/staging/largegalaxies/v3.2/SGA-ellipse-v3.2.fits'
     ellipse = QTable(fitsio.read(ellipsefile))
     print('Read {} galaxies from {}'.format(len(ellipse), ellipsefile))
 
@@ -83,37 +84,73 @@ def main():
     sgacols = [
         'DIAM', 'DIAM_REF', 'PA', 'BA', 'ELLIPSEBIT',
         #'DROPBIT',
-        'RADIUS_SB22', 'RADIUS_SB22.5', 'RADIUS_SB23', 'RADIUS_SB23.5',
-        'RADIUS_SB24', 'RADIUS_SB24.5', 'RADIUS_SB25', 'RADIUS_SB25.5',
-        'RADIUS_SB26', 'G_MAG_SB22', 'R_MAG_SB22', 'Z_MAG_SB22', 'G_MAG_SB22.5',
-        'R_MAG_SB22.5', 'Z_MAG_SB22.5', 'G_MAG_SB23', 'R_MAG_SB23', 'Z_MAG_SB23',
-        'G_MAG_SB23.5', 'R_MAG_SB23.5', 'Z_MAG_SB23.5', 'G_MAG_SB24', 'R_MAG_SB24',
-        'Z_MAG_SB24', 'G_MAG_SB24.5', 'R_MAG_SB24.5', 'Z_MAG_SB24.5', 'G_MAG_SB25',
-        'R_MAG_SB25', 'Z_MAG_SB25', 'G_MAG_SB25.5', 'R_MAG_SB25.5', 'Z_MAG_SB25.5',
-        'G_MAG_SB26', 'R_MAG_SB26', 'Z_MAG_SB26', 'G_MAG_TOT', 'R_MAG_TOT',
-        'Z_MAG_TOT']
+        'RADIUS_SB22', 'RADIUS_SB22.5', 'RADIUS_SB23',
+        'RADIUS_SB23.5', 'RADIUS_SB24', 'RADIUS_SB24.5',
+        'RADIUS_SB25', 'RADIUS_SB25.5', 'RADIUS_SB26',
+
+        'RADIUS_SB22_ERR', 'RADIUS_SB22.5_ERR', 'RADIUS_SB23_ERR',
+        'RADIUS_SB23.5_ERR', 'RADIUS_SB24_ERR', 'RADIUS_SB24.5_ERR',
+        'RADIUS_SB25_ERR', 'RADIUS_SB25.5_ERR', 'RADIUS_SB26_ERR',
+
+        'G_MAG_SB22', 'R_MAG_SB22', 'Z_MAG_SB22',
+        'G_MAG_SB22.5', 'R_MAG_SB22.5', 'Z_MAG_SB22.5',
+        'G_MAG_SB23', 'R_MAG_SB23', 'Z_MAG_SB23',
+        'G_MAG_SB23.5', 'R_MAG_SB23.5', 'Z_MAG_SB23.5',
+        'G_MAG_SB24', 'R_MAG_SB24', 'Z_MAG_SB24',
+        'G_MAG_SB24.5', 'R_MAG_SB24.5', 'Z_MAG_SB24.5',
+        'G_MAG_SB25', 'R_MAG_SB25', 'Z_MAG_SB25',
+        'G_MAG_SB25.5', 'R_MAG_SB25.5', 'Z_MAG_SB25.5',
+        'G_MAG_SB26', 'R_MAG_SB26', 'Z_MAG_SB26',
+
+        'G_MAG_SB22_ERR', 'R_MAG_SB22_ERR', 'Z_MAG_SB22_ERR',
+        'G_MAG_SB22.5_ERR', 'R_MAG_SB22.5_ERR', 'Z_MAG_SB22.5_ERR',
+        'G_MAG_SB23_ERR', 'R_MAG_SB23_ERR', 'Z_MAG_SB23_ERR',
+        'G_MAG_SB23.5_ERR', 'R_MAG_SB23.5_ERR', 'Z_MAG_SB23.5_ERR',
+        'G_MAG_SB24_ERR', 'R_MAG_SB24_ERR', 'Z_MAG_SB24_ERR',
+        'G_MAG_SB24.5_ERR', 'R_MAG_SB24.5_ERR', 'Z_MAG_SB24.5_ERR',
+        'G_MAG_SB25_ERR', 'R_MAG_SB25_ERR', 'Z_MAG_SB25_ERR',
+        'G_MAG_SB25.5_ERR', 'R_MAG_SB25.5_ERR', 'Z_MAG_SB25.5_ERR',
+        'G_MAG_SB26_ERR', 'R_MAG_SB26_ERR', 'Z_MAG_SB26_ERR',
+
+        'G_COG_PARAMS_MTOT', 'R_COG_PARAMS_MTOT', 'Z_COG_PARAMS_MTOT', 
+        'G_COG_PARAMS_M0', 'R_COG_PARAMS_M0', 'Z_COG_PARAMS_M0', 
+        'G_COG_PARAMS_ALPHA1', 'R_COG_PARAMS_ALPHA1', 'Z_COG_PARAMS_ALPHA1', 
+        'G_COG_PARAMS_ALPHA2', 'R_COG_PARAMS_ALPHA2', 'Z_COG_PARAMS_ALPHA2', 
+        'G_COG_PARAMS_CHI2', 'R_COG_PARAMS_CHI2', 'Z_COG_PARAMS_CHI2', 
+
+        #'G_MAG_TOT', 'R_MAG_TOT', 'Z_MAG_TOT'
+
+        ]
         
     sga_tractor = sga[['SGA_ID']+tractorcols]
     for col in tractorcols:
         sga.remove_column(col)
         sga_leda.remove_column(col)
 
-    sga.rename_column('SGA_RA', 'RA')
-    sga.rename_column('SGA_DEC', 'DEC')
+    #sga.rename_column('RA_LEDA', 'RA')
+    #sga.rename_column('DEC_LEDA', 'DEC')
 
     for col in sgacols:
         sga_leda.remove_column(col)
 
+    # add an identifier
+    sga.add_column(Column(name='SGA_GALAXY', dtype='S16', length=len(sga)), index=1)
+    sga['SGA_GALAXY'] = ['SGA-2020 {}'.format(sga_id) for sga_id in sga['SGA_ID']]
+
+    sga_leda.add_column(Column(name='SGA_GALAXY', dtype='S16', length=len(sga_leda)), index=1)
+    sga_leda['SGA_GALAXY'] = ['SGA-2020 {}'.format(sga_id) for sga_id in sga_leda['SGA_ID']]
+
     # write out
-    outdir = '/global/cfs/cdirs/cosmo/work/legacysurvey/sga/2020'
+    #outdir = '/global/cfs/cdirs/cosmo/work/legacysurvey/sga/2020'
+    outdir = '/global/cscratch1/sd/ioannis/SGA-data-2020/'
     if not os.path.isdir(outdir):
         os.makedirs(outdir, exist_ok=True)
 
     # SGA
-    outfile = os.path.join(outdir, 'SGA-2020.fits')
+    outfile = os.path.join(outdir, 'SGA-2020-ls.fits')
     hdu_primary = fits.PrimaryHDU()
     hdu_sga = fits.convenience.table_to_hdu(sga)
-    hdu_sga.header['EXTNAME'] = 'SGA'
+    hdu_sga.header['EXTNAME'] = 'SGA-LS'
 
     hdu_sga_tractor = fits.convenience.table_to_hdu(sga_tractor)
     hdu_sga_tractor.header['EXTNAME'] = 'SGA-TRACTOR'
@@ -123,10 +160,10 @@ def main():
     print('Wrote {} galaxies to {}'.format(len(sga), outfile))
 
     # SGA - LEDA
-    outfile = os.path.join(outdir, 'SGA-2020-leda.fits')
+    outfile = os.path.join(outdir, 'SGA-2020-nols.fits')
     hdu_primary = fits.PrimaryHDU()
     hdu_sga_leda = fits.convenience.table_to_hdu(sga_leda)
-    hdu_sga_leda.header['EXTNAME'] = 'SGA-LEDA'
+    hdu_sga_leda.header['EXTNAME'] = 'SGA-NOLS'
 
     hx = fits.HDUList([hdu_primary, hdu_sga_leda])
     hx.writeto(outfile, overwrite=True, checksum=True)

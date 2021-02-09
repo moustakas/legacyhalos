@@ -856,9 +856,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     grzmissing = False
     for band in ['g', 'r', 'z']:
         imfile = os.path.join(galaxydir, '{}-largegalaxy-image-{}.fits.fz'.format(galaxy, band))
-        if not os.path.isfile(imfile) and onegal['GROUP_NAME'] != 'NGC0598_GROUP': # M33 hack
-            print('  Missing image {}'.format(imfile), flush=True)
-            grzmissing = True
+        if False:
+            if not os.path.isfile(imfile) and onegal['GROUP_NAME'] != 'NGC0598_GROUP': # M33 hack
+                print('  Missing image {}'.format(imfile), flush=True)
+                grzmissing = True
     if grzmissing:
         print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
         onegal['DROPBIT'] |= DROPBITS['nogrz']
@@ -1046,7 +1047,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
              # PGC1062274)!
             if len(match) == 0:
                 # check for grz coverage
-                if onegal['GROUP_NAME'] == 'NGC0598_GROUP': # M33 hack
+                if False and onegal['GROUP_NAME'] == 'NGC0598_GROUP': # M33 hack
                     print('M33 hack---need coadds!')
                     grzmissing = False
                 else:
