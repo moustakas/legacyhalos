@@ -24,7 +24,8 @@ else
     #export LEGACYHALOS_DATA_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/sga/2020/data
     #export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/sga/2020/html
     export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/SGA-data-2020
-    export LEGACYHALOS_HTML_DIR=/global/cscratch1/sd/ioannis/SGA-html-2020
+    #export LEGACYHALOS_HTML_DIR=/global/cscratch1/sd/ioannis/SGA-html-2020
+    export LEGACYHALOS_HTML_DIR=/global/homes/i/ioannis/sga-2020/html
     #export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/SGA-html-2020
     #export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data-dr9delta
     #export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html-dr9delta

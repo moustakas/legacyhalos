@@ -9,6 +9,7 @@ from glob import glob
 import multiprocessing
 from legacyhalos.SGA import get_galaxy_galaxydir, read_sample
 
+
 def _atticfiles_one(args):
     return atticfiles_one(*args)
 
@@ -21,7 +22,19 @@ def atticfiles_one(gdir):
         return None
 
 ss = read_sample(verbose=True)
-galaxy, galaxydir = get_galaxy_galaxydir(ss)
+galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(ss, html=True)
+
+# remove html log files
+atticdir = '/global/cscratch1/sd/ioannis/todelete-SGA-html-2020-logfiles'
+for ii, (gal, hdir) in enumerate(zip(galaxy, htmlgalaxydir)):
+    if ii % 50000 == 0:
+        print(ii)
+    logfile = os.path.join(hdir, '{}-html.log'.format(gal))
+    outfile = os.path.join(atticdir, '{}-html.log'.format(gal))
+    if os.path.isfile(logfile):
+        shutil.move(logfile, atticdir)
+
+pdb.set_trace()
 
 # check for left-over pickle files and coadd directories
 nproc = 32
