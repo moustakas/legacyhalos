@@ -597,6 +597,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
     """
     import numpy.ma as ma
+    from copy import copy
     from legacyhalos.mge import find_galaxy
     from legacyhalos.misc import srcs2image, ellipse_mask
 
@@ -651,6 +652,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         mgegalaxy.xpeak = tractor.by[indx]
         mgegalaxy.ypeak = tractor.bx[indx]
         mgegalaxy.eps = 1-ba
+        mgegalaxy.pa = pa
         mgegalaxy.theta = (270 - pa) % 180
         mgegalaxy.majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
 
@@ -693,20 +695,20 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         img = ma.masked_array(img, mask)
         ma.set_fill_value(img, fill_value)
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False, plot=True) ; plt.savefig('debug.png')
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('debug.png')
         #if True:
         #    import matplotlib.pyplot as plt
         #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('debug.png')
         #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #    pdb.set_trace()
-        pdb.set_trace()
+        #pdb.set_trace()
 
         # Did the galaxy position move? If so, revert back to the Tractor geometry.
         if np.abs(mgegalaxy.xmed-mge.xmed) > maxshift or np.abs(mgegalaxy.ymed-mge.ymed) > maxshift:
+            print('Large centroid shift! (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
+                mgegalaxy.xmed, mgegalaxy.ymed, mge.xmed, mge.ymed))
             largeshift = True
-            print('Fix large shift!')
-            raise ValueError
-            #mgegalaxy = mge
+            mgegalaxy = copy(mge)
 
         radec_med = data['{}_wcs'.format(refband)].pixelToPosition(
             mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
@@ -742,8 +744,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             cenflux = getattr(tractor, 'flux_{}'.format(filt))[central]
             satflux = getattr(srcs, 'flux_{}'.format(filt))
             if cenflux <= 0.0:
-                print('Central galaxy flux is negative!')
-                raise ValueError
+                raise ValueError('Central galaxy flux is negative!')
             
             satindx = np.where(np.logical_or(
                 (srcs.type != 'PSF') * (srcs.shape_r > r50mask) *
@@ -944,6 +945,16 @@ def read_multiband(galaxy, galaxydir, galaxy_id, filesuffix='custom',
             raise ValueError('Problem finding the central galaxy {} in the tractor catalog!'.format(galid))
         data['galaxy_indx'].append(galindx[0])
         data['galaxy_id'].append(galid)
+
+        # Is the flux and/or ivar negative (and therefore perhaps off the
+        # footprint?) If so, drop it here.
+        for filt in bands:
+            cenflux = getattr(tractor, 'flux_{}'.format(filt))[galindx[0]]
+            cenivar = getattr(tractor, 'flux_ivar_{}'.format(filt))[galindx[0]]
+            if cenflux <= 0.0 or cenivar <= 0.0:
+                print('Central galaxy flux is negative. Off footprint or gap in coverage?')
+                data['failed'] = True
+                return data, []
 
     # Now build the multiband mask.
     data = _build_multiband_mask(data, tractor, filt2pixscale,

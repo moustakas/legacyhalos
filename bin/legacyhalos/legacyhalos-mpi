@@ -46,7 +46,8 @@ def main():
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
 
         # For the custom coadds and build_catalog steps we need the satellites, too.
-        if args.coadds or args.build_catalog or args.build_refcat:
+        #if args.coadds or args.build_catalog or args.build_refcat:
+        if args.coadds or args.ellipse or args.build_catalog or args.build_refcat:
             sample, fullsample = legacyhalos.legacyhalos.read_redmapper(
                 first=args.first, last=args.last, verbose=args.verbose,
                 satellites=True)
@@ -55,7 +56,7 @@ def main():
                 first=args.first, last=args.last, verbose=args.verbose)
 
     #print('Hack!')
-    #sample = sample[sample['ID_CENT'][:, 0] == 1018996]
+    #sample = sample[sample['ID_CENT'][:, 0] == 9112212]
 
     if comm is not None:
         sample = comm.bcast(sample, root=0)
@@ -229,7 +230,9 @@ def main():
                 samplefile = os.path.join(galaxydir, '{}-redmapper-sample.fits'.format(galaxy))
                 if args.clobber or not os.path.isfile(samplefile):
                     #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
-                    thissample.write(samplefile, overwrite=True)
+                    tmpfile = samplefile+'.tmp'
+                    thissample.write(tmpfile, overwrite=True, format='fits')
+                    os.rename(tmpfile, samplefile)
 
                 call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                    pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
@@ -254,6 +257,16 @@ def main():
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
+            # Write out the individual galaxies for this mosaic.
+            thissample = fullsample[np.where(onegal['MEM_MATCH_ID'] == fullsample['MEM_MATCH_ID'])[0]]
+            samplefile = os.path.join(galaxydir, '{}-redmapper-sample.fits'.format(galaxy))
+            tmpfile = samplefile+'.tmp'
+            thissample.write(tmpfile, overwrite=True, format='fits')
+            os.rename(tmpfile, samplefile)
+            #if args.clobber or not os.path.isfile(samplefile):
+            #    #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+            #    thissample.write(samplefile, overwrite=True)
+                    
             from legacyhalos.legacyhalos import call_ellipse
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, 
                          bands=['g', 'r', 'z'], refband='r',
