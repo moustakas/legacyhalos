@@ -22,7 +22,7 @@ def main():
     import legacyhalos.legacyhalos
 
     from legacypipe.runs import get_survey
-    from legacyhalos.legacyhalos import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
+    from legacyhalos.legacyhalos import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN, GALAXYCOLUMN
     from legacyhalos.legacyhalos import get_galaxy_galaxydir
         
     basedir = legacyhalos.io.legacyhalos_dir()
@@ -279,20 +279,22 @@ def main():
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
-            from legacyhalos.legacyhalos import legacyhalos_cosmology
+            from legacyhalos.legacyhalos import legacyhalos_cosmology, read_multiband
 
             cosmo = legacyhalos_cosmology()
             barlabel = '30 arcsec'
             barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
+
             call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
                            verbose=args.verbose, debug=args.debug, clobber=args.clobber,
                            ccdqa=args.ccdqa, logfile=logfile, zcolumn=ZCOLUMN,
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
+                           galaxy_id=onegal[GALAXYCOLUMN],
                            cosmo=cosmo, just_coadds=args.just_coadds,
                            get_galaxy_galaxydir=get_galaxy_galaxydir,
-                           read_multiband=legacyhalos.legacyhalos.read_multiband)
+                           read_multiband=read_multiband)
 
     # Wait for all ranks to finish.
     if comm is not None:

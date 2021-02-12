@@ -122,9 +122,9 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 
 def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1, 
                    verbose=False, debug=False, clobber=False, ccdqa=False,
-                   logfile=None, zcolumn='Z', datadir=None, htmldir=None,                   
-                   cosmo=None, galex=False, just_coadds=False,
-                   write_donefile=True,
+                   logfile=None, zcolumn='Z', galaxy_id=None,
+                   datadir=None, htmldir=None, cosmo=None,
+                   galex=False, just_coadds=False, write_donefile=True,
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                    get_galaxy_galaxydir=None, read_multiband=None):
     """Wrapper script to build the pipeline coadds."""
@@ -134,8 +134,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
         _start(galaxy)
         err = legacyhalos.html.make_plots(
             onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
-            pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
-            barlen=barlen, barlabel=barlabel,
+            pixscale=pixscale, zcolumn=zcolumn, galaxy_id=galaxy_id,
+            nproc=nproc, barlen=barlen, barlabel=barlabel,
             radius_mosaic_arcsec=radius_mosaic_arcsec,
             maketrends=False, ccdqa=ccdqa,
             clobber=clobber, verbose=verbose, 
@@ -150,8 +150,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                 _start(galaxy, log=log)
                 err = legacyhalos.html.make_plots(
                     onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
-                    pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
-                    barlen=barlen, barlabel=barlabel,
+                    pixscale=pixscale, zcolumn=zcolumn, galaxy_id=galaxy_id,
+                    nproc=nproc, barlen=barlen, barlabel=barlabel,
                     radius_mosaic_arcsec=radius_mosaic_arcsec,
                     maketrends=False, ccdqa=ccdqa,
                     clobber=clobber, verbose=verbose,

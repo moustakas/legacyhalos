@@ -455,7 +455,7 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
 
 def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                     refband='r', pixscale=0.262, read_multiband=None,
-                    barlen=None, barlabel=None, clobber=False, verbose=False,
+                    galaxy_id=None, barlen=None, barlabel=None, clobber=False, verbose=False,
                     cosmo=None, galex=False, scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
 
@@ -476,7 +476,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         return
 
 
-    data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
+    data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id, bands=bands,
                                       refband=refband, pixscale=pixscale,
                                       verbose=verbose)
     if not bool(data):
@@ -593,7 +593,7 @@ def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             display_sersic(serexp, cosmo=cosmo, png=serexpfile, verbose=verbose)
 
 def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
-               bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', 
+               bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', galaxy_id=None,
                nproc=1, barlen=None, barlabel=None,
                radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
@@ -650,8 +650,9 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         # Build the ellipse plots.
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
-                            pixscale=pixscale, barlen=barlen, barlabel=barlabel, clobber=clobber,
-                            verbose=verbose, galex=galex, cosmo=cosmo,
+                            pixscale=pixscale, barlen=barlen, barlabel=barlabel,
+                            galaxy_id=galaxy_id,
+                            clobber=clobber, verbose=verbose, galex=galex, cosmo=cosmo,
                             scaledfont=scaledfont, read_multiband=read_multiband)
 
         # CCD positions

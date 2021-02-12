@@ -15,7 +15,7 @@ def main():
     import legacyhalos.hsc
 
     from legacypipe.runs import get_survey
-    from legacyhalos.hsc import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
+    from legacyhalos.hsc import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN, GALAXYCOLUMN
     from legacyhalos.hsc import get_galaxy_galaxydir
 
     basedir = legacyhalos.io.legacyhalos_dir()
@@ -188,6 +188,14 @@ def main():
 
         if args.coadds:
             from legacyhalos.mpi import call_custom_coadds
+
+            samplefile = os.path.join(galaxydir, '{}-sample.fits'.format(galaxy))
+            if args.clobber or not os.path.isfile(samplefile):
+                from astropy.table import Table
+                tmpfile = samplefile+'.tmp'
+                Table(onegal).write(tmpfile, overwrite=True, format='fits')
+                os.rename(tmpfile, samplefile)
+            
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=False, custom=True,
@@ -211,7 +219,12 @@ def main():
             from legacyhalos.hsc import call_ellipse
             input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
 
-            pdb.set_trace()
+            #from astropy.table import Table
+            #samplefile = os.path.join(galaxydir, '{}-sample.fits'.format(galaxy))
+            #tmpfile = samplefile+'.tmp'
+            #Table(onegal).write(tmpfile, overwrite=True, format='fits')
+            #os.rename(tmpfile, samplefile)
+
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, 
                          input_ellipse=input_ellipse,
                          bands=['g', 'r', 'z'], refband='r',
@@ -222,24 +235,23 @@ def main():
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
-            if radius_mosaic_arcsec > 6 * 60: # [>6] arcmin
-                barlabel = '2 arcmin'
-                barlen = np.ceil(120 / args.pixscale).astype(int) # [pixels]
-            elif (radius_mosaic_arcsec > 3 * 60) & (radius_mosaic_arcsec < 6 * 60): # [3-6] arcmin
-                barlabel = '1 arcmin'
-                barlen = np.ceil(60 / args.pixscale).astype(int) # [pixels]
-            else:
-                barlabel = '30 arcsec'
-                barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
-            call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
+            from legacyhalos.hsc import legacyhsc_cosmology, read_multiband
+            
+            cosmo = legacyhsc_cosmology()
+            barlabel = '30 arcsec'
+            barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
+            
+            call_htmlplots(onegal, galaxy, survey,
+                           pixscale=args.pixscale, nproc=args.nproc,
                            verbose=args.verbose, debug=args.debug, clobber=args.clobber,
                            logfile=logfile, zcolumn=ZCOLUMN,
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
+                           galaxy_id=onegal[GALAXYCOLUMN],
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
-                           largegalaxy=False, 
-                           galex=False,
-                           get_galaxy_galaxydir=get_galaxy_galaxydir)
+                           cosmo=cosmo, just_coadds=args.just_coadds,
+                           get_galaxy_galaxydir=get_galaxy_galaxydir,
+                           read_multiband=read_multiband)
 
     # Wait for all ranks to finish.
     if comm is not None:

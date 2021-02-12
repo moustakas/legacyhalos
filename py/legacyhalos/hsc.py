@@ -223,6 +223,7 @@ def mpi_args():
     
     parser.add_argument('--unwise', action='store_true', help='Build unWISE coadds or do forced unWISE photometry.')
     parser.add_argument('--no-cleanup', action='store_false', dest='cleanup', help='Do not clean up legacypipe files after coadds.')
+    parser.add_argument('--sky-tests', action='store_true', help='Test choice of sky apertures in ellipse-fitting.')
 
     parser.add_argument('--force', action='store_true', help='Use with --coadds; ignore previous pickle files.')
     parser.add_argument('--count', action='store_true', help='Count how many objects are left to analyze and then return.')
@@ -596,7 +597,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
 def read_multiband(galaxy, galaxydir, galaxy_id, filesuffix='custom',
                    refband='r', bands=['g', 'r', 'z'], pixscale=0.262,
-                   redshift=None, fill_value=0.0, sky_tests=False, verbose=False):
+                   redshift=None, fill_value=0.0, sky_tests=False,
+                   verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
     masked array suitable for ellipse-fitting.
 
@@ -625,7 +627,7 @@ def read_multiband(galaxy, galaxydir, galaxy_id, filesuffix='custom',
                                    }})
         filt2pixscale.update({band: pixscale})
     filt2imfile.update({'tractor': '{}-tractor'.format(filesuffix),
-                        'sample': 'redmapper-sample',
+                        'sample': 'sample',
                         'maskbits': '{}-maskbits'.format(filesuffix),
                         })
 
@@ -766,6 +768,7 @@ def read_multiband(galaxy, galaxydir, galaxy_id, filesuffix='custom',
 
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                  filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
+                 input_ellipse=None, 
                  sky_tests=False, unwise=False, verbose=False,
                  debug=False, logfile=None):
     """Wrapper on legacyhalos.mpi.call_ellipse but with specific preparatory work
@@ -778,7 +781,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
 
     if type(onegal) == astropy.table.Table:
         onegal = onegal[0] # create a Row object
-    galaxy_id = onegal['ID_CENT'][0]
+    galaxy_id = onegal[GALAXYCOLUMN]
 
     if logfile:
         from contextlib import redirect_stdout, redirect_stderr
@@ -817,6 +820,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                        bands=bands, refband=refband, sbthresh=SBTHRESH,
                                        delta_logsma=delta_logsma, maxsma=maxsma,
                                        write_donefile=False,
+                                       input_ellipse=input_ellipse,
                                        verbose=verbose, debug=True)#, logfile=logfile)# no logfile and debug=True, otherwise this will crash
 
                 # no need to redo the nominal ellipse-fitting
@@ -862,6 +866,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                          pixscale=pixscale, nproc=nproc, 
                          bands=bands, refband=refband, sbthresh=SBTHRESH,
                          delta_logsma=delta_logsma, maxsma=maxsma,
+                         input_ellipse=input_ellipse,
                          verbose=verbose, debug=debug, logfile=logfile)
 
 def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),

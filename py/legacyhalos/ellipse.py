@@ -707,15 +707,17 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         maxrit = None
     else:
         maxrit = -1
-        
+
     # Initialize the output dictionary, starting from the galaxy geometry in the
     # 'data' dictionary.
     ellipsefit = dict()
-    ellipsefit['input_ellipse'] = False
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = np.int16(sclip)
     ellipsefit['nclip'] = np.int16(nclip)
     ellipsefit['fitgeometry'] = fitgeometry
+
+    if input_ellipse:
+        ellipsefit['input_ellipse'] = True
 
     # This is fragile, but copy over a specific set of keys from the data dictionary--
     copykeys = ['bands', 'refband', 'refpixscale',
@@ -779,7 +781,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
                                    eps=ellipsefit['eps'], sma=majoraxis, 
                                    pa=np.radians(ellipsefit['pa']-90))
-    
+
     geometry_cen = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
                                    eps=0.0, sma=0.0, pa=0.0)
     #ellipsefit['geometry'] = geometry # can't save an object in an .asdf file

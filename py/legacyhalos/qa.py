@@ -1001,7 +1001,6 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
 
             # Visualize the input geometry
             if ellipsefit['input_ellipse']:
-                print('FIX ME!!!')
                 if False:
                     geometry = ellipsefit['geometry']
                     #maxis = geometry.sma
