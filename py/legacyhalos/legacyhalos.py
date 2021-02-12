@@ -17,6 +17,7 @@ DECCOLUMN = 'DEC'
 ZCOLUMN = 'Z_LAMBDA'    
 DIAMCOLUMN = 'RADIUS_MOSAIC' # [radius, arcsec]
 RICHCOLUMN = 'LAMBDA_CHISQ'
+GALAXYCOLUMN = 'CENTRALID'
 
 RADIUS_CLUSTER_KPC = 400.0 # default cluster radius [kpc]
 
@@ -82,7 +83,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
             galaxy = ['{:07d}-{:09d}'.format(cat['MEM_MATCH_ID'], cat['ID'])]
         else:
             galaxy = ['{:07d}-{:09d}'.format(cat['MEM_MATCH_ID'], cat['ID_CENT'][0])]
-        pixnum = [radec2pix(nside, cat['RA'], cat['DEC'])]
+        pixnum = [radec2pix(nside, cat[RACOLUMN], cat[DECCOLUMN])]
     else:
         ngal = len(cat)
         if candidates:
@@ -245,25 +246,23 @@ def mpi_args():
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
-    parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
+    parser.add_argument('--galaxylist', type=str, nargs='*', default=None, help='List of galaxy names to process.')
 
     parser.add_argument('--coadds', action='store_true', help='Build the coadds with the custom sky.')
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the coadds with the pipeline sky.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py).')
-    parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
     parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
     parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
     parser.add_argument('--sky', action='store_true', help='Estimate the sky variance.')
-
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
+
     parser.add_argument('--htmlhome', default='index.html', type=str, help='Home page file name (use in tandem with --htmlindex).')
-    parser.add_argument('--html-noraslices', dest='html_raslices', action='store_false',
-                        help='Do not organize HTML pages by RA slice (use in tandem with --htmlindex).')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
+    parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--sdss-pixscale', default=0.396, type=float, help='SDSS pixel scale (arcsec/pix).')
     
@@ -469,7 +468,7 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
     return radius # [pixels]
 
 def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
-                   satellites=False, sdssphot=False, verbose=True):
+                   galaxylist=None, satellites=False, sdssphot=False, verbose=True):
     """Read the parent redMaPPer cluster catalog and updated photometry.
     
     """
@@ -571,17 +570,27 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(cen), cenfile))
 
-    # pre-compute the radius of the mosaic (=RADIUS_CLUSTER_KPC kpc) for each cluster
-    cen['RADIUS_MOSAIC'] = cutout_radius_kpc(redshift=cen[ZCOLUMN], cosmo=cosmo, # [arcsec]
-                                             radius_kpc=RADIUS_CLUSTER_KPC) 
+    # pre-compute the diameter of the mosaic (=2*RADIUS_CLUSTER_KPC kpc) for each cluster
+    cen[DIAMCOLUMN] = cutout_radius_kpc(redshift=cen[ZCOLUMN], cosmo=cosmo, # diameter [arcsec]
+                                             radius_kpc=2 * RADIUS_CLUSTER_KPC)
+    cen[GALAXYCOLUMN] = np.array( ['{:07d}-{:09d}'.format(mid, cid)
+                                   for mid, cid in zip(cen['MEM_MATCH_ID'], cen['ID_CENT'][:, 0])] )
+
+    if galaxylist is not None:
+        if verbose:
+            print('Selecting specific galaxies.')
+        these = np.isin(cen[GALAXYCOLUMN], galaxylist)
+        if np.count_nonzero(these) == 0:
+            print('No matching galaxies!')
+            return astropy.table.Table()
+        else:
+            cen = cen[these]
 
     if satellites:
         satid = fitsio.read(satfile, columns='MEM_MATCH_ID')
         satrows = np.where(np.isin(satid, cen['MEM_MATCH_ID']))[0]
         satrows = satrows[np.argsort(satrows)]
         sat = Table(fitsio.read(satfile, rows=satrows, ext=1, upper=True))
-        #sat['RADIUS_MOSAIC'] = cutout_radius_kpc(redshift=sat[ZCOLUMN], cosmo=cosmo, # [arcsec]
-        #                                         radius_kpc=RADIUS_CLUSTER_KPC)
         return cen, sat
     else:
         return cen

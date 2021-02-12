@@ -18,15 +18,16 @@ export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data
 export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html
 
 # Pipeline variables---only change these if you know what you're doing!
-export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/data/legacysurvey/dr9
+export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
 export SKY_TEMPLATE_DIR=/global/cfs/cdirs/cosmo/data/legacysurvey/dr9/calib/sky_pattern
+
+export LARGEGALAXIES_CAT=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/legacyhsc/legacyhsc-refcat.kd.fits
 
 export GAIA_CAT_VER=2
 export GAIA_CAT_DIR=/global/cfs/cdirs/cosmo/work/gaia/chunks-gaia-dr2-astrom-2
 export UNWISE_COADDS_DIR=/global/cfs/cdirs/cosmo/data/unwise/neo6/unwise-coadds/fulldepth:/global/cfs/cdirs/cosmo/data/unwise/allwise/unwise-coadds/fulldepth
 export UNWISE_MODEL_SKY_DIR=/global/cfs/cdirs/cosmo/work/wise/unwise_catalog/dr3/mod
 export TYCHO2_KD_DIR=/global/cfs/cdirs/cosmo/staging/tycho2
-export LARGEGALAXIES_CAT=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/sample/redmapper-refcat.kd.fits
 #export LARGEGALAXIES_CAT=/global/cfs/cdirs/cosmo/staging/largegalaxies/v3.0/SGA-parent-v3.0.kd.fits
 #export LARGEGALAXIES_CAT=/global/cfs/cdirs/cosmo/staging/largegalaxies/v3.0/SGA-ellipse-v3.0.kd.fits
 export PS1CAT_DIR=/global/cfs/cdirs/cosmo/work/ps1/cats/chunks-qz-star-v3
@@ -57,7 +58,7 @@ cp -r $HOME/.astropy/config $XDG_CONFIG_HOME/astropy
 export MPLCONFIGDIR=$TMPCACHE/matplotlib
 mkdir $MPLCONFIGDIR
 cp -r $HOME/.config/matplotlib $MPLCONFIGDIR
-# ipython
-export IPYTHONDIR=$TMPCACHE/ipython
-mkdir $IPYTHONDIR
-cp -r $HOME/.ipython $IPYTHONDIR  
+## ipython
+#export IPYTHONDIR=$TMPCACHE/ipython
+#mkdir $IPYTHONDIR
+#cp -r $HOME/.ipython $IPYTHONDIR  
