@@ -5,7 +5,7 @@ legacyhalos.legacyhalos
 Code to support the legacyhalos sample and project.
 
 """
-import os, time, shutil, pdb
+import os, time, shutil, subprocess, pdb
 import numpy as np
 import astropy
 import fitsio
@@ -17,6 +17,7 @@ DECCOLUMN = 'DEC'
 ZCOLUMN = 'Z_LAMBDA'    
 DIAMCOLUMN = 'RADIUS_MOSAIC' # [radius, arcsec]
 RICHCOLUMN = 'LAMBDA_CHISQ'
+GALAXYCOLUMN = 'CENTRALID'
 
 RADIUS_CLUSTER_KPC = 400.0 # default cluster radius [kpc]
 
@@ -82,7 +83,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
             galaxy = ['{:07d}-{:09d}'.format(cat['MEM_MATCH_ID'], cat['ID'])]
         else:
             galaxy = ['{:07d}-{:09d}'.format(cat['MEM_MATCH_ID'], cat['ID_CENT'][0])]
-        pixnum = [radec2pix(nside, cat['RA'], cat['DEC'])]
+        pixnum = [radec2pix(nside, cat[RACOLUMN], cat[DECCOLUMN])]
     else:
         ngal = len(cat)
         if candidates:
@@ -137,6 +138,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             filesuffix = '-pipeline-coadds.isdone'
     elif args.ellipse:
         suffix = 'ellipse'
+        #filesuffix = '-custom-skytest03-*-ellipse.fits'
         filesuffix = '-custom-ellipse.isdone'
         dependson = '-custom-coadds.isdone'
     elif args.build_catalog:
@@ -244,25 +246,23 @@ def mpi_args():
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
-    parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
+    parser.add_argument('--galaxylist', type=str, nargs='*', default=None, help='List of galaxy names to process.')
 
     parser.add_argument('--coadds', action='store_true', help='Build the coadds with the custom sky.')
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the coadds with the pipeline sky.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the pipeline coadds and return (using --early-coadds in runbrick.py).')
-    parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
     parser.add_argument('--sersic', action='store_true', help='Perform Sersic fitting.')
     parser.add_argument('--integrate', action='store_true', help='Integrate the surface brightness profiles.')
     parser.add_argument('--sky', action='store_true', help='Estimate the sky variance.')
-
     parser.add_argument('--htmlplots', action='store_true', help='Build the HTML output.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
+
     parser.add_argument('--htmlhome', default='index.html', type=str, help='Home page file name (use in tandem with --htmlindex).')
-    parser.add_argument('--html-noraslices', dest='html_raslices', action='store_false',
-                        help='Do not organize HTML pages by RA slice (use in tandem with --htmlindex).')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
+    parser.add_argument('--seed', type=int, default=1, help='Random seed (used with --sky and --sersic).')
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
     parser.add_argument('--sdss-pixscale', default=0.396, type=float, help='SDSS pixel scale (arcsec/pix).')
     
@@ -468,7 +468,7 @@ def cutout_radius_cluster(redshift, cluster_radius, pixscale=0.262, factor=1.0,
     return radius # [pixels]
 
 def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
-                   satellites=False, sdssphot=False, verbose=True):
+                   galaxylist=None, satellites=False, sdssphot=False, verbose=True):
     """Read the parent redMaPPer cluster catalog and updated photometry.
     
     """
@@ -502,7 +502,7 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
         cen = fitsio.read(cenfile, columns=[ZCOLUMN, RICHCOLUMN, 'DEC'])#, 'RA'])
         #isouth = np.logical_or((cen['DEC'] < 32.275), (cen['RA'] > 45) * (cen['RA'] < 315))
 
-        if True:
+        if False:
             cut01 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 20) * (cen[RICHCOLUMN] < 25))[0][:10]
             cut02 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 25) * (cen[RICHCOLUMN] < 30))[0][:10]
             cut03 = np.where((cen['DEC'] < 32.275) * (cen[ZCOLUMN] >= 0.10) * (cen[ZCOLUMN] < 0.15) * (cen[RICHCOLUMN] >= 30) * (cen[RICHCOLUMN] < 40))[0][:10]
@@ -570,23 +570,34 @@ def read_redmapper(rmversion='v6.3.1', sdssdr='dr14', first=None, last=None,
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(cen), cenfile))
 
-    # pre-compute the radius of the mosaic (=RADIUS_CLUSTER_KPC kpc) for each cluster
-    cen['RADIUS_MOSAIC'] = cutout_radius_kpc(redshift=cen[ZCOLUMN], cosmo=cosmo, # [arcsec]
-                                             radius_kpc=RADIUS_CLUSTER_KPC) 
+    # pre-compute the diameter of the mosaic (=2*RADIUS_CLUSTER_KPC kpc) for each cluster
+    cen[DIAMCOLUMN] = cutout_radius_kpc(redshift=cen[ZCOLUMN], cosmo=cosmo, # diameter [arcsec]
+                                             radius_kpc=2 * RADIUS_CLUSTER_KPC)
+    cen[GALAXYCOLUMN] = np.array( ['{:07d}-{:09d}'.format(mid, cid)
+                                   for mid, cid in zip(cen['MEM_MATCH_ID'], cen['ID_CENT'][:, 0])] )
+
+    if galaxylist is not None:
+        if verbose:
+            print('Selecting specific galaxies.')
+        these = np.isin(cen[GALAXYCOLUMN], galaxylist)
+        if np.count_nonzero(these) == 0:
+            print('No matching galaxies!')
+            return astropy.table.Table()
+        else:
+            cen = cen[these]
 
     if satellites:
         satid = fitsio.read(satfile, columns='MEM_MATCH_ID')
         satrows = np.where(np.isin(satid, cen['MEM_MATCH_ID']))[0]
         satrows = satrows[np.argsort(satrows)]
         sat = Table(fitsio.read(satfile, rows=satrows, ext=1, upper=True))
-        #sat['RADIUS_MOSAIC'] = cutout_radius_kpc(redshift=sat[ZCOLUMN], cosmo=cosmo, # [arcsec]
-        #                                         radius_kpc=RADIUS_CLUSTER_KPC)
         return cen, sat
     else:
         return cen
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=0.001, r50mask=0.1, verbose=False):
+                          threshmask=0.001, r50mask=0.1, maxshift=5,
+                          verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -596,6 +607,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
     """
     import numpy.ma as ma
+    from copy import copy
     from legacyhalos.mge import find_galaxy
     from legacyhalos.misc import srcs2image, ellipse_mask
 
@@ -614,11 +626,11 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     # If the row-index of the central galaxy is not provided, use the source
     # nearest to the center of the field.
     if 'galaxy_indx' in data.keys():
-        galaxy_indx = data['galaxy_indx']
+        galaxy_indx = np.atleast_1d(data['galaxy_indx'])
     else:
         galaxy_indx = np.array([np.argmin((tractor.bx - data['refband_height']/2)**2 +
                                           (tractor.by - data['refband_width']/2)**2)])
-        data['galaxy_indx'] = galaxy_indx
+        data['galaxy_indx'] = np.atleast_1d(galaxy_indx)
         data['galaxy_id'] = ''
 
     #print('Import hack!')
@@ -634,6 +646,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         psfsrcs = None
 
     def tractor2mge(indx, factor=1.0):
+    #def tractor2mge(indx, majoraxis=None):
         # Convert a Tractor catalog entry to an MGE object.
         class MGEgalaxy(object):
             pass
@@ -646,9 +659,12 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         mgegalaxy = MGEgalaxy()
         mgegalaxy.xmed = tractor.by[indx]
         mgegalaxy.ymed = tractor.bx[indx]
+        mgegalaxy.xpeak = tractor.by[indx]
+        mgegalaxy.ypeak = tractor.bx[indx]
         mgegalaxy.eps = 1-ba
+        mgegalaxy.pa = pa
         mgegalaxy.theta = (270 - pa) % 180
-        mgegalaxy.majoraxis = factor * tractor.shape_r[indx] # [pixels]
+        mgegalaxy.majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
 
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                mgegalaxy.majoraxis,
@@ -667,7 +683,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # in the reference band. First, subtract all models except the galaxy
         # and galaxies "near" it. Also restore the original pixels of the
         # central in case there was a poor deblend.
-        mge, centralmask = tractor2mge(central, factor=6.0)
+        largeshift = False
+        mge, centralmask = tractor2mge(central, factor=5.0)
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -681,21 +698,34 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         img = data[refband].data - model
         img[centralmask] = data[refband].data[centralmask]
 
-        mask = ma.getmask(data[refband])
+        mask = np.logical_or(ma.getmask(data[refband]), data['residual_mask'])
         #mask = np.logical_or(data[refband].mask, data['residual_mask'])
         mask[centralmask] = False
 
         img = ma.masked_array(img, mask)
         ma.set_fill_value(img, fill_value)
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('debug.png')
+        #if True:
+        #    import matplotlib.pyplot as plt
+        #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('debug.png')
+        #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+        #    pdb.set_trace()
+        #pdb.set_trace()
+
+        # Did the galaxy position move? If so, revert back to the Tractor geometry.
+        if np.abs(mgegalaxy.xmed-mge.xmed) > maxshift or np.abs(mgegalaxy.ymed-mge.ymed) > maxshift:
+            print('Large centroid shift! (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
+                mgegalaxy.xmed, mgegalaxy.ymed, mge.xmed, mge.ymed))
+            largeshift = True
+            mgegalaxy = copy(mge)
 
         radec_med = data['{}_wcs'.format(refband)].pixelToPosition(
             mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
         radec_peak = data['{}_wcs'.format(refband)].pixelToPosition(
             mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
         mge = {
-            'largeshift': False,
+            'largeshift': largeshift,
             'ra': tractor.ra[central], 'dec': tractor.dec[central],
             'bx': tractor.bx[central], 'by': tractor.by[central],
             'mw_transmission_g': tractor.mw_transmission_g[central],
@@ -715,31 +745,38 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             plt.clf() ; mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=True, plot=True)
             plt.savefig('/mnt/legacyhalos-data/debug.png')
 
-        # [2] Create the satellite mask in all the bandpasses.
+        # [2] Create the satellite mask in all the bandpasses. Use srcs here,
+        # which has had the satellites nearest to the central galaxy trimmed
+        # out.
         print('Building the satellite mask.')
         satmask = np.zeros(data[refband].shape, bool)
         for filt in bands:
-            satflux = getattr(tractor, 'flux_{}'.format(filt))
             cenflux = getattr(tractor, 'flux_{}'.format(filt))[central]
+            satflux = getattr(srcs, 'flux_{}'.format(filt))
             if cenflux <= 0.0:
-                print('Central galaxy flux is negative!')
-                raise ValueError
+                raise ValueError('Central galaxy flux is negative!')
             
-            satindx = np.where((tractor.type != 'PSF') * (tractor.shape_r > r50mask) *
-                               (satflux > 0.0) * ((satflux / cenflux) > threshmask))[0]
-            if np.isin(central, satindx):
-                satindx = satindx[np.logical_not(np.isin(satindx, central))]
+            satindx = np.where(np.logical_or(
+                (srcs.type != 'PSF') * (srcs.shape_r > r50mask) *
+                (satflux > 0.0) * ((satflux / cenflux) > threshmask),
+                srcs.ref_cat == 'R1'))[0]
+            #if np.isin(central, satindx):
+            #    satindx = satindx[np.logical_not(np.isin(satindx, central))]
             if len(satindx) == 0:
-                print('All satellites have been dropped!')
-                raise ValueError
+                raise ValueError('All satellites have been dropped!')
 
-            satsrcs = tractor.copy()
+            satsrcs = srcs.copy()
+            #satsrcs = tractor.copy()
             satsrcs.cut(satindx)
             satimg = srcs2image(satsrcs, data['{}_wcs'.format(filt)],
                                 band=filt.lower(),
                                 pixelized_psf=data['{}_psf'.format(filt)])
             satmask = np.logical_or(satmask, satimg > 10*data['{}_sigma'.format(filt)])
-            #plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+            #if True:
+            #    import matplotlib.pyplot as plt
+            #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('debug.png')
+            #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+            #    pdb.set_trace()
 
         # [3] Build the final image (in each filter) for ellipse-fitting. First,
         # subtract out the PSF sources. Then update the mask (but ignore the
@@ -784,7 +821,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
     return data            
 
-def read_multiband(galaxy, galaxydir, filesuffix='custom',
+def read_multiband(galaxy, galaxydir, galaxy_id, filesuffix='custom',
                    refband='r', bands=['g', 'r', 'z'], pixscale=0.262,
                    redshift=None, fill_value=0.0, sky_tests=False, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
@@ -796,6 +833,12 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     from astrometry.util.fits import fits_table
     from legacypipe.bits import MASKBITS
     from legacyhalos.io import _get_psfsize_and_depth, _read_image_data
+
+    #galaxy_id = np.atleast_1d(galaxy_id)
+    #if len(galaxy_id) > 1:
+    #    raise ValueError('galaxy_id in read_multiband cannot be a >1-element vector for now!')
+    #galaxy_id = galaxy_id[0]
+    #assert(np.isscalar(galaxy_id))
 
     # Dictionary mapping between optical filter and filename coded up in
     # coadds.py, galex.py, and unwise.py, which depends on the project.
@@ -809,7 +852,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
                                    }})
         filt2pixscale.update({band: pixscale})
     filt2imfile.update({'tractor': '{}-tractor'.format(filesuffix),
-                        #'sample': '{}-sample'.format(filesuffix),
+                        'sample': 'redmapper-sample',
                         'maskbits': '{}-maskbits'.format(filesuffix),
                         })
 
@@ -898,10 +941,30 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     # Read the basic imaging data and masks.
     data = _read_image_data(data, filt2imfile, starmask=starmask,
                             fill_value=fill_value, verbose=verbose)
+    
+    # Find the central.
+    samplefile = os.path.join(galaxydir, '{}-{}.fits'.format(galaxy, filt2imfile['sample']))
+    sample = Table(fitsio.read(samplefile))
+    print('Read {} sources from {}'.format(len(sample), samplefile))
 
-    print('ASSIGN A GALAXY_INDX USING REF_ID!')
-    #data['galaxy_indx'] = np.array([0])
-    #data['galaxy_id'] = np.array([''])
+    data['galaxy_indx'] = []
+    data['galaxy_id'] = []
+    for galid in np.atleast_1d(galaxy_id):
+        galindx = np.where((tractor.ref_cat == 'R1') * (tractor.ref_id == galid))[0]
+        if len(galindx) != 1:
+            raise ValueError('Problem finding the central galaxy {} in the tractor catalog!'.format(galid))
+        data['galaxy_indx'].append(galindx[0])
+        data['galaxy_id'].append(galid)
+
+        # Is the flux and/or ivar negative (and therefore perhaps off the
+        # footprint?) If so, drop it here.
+        for filt in bands:
+            cenflux = getattr(tractor, 'flux_{}'.format(filt))[galindx[0]]
+            cenivar = getattr(tractor, 'flux_ivar_{}'.format(filt))[galindx[0]]
+            if cenflux <= 0.0 or cenivar <= 0.0:
+                print('Central galaxy flux is negative. Off footprint or gap in coverage?')
+                data['failed'] = True
+                return data, []
 
     # Now build the multiband mask.
     data = _build_multiband_mask(data, tractor, filt2pixscale,
@@ -917,11 +980,16 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     # Gather some additional info that we want propagated to the output ellipse
     # catalogs.
     if redshift:
-        galaxyinfo = {'redshift': (redshift, '')} # (value, units) tuple for the FITS header
+        allgalaxyinfo = []
+        for galaxy_id, galaxy_indx in zip(data['galaxy_id'], data['galaxy_indx']):
+            galaxyinfo = { # (value, units) tuple for the FITS header
+                'id_cent': (str(galaxy_id), ''),
+                'redshift': (redshift, '')}
+            allgalaxyinfo.append(galaxyinfo)
     else:
-        galaxyinfo = None
+        allgalaxyinfo = None
 
-    return data, galaxyinfo
+    return data, allgalaxyinfo
 
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                  filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
@@ -931,42 +999,91 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     and hooks for the legacyhalos project.
 
     """
+    import astropy.table
     from copy import deepcopy
     from legacyhalos.mpi import call_ellipse as mpi_call_ellipse
 
-    data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
-                                      filesuffix=filesuffix,
-                                      refband=refband, pixscale=pixscale,
-                                      redshift=onegal[ZCOLUMN],
-                                      sky_tests=sky_tests, verbose=verbose)
+    if type(onegal) == astropy.table.Table:
+        onegal = onegal[0] # create a Row object
+    galaxy_id = onegal['ID_CENT'][0]
+
+    if logfile:
+        from contextlib import redirect_stdout, redirect_stderr
+        with open(logfile, 'a') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id, bands=bands,
+                                                  filesuffix=filesuffix, refband=refband,
+                                                  pixscale=pixscale, redshift=onegal[ZCOLUMN],
+                                                  sky_tests=sky_tests, verbose=verbose)
+    else:
+        data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id, bands=bands,
+                                          filesuffix=filesuffix, refband=refband,
+                                          pixscale=pixscale, redshift=onegal[ZCOLUMN],
+                                          sky_tests=sky_tests, verbose=verbose)
 
     maxsma, delta_logsma = None, 6
     #maxsma, delta_logsma = 200, 10
 
     if sky_tests:
-        skydata = deepcopy(data) # necessary?
-        for isky in np.arange(len(data['sky'])):
-            skydata['filesuffix'] = data['sky'][isky]['skysuffix']
-            for band in bands:
-                # We want to *add* this delta-sky because it is defined as
-                #   sky_annulus_0 - sky_annulus_isky
-                delta_sky = data['sky'][isky][band] 
-                print('  Adjusting {}-band sky backgroud by {:4g} nanomaggies.'.format(band, delta_sky))
-                for igal in np.arange(len(np.atleast_1d(data['galaxy_indx']))):
-                    skydata['{}_masked'.format(band)][igal] = data['{}_masked'.format(band)][igal] + delta_sky
+        from legacyhalos.mpi import _done
 
-            mpi_call_ellipse(galaxy, galaxydir, skydata, galaxyinfo=galaxyinfo,
-                             pixscale=pixscale, nproc=nproc, 
-                             bands=bands, refband=refband, sbthresh=SBTHRESH,
-                             delta_logsma=delta_logsma, maxsma=maxsma,
-                             verbose=verbose, debug=debug, logfile=logfile)
+        def _wrap_call_ellipse():
+            skydata = deepcopy(data) # necessary?
+            for isky in np.arange(len(data['sky'])):
+                skydata['filesuffix'] = data['sky'][isky]['skysuffix']
+                for band in bands:
+                    # We want to *add* this delta-sky because it is defined as
+                    #   sky_annulus_0 - sky_annulus_isky
+                    delta_sky = data['sky'][isky][band] 
+                    print('  Adjusting {}-band sky backgroud by {:4g} nanomaggies.'.format(band, delta_sky))
+                    for igal in np.arange(len(np.atleast_1d(data['galaxy_indx']))):
+                        skydata['{}_masked'.format(band)][igal] = data['{}_masked'.format(band)][igal] + delta_sky
 
-            # no need to redo the nominal ellipse-fitting
-            if isky == 0:
-                inellipsefile = os.path.join(galaxydir, '{}-{}-ellipse.fits'.format(galaxy, skydata['filesuffix']))
-                outellipsefile = os.path.join(galaxydir, '{}-{}-ellipse.fits'.format(galaxy, data['filesuffix']))
-                print('Copying {} --> {}'.format(inellipsefile, outellipsefile))
-                shutil.copy2(inellipsefile, outellipsefile)
+                err = mpi_call_ellipse(galaxy, galaxydir, skydata, galaxyinfo=galaxyinfo,
+                                       pixscale=pixscale, nproc=nproc, 
+                                       bands=bands, refband=refband, sbthresh=SBTHRESH,
+                                       delta_logsma=delta_logsma, maxsma=maxsma,
+                                       write_donefile=False,
+                                       verbose=verbose, debug=True)#, logfile=logfile)# no logfile and debug=True, otherwise this will crash
+
+                # no need to redo the nominal ellipse-fitting
+                if isky == 0:
+                    inellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, skydata['filesuffix'], galaxy_id))
+                    outellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, data['filesuffix'], galaxy_id))
+                    print('Copying {} --> {}'.format(inellipsefile, outellipsefile))
+                    shutil.copy2(inellipsefile, outellipsefile)
+            return err
+
+        t0 = time.time()
+        if logfile:
+            with open(logfile, 'a') as log:
+                with redirect_stdout(log), redirect_stderr(log):
+                    # Capture corner case of missing data / incomplete coverage (see also
+                    # ellipse.legacyhalos_ellipse).
+                    if bool(data):
+                        if data['failed']:
+                            err = 1
+                        else:
+                            err = _wrap_call_ellipse()
+                    else:
+                        if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
+                            err = 1 # successful failure
+                        else:
+                            err = 0 # failed failure
+                    _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix, log=log)
+        else:
+            log = None
+            if bool(data):
+                if data['failed']:
+                    err = 1
+                else:
+                    err = _wrap_call_ellipse()
+            else:
+                if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
+                    err = 1 # successful failure
+                else:
+                    err = 0 # failed failure
+            _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix, log=log)
     else:
         mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                          pixscale=pixscale, nproc=nproc, 

@@ -59,7 +59,8 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     # Diagnostic plots (OK if they're missing) (put this above the check for the
     # CCDs--if the plots have been made then they are useful for testing and
     # debugging).
-    for qatype in ('ccdpos', 'pipelinesky', 'customsky'):
+    for qatype in ['ccdpos']:
+    #for qatype in ['ccdpos', 'pipelinesky', 'customsky']:
         ok = _copyfile(
             os.path.join(output_dir, 'metrics', 'cus', 'fitoncoadds-{}-{}.jpg'.format(brickname, qatype)),
                          os.path.join(output_dir, '{}-{}-{}.jpg'.format(galaxy, stagesuffix, qatype)),
@@ -154,12 +155,13 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     if not ok:
         return ok
 
-    ok = _copyfile(
-        os.path.join(output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
-        os.path.join(output_dir, '{}-{}-blobs.fits.gz'.format(galaxy, stagesuffix)),
-        clobber=clobber, missing_ok=missing_ok)
-    if not ok:
-        return ok
+    if False:
+        ok = _copyfile(
+            os.path.join(output_dir, 'metrics', 'cus', 'blobs-{}.fits.gz'.format(brickname)),
+            os.path.join(output_dir, '{}-{}-blobs.fits.gz'.format(galaxy, stagesuffix)),
+            clobber=clobber, missing_ok=missing_ok)
+        if not ok:
+            return ok
 
     ok = _copyfile(
         os.path.join(output_dir, 'metrics', 'cus', 'outlier-mask-{}.fits.fz'.format(brickname)),

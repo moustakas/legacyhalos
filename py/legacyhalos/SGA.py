@@ -140,8 +140,7 @@ def SGA_version():
     version = 'v7.0' # more dr9 testing
     
     """
-    #version = 'v3.0'  # DR9
-    version = 'v3.2'  # nearly identical to v3.0 but with some minor fixes
+    version = 'v3.0'  # DR9
     return version
 
 def mpi_args():
@@ -737,8 +736,8 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
             assert(len(rem) == len(ignore_dropcat))
             sga = sga[np.delete(np.arange(len(sga)), rem)]
 
-    sga.rename_column('RA', 'SGA_RA')
-    sga.rename_column('DEC', 'SGA_DEC')
+    sga.rename_column('RA', 'RA_LEDA')
+    sga.rename_column('DEC', 'DEC_LEDA')
     for col in cat.colnames:
         if col in sga.colnames:
             #print('  Skipping existing column {}'.format(col))
@@ -753,8 +752,8 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
                     sga[col] = np.zeros(len(sga), dtype=cat[col].dtype)
                 else:
                     sga[col] = np.zeros(len(sga), dtype=cat[col].dtype)-1
-    sga['RA'][:] = sga['SGA_RA']
-    sga['DEC'][:] = sga['SGA_DEC']
+    sga['RA'][:] = sga['RA_LEDA']
+    sga['DEC'][:] = sga['DEC_LEDA']
     sga['DROPBIT'][:] = DROPBITS['nogrz'] # outside the footprint
     sga['ELLIPSEBIT'][:] = ELLIPSEBITS['notfit'] # not fit
     if len(dropcat) > 0:
@@ -820,7 +819,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     from tractor.ellipses import EllipseE # EllipseESoft
     from legacyhalos.io import read_ellipsefit, get_run
     from legacyhalos.misc import is_in_ellipse
-    from legacyhalos.ellipse import SBTHRESH as sbcuts
+    #from legacyhalos.ellipse import SBTHRESH as sbcuts
 
     onegal = Table(onegal)
     galaxy, galaxydir = get_galaxy_galaxydir(onegal)
@@ -857,9 +856,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     grzmissing = False
     for band in ['g', 'r', 'z']:
         imfile = os.path.join(galaxydir, '{}-largegalaxy-image-{}.fits.fz'.format(galaxy, band))
-        if not os.path.isfile(imfile) and onegal['GROUP_NAME'] != 'NGC0598_GROUP': # M33 hack
-            print('  Missing image {}'.format(imfile), flush=True)
-            grzmissing = True
+        if False:
+            if not os.path.isfile(imfile) and onegal['GROUP_NAME'] != 'NGC0598_GROUP': # M33 hack
+                print('  Missing image {}'.format(imfile), flush=True)
+                grzmissing = True
     if grzmissing:
         print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
         onegal['DROPBIT'] |= DROPBITS['nogrz']
@@ -960,8 +960,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # out at the end, but it's much easier and cleaner to do it this way. Also
     # remove the duplicate BRICKNAME column from the Tractor catalog.
     tractor.remove_column('BRICKNAME') # of the form custom-BRICKNAME
-    onegal.rename_column('RA', 'SGA_RA')
-    onegal.rename_column('DEC', 'SGA_DEC')
+    onegal.rename_column('RA', 'RA_LEDA')
+    onegal.rename_column('DEC', 'DEC_LEDA')
     onegal.remove_column('INDEX')
     sgacols = onegal.colnames
     tractorcols = tractor.colnames
@@ -970,7 +970,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             print('  Skipping existing column {}'.format(col), flush=True)
         else:
             if onegal[col].ndim > 1:
-                # assume no multidimensional strins
+                # assume no multidimensional strings
                 tractor.add_column(Column(name=col, data=np.zeros((len(tractor), onegal[col].shape[1]),
                                                                   dtype=onegal[col].dtype)-1), index=0)
             else:
@@ -985,15 +985,29 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     tractor['ELLIPSEBIT'][:] = np.zeros(len(tractor), dtype=np.int32) # we don't want -1 here
 
     # add the columns from legacyhalos.ellipse.ellipse_cog
-    radkeys = ['RADIUS_SB{:0g}'.format(sbcut) for sbcut in sbcuts]
+    radkeys = ['RADIUS_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
     for radkey in radkeys:
         tractor[radkey] = np.zeros(len(tractor), np.float32) - 1
     for radkey in radkeys:
         for filt in ['G', 'R', 'Z']:
             magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt))
             tractor[magkey] = np.zeros(len(tractor), np.float32) - 1
+    #for filt in ['G', 'R', 'Z']:
+    #    tractor['{}_MAG_TOT'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
+
+    raderrkeys = ['RADIUS_SB{:0g}_ERR'.format(sbcut) for sbcut in SBTHRESH]
+    for raderrkey in raderrkeys:
+        tractor[raderrkey] = np.zeros(len(tractor), np.float32) - 1
+    for raderrkey in raderrkeys:
+        for filt in ['G', 'R', 'Z']:
+            magerrkey = raderrkey.replace('RADIUS_', '{}_MAG_'.format(filt))
+            tractor[magerrkey] = np.zeros(len(tractor), np.float32) - 1
     for filt in ['G', 'R', 'Z']:
-        tractor['{}_MAG_TOT'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
+        tractor['{}_COG_PARAMS_MTOT'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
+        tractor['{}_COG_PARAMS_M0'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
+        tractor['{}_COG_PARAMS_ALPHA1'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
+        tractor['{}_COG_PARAMS_ALPHA2'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
+        tractor['{}_COG_PARAMS_CHI2'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
 
     tractor['PREBURNED'] = np.ones(len(tractor), bool)        # Everything was preburned but we only want to freeze the...
     tractor['FREEZE'] = np.zeros(len(tractor), bool)          # ...SGA galaxies and sources in that galaxy's ellipse.
@@ -1033,7 +1047,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
              # PGC1062274)!
             if len(match) == 0:
                 # check for grz coverage
-                if onegal['GROUP_NAME'] == 'NGC0598_GROUP': # M33 hack
+                if False and onegal['GROUP_NAME'] == 'NGC0598_GROUP': # M33 hack
                     print('M33 hack---need coadds!')
                     grzmissing = False
                 else:
@@ -1142,8 +1156,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     #tractor['REF_ID'][match] = -1 # use -1, 0!
                     tractor['FREEZE'][match] = True
 
-                    thisgal.rename_column('RA', 'SGA_RA')
-                    thisgal.rename_column('DEC', 'SGA_DEC')
+                    thisgal.rename_column('RA', 'RA_LEDA')
+                    thisgal.rename_column('DEC', 'DEC_LEDA')
                     thisgal.remove_column('INDEX')
                     for col in thisgal.colnames:
                         if col == 'ELLIPSEBIT': # skip because we filled it, above
@@ -1186,8 +1200,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             tractor['FREEZE'][inellipse] = True
 
             # Populate the output catalog--
-            thisgal.rename_column('RA', 'SGA_RA')
-            thisgal.rename_column('DEC', 'SGA_DEC')
+            thisgal.rename_column('RA', 'RA_LEDA')
+            thisgal.rename_column('DEC', 'DEC_LEDA')
             thisgal.remove_column('INDEX')
             for col in thisgal.colnames:
                 tractor[col][match] = thisgal[col]
@@ -1205,7 +1219,18 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                 for filt in ['G', 'R', 'Z']:
                     magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt))
                     tractor[magkey][match] = ellipse[magkey.lower()]
-                    tractor['{}_MAG_TOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt).lower()]
+                    #tractor['{}_MAG_TOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt).lower()]
+            for raderrkey in raderrkeys:
+                tractor[raderrkey][match] = ellipse[raderrkey.lower()]
+                for filt in ['G', 'R', 'Z']:
+                    magerrkey = raderrkey.replace('RADIUS_', '{}_MAG_'.format(filt))
+                    tractor[magerrkey][match] = ellipse[magerrkey.lower()]
+            for filt in ['G', 'R', 'Z']:
+                tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt).lower()]
+                tractor['{}_COG_PARAMS_M0'.format(filt)][match] = ellipse['{}_COG_PARAMS_M0'.format(filt).lower()]
+                tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = ellipse['{}_COG_PARAMS_ALPHA1'.format(filt).lower()]
+                tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = ellipse['{}_COG_PARAMS_ALPHA2'.format(filt).lower()]
+                tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = ellipse['{}_COG_PARAMS_CHI2'.format(filt).lower()]
 
     # Keep just frozen sources. Can be empty (e.g., if a field contains just a
     # single dropped source, e.g., DR8-2194p447-894).
@@ -1988,7 +2013,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
     htmlfile = os.path.join(htmlgalaxydir1, '{}.html'.format(galaxy1))
     if os.path.isfile(htmlfile) and not clobber:
-        print('File {} exists and clobber=False'.format(htmlfile))
+        if verbose:
+            print('File {} exists and clobber=False'.format(htmlfile))
         return
     
     nexthtmlgalaxydir1 = os.path.join('{}'.format(nexthtmlgalaxydir[ii].replace(htmldir, '')[1:]), '{}.html'.format(nextgalaxy[ii]))
@@ -2413,7 +2439,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
               first=None, last=None, galaxylist=None,
               nproc=1, survey=None, makeplots=False,
               htmlhome='index.html', html_raslices=False,
-              clobber=False, verbose=True, maketrends=False, ccdqa=False,
+              clobber=False, verbose=False, maketrends=False, ccdqa=False,
               args=None, fix_permissions=True):
     """Make the HTML pages.
 

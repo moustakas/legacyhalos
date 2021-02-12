@@ -7,8 +7,8 @@ legacyhalos-mpi --coadds
 import os, time, pdb
 import numpy as np
 
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 
 #import tempfile
 #import matplotlib.pyplot as plt
@@ -20,10 +20,11 @@ def main():
     """
     import legacyhalos.io
     import legacyhalos.legacyhalos
+
     from legacypipe.runs import get_survey
-
-    from legacyhalos.legacyhalos import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN
-
+    from legacyhalos.legacyhalos import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN, GALAXYCOLUMN
+    from legacyhalos.legacyhalos import get_galaxy_galaxydir
+        
     basedir = legacyhalos.io.legacyhalos_dir()
     datadir = legacyhalos.io.legacyhalos_data_dir()
     htmldir = legacyhalos.io.legacyhalos_html_dir()
@@ -49,10 +50,17 @@ def main():
         if args.coadds or args.build_catalog or args.build_refcat:
             sample, fullsample = legacyhalos.legacyhalos.read_redmapper(
                 first=args.first, last=args.last, verbose=args.verbose,
-                satellites=True)
+                satellites=True, galaxylist=args.galaxylist)
         else:
             sample = legacyhalos.legacyhalos.read_redmapper(
-                first=args.first, last=args.last, verbose=args.verbose)
+                first=args.first, last=args.last, galaxylist=args.galaxylist,
+                verbose=args.verbose)
+            
+        if len(sample) == 0:
+            return
+
+    #print('Hack!')
+    #sample = sample[sample['ID_CENT'][:, 0] == 9112212]
 
     if comm is not None:
         sample = comm.bcast(sample, root=0)
@@ -77,12 +85,16 @@ def main():
 
     if args.build_refcat or args.integrate and rank == 0:
         if args.build_refcat:
-            # build a reference catalog for use with the pipeline
+            # Build a reference catalog for use with the pipeline. satellites
+            # can belong to more than one cluster, so trim to unique IDs.
             
             import fitsio
             from astropy.table import Table
 
+            _, uindx = np.unique(fullsample['ID'], return_index=True)
+            fullsample = fullsample[uindx]
             ngal = len(fullsample)
+
             ref = Table()
             ref['ra'] = fullsample['RA']
             ref['dec'] = fullsample['DEC']
@@ -146,7 +158,7 @@ def main():
         if rank == 0 and args.count and args.debug:
             if len(fail[rank]) > 0:
                 print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
-                galaxy, galaxydir = legacyhalos.legacyhalos.get_galaxy_galaxydir(sample[fail[rank]])
+                galaxy, galaxydir = get_galaxy_galaxydir(sample[fail[rank]])
                 for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
                     print('  {} {} (r={:.3f} arcsec)'.format(ii, dd, diam))
         return
@@ -157,14 +169,14 @@ def main():
             if args.debug:
                 if len(fail[rank]) > 0:
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
-                    galaxy, galaxydir = legacyhalos.legacyhalos.get_galaxy_galaxydir(sample[fail[rank]])
+                    galaxy, galaxydir = get_galaxy_galaxydir(sample[fail[rank]])
                     for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
                         print('  {} {} (r={:.3f} arcsec)'.format(ii, dd, diam))
 
                 todo = np.hstack(groups)
                 if len(todo) > 0:
                     print('{} todo: {} / {}'.format(suffix.upper(), len(todo), len(sample)), flush=True)
-                    galaxy, galaxydir = legacyhalos.legacyhalos.get_galaxy_galaxydir(sample[todo])
+                    galaxy, galaxydir = get_galaxy_galaxydir(sample[todo])
                     for ii, dd, diam in zip(todo, np.atleast_1d(galaxydir), sample[todo][DIAMCOLUMN]):
                         print('  {} {} (r={:.3f} arcsec)'.format(ii, dd, diam))
             return
@@ -178,15 +190,16 @@ def main():
         len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
         flush=True)
 
-    # Build the SGA only on rank 0 in order to avoid memory problems--
+    # Build the catalog only on rank 0 in order to avoid memory problems--
     if args.build_catalog:
-        pdb.set_trace()
+        print('Write me!')
+        return
 
     # The rest of the pipeline--
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
-        galaxy, galaxydir = legacyhalos.legacyhalos.get_galaxy_galaxydir(onegal)
+        galaxy, galaxydir = get_galaxy_galaxydir(onegal)
         if not os.path.isdir(galaxydir):
             os.makedirs(galaxydir, exist_ok=True)
 
@@ -201,11 +214,11 @@ def main():
             #print('Logging to {} '.format(logfile), flush=True)
 
         # Need the cluster "radius" to build the coadds.
-        radius_mosaic_arcsec = onegal[DIAMCOLUMN] # [arcsec]
-        subsky_radii = radius_mosaic_arcsec * np.array([1.4, 1.5,  # annulus 0
-                                                        1.0, 1.1,  # annulus 1
-                                                        2.0, 2.1,  # annulus 2
-                                                        3.0, 3.1]) # annulus 3
+        radius_mosaic_arcsec = onegal[DIAMCOLUMN] / 2 # radius [arcsec]
+        subsky_radii = radius_mosaic_arcsec * np.array([1.0, 1.1,  # annulus 0
+                                                        1.2, 1.3,  # annulus 1
+                                                        1.3, 1.4,  # annulus 2
+                                                        1.4, 1.5]) # annulus 3
         
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
@@ -221,8 +234,10 @@ def main():
                 thissample = fullsample[np.where(onegal['MEM_MATCH_ID'] == fullsample['MEM_MATCH_ID'])[0]]
                 samplefile = os.path.join(galaxydir, '{}-redmapper-sample.fits'.format(galaxy))
                 if args.clobber or not os.path.isfile(samplefile):
-                    print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
-                    thissample.write(samplefile, overwrite=True)
+                    #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+                    tmpfile = samplefile+'.tmp'
+                    thissample.write(tmpfile, overwrite=True, format='fits')
+                    os.rename(tmpfile, samplefile)
 
                 call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                    pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
@@ -247,6 +262,13 @@ def main():
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
+            # A hack needed for ellipse-fitting cleanup.
+            #thissample = fullsample[np.where(onegal['MEM_MATCH_ID'] == fullsample['MEM_MATCH_ID'])[0]]
+            #samplefile = os.path.join(galaxydir, '{}-redmapper-sample.fits'.format(galaxy))
+            #tmpfile = samplefile+'.tmp'
+            #thissample.write(tmpfile, overwrite=True, format='fits')
+            #os.rename(tmpfile, samplefile)
+                    
             from legacyhalos.legacyhalos import call_ellipse
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, 
                          bands=['g', 'r', 'z'], refband='r',
@@ -257,20 +279,22 @@ def main():
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
-            from legacyhalos.legacyhalos import legacyhalos_cosmology
+            from legacyhalos.legacyhalos import legacyhalos_cosmology, read_multiband
 
             cosmo = legacyhalos_cosmology()
             barlabel = '30 arcsec'
             barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
+
             call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
                            verbose=args.verbose, debug=args.debug, clobber=args.clobber,
                            ccdqa=args.ccdqa, logfile=logfile, zcolumn=ZCOLUMN,
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
+                           galaxy_id=onegal[GALAXYCOLUMN],
                            cosmo=cosmo, just_coadds=args.just_coadds,
-                           get_galaxy_galaxydir=legacyhalos.legacyhalos.get_galaxy_galaxydir,
-                           read_multiband=legacyhalos.legacyhalos.read_multiband)
+                           get_galaxy_galaxydir=get_galaxy_galaxydir,
+                           read_multiband=read_multiband)
 
     # Wait for all ranks to finish.
     if comm is not None:

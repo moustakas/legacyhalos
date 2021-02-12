@@ -39,7 +39,7 @@ elif [ $stage = "ellipse" ]; then
 elif [ $stage = "htmlplots" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --htmlplots --nproc ${ncores} --mpi --verbose --d25min 3 --d25max 20
 elif [ $stage = "buildSGA" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --build-SGA --nproc ${ncores} --mpi --verbose --clobber
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --build-SGA --nproc ${ncores} --mpi --verbose
 else
     echo "Unrecognized stage "$stage
 fi

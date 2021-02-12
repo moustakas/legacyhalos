@@ -38,7 +38,7 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
 def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                  pixscale=0.262, nproc=1, bands=['g', 'r', 'z'], refband='r',
                  delta_logsma=5, maxsma=None, logsma=True,
-                 verbose=False, debug=False,
+                 verbose=False, debug=False, write_donefile=True,
                  logfile=None, input_ellipse=None, sbthresh=None):
     """Wrapper script to do ellipse-fitting.
 
@@ -59,7 +59,8 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
             sbthresh=sbthresh, input_ellipse=input_ellipse,
             delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
             verbose=verbose, debug=debug)
-        _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'])
+        if write_donefile:
+            _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'])
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
@@ -71,7 +72,10 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                     sbthresh=sbthresh, input_ellipse=input_ellipse,
                     delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
                     verbose=verbose)
-                _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
+                if write_donefile:
+                    _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
+
+    return err
 
 def call_sersic(onegal, galaxy, galaxydir, seed, verbose, debug, logfile):
     """Wrapper script to do Sersic-fitting.
@@ -118,9 +122,9 @@ def call_sky(onegal, galaxy, galaxydir, survey, seed, nproc, pixscale,
                 
 def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1, 
                    verbose=False, debug=False, clobber=False, ccdqa=False,
-                   logfile=None, zcolumn='Z', datadir=None, htmldir=None,                   
-                   cosmo=None, galex=False, just_coadds=False,
-                   write_donefile=True,
+                   logfile=None, zcolumn='Z', galaxy_id=None,
+                   datadir=None, htmldir=None, cosmo=None,
+                   galex=False, just_coadds=False, write_donefile=True,
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                    get_galaxy_galaxydir=None, read_multiband=None):
     """Wrapper script to build the pipeline coadds."""
@@ -130,8 +134,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
         _start(galaxy)
         err = legacyhalos.html.make_plots(
             onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
-            pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
-            barlen=barlen, barlabel=barlabel,
+            pixscale=pixscale, zcolumn=zcolumn, galaxy_id=galaxy_id,
+            nproc=nproc, barlen=barlen, barlabel=barlabel,
             radius_mosaic_arcsec=radius_mosaic_arcsec,
             maketrends=False, ccdqa=ccdqa,
             clobber=clobber, verbose=verbose, 
@@ -146,8 +150,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                 _start(galaxy, log=log)
                 err = legacyhalos.html.make_plots(
                     onegal, datadir=datadir, htmldir=htmldir, survey=survey, 
-                    pixscale=pixscale, zcolumn=zcolumn, nproc=nproc,
-                    barlen=barlen, barlabel=barlabel,
+                    pixscale=pixscale, zcolumn=zcolumn, galaxy_id=galaxy_id,
+                    nproc=nproc, barlen=barlen, barlabel=barlabel,
                     radius_mosaic_arcsec=radius_mosaic_arcsec,
                     maketrends=False, ccdqa=ccdqa,
                     clobber=clobber, verbose=verbose,

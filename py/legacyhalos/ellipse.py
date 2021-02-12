@@ -482,7 +482,7 @@ def integrate_isophot_one(img, sma, theta, eps, x0, y0, pixscalefactor,
         
     return out
 
-def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
+def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
                       cut_on_cog=False, sdss=False, linear=False):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
@@ -537,7 +537,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
             else:
                 keep = np.isfinite(sb) * ((sb / sberr) > snrmin)
             if cut_on_cog:
-                keep *= ellipsefit['{}_sma'.format(filt)] <= np.max(ellipsefit['{}_cog_sma'.format(filt)])
+                keep *= (ellipsefit['{}_sma'.format(filt)] * pixscale) <= np.max(ellipsefit['{}_cog_sma'.format(filt)])
             keep = np.where(keep)[0]
                 
             sbprofile['{}_keep'.format(filt)] = keep
@@ -675,7 +675,7 @@ def _fitgeometry_refband(ellipsefit, geometry0, majoraxis, refband='r', verbose=
 
 def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                          refband='r', nproc=1, 
-                         integrmode='median', nclip=2, sclip=3,
+                         integrmode='median', nclip=3, sclip=3,
                          maxsma=None, logsma=True, delta_logsma=5.0, delta_sma=1.0,
                          sbthresh=REF_SBTHRESH,
                          galaxyinfo=None, input_ellipse=None, fitgeometry=False,
@@ -707,15 +707,17 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         maxrit = None
     else:
         maxrit = -1
-        
+
     # Initialize the output dictionary, starting from the galaxy geometry in the
     # 'data' dictionary.
     ellipsefit = dict()
-    ellipsefit['input_ellipse'] = False
     ellipsefit['integrmode'] = integrmode
     ellipsefit['sclip'] = np.int16(sclip)
     ellipsefit['nclip'] = np.int16(nclip)
     ellipsefit['fitgeometry'] = fitgeometry
+
+    if input_ellipse:
+        ellipsefit['input_ellipse'] = True
 
     # This is fragile, but copy over a specific set of keys from the data dictionary--
     copykeys = ['bands', 'refband', 'refpixscale',
@@ -779,7 +781,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
                                    eps=ellipsefit['eps'], sma=majoraxis, 
                                    pa=np.radians(ellipsefit['pa']-90))
-    
+
     geometry_cen = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
                                    eps=0.0, sma=0.0, pa=0.0)
     #ellipsefit['geometry'] = geometry # can't save an object in an .asdf file
@@ -864,13 +866,12 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     print('Time for all images = {:.3f} min'.format((time.time()-tall)/60))
 
     ellipsefit['success'] = True
-    
+
     # Perform elliptical aperture photometry--
     print('Performing elliptical aperture photometry.')
     t0 = time.time()
     cog = ellipse_cog(bands, data, ellipsefit, 1.0, refpixscale,
-                      igal=igal, pool=pool,
-                      sbthresh=sbthresh)
+                      igal=igal, pool=pool, sbthresh=sbthresh)
     ellipsefit.update(cog)
     del cog
     print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
@@ -895,92 +896,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
 
     return ellipsefit
 
-def _call_ellipsefit_multiband(galaxy, galaxydir, filesuffix,
-                               bands=('g', 'r', 'z'), nproc=1, redshift=None,
-                               refband='f', pixscale=0.262,
-                               sbthresh=REF_SBTHRESH,
-                               subsky={},
-                               delta_sma=None,
-                               galex_pixscale=1.5, unwise_pixscale=2.75,
-                               galex=False, unwise=False, sdss=False,
-                               verbose=False, largegalaxy=False,
-                               integrmode='median', nclip=3, sclip=3, 
-                               input_ellipse=None):
-    """Wrapper on ellipsefit_multiband which allows me to do sky-subtraction tests. 
-
-    """
-    # Read the data and then do ellipse-fitting.
-    data, sample = legacyhalos.io.read_multiband(galaxy, galaxydir, bands=bands,
-                                                 refband=refband, pixscale=pixscale,
-                                                 subsky=subsky,
-                                                 galex_pixscale=galex_pixscale,
-                                                 unwise_pixscale=unwise_pixscale,
-                                                 galex=galex, unwise=unwise, sdss=sdss,
-                                                 verbose=verbose,
-                                                 largegalaxy=largegalaxy,
-                                                 return_sample=True)
-
-    if bool(data):
-        if data['failed']: # all galaxies dropped
-            return 1
-
-        if data['galaxy_id'] is not None:
-            central_galaxy_id_all = data['central_galaxy_id']
-        else:
-            central_galaxy_id_all = np.atleast_1d(1)
-
-        for igal in np.arange(len(central_galaxy_id_all)):
-            central_galaxy_id = central_galaxy_id_all[igal]
-            galaxy_id = str(central_galaxy_id)
-            print('Starting ellipse-fitting for galaxy {} with {} core(s)'.format(galaxy_id, nproc))
-            if largegalaxy:
-                import astropy.units as u
-                # Supplement the fit results dictionary with some additional info.
-                samp = sample[sample['SGA_ID'] == central_galaxy_id]
-                galaxyinfo = {'sga_id': (central_galaxy_id, ''),
-                              'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
-                for key, unit in zip(['ra', 'dec', 'pgc', 'pa_leda', 'ba_leda', 'd25_leda'],
-                                     [u.deg, u.deg, '', u.deg, '', u.arcmin]):
-                    galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
-                # Specify the fitting range
-                maxis = data['mge'][igal]['majoraxis'] # [pixels]
-                if samp['D25_LEDA'] > 10 or samp['PGC'] == 31968: # e.g., NGC5457
-                    if samp['PGC'] == 31968: # special-case NGC3344
-                        print('Special-casing PGC031968==NGC3344!')
-                    maxsma = 1.5 * maxis # [pixels]
-                    if delta_sma is None:
-                        delta_sma = 0.003 * maxsma
-                else:
-                    maxsma = 2 * maxis # [pixels]
-                    if delta_sma is None:
-                        delta_sma = 0.0015 * maxsma
-                if delta_sma < 1:
-                    delta_sma = 1.0
-                print('  majoraxis={:.2f} pix, maxsma={:.2f} pix, delta_sma={:.1f} pix'.format(maxis, maxsma, delta_sma))
-            else:
-                if delta_sma is None:
-                    delta_sma = 1.0
-                maxsma, galaxy_id = None, ''
-                galaxyinfo = {'redshift': (redshift, '')}
-
-            ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data, igal=igal,
-                                              galaxy_id=galaxy_id, filesuffix=filesuffix,
-                                              refband=refband, nproc=nproc, integrmode=integrmode,
-                                              nclip=nclip, sclip=sclip, verbose=verbose,
-                                              delta_sma=delta_sma,
-                                              sbthresh=sbthresh,
-                                              input_ellipse=input_ellipse, maxsma=maxsma,
-                                              fitgeometry=False, galaxyinfo=galaxyinfo)
-        return 1
-    else:
-        # An object can get here if it's a "known" failure, e.g., if the object
-        # falls off the edge of the footprint (and therefore it will never have
-        # coadds).
-        if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
-            return 1
-        else:
-            return 0
-
 def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                         pixscale=0.262, nproc=1, refband='r',
                         bands=['g', 'r', 'z'], integrmode='median',
@@ -1000,14 +915,14 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
             return 1
 
         if 'galaxy_id' in data.keys():
-            galaxy_id = data['galaxy_id']
+            galaxy_id = np.atleast_1d(data['galaxy_id'])
         else:
-            galaxy_id = ''
+            galaxy_id = ['']
             
-        for igal, galid in enumerate(np.atleast_1d(galaxy_id)):
+        for igal, galid in enumerate(galaxy_id):
             ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
                                               galaxyinfo=galaxyinfo,
-                                              igal=igal, galaxy_id=galid,
+                                              igal=igal, galaxy_id=str(galid),
                                               delta_logsma=delta_logsma, maxsma=maxsma,
                                               delta_sma=delta_sma, logsma=logsma,
                                               refband=refband, nproc=nproc, sbthresh=sbthresh,

@@ -43,6 +43,9 @@ def main():
         print('$LEGACYHALOS_DIR={}'.format(basedir))
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
+
+        final_sample = False
+        
         sample = legacyhalos.SGA.read_sample(first=args.first, last=args.last,
                                              d25min=args.d25min, d25max=args.d25max, 
                                              galaxylist=args.galaxylist,
@@ -50,14 +53,16 @@ def main():
                                              #customsky=args.customsky,
                                              #customredux=args.customredux,
                                              nproc=args.nproc,
-                                             preselect_sample=True)
+                                             preselect_sample=True,
+                                             final_sample=final_sample)
         if len(sample) == 0:
             return
         
         # For the custom coadds step we write out the full sample in each mosaic.
         if args.coadds or args.build_SGA:
             fullsample = legacyhalos.SGA.read_sample(verbose=args.verbose,
-                                                     preselect_sample=False)#,
+                                                     preselect_sample=False,
+                                                     final_sample=final_sample)
                                                      #customsky=False)
             fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
 
@@ -207,6 +212,7 @@ def main():
         from legacyhalos.SGA import _build_ellipse_SGA_one, _write_ellipse_SGA
 
         chunkdatadir = os.path.join(datadir, 'rachunks')
+        #chunkdatadir = os.path.join(datadir, 'data', 'rachunks')
         #print('HACKING THE CHUNK DIRECTORY!!!') ; chunkdatadir = os.path.join(datadir, 'test-chunks')
 
         mp = multiproc(nthreads=args.nproc)
