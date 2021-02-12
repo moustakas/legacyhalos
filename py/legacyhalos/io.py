@@ -86,7 +86,13 @@ def missing_files_one(checkfile, dependsfile, clobber):
     #print('missing_files_one: ', checkfile)
     #print(checkfile, dependsfile, clobber)
     from pathlib import Path
+    #from glob import glob
     #if os.path.isfile(checkfile) and clobber is False:
+    #checkfile = glob(checkfile)
+    #if len(checkfile) > 0:
+    #    checkfile = checkfile[0]
+    #else:
+    #    checkfile = '_'
     if Path(checkfile).exists() and clobber is False:
         # Is the stage that this stage depends on done, too?
         #print(checkfile, dependsfile, clobber)

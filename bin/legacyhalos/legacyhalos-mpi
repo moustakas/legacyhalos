@@ -257,15 +257,12 @@ def main():
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
-            # Write out the individual galaxies for this mosaic.
-            thissample = fullsample[np.where(onegal['MEM_MATCH_ID'] == fullsample['MEM_MATCH_ID'])[0]]
-            samplefile = os.path.join(galaxydir, '{}-redmapper-sample.fits'.format(galaxy))
-            tmpfile = samplefile+'.tmp'
-            thissample.write(tmpfile, overwrite=True, format='fits')
-            os.rename(tmpfile, samplefile)
-            #if args.clobber or not os.path.isfile(samplefile):
-            #    #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
-            #    thissample.write(samplefile, overwrite=True)
+            # A hack needed for ellipse-fitting cleanup.
+            #thissample = fullsample[np.where(onegal['MEM_MATCH_ID'] == fullsample['MEM_MATCH_ID'])[0]]
+            #samplefile = os.path.join(galaxydir, '{}-redmapper-sample.fits'.format(galaxy))
+            #tmpfile = samplefile+'.tmp'
+            #thissample.write(tmpfile, overwrite=True, format='fits')
+            #os.rename(tmpfile, samplefile)
                     
             from legacyhalos.legacyhalos import call_ellipse
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, 

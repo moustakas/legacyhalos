@@ -137,6 +137,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             filesuffix = '-pipeline-coadds.isdone'
     elif args.ellipse:
         suffix = 'ellipse'
+        #filesuffix = '-custom-skytest03-*-ellipse.fits'
         filesuffix = '-custom-ellipse.isdone'
         dependson = '-custom-coadds.isdone'
     elif args.build_catalog:
@@ -1043,17 +1044,37 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                     print('Copying {} --> {}'.format(inellipsefile, outellipsefile))
                     shutil.copy2(inellipsefile, outellipsefile)
             return err
-        
+
         t0 = time.time()
         if logfile:
             with open(logfile, 'a') as log:
                 with redirect_stdout(log), redirect_stderr(log):
-                    err = _wrap_call_ellipse()
-                    _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
+                    # Capture corner case of missing data / incomplete coverage (see also
+                    # ellipse.legacyhalos_ellipse).
+                    if bool(data):
+                        if data['failed']:
+                            err = 1
+                        else:
+                            err = _wrap_call_ellipse()
+                    else:
+                        if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
+                            err = 1 # successful failure
+                        else:
+                            err = 0 # failed failure
+                    _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix, log=log)
         else:
             log = None
-            err = _wrap_call_ellipse()
-            _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
+            if bool(data):
+                if data['failed']:
+                    err = 1
+                else:
+                    err = _wrap_call_ellipse()
+            else:
+                if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
+                    err = 1 # successful failure
+                else:
+                    err = 0 # failed failure
+            _done(galaxy, galaxydir, err, t0, 'ellipse', filesuffix, log=log)
     else:
         mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                          pixscale=pixscale, nproc=nproc, 

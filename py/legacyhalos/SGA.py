@@ -970,7 +970,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             print('  Skipping existing column {}'.format(col), flush=True)
         else:
             if onegal[col].ndim > 1:
-                # assume no multidimensional strins
+                # assume no multidimensional strings
                 tractor.add_column(Column(name=col, data=np.zeros((len(tractor), onegal[col].shape[1]),
                                                                   dtype=onegal[col].dtype)-1), index=0)
             else:
