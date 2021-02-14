@@ -998,19 +998,18 @@ def main():
     
     # Fig - spatial distribution on the sky
     if args.sky:
-        #sample = legacyhalos.SGA.read_sample()
-        #version = 'v3.2'
+        #sample = legacyhalos.SGA.read_sample(final_sample=False)
         #samplefile = os.path.join('/mnt/SGA-data-2020/SGA-ellipse-{}.fits'.format(version))
         #S = fits_table(samplefile, columns='ra dec preburned type diam in_footprint in_footprint_grz sga_id'.split())
         #S.cut((S.sga_id > -1) * (S.preburned))
         
-        sga = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020.fits'), ext='SGA')
-        sgaleda = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020-leda.fits'))
-        sgaleda.ra = sgaleda.sga_ra
-        sgaleda.dec = sgaleda.sga_dec
+        sga = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020.fits'), ext='ELLIPSE')
+        #sgaleda = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020-leda.fits'))
+        sga.ra = sga.ra_leda
+        sga.dec = sga.dec_leda
 
-        fig_sky(sga, png='sga-sky.png')
-        fig_sky(sgaleda, png='sga-leda-sky.png')
+        fig_sky(sga, png='sga-2020-sky.png')
+        #fig_sky(sgaleda, png='sga-leda-sky.png')
         
         pdb.set_trace()
 
