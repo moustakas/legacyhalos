@@ -31,7 +31,7 @@ ELLIPSEBITS = dict(
     notrex_toosmall = 2**2, # type != REX & shape_r < 2
     failed = 2**3,          # ellipse-fitting failed
     notfit = 2**4,          # not ellipse-fit
-    indropcat = 2**5,       # in the dropcat catalog
+    rejected = 2**5,        # rejected; in the dropcat catalog
     )
 
 DROPBITS = dict(
@@ -367,7 +367,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
         return galaxy, galaxydir
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                final_sample=True, preselect_sample=True, nproc=1,
+                final_sample=False, preselect_sample=True, nproc=1,
                 #customsky=False, customredux=False, 
                 d25min=0.1, d25max=100.0):
     """Read/generate the parent SGA catalog.
@@ -760,7 +760,7 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
         these = np.where(np.isin(sga['SGA_ID'], dropcat['SGA_ID']))[0]
         assert(len(these) == len(dropcat))
         sga['DROPBIT'][these] = dropcat['DROPBIT']
-        sga['ELLIPSEBIT'][these] = ELLIPSEBITS['indropcat']
+        sga['ELLIPSEBIT'][these] = ELLIPSEBITS['rejected']
         
     # Stack!
     if exclude_full_sga:
@@ -827,12 +827,16 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     onegal['DROPBIT'] = np.zeros(1, dtype=np.int32)
     fullsample['DROPBIT'] = np.zeros(len(fullsample), dtype=np.int32)
 
+    #isdonedir = '/global/cscratch1/sd/ioannis/todelete-SGA-data-2020-donefiles/'
+    #print('Hacking the location of the isdonefiles to {}'.format(isdonedir))
+    isdonedir = galaxydir
+
     # An object may be missing a Tractor catalog either because it wasn't fit or
     # because it is missing grz coverage. In both cases, however, we want to
     # keep them in the SGA catalog, not reject them.
     run = get_run(onegal)
     ccdsfile = os.path.join(galaxydir, '{}-ccds-{}.fits'.format(galaxy, run))
-    isdonefile = os.path.join(galaxydir, '{}-largegalaxy-coadds.isdone'.format(galaxy))
+    isdonefile = os.path.join(isdonedir, '{}-largegalaxy-coadds.isdone'.format(galaxy))
     tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
     if not os.path.isfile(tractorfile):
         if os.path.isfile(ccdsfile) and os.path.isfile(isdonefile):
@@ -856,10 +860,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     grzmissing = False
     for band in ['g', 'r', 'z']:
         imfile = os.path.join(galaxydir, '{}-largegalaxy-image-{}.fits.fz'.format(galaxy, band))
-        if False:
-            if not os.path.isfile(imfile) and onegal['GROUP_NAME'] != 'NGC0598_GROUP': # M33 hack
-                print('  Missing image {}'.format(imfile), flush=True)
-                grzmissing = True
+        #if not os.path.isfile(imfile) and onegal['GROUP_NAME'] != 'NGC0598_GROUP': # M33 hack
+        if not os.path.isfile(imfile):
+            print('  Missing image {}'.format(imfile), flush=True)
+            grzmissing = True
     if grzmissing:
         print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
         onegal['DROPBIT'] |= DROPBITS['nogrz']
@@ -982,9 +986,13 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     
     tractor['GROUP_ID'][:] = onegal['GROUP_ID'] # note that we don't change GROUP_MULT
     tractor['GROUP_NAME'][:] = onegal['GROUP_NAME']
-    tractor['ELLIPSEBIT'][:] = np.zeros(len(tractor), dtype=np.int32) # we don't want -1 here
 
     # add the columns from legacyhalos.ellipse.ellipse_cog
+    tractor['RA_MOMENT'] = np.zeros(len(tractor), np.float64) - 1 # =RA_X0
+    tractor['DEC_MOMENT'] = np.zeros(len(tractor), np.float64) - 1 # =DEC_Y0
+    tractor['RADIUS_MOMENT'] = np.zeros(len(tractor), np.float32) - 1 # =majoraxis
+    tractor['ELLIPSEBIT'][:] = np.zeros(len(tractor), dtype=np.int32) # we don't want -1 here
+    
     radkeys = ['RADIUS_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
     for radkey in radkeys:
         tractor[radkey] = np.zeros(len(tractor), np.float32) - 1
@@ -1016,8 +1024,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # track the galaxies that are dropped by Tractor and, separately, galaxies
     # which fail ellipse-fitting (or are not ellipse-fit because they're too
     # small).
-    isdonefile = os.path.join(galaxydir, '{}-largegalaxy-ellipse.isdone'.format(galaxy))
-    isfailfile = os.path.join(galaxydir, '{}-largegalaxy-ellipse.isfail'.format(galaxy))
+    isdonefile = os.path.join(isdonedir, '{}-largegalaxy-ellipse.isdone'.format(galaxy))
+    isfailfile = os.path.join(isdonedir, '{}-largegalaxy-ellipse.isfail'.format(galaxy))
 
     dropcat = []
     for igal, sga_id in enumerate(np.atleast_1d(fullsample['SGA_ID'])):
@@ -1030,14 +1038,15 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
         thisgal = Table(fullsample[igal])
 
-        # For some systems (e.g., LG dwarfs), override the ellipse geometry for
-        # specific galaxies where we want the (usually larger) Hyperleda
-        # ellipse.
-        if thisgal['GALAXY'] in VETO_ELLIPSE:
-            print('Vetoing ellipse-fitting results for galaxy {}'.format(thisgal['GALAXY'][0]))
-            thisgal['DROPBIT'] |= DROPBITS['veto']
-            dropcat.append(thisgal)
-            continue
+        ## For some systems (e.g., LG dwarfs), override the ellipse geometry for
+        ## specific galaxies where we want the (usually larger) Hyperleda
+        ## ellipse.
+        #if False:
+        #    if thisgal['GALAXY'] in VETO_ELLIPSE:
+        #        print('Vetoing ellipse-fitting results for galaxy {}'.format(thisgal['GALAXY'][0]))
+        #        thisgal['DROPBIT'] |= DROPBITS['veto']
+        #        dropcat.append(thisgal)
+        #        continue
 
         # An object can be missing an ellipsefit file for two reasons:
         if not os.path.isfile(ellipsefile):
@@ -1166,9 +1175,51 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                         else:
                             tractor[col][match] = thisgal[col]
                         
-            # Update the nominal diameter--
+            # Update the nominal diameter and set the default RA_MOMENT and DEC_MOMENT
             tractor['DIAM'][match] = 1.25 * tractor['DIAM'][match]
+            if 'RA_LEDA' in thisgal.colnames:
+                tractor['RA_MOMENT'][match] = thisgal['RA_LEDA']
+                tractor['DEC_MOMENT'][match] = thisgal['DEC_LEDA']
+            else:
+                tractor['RA_MOMENT'][match] = thisgal['RA']
+                tractor['DEC_MOMENT'][match] = thisgal['DEC']
         else:
+            # Objects here were ellipse-fit.
+
+            # For some systems (e.g., LG dwarfs), override the ellipse geometry for
+            # specific galaxies where we want the (usually larger) Hyperleda
+            # ellipse.
+
+            # Note! In DR9 these were rejected (added to the dropcat, outside of
+            # this loop) even though they had Tractor catalogs and mosaics; they
+            # should have been handled here.
+            if thisgal['GALAXY'] in VETO_ELLIPSE:
+                print('Vetoing ellipse-fitting results for galaxy {}'.format(thisgal['GALAXY'][0]))
+                tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['rejected']
+
+                ## this is what we did in DR9, but above
+                #thisgal['DROPBIT'] |= DROPBITS['veto']
+                #dropcat.append(thisgal)
+                
+                # code taken from above
+                tractor['FREEZE'][match] = True
+                thisgal.rename_column('RA', 'RA_LEDA')
+                thisgal.rename_column('DEC', 'DEC_LEDA')
+                thisgal.remove_column('INDEX')
+                for col in thisgal.colnames:
+                    if col == 'ELLIPSEBIT': # skip because we filled it, above
+                        #print('  Skipping existing column {}'.format(col))
+                        pass
+                    else:
+                        tractor[col][match] = thisgal[col]
+                        
+                # Update the nominal diameter and set the default RA_MOMENT and DEC_MOMENT
+                tractor['DIAM'][match] = 1.25 * tractor['DIAM'][match]
+                tractor['RA_MOMENT'][match] = thisgal['RA_LEDA']
+                tractor['DEC_MOMENT'][match] = thisgal['DEC_LEDA']
+                
+                continue
+                
             ellipse = read_ellipsefit(galaxy, galaxydir, galaxy_id=str(sga_id),
                                       filesuffix='largegalaxy', verbose=True)
 
@@ -1213,6 +1264,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             tractor['BA'][match] = ba
             tractor['DIAM'][match] = diam
             tractor['DIAM_REF'][match] = diamref
+
+            tractor['RA_MOMENT'][match] = ellipse['ra_x0']
+            tractor['DEC_MOMENT'][match] = ellipse['dec_y0']
+            tractor['RADIUS_MOMENT'][match] = ellipse['majoraxis'] * ellipse['refpixscale'] # [arcsec]
 
             for radkey in radkeys:
                 tractor[radkey][match] = ellipse[radkey.lower()]

@@ -44,8 +44,6 @@ def main():
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
 
-        final_sample = False
-        
         sample = legacyhalos.SGA.read_sample(first=args.first, last=args.last,
                                              d25min=args.d25min, d25max=args.d25max, 
                                              galaxylist=args.galaxylist,
@@ -54,7 +52,7 @@ def main():
                                              #customredux=args.customredux,
                                              nproc=args.nproc,
                                              preselect_sample=True,
-                                             final_sample=final_sample)
+                                             final_sample=False)
         if len(sample) == 0:
             return
         
@@ -62,7 +60,7 @@ def main():
         if args.coadds or args.build_SGA:
             fullsample = legacyhalos.SGA.read_sample(verbose=args.verbose,
                                                      preselect_sample=False,
-                                                     final_sample=final_sample)
+                                                     final_sample=False)
                                                      #customsky=False)
             fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
 

@@ -82,8 +82,9 @@ def main():
         'SHAPE_R_IVAR', 'SHAPE_E1', 'SHAPE_E1_IVAR', 'SHAPE_E2', 'SHAPE_E2_IVAR']
         
     sgacols = [
-        'DIAM', 'DIAM_REF', 'PA', 'BA', 'ELLIPSEBIT',
-        #'DROPBIT',
+        'DIAM', 'DIAM_REF', 'PA', 'BA',
+        'RA_MOMENT', 'DEC_MOMENT', 'RADIUS_MOMENT', 
+        
         'RADIUS_SB22', 'RADIUS_SB22.5', 'RADIUS_SB23',
         'RADIUS_SB23.5', 'RADIUS_SB24', 'RADIUS_SB24.5',
         'RADIUS_SB25', 'RADIUS_SB25.5', 'RADIUS_SB26',
@@ -118,14 +119,33 @@ def main():
         'G_COG_PARAMS_ALPHA2', 'R_COG_PARAMS_ALPHA2', 'Z_COG_PARAMS_ALPHA2', 
         'G_COG_PARAMS_CHI2', 'R_COG_PARAMS_CHI2', 'Z_COG_PARAMS_CHI2', 
 
+        'ELLIPSEBIT',
+        
+        #'DROPBIT',
         #'G_MAG_TOT', 'R_MAG_TOT', 'Z_MAG_TOT'
-
         ]
         
     sga_tractor = sga[['SGA_ID']+tractorcols]
+    assert(np.all(sga_tractor['REF_ID'] == sga_tractor['SGA_ID']))
+    assert(np.all(sga_tractor['REF_CAT'] == 'L3'))
+
     for col in tractorcols:
         sga.remove_column(col)
         sga_leda.remove_column(col)
+
+    ellipsebit = sga['ELLIPSEBIT']
+    sga.remove_column('DROPBIT')
+    sga.remove_column('ELLIPSEBIT')
+    sga['ELLIPSEBIT'] = ellipsebit
+
+    # update release
+    from legacyhalos.io import get_run
+    runs = np.array([get_run(cat, racolumn='RA_LEDA', deccolumn='DEC_LEDA') for cat in sga])
+    isouth = np.where(runs == 'south')[0]
+    inorth = np.where(runs == 'north')[0]
+
+    sga_tractor['RELEASE'][isouth] = 9010
+    sga_tractor['RELEASE'][inorth] = 9011
 
     #sga.rename_column('RA_LEDA', 'RA')
     #sga.rename_column('DEC_LEDA', 'DEC')
@@ -133,27 +153,30 @@ def main():
     for col in sgacols:
         sga_leda.remove_column(col)
 
+    # some magnitude errors are negative, God knows why
+
     # add an identifier
     sga.add_column(Column(name='SGA_GALAXY', dtype='S16', length=len(sga)), index=1)
     sga['SGA_GALAXY'] = ['SGA-2020 {}'.format(sga_id) for sga_id in sga['SGA_ID']]
 
-    sga_leda.add_column(Column(name='SGA_GALAXY', dtype='S16', length=len(sga_leda)), index=1)
-    sga_leda['SGA_GALAXY'] = ['SGA-2020 {}'.format(sga_id) for sga_id in sga_leda['SGA_ID']]
+    #sga_leda.add_column(Column(name='SGA_GALAXY', dtype='S16', length=len(sga_leda)), index=1)
+    #sga_leda['SGA_GALAXY'] = ['SGA-2020 {}'.format(sga_id) for sga_id in sga_leda['SGA_ID']]
 
     # write out
+    #outdir = '/global/cfs/cdirs/cosmo/data/sga/2020'
     #outdir = '/global/cfs/cdirs/cosmo/work/legacysurvey/sga/2020'
     outdir = '/global/cscratch1/sd/ioannis/SGA-data-2020/'
     if not os.path.isdir(outdir):
         os.makedirs(outdir, exist_ok=True)
 
     # SGA
-    outfile = os.path.join(outdir, 'SGA-2020-ls.fits')
+    outfile = os.path.join(outdir, 'SGA-2020.fits')
     hdu_primary = fits.PrimaryHDU()
     hdu_sga = fits.convenience.table_to_hdu(sga)
-    hdu_sga.header['EXTNAME'] = 'SGA-LS'
+    hdu_sga.header['EXTNAME'] = 'ELLIPSE'
 
     hdu_sga_tractor = fits.convenience.table_to_hdu(sga_tractor)
-    hdu_sga_tractor.header['EXTNAME'] = 'SGA-TRACTOR'
+    hdu_sga_tractor.header['EXTNAME'] = 'TRACTOR'
         
     hx = fits.HDUList([hdu_primary, hdu_sga, hdu_sga_tractor])
     hx.writeto(outfile, overwrite=True, checksum=True)
@@ -163,7 +186,7 @@ def main():
     outfile = os.path.join(outdir, 'SGA-2020-nols.fits')
     hdu_primary = fits.PrimaryHDU()
     hdu_sga_leda = fits.convenience.table_to_hdu(sga_leda)
-    hdu_sga_leda.header['EXTNAME'] = 'SGA-NOLS'
+    hdu_sga_leda.header['EXTNAME'] = 'ELLIPSE'
 
     hx = fits.HDUList([hdu_primary, hdu_sga_leda])
     hx.writeto(outfile, overwrite=True, checksum=True)
