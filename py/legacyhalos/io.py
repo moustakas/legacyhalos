@@ -308,11 +308,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
         #if 'z_cog' in key:
         #    print(key)
         #    pdb.set_trace()
-        try:
-            out.add_column(col)
-        except:
-            pdb.set_trace()
-
+        out.add_column(col)
+        
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
 

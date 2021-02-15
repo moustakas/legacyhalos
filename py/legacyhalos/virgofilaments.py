@@ -171,8 +171,9 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         weight = np.atleast_1d(sample[DIAMCOLUMN])[_todo_indices]
         cumuweight = weight.cumsum() / weight.sum()
         idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
-        if len(idx) < size: # can happen in corner cases
+        if len(idx) < size: # can happen in corner cases or with 1 rank
             todo_indices = np.array_split(_todo_indices, size) # unweighted
+            #todo_indices = np.array_split(_todo_indices[np.argsort(weight)], size) # unweighted but sorted
         else:
             todo_indices = np.array_split(_todo_indices, idx) # weighted
     else:
@@ -246,13 +247,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
 
     # Select primary group members with an SGA match--
     if not fullsample:
-        cols = ['GROUP_DIAMETER', 'GROUP_PRIMARY']
+        cols = ['GROUP_DIAMETER', 'GROUP_PRIMARY', 'GROUP_MULT']
         sample = fitsio.read(samplefile, columns=cols, upper=True)
         rows = np.arange(len(sample))
     
         samplecut = np.where(
             sample['GROUP_PRIMARY'] *
-            (sample['GROUP_DIAMETER'] < 100)
+            (sample['GROUP_MULT'] > 1) *
+            (sample['GROUP_DIAMETER'] < 2)
             )[0]
         rows = rows[samplecut]
         nrows = len(rows)
@@ -527,6 +529,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
 def read_multiband(galaxy, galaxydir, filesuffix='custom',
                    refband='r', bands=['g', 'r', 'z'], pixscale=0.262,
+                   galaxy_id=None,
                    redshift=None, fill_value=0.0, sky_tests=False, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
     masked array suitable for ellipse-fitting.
@@ -1468,7 +1471,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                 html.write('<td>{}</td><td>{}</td><td>{}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
                     rr[0], rr[1], rr[2], ellipse['pa'], ellipse['eps']))
             else:
-                html.write('<td>...</td><td>...</td><td>...</td>\n')
+                #html.write('<td>...</td><td>...</td><td>...</td>\n')
                 html.write('<td>...</td><td>...</td><td>...</td>\n')
                 html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
             html.write('</tr>\n')
