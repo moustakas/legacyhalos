@@ -3,7 +3,7 @@
 # Load the legacyhalos Docker container using shifter.
 
 project=virgofilaments
-SHIFTER=docker:legacysurvey/legacyhalos:v0.0.4
+SHIFTER=docker:legacysurvey/legacyhalos:v0.0.5
 
 echo 'Updating and loading the shifter image '$SHIFTER
 echo 'Load the environment with: '
