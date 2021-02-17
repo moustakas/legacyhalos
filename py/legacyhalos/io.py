@@ -326,12 +326,17 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     hdu.header.update(hdr)
     hdu.add_checksum()
 
-    if verbose:
-        print('Writing {}'.format(ellipsefitfile))
     hdu0 = fits.PrimaryHDU()
     hdu0.header['EXTNAME'] = 'PRIMARY'
     hx = fits.HDUList([hdu0, hdu])
-    hx.writeto(ellipsefitfile, overwrite=True, checksum=True)
+
+    if verbose:
+        print('Writing {}'.format(ellipsefitfile))
+    tmpfile = ellipsefitfile+'.tmp'
+    hx.writeto(tmpfile, overwrite=True, checksum=True)
+    os.rename(tmpfile, ellipsefitfile)
+    #hx.writeto(ellipsefitfile, overwrite=True, checksum=True)
+    
     #out.write(ellipsefitfile, overwrite=True)
     #fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
