@@ -237,7 +237,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
     
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups.fits'.format(version))
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups_testsample2.fits'.format(version))
     if not os.path.isfile(samplefile):
         raise IOError('Sample file not found! {}'.format(samplefile))
     
@@ -252,9 +252,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
         rows = np.arange(len(sample))
     
         samplecut = np.where(
-            sample['GROUP_PRIMARY'] *
-            (sample['GROUP_MULT'] > 1) *
-            (sample['GROUP_DIAMETER'] < 2)
+            sample['GROUP_PRIMARY']# *
+            #(sample['GROUP_MULT'] > 1) *
+            #(sample['GROUP_DIAMETER'] < 2)
             )[0]
         rows = rows[samplecut]
         nrows = len(rows)

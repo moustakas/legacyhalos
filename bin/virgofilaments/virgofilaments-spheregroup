@@ -196,7 +196,7 @@ def main(version='v1'):
     cat.add_column(Column(name='SGA_ID', data=np.zeros(ng, dtype=np.int64)-1))
     cat.add_column(Column(name='PGC', data=np.zeros(ng, dtype=np.int32)-1))
     cat.add_column(Column(name='PA_INIT', data=np.zeros(ng, dtype='f4')))
-    cat.add_column(Column(name='BA_INIT', data=np.zeros(ng, dtype='f4')))
+    cat.add_column(Column(name='BA_INIT', data=np.ones(ng, dtype='f4')))
     cat.add_column(Column(name='DIAM_INIT', data=np.zeros(ng, dtype='f4')))
     cat.add_column(Column(name='MAG_INIT', data=np.zeros(ng, dtype='f4')))
 
