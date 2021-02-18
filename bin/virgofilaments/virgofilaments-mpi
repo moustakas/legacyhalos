@@ -41,7 +41,8 @@ def main():
 
         sample = legacyhalos.virgofilaments.read_sample(
             first=args.first, last=args.last, verbose=args.verbose,
-            fullsample=False, galaxylist=args.galaxylist)           
+            fullsample=False, galaxylist=args.galaxylist,
+            d25min=args.d25min, d25max=args.d25max)
         if len(sample) == 0:
             return
         

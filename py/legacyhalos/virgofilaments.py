@@ -192,6 +192,9 @@ def mpi_args():
     parser.add_argument('--last', type=int, help='Index of last object to process.')
     parser.add_argument('--galaxylist', type=str, nargs='*', default=None, help='List of galaxy names to process.')
 
+    parser.add_argument('--d25min', default=0.0, type=float, help='Minimum diameter (arcmin).')
+    parser.add_argument('--d25max', default=100.0, type=float, help='Maximum diameter (arcmin).')
+
     parser.add_argument('--coadds', action='store_true', help='Build the large-galaxy coadds.')
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipeline coadds.')
     parser.add_argument('--customsky', action='store_true', help='Build the largest large-galaxy coadds with custom sky-subtraction.')
@@ -225,12 +228,13 @@ def mpi_args():
     return args
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsample=False,
-                version='v1'):
+                d25min=0.1, d25max=100.0, version='v1'):
     """Read/generate the parent catalog.
+
+    d25min,d25max in arcmin
 
     """
     import fitsio
-    from legacyhalos.desiutil import brickname as get_brickname
     
     if first and last:
         if first > last:
@@ -252,9 +256,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
         rows = np.arange(len(sample))
     
         samplecut = np.where(
-            sample['GROUP_PRIMARY']# *
-            #(sample['GROUP_MULT'] > 1) *
-            #(sample['GROUP_DIAMETER'] < 2)
+            sample['GROUP_PRIMARY'] *
+            (sample['GROUP_DIAMETER'] > d25min) *
+            (sample['GROUP_DIAMETER'] < d25max)
             )[0]
         rows = rows[samplecut]
         nrows = len(rows)
