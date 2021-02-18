@@ -241,7 +241,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
     
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups_testsample2.fits'.format(version))
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups.fits'.format(version))
+    #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups_testsample2.fits'.format(version))
     if not os.path.isfile(samplefile):
         raise IOError('Sample file not found! {}'.format(samplefile))
     
@@ -307,7 +308,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.1, maxshift=10,
-                          verbose=False):
+                          neighborfactor=3.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -394,7 +395,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # and galaxies "near" it. Also restore the original pixels of the
         # central in case there was a poor deblend.
         largeshift = False
-        mge, centralmask = tractor2mge(central, factor=5.0)
+        mge, centralmask = tractor2mge(central, factor=neighborfactor)
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -459,6 +460,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # which has had the satellites nearest to the central galaxy trimmed
         # out.
         print('Building the satellite mask.')
+        #srcs = tractor.copy()
         satmask = np.zeros(data[refband].shape, bool)
         for filt in bands:
             cenflux = getattr(tractor, 'flux_{}'.format(filt))[central]
@@ -470,6 +472,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 (srcs.type != 'PSF') * (srcs.shape_r > r50mask) *
                 (satflux > 0.0) * ((satflux / cenflux) > threshmask),
                 srcs.ref_cat == 'R1'))[0]
+            #satindx = np.where(srcs.ref_cat == 'R1')[0]
             #if np.isin(central, satindx):
             #    satindx = satindx[np.logical_not(np.isin(satindx, central))]
             if len(satindx) == 0:
@@ -484,8 +487,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             satmask = np.logical_or(satmask, satimg > 10*data['{}_sigma'.format(filt)])
             #if True:
             #    import matplotlib.pyplot as plt
+            #    plt.clf() ; plt.imshow(np.log10(satimg), origin='lower') ; plt.savefig('debug.png')
             #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('debug.png')
-            #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+            ##    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
             #    pdb.set_trace()
 
         # [3] Build the final image (in each filter) for ellipse-fitting. First,
