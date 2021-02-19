@@ -323,7 +323,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False):
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
-    rows = None
+    # select a "test" subset
+    if True:
+        nrows = 200
+        rows = np.arange(nrows)
+    else:
+        rows = None
 
     if first is None:
         first = 0
