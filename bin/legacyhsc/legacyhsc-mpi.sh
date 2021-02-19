@@ -29,7 +29,7 @@ elif [ $stage = "coadds" ]; then
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc/legacyhsc-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc/legacyhsc-mpi --ellipse --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc/legacyhsc-mpi --ellipse --nproc $ncores --mpi --verbose --sky-tests
 elif [ $stage = "htmlplots" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/legacyhsc/legacyhsc-mpi --htmlplots --nproc $ncores --mpi --verbose
 else
