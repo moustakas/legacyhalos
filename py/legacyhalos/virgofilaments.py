@@ -172,8 +172,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         cumuweight = weight.cumsum() / weight.sum()
         idx = np.searchsorted(cumuweight, np.linspace(0, 1, size, endpoint=False)[1:])
         if len(idx) < size: # can happen in corner cases or with 1 rank
-            todo_indices = np.array_split(_todo_indices, size) # unweighted
-            #todo_indices = np.array_split(_todo_indices[np.argsort(weight)], size) # unweighted but sorted
+            #todo_indices = np.array_split(_todo_indices, size) # unweighted
+            todo_indices = np.array_split(_todo_indices[np.argsort(weight)], size) # unweighted but sorted
         else:
             todo_indices = np.array_split(_todo_indices, idx) # weighted
     else:
@@ -241,8 +241,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
     
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups.fits'.format(version))
-    #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups_testsample2.fits'.format(version))
+    #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups.fits'.format(version))
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups_testsample2.fits'.format(version))
     if not os.path.isfile(samplefile):
         raise IOError('Sample file not found! {}'.format(samplefile))
     
@@ -476,21 +476,22 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             #if np.isin(central, satindx):
             #    satindx = satindx[np.logical_not(np.isin(satindx, central))]
             if len(satindx) == 0:
-                raise ValueError('All satellites have been dropped!')
-
-            satsrcs = srcs.copy()
-            #satsrcs = tractor.copy()
-            satsrcs.cut(satindx)
-            satimg = srcs2image(satsrcs, data['{}_wcs'.format(filt)],
-                                band=filt.lower(),
-                                pixelized_psf=data['{}_psf'.format(filt)])
-            satmask = np.logical_or(satmask, satimg > 10*data['{}_sigma'.format(filt)])
-            #if True:
-            #    import matplotlib.pyplot as plt
-            #    plt.clf() ; plt.imshow(np.log10(satimg), origin='lower') ; plt.savefig('debug.png')
-            #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('debug.png')
-            ##    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
-            #    pdb.set_trace()
+                #raise ValueError('All satellites have been dropped!')
+                print('Warning! All satellites have been dropped from band {}!'.format(filt))
+            else:
+                satsrcs = srcs.copy()
+                #satsrcs = tractor.copy()
+                satsrcs.cut(satindx)
+                satimg = srcs2image(satsrcs, data['{}_wcs'.format(filt)],
+                                    band=filt.lower(),
+                                    pixelized_psf=data['{}_psf'.format(filt)])
+                satmask = np.logical_or(satmask, satimg > 10*data['{}_sigma'.format(filt)])
+                #if True:
+                #    import matplotlib.pyplot as plt
+                #    plt.clf() ; plt.imshow(np.log10(satimg), origin='lower') ; plt.savefig('debug.png')
+                #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('debug.png')
+                ##    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+                #    pdb.set_trace()
 
         # [3] Build the final image (in each filter) for ellipse-fitting. First,
         # subtract out the PSF sources. Then update the mask (but ignore the
@@ -789,7 +790,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
                              [u.deg, u.deg, u.arcmin, u.deg, '']):
             galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
         allgalaxyinfo.append(galaxyinfo)
-
+        
     return data, allgalaxyinfo
 
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
@@ -834,11 +835,13 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     #    maxsma = 2 * maxis # [pixels]
     #    delta_logsma = 6.0
 
+    # don't pass logfile and set debug=True because we've already opened the log
+    # above!
     mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                      pixscale=pixscale, nproc=nproc, 
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, debug=debug, logfile=logfile)
+                     verbose=verbose, debug=True)#debug, logfile=logfile)
 
 #def call_ellipse_virgofilaments(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1, verbose=False,
 #                                debug=False, logfile=None, input_ellipse=None, zcolumn=None,
@@ -958,7 +961,6 @@ def build_catalog_one(onegal, fullsample, verbose=False):
     from tractor.ellipses import EllipseE # EllipseESoft
     from legacyhalos.io import read_ellipsefit, get_run
     from legacyhalos.misc import is_in_ellipse
-    from legacyhalos.ellipse import SBTHRESH as sbcuts
 
     from astrometry.libkd.spherematch import match_radec
 
@@ -968,7 +970,7 @@ def build_catalog_one(onegal, fullsample, verbose=False):
 
     def empty_tractor(nrows):
         # Boneheaded hack to get an empty Tractor catalog!
-        empty = Table(fitsio.read(os.path.join(legacyhalos.io.legacyhalos_data_dir(), '185', 'NGC4363', 'NGC4363-custom-tractor.fits'),
+        empty = Table(fitsio.read(os.path.join(legacyhalos.io.legacyhalos_data_dir(), '129', 'UGC04499_GROUP', 'UGC04499_GROUP-custom-tractor.fits'),
                                   upper=True, rows=np.arange(nrows)))
         for col in empty.colnames:
             if empty[col].ndim > 1:
@@ -984,7 +986,7 @@ def build_catalog_one(onegal, fullsample, verbose=False):
 
     # An object may be missing a Tractor catalog either because it wasn't fit or
     # because it is missing grz coverage. In both cases, however, we want to
-    # keep them in the SGA catalog, not reject them.
+    # keep them in the output catalog, not reject them.
     run = get_run(onegal)
     ccdsfile = os.path.join(galaxydir, '{}-ccds-{}.fits'.format(galaxy, run))
     isdonefile = os.path.join(galaxydir, '{}-custom-coadds.isdone'.format(galaxy))

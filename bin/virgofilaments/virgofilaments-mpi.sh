@@ -24,7 +24,7 @@ elif [ $stage = "coadds" ]; then
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --pipeline-coadds --nproc $ncores --mpi
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --ellipse --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --ellipse --nproc $ncores --mpi
 elif [ $stage = "htmlplots" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --htmlplots --nproc $ncores --mpi
 else
