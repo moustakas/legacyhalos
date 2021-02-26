@@ -349,8 +349,11 @@ def main():
             # Write out the individual galaxies for this mosaic.
             thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
             samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
-            #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
-            thissample.write(samplefile, overwrite=True)
+            if args.clobber or not os.path.isfile(samplefile):
+                #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+                tmpfile = samplefile+'.tmp'
+                thissample.write(tmpfile, overwrite=True, format='fits')
+                os.rename(tmpfile, samplefile)
 
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,

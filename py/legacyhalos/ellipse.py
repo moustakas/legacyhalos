@@ -718,6 +718,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
 
     if input_ellipse:
         ellipsefit['input_ellipse'] = True
+    else:
+        ellipsefit['input_ellipse'] = False
 
     # This is fragile, but copy over a specific set of keys from the data dictionary--
     copykeys = ['bands', 'refband', 'refpixscale',

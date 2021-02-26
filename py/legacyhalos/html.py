@@ -475,8 +475,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
         print('Unable to build ellipse QA without specifying read_multiband method.')
         return
 
-
-    data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id, bands=bands,
+    data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id=galaxy_id, bands=bands,
                                       refband=refband, pixscale=pixscale,
                                       verbose=verbose)
     if not bool(data):

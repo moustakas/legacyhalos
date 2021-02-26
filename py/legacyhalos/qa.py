@@ -946,9 +946,10 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #    sma_lw = 3
             #    sma_alpha = 1.0
             #smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)][indx].max(), nplot)
-            smas = ellipsefit['{}_sma'.format(filt)][::len(ellipsefit['{}_sma'.format(filt)]) // nplot]
-
-            #smas = ellipsefit[filt].sma
+            if len(ellipsefit['{}_sma'.format(filt)]) > nplot:
+                smas = ellipsefit['{}_sma'.format(filt)][::len(ellipsefit['{}_sma'.format(filt)]) // nplot]
+            else:
+                smas = ellipsefit['{}_sma'.format(filt)]
 
             # When we used to write out the ellipse pickle files with
             # the Isophote objects we used the snippet of code below to
