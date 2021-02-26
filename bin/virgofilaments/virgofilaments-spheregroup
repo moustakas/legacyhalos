@@ -177,7 +177,7 @@ def main(version='v1'):
     cat.add_column(Column(name='SGA_ID', data=np.arange(ng)))
     cat.add_column(Column(name='PGC', data=np.zeros(ng, dtype=np.int32)))
     cat.add_column(Column(name='PA', data=np.zeros(ng, dtype='f4')))
-    cat.add_column(Column(name='BA', data=np.zeros(ng, dtype='f4')))
+    cat.add_column(Column(name='BA', data=np.ones(ng, dtype='f4')))
     cat.add_column(Column(name='DIAM', data=np.zeros(ng, dtype='f4')))
 
     cat.rename_column('RA', 'RA_ORIG')
