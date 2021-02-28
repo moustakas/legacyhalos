@@ -324,7 +324,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False):
     nrows = info[ext].get_nrows()
 
     # select a "test" subset
-    if True:
+    if False:
         nrows = 200
         rows = np.arange(nrows)
     else:
