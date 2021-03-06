@@ -27,6 +27,8 @@ def main():
     print('Keeping {} SGA galaxies (i.e., removing non-SGA Tractor sources.'.format(len(isga)))
     sgaall = ellipse[isga]
 
+add the tractor ra,dec to the main HDU after brickname and then have ra_moment and dec_moment
+
     # Divide the sample into the pre-burned (in-footprint) and not pre-burned
     # (off-footprint) samples. In the off-footprint sample we don't need all the
     # SGA columns; we will just store the Hyperleda catalog parameters.

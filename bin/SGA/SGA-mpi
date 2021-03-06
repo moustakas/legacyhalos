@@ -7,9 +7,8 @@ SGA-mpi --coadds
 import os, time, pdb
 import numpy as np
 
-import tempfile # ridiculousness!
-os.environ['MPLCONFIGDIR'] = tempfile.mkdtemp()
-
+#import tempfile # ridiculousness!
+#os.environ['MPLCONFIGDIR'] = tempfile.mkdtemp()
 #import matplotlib
 #matplotlib.use('Agg')
 
