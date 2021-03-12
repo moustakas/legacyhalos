@@ -621,19 +621,26 @@ class CogModel(astropy.modeling.Fittable1DModel):
 
     m(r) = mtot + mcen * (1-exp**(-alpha1*(radius/r0)**(-alpha2))
     """
-    mtot = astropy.modeling.Parameter(default=20.0, bounds=(1, 30)) # integrated magnitude (r-->infty)
-    m0 = astropy.modeling.Parameter(default=5.0, bounds=(1, 30)) # central magnitude (r=0)
-    r0 = astropy.modeling.Parameter(default=10.0, bounds=(0.1, 1e3)) # radial scale factor
-    alpha1 = astropy.modeling.Parameter(default=0.9, bounds=(1e-3, 3)) # power-law scale factor 
+    mtot = astropy.modeling.Parameter(default=20.0, bounds=[1, 30]) # integrated magnitude (r-->infty)
+    m0 = astropy.modeling.Parameter(default=3.0, bounds=[1, 10]) # m0+mtot is the central magnitude (r-->0)
+    r0 = astropy.modeling.Parameter(default=10.0, bounds=[0.1, 1e3]) # radial scale factor
+    alpha1 = astropy.modeling.Parameter(default=0.002, bounds=[0.0001, 0.01]) # power-law scale factor 
+    alpha2 = astropy.modeling.Parameter(default=2.0, bounds=[1.0, 5.0]) # power-law scale factor 
 
-    def __init__(self, mtot=mtot.default, m0=m0.default, r0=r0.default, alpha1=alpha1.default):
-        super(CogModel, self).__init__(mtot, m0, r0, alpha1)
+    def __init__(self, mtot=mtot.default, m0=m0.default, r0=r0.default, alpha1=alpha1.default,
+                 alpha2=alpha2.default, mtot_faint=None, mtot_bright=None):
 
+        super(CogModel, self).__init__(mtot, m0, r0, alpha1, alpha2)
+
+        self.mtot.bounds = [mtot - 0.1, mtot + 0.1]
+        #self.m0.bounds[1] = mtot
+        self.r0.bounds = [r0, r0 * 1.5]
         #self.r0 = 10 # scale factor [arcsec]
         
-    def evaluate(self, radius, mtot, m0, r0, alpha1):
+    def evaluate(self, radius, mtot, m0, r0, alpha1, alpha2):
         """Evaluate the COG model."""
-        model = mtot + m0 * (1 - np.exp(-(radius / r0)**(-alpha1)))
+        model = mtot + m0 * (1 - np.exp(-alpha1 * (radius / r0)**(-alpha2)))
+        #model = mtot + m0 * (1 - np.exp(-(radius / r0)**(-alpha1)))
         #model = mtot + m0 * (1 - np.exp(-alpha2 * (radius / r0)**(-alpha1)))
         #model = mtot + m0 * (1 - np.exp(-alpha1*(radius / r0)**(-alpha2)))
         #model = mtot + m0 * (1 - np.exp(-alpha1*(radius/self.r0)**(-alpha2)))
@@ -1049,7 +1056,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
         tractor['{}_COG_PARAMS_M0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_R0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_ALPHA1'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
-        #tractor['{}_COG_PARAMS_ALPHA2'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
+        tractor['{}_COG_PARAMS_ALPHA2'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_CHI2'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
 
     tractor['PREBURNED'] = np.ones(len(tractor), bool)        # Everything was preburned but we only want to freeze the...
@@ -1391,20 +1398,30 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
 
             chi2fail = 1e6
             nball = 10
-            minerr = 0.1
+            minerr = 0.0
 
             cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
             for filt in ['G', 'R', 'Z']:
-                mtot = 22.5 - 2.5 * np.log10(tractor['FLUX_R'][match])
-                m0 = 22.5 - 2.5 * np.log10(0.1*tractor['FLUX_R'][match]) # 10 times fainter?
+                # make the initial guess equal to the outer isophote
+                mtot = tractor['{}_MAG_SB26'.format(filt)][match].item()
+                if mtot < 0:
+                    if tractor['FLUX_{}'.format(filt)] > 0:
+                        mtot = 22.5 - 2.5 * np.log10(tractor['FLUX_{}'.format(filt)][match].item())
+                    else:
+                        mtot = 20.0
+                    
+                #m0 = 5 # 5 mag fainter?
+                #m0 = mtot + 22.5 - 2.5 * np.log10(0.1*tractor['FLUX_R'][match].item()) # 10 times fainter?
                 r0 = ellipse['majoraxis'] * ellipse['refpixscale'] # [arcsec]
-                cogmodel = CogModel(mtot=mtot, m0=m0, r0=r0, alpha1=0.9)#, alpha2=0.5)
+                cogmodel = CogModel(mtot=mtot, r0=r0)# m0=m0, alpha1=0.1, alpha2=2.0)
 
                 magkeysfilt = [radkey.replace('RADIUS_', '{}_MAG_'.format(filt)) for radkey in radkeys]
                 magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
                 cogmag = np.array(list(tractor[match][magkeysfilt].as_array()[0]))
                 cogmagerr = np.sqrt((np.array(list(tractor[match][magerrkeysfilt].as_array()[0])))**2 + minerr**2)
-                #print(filt, cogmag, cogmagerr)
+                #print(filt, sma_arcsec, cogmag, cogmagerr)
+                #if filt == 'R':
+                #    pdb.set_trace()
 
                 nparams = len(cogmodel.parameters)
                 these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
@@ -1415,7 +1432,13 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                 for ii, pp in enumerate(cogmodel.param_names):
                     pinfo = getattr(cogmodel, pp)
                     if pinfo.bounds[0] is not None:
-                        scale = 0.2 * pinfo.default
+                        scale = 0.0
+                        #scale = 0.2 * pinfo.default
+                        #if 'alpha' in pp:
+                        #    scale = 0.1 * pinfo.default
+                        #else:
+                        #    scale = 0.1 * pinfo.default
+                        #    #scale = 0.1 * np.diff(pinfo.bounds)
                         params[ii, :] += rand.normal(scale=scale, size=nball)
                         toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
                         if len(toosmall) > 0:
@@ -1426,6 +1449,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                     else:
                         params[ii, :] += rand.normal(scale=0.2*pinfo.default, size=nball)
 
+                #if filt == 'R':
+                #    pdb.set_trace()
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore')
                     chi2 = np.zeros(nball) + chi2fail
@@ -1457,14 +1482,14 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                 cogmodel.parameters = params[:, mindx]
                 P = cogfitter(cogmodel, sma_arcsec[these], cogmag[these], weights=1/cogmagerr[these], maxiter=100)
                 #print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
-                #print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, P.alpha2.value, minchi2)
-                print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, minchi2)
+                print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, P.alpha2.value, minchi2)
+                #print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, minchi2)
 
                 tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = P.mtot.value
                 tractor['{}_COG_PARAMS_M0'.format(filt)][match] = P.m0.value
                 tractor['{}_COG_PARAMS_R0'.format(filt)][match] = P.r0.value
                 tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = P.alpha1.value
-                #tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = P.alpha2.value
+                tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = P.alpha2.value
                 tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(minchi2)
 
                 #tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = np.float32(P.mtot.value)
@@ -1498,9 +1523,9 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                     m0 = tractor['{}_COG_PARAMS_M0'.format(filt)][match]
                     r0 = tractor['{}_COG_PARAMS_R0'.format(filt)][match]
                     alpha1 = tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match]
-                    #alpha2 = tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match]
-                    yplot_mag = mtot + m0 * (1 - np.exp(-(xplot_arcsec / r0)**(-alpha1)))
-                    #yplot_mag = mtot + m0 * (1 - np.exp(-alpha2*(xplot_arcsec / r0)**(-alpha1)))
+                    alpha2 = tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match]
+                    #yplot_mag = mtot + m0 * (1 - np.exp(-(xplot_arcsec / r0)**(-alpha1)))
+                    yplot_mag = mtot + m0 * (1 - np.exp(-alpha1*(xplot_arcsec / r0)**(-alpha2)))
                     #yplot_mag = (tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] + tractor['{}_COG_PARAMS_M0'.format(filt)][match] *
                     #             (1 - np.exp(-tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] *
                     #                         (xplot_arcsec / tractor['{}_COG_PARAMS_R0'.format(filt)][match])**(-tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match]))))
@@ -1525,23 +1550,24 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                 sma_arcsec = np.array(list(tractor[match][radkeys].as_array()[0])) # semi-major axis, arcsec                    
 
                 # surface brightness thresholds
-                sb = ellipse_sbprofile(ellipse)
+                if False:
+                    sb = ellipse_sbprofile(ellipse)
 
-                plt.clf()
-                ymin, ymax = 28, 20
-                #plt.plot(sb['sma_r'] * ellipse['refpixscale'], sb['mu_r'], color='red')
-                plt.fill_between(sb['sma_r'] * ellipse['refpixscale'], sb['mu_r']-sb['muerr_r'],
-                                 sb['mu_r']+sb['muerr_r'], color='red')
-                for sbcut, rad in zip(SBTHRESH, sma_arcsec):
-                    plt.plot([rad, rad], [ymin, sbcut], color='gray', ls='-')
-                    plt.plot([0, rad], [sbcut, sbcut], color='gray', ls='-')
-                plt.ylim(ymin, ymax)
-                plt.xlim(0, 20)
-                plt.margins(0)
-                plt.xlabel('Semi-major axis (arcsec)')
-                plt.ylabel(r'$\mu(r)$')
-                plt.title(galaxy)
-                plt.savefig('debug2.png')
+                    plt.clf()
+                    ymin, ymax = 28, 20
+                    #plt.plot(sb['sma_r'] * ellipse['refpixscale'], sb['mu_r'], color='red')
+                    plt.fill_between(sb['sma_r'] * ellipse['refpixscale'], sb['mu_r']-sb['muerr_r'],
+                                     sb['mu_r']+sb['muerr_r'], color='red')
+                    for sbcut, rad in zip(SBTHRESH, sma_arcsec):
+                        plt.plot([rad, rad], [ymin, sbcut], color='gray', ls='-')
+                        plt.plot([0, rad], [sbcut, sbcut], color='gray', ls='-')
+                    plt.ylim(ymin, ymax)
+                    plt.xlim(0, 20)
+                    plt.margins(0)
+                    plt.xlabel('Semi-major axis (arcsec)')
+                    plt.ylabel(r'$\mu(r)$')
+                    plt.title(galaxy)
+                    plt.savefig('debug2.png')
 
             pdb.set_trace()
 
