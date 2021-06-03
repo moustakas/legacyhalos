@@ -4,9 +4,6 @@
 manga-mpi --coadds
 
 """
-import matplotlib
-matplotlib.use('Agg')
-
 import os, time, pdb
 import numpy as np
 

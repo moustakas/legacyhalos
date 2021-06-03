@@ -207,8 +207,13 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     """
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
-            
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
+
+    use_testbed = True
+
+    if use_testbed:
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
+    else:
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
 
     if first and last:
         if first > last:
@@ -217,34 +222,35 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     ext = 1
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
-
-    # See here to select unique Manga galaxies--
-    # https://www.sdss.org/dr16/manga/manga-tutorials/drpall/#py-uniq-gals
-    tbdata = fitsio.read(samplefile, lower=True, columns=['mngtarg1', 'mngtarg3', 'mangaid'])
-    
     rows = np.arange(nrows)
-    keep = np.where(
-        np.logical_and(
-            np.logical_or((tbdata['mngtarg1'] != 0), (tbdata['mngtarg3'] != 0)),
-            ((tbdata['mngtarg3'] & 1<<19) == 0) * ((tbdata['mngtarg3'] & 1<<20) == 0) * ((tbdata['mngtarg3'] & 1<<21) == 0)
-            ))[0]
-    rows = rows[keep]
-    
-    _, uindx = np.unique(tbdata['mangaid'][rows], return_index=True)
-    rows = rows[uindx]
-    
-    ## Find galaxies excluding those from the Coma, IC342, M31 ancillary programs (bits 19,20,21)
-    #cube_bools = (tbdata['mngtarg1'] != 0) | (tbdata['mngtarg3'] != 0)
-    #cubes = tbdata[cube_bools]
-    #
-    #targ3 = tbdata['mngtarg3']
-    #galaxies = tbdata[cube_bools & ((targ3 & 1<<19) == 0) & ((targ3 & 1<<20) == 0) & ((targ3 & 1<<21) == 0)]
-    #
-    #uniq_vals, uniq_idx = np.unique(galaxies['mangaid'], return_index=True)
-    #uniq_galaxies = galaxies[uniq_idx]
 
-    #for ii in np.arange(len(rows)):
-    #    print(tbdata['mangaid'][rows[ii]], uniq_galaxies['mangaid'][ii])
+    if not use_testbed:
+        # See here to select unique Manga galaxies--
+        # https://www.sdss.org/dr16/manga/manga-tutorials/drpall/#py-uniq-gals
+        tbdata = fitsio.read(samplefile, lower=True, columns=['mngtarg1', 'mngtarg3', 'mangaid'])
+
+        keep = np.where(
+            np.logical_and(
+                np.logical_or((tbdata['mngtarg1'] != 0), (tbdata['mngtarg3'] != 0)),
+                ((tbdata['mngtarg3'] & 1<<19) == 0) * ((tbdata['mngtarg3'] & 1<<20) == 0) * ((tbdata['mngtarg3'] & 1<<21) == 0)
+                ))[0]
+        rows = rows[keep]
+
+        _, uindx = np.unique(tbdata['mangaid'][rows], return_index=True)
+        rows = rows[uindx]
+
+        ## Find galaxies excluding those from the Coma, IC342, M31 ancillary programs (bits 19,20,21)
+        #cube_bools = (tbdata['mngtarg1'] != 0) | (tbdata['mngtarg3'] != 0)
+        #cubes = tbdata[cube_bools]
+        #
+        #targ3 = tbdata['mngtarg3']
+        #galaxies = tbdata[cube_bools & ((targ3 & 1<<19) == 0) & ((targ3 & 1<<20) == 0) & ((targ3 & 1<<21) == 0)]
+        #
+        #uniq_vals, uniq_idx = np.unique(galaxies['mangaid'], return_index=True)
+        #uniq_galaxies = galaxies[uniq_idx]
+
+        #for ii in np.arange(len(rows)):
+        #    print(tbdata['mangaid'][rows[ii]], uniq_galaxies['mangaid'][ii])
 
     nrows = len(rows)
     
