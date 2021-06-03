@@ -521,9 +521,9 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
     for filt in bands:
         #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-        sma = ellipsefit['{}_sma'.format(filt)]   # semi-major axis [pixels]
-        sb = ellipsefit['{}_intens'.format(filt)] # [nanomaggies/arcsec2]
-        sberr = np.sqrt(ellipsefit['{}_intens_err'.format(filt)]**2 + (0.4 * np.log(10) * sb * minerr)**2)
+        sma = np.atleast_1d(ellipsefit['{}_sma'.format(filt)])   # semi-major axis [pixels]
+        sb = np.atleast_1d(ellipsefit['{}_intens'.format(filt)]) # [nanomaggies/arcsec2]
+        sberr = np.atleast_1d(np.sqrt(ellipsefit['{}_intens_err'.format(filt)]**2 + (0.4 * np.log(10) * sb * minerr)**2))
             
         if sma_not_radius:
             radius = sma * pixscale # [arcsec]
@@ -542,7 +542,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
                 
             sbprofile['{}_keep'.format(filt)] = keep
 
-        if len(keep) == 0:
+        if len(keep) == 0 or sma[0] == -1:
             sbprofile['sma_{}'.format(filt)] = np.array([-1.0]).astype('f4')    # [pixels]
             sbprofile['radius_{}'.format(filt)] = np.array([-1.0]).astype('f4') # [arcsec]
             sbprofile['mu_{}'.format(filt)] = np.array([-1.0]).astype('f4')     # [nanomaggies/arcsec2]
@@ -718,6 +718,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
 
     if input_ellipse:
         ellipsefit['input_ellipse'] = True
+    else:
+        ellipsefit['input_ellipse'] = False
 
     # This is fragile, but copy over a specific set of keys from the data dictionary--
     copykeys = ['bands', 'refband', 'refpixscale',

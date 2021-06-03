@@ -14,6 +14,7 @@ tar czvf dr9-courteau.tar.gz NGC1566_GROUP NGC4477 NGC4649_GROUP NGC4694
 import os, shutil, time, pdb
 import numpy as np
 import astropy
+import astropy.modeling
 
 from legacyhalos.desiutil import brickname as get_brickname
 import legacyhalos.io
@@ -31,7 +32,7 @@ ELLIPSEBITS = dict(
     notrex_toosmall = 2**2, # type != REX & shape_r < 2
     failed = 2**3,          # ellipse-fitting failed
     notfit = 2**4,          # not ellipse-fit
-    indropcat = 2**5,       # in the dropcat catalog
+    rejected = 2**5,        # rejected; in the dropcat catalog
     )
 
 DROPBITS = dict(
@@ -367,7 +368,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
         return galaxy, galaxydir
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                final_sample=True, preselect_sample=True, nproc=1,
+                final_sample=False, preselect_sample=True, nproc=1,
                 #customsky=False, customredux=False, 
                 d25min=0.1, d25max=100.0):
     """Read/generate the parent SGA catalog.
@@ -612,6 +613,39 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     return sample
 
+class CogModel(astropy.modeling.Fittable1DModel):
+    """Class to empirically model the curve of growth.
+
+    radius in arcsec
+    r0 - constant scale factor (10)
+
+    m(r) = mtot + mcen * (1-exp**(-alpha1*(radius/r0)**(-alpha2))
+    """
+    mtot = astropy.modeling.Parameter(default=20.0, bounds=[1, 30]) # integrated magnitude (r-->infty)
+    m0 = astropy.modeling.Parameter(default=10.0, bounds=[5, 40]) # m0+mtot is the central magnitude (r-->0)
+    r0 = astropy.modeling.Parameter(default=10.0, bounds=[0.1, 1e3]) # radial scale factor
+    alpha1 = astropy.modeling.Parameter(default=0.002, bounds=[1e-4, 1e-2]) # power-law scale factor 
+    alpha2 = astropy.modeling.Parameter(default=2.0, bounds=[1.0, 5.0]) # power-law scale factor 
+
+    def __init__(self, mtot=mtot.default, m0=m0.default, r0=r0.default, alpha1=alpha1.default,
+                 alpha2=alpha2.default, mtot_faint=None, mtot_bright=None):
+
+        super(CogModel, self).__init__(mtot, m0, r0, alpha1, alpha2)
+
+        self.mtot.bounds = [mtot - 0.5 , mtot + 0.5]
+        #self.m0.bounds[1] = mtot
+        self.r0.bounds = [0.5 * r0, r0 * 3]
+        #self.r0 = 10 # scale factor [arcsec]
+        
+    def evaluate(self, radius, mtot, m0, r0, alpha1, alpha2):
+        """Evaluate the COG model."""
+        model = mtot + m0 * (1 - np.exp(-alpha1 * (radius / r0)**(-alpha2)))
+        #model = mtot + m0 * (1 - np.exp(-(radius / r0)**(-alpha1)))
+        #model = mtot + m0 * (1 - np.exp(-alpha2 * (radius / r0)**(-alpha1)))
+        #model = mtot + m0 * (1 - np.exp(-alpha1*(radius / r0)**(-alpha2)))
+        #model = mtot + m0 * (1 - np.exp(-alpha1*(radius/self.r0)**(-alpha2)))
+        return model
+    
 def _get_diameter(ellipse):
     """Wrapper to get the mean D(26) diameter.
 
@@ -760,7 +794,7 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
         these = np.where(np.isin(sga['SGA_ID'], dropcat['SGA_ID']))[0]
         assert(len(these) == len(dropcat))
         sga['DROPBIT'][these] = dropcat['DROPBIT']
-        sga['ELLIPSEBIT'][these] = ELLIPSEBITS['indropcat']
+        sga['ELLIPSEBIT'][these] = ELLIPSEBITS['rejected']
         
     # Stack!
     if exclude_full_sga:
@@ -806,7 +840,7 @@ def _build_ellipse_SGA_one(args):
     """Wrapper function for the multiprocessing."""
     return build_ellipse_SGA_one(*args)
 
-def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
+def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False):
     """Gather the ellipse-fitting results for a single galaxy.
 
     """
@@ -827,12 +861,18 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     onegal['DROPBIT'] = np.zeros(1, dtype=np.int32)
     fullsample['DROPBIT'] = np.zeros(len(fullsample), dtype=np.int32)
 
+    rand = np.random.RandomState(seed)
+
+    #isdonedir = '/global/cscratch1/sd/ioannis/todelete-SGA-data-2020-donefiles/'
+    #print('Hacking the location of the isdonefiles to {}'.format(isdonedir))
+    isdonedir = galaxydir
+
     # An object may be missing a Tractor catalog either because it wasn't fit or
     # because it is missing grz coverage. In both cases, however, we want to
     # keep them in the SGA catalog, not reject them.
     run = get_run(onegal)
     ccdsfile = os.path.join(galaxydir, '{}-ccds-{}.fits'.format(galaxy, run))
-    isdonefile = os.path.join(galaxydir, '{}-largegalaxy-coadds.isdone'.format(galaxy))
+    isdonefile = os.path.join(isdonedir, '{}-largegalaxy-coadds.isdone'.format(galaxy))
     tractorfile = os.path.join(galaxydir, '{}-largegalaxy-tractor.fits'.format(galaxy))
     if not os.path.isfile(tractorfile):
         if os.path.isfile(ccdsfile) and os.path.isfile(isdonefile):
@@ -856,10 +896,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     grzmissing = False
     for band in ['g', 'r', 'z']:
         imfile = os.path.join(galaxydir, '{}-largegalaxy-image-{}.fits.fz'.format(galaxy, band))
-        if False:
-            if not os.path.isfile(imfile) and onegal['GROUP_NAME'] != 'NGC0598_GROUP': # M33 hack
-                print('  Missing image {}'.format(imfile), flush=True)
-                grzmissing = True
+        #if not os.path.isfile(imfile) and onegal['GROUP_NAME'] != 'NGC0598_GROUP': # M33 hack
+        if not os.path.isfile(imfile):
+            print('  Missing image {}'.format(imfile), flush=True)
+            grzmissing = True
     if grzmissing:
         print('Missing grz coverage in the field of {} (SGA_ID={})'.format(galaxy, onegal['SGA_ID'][0]), flush=True)
         onegal['DROPBIT'] |= DROPBITS['nogrz']
@@ -982,32 +1022,42 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                     
     tractor['GROUP_ID'][:] = onegal['GROUP_ID'] # note that we don't change GROUP_MULT
     tractor['GROUP_NAME'][:] = onegal['GROUP_NAME']
-    tractor['ELLIPSEBIT'][:] = np.zeros(len(tractor), dtype=np.int32) # we don't want -1 here
 
     # add the columns from legacyhalos.ellipse.ellipse_cog
+    tractor['RA_MOMENT'] = np.zeros(len(tractor), np.float64) - 1 # =RA_X0
+    tractor['DEC_MOMENT'] = np.zeros(len(tractor), np.float64) - 1 # =DEC_Y0
+    tractor['RADIUS_MOMENT'] = np.zeros(len(tractor), np.float32) - 1 # =majoraxis
+    tractor['ELLIPSEBIT'][:] = np.zeros(len(tractor), dtype=np.int32) # we don't want -1 here
+    
     radkeys = ['RADIUS_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
+    magkeys = []
     for radkey in radkeys:
         tractor[radkey] = np.zeros(len(tractor), np.float32) - 1
     for radkey in radkeys:
         for filt in ['G', 'R', 'Z']:
             magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt))
             tractor[magkey] = np.zeros(len(tractor), np.float32) - 1
+            magkeys.append(magkey)
     #for filt in ['G', 'R', 'Z']:
     #    tractor['{}_MAG_TOT'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
 
     raderrkeys = ['RADIUS_SB{:0g}_ERR'.format(sbcut) for sbcut in SBTHRESH]
+    magerrkeys = []
     for raderrkey in raderrkeys:
         tractor[raderrkey] = np.zeros(len(tractor), np.float32) - 1
     for raderrkey in raderrkeys:
         for filt in ['G', 'R', 'Z']:
             magerrkey = raderrkey.replace('RADIUS_', '{}_MAG_'.format(filt))
             tractor[magerrkey] = np.zeros(len(tractor), np.float32) - 1
+            magerrkeys.append(magerrkey)
+            
     for filt in ['G', 'R', 'Z']:
-        tractor['{}_COG_PARAMS_MTOT'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
-        tractor['{}_COG_PARAMS_M0'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
-        tractor['{}_COG_PARAMS_ALPHA1'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
-        tractor['{}_COG_PARAMS_ALPHA2'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
-        tractor['{}_COG_PARAMS_CHI2'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
+        tractor['{}_COG_PARAMS_MTOT'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
+        tractor['{}_COG_PARAMS_M0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
+        tractor['{}_COG_PARAMS_R0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
+        tractor['{}_COG_PARAMS_ALPHA1'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
+        tractor['{}_COG_PARAMS_ALPHA2'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
+        tractor['{}_COG_PARAMS_CHI2'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
 
     tractor['PREBURNED'] = np.ones(len(tractor), bool)        # Everything was preburned but we only want to freeze the...
     tractor['FREEZE'] = np.zeros(len(tractor), bool)          # ...SGA galaxies and sources in that galaxy's ellipse.
@@ -1016,8 +1066,8 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
     # track the galaxies that are dropped by Tractor and, separately, galaxies
     # which fail ellipse-fitting (or are not ellipse-fit because they're too
     # small).
-    isdonefile = os.path.join(galaxydir, '{}-largegalaxy-ellipse.isdone'.format(galaxy))
-    isfailfile = os.path.join(galaxydir, '{}-largegalaxy-ellipse.isfail'.format(galaxy))
+    isdonefile = os.path.join(isdonedir, '{}-largegalaxy-ellipse.isdone'.format(galaxy))
+    isfailfile = os.path.join(isdonedir, '{}-largegalaxy-ellipse.isfail'.format(galaxy))
 
     dropcat = []
     for igal, sga_id in enumerate(np.atleast_1d(fullsample['SGA_ID'])):
@@ -1030,14 +1080,15 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
 
         thisgal = Table(fullsample[igal])
 
-        # For some systems (e.g., LG dwarfs), override the ellipse geometry for
-        # specific galaxies where we want the (usually larger) Hyperleda
-        # ellipse.
-        if thisgal['GALAXY'] in VETO_ELLIPSE:
-            print('Vetoing ellipse-fitting results for galaxy {}'.format(thisgal['GALAXY'][0]))
-            thisgal['DROPBIT'] |= DROPBITS['veto']
-            dropcat.append(thisgal)
-            continue
+        ## For some systems (e.g., LG dwarfs), override the ellipse geometry for
+        ## specific galaxies where we want the (usually larger) Hyperleda
+        ## ellipse.
+        #if False:
+        #    if thisgal['GALAXY'] in VETO_ELLIPSE:
+        #        print('Vetoing ellipse-fitting results for galaxy {}'.format(thisgal['GALAXY'][0]))
+        #        thisgal['DROPBIT'] |= DROPBITS['veto']
+        #        dropcat.append(thisgal)
+        #        continue
 
         # An object can be missing an ellipsefit file for two reasons:
         if not os.path.isfile(ellipsefile):
@@ -1166,9 +1217,51 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
                         else:
                             tractor[col][match] = thisgal[col]
                         
-            # Update the nominal diameter--
+            # Update the nominal diameter and set the default RA_MOMENT and DEC_MOMENT
             tractor['DIAM'][match] = 1.25 * tractor['DIAM'][match]
+            if 'RA_LEDA' in thisgal.colnames:
+                tractor['RA_MOMENT'][match] = thisgal['RA_LEDA']
+                tractor['DEC_MOMENT'][match] = thisgal['DEC_LEDA']
+            else:
+                tractor['RA_MOMENT'][match] = thisgal['RA']
+                tractor['DEC_MOMENT'][match] = thisgal['DEC']
         else:
+            # Objects here were ellipse-fit.
+
+            # For some systems (e.g., LG dwarfs), override the ellipse geometry for
+            # specific galaxies where we want the (usually larger) Hyperleda
+            # ellipse.
+
+            # Note! In DR9 these were rejected (added to the dropcat, outside of
+            # this loop) even though they had Tractor catalogs and mosaics; they
+            # should have been handled here.
+            if thisgal['GALAXY'] in VETO_ELLIPSE:
+                print('Vetoing ellipse-fitting results for galaxy {}'.format(thisgal['GALAXY'][0]))
+                tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['rejected']
+
+                ## this is what we did in DR9, but above
+                #thisgal['DROPBIT'] |= DROPBITS['veto']
+                #dropcat.append(thisgal)
+                
+                # code taken from above
+                tractor['FREEZE'][match] = True
+                thisgal.rename_column('RA', 'RA_LEDA')
+                thisgal.rename_column('DEC', 'DEC_LEDA')
+                thisgal.remove_column('INDEX')
+                for col in thisgal.colnames:
+                    if col == 'ELLIPSEBIT': # skip because we filled it, above
+                        #print('  Skipping existing column {}'.format(col))
+                        pass
+                    else:
+                        tractor[col][match] = thisgal[col]
+                        
+                # Update the nominal diameter and set the default RA_MOMENT and DEC_MOMENT
+                tractor['DIAM'][match] = 1.25 * tractor['DIAM'][match]
+                tractor['RA_MOMENT'][match] = thisgal['RA_LEDA']
+                tractor['DEC_MOMENT'][match] = thisgal['DEC_LEDA']
+                
+                continue
+                
             ellipse = read_ellipsefit(galaxy, galaxydir, galaxy_id=str(sga_id),
                                       filesuffix='largegalaxy', verbose=True)
 
@@ -1214,23 +1307,274 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', verbose=False):
             tractor['DIAM'][match] = diam
             tractor['DIAM_REF'][match] = diamref
 
+            tractor['RA_MOMENT'][match] = ellipse['ra_x0']
+            tractor['DEC_MOMENT'][match] = ellipse['dec_y0']
+            tractor['RADIUS_MOMENT'][match] = ellipse['majoraxis'] * ellipse['refpixscale'] # [arcsec]
             for radkey in radkeys:
                 tractor[radkey][match] = ellipse[radkey.lower()]
-                for filt in ['G', 'R', 'Z']:
-                    magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt))
-                    tractor[magkey][match] = ellipse[magkey.lower()]
-                    #tractor['{}_MAG_TOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt).lower()]
             for raderrkey in raderrkeys:
                 tractor[raderrkey][match] = ellipse[raderrkey.lower()]
+
+            # ###########################################################################
+            # Unfortunately the measured curves of growth are wrong due to a
+            # bug---I used semimajor*eps for the semi-minor axis rather than
+            # semimajor*(1-eps)---so redo the curve-of-growth modeling here,
+            # much more simply. Also remeasure the threshold magnitudes (from
+            # the surface-brightness profiles) because the magnitude errors are,
+            # occassionally, negative! Note that the radii are OK.
+
+            if False: # old, wrong code which copies from the ellipse files
+                for radkey in radkeys:
+                    for filt in ['G', 'R', 'Z']:
+                        magkey = radkey.replace('RADIUS_', '{}_MAG_'.format(filt))
+                        tractor[magkey][match] = ellipse[magkey.lower()]
+                        #tractor['{}_MAG_TOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt).lower()]
+                for raderrkey in raderrkeys:
+                    for filt in ['G', 'R', 'Z']:
+                        magerrkey = raderrkey.replace('RADIUS_', '{}_MAG_'.format(filt))
+                        tractor[magerrkey][match] = ellipse[magerrkey.lower()]
                 for filt in ['G', 'R', 'Z']:
-                    magerrkey = raderrkey.replace('RADIUS_', '{}_MAG_'.format(filt))
-                    tractor[magerrkey][match] = ellipse[magerrkey.lower()]
-            for filt in ['G', 'R', 'Z']:
-                tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt).lower()]
-                tractor['{}_COG_PARAMS_M0'.format(filt)][match] = ellipse['{}_COG_PARAMS_M0'.format(filt).lower()]
-                tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = ellipse['{}_COG_PARAMS_ALPHA1'.format(filt).lower()]
-                tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = ellipse['{}_COG_PARAMS_ALPHA2'.format(filt).lower()]
-                tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = ellipse['{}_COG_PARAMS_CHI2'.format(filt).lower()]
+                    tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = ellipse['{}_COG_PARAMS_MTOT'.format(filt).lower()]
+                    tractor['{}_COG_PARAMS_M0'.format(filt)][match] = ellipse['{}_COG_PARAMS_M0'.format(filt).lower()]
+                    tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = ellipse['{}_COG_PARAMS_ALPHA1'.format(filt).lower()]
+                    tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = ellipse['{}_COG_PARAMS_ALPHA2'.format(filt).lower()]
+                    tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = ellipse['{}_COG_PARAMS_CHI2'.format(filt).lower()]
+            
+            import warnings
+            import astropy.modeling
+            from scipy import integrate
+            from scipy.interpolate import interp1d
+            from legacyhalos.ellipse import ellipse_sbprofile
+            #from legacyhalos.ellipse import CogModel
+
+            # rederive the aperture photometry by integrating the
+            # surface-brightness profile (code taken from
+            # legacyhalos.ellipse.ellipse_cog)
+            results = {}
+            sb = ellipse_sbprofile(ellipse, linear=True)
+            for radkey in radkeys:
+                radkey = radkey.lower()
+                smamax = ellipse[radkey.lower()] # semi-major axis, arcsec
+                for filt in ['g', 'r', 'z']:
+                    magkey = radkey.replace('radius_', '{}_mag_'.format(filt))
+                    magerrkey = '{}_err'.format(magkey)
+
+                    sma_arcsec = sb['sma_{}'.format(filt)] * ellipse['refpixscale']
+                    if smamax > 0 and smamax <= np.max(sma_arcsec):
+                        rmax = smamax * np.sqrt(1 - ellipse['eps']) # [circularized radius, arcsec]
+                        rr = sb['radius_{}'.format(filt)] # [circularized radius, arcsec]
+
+                        yy = sb['mu_{}'.format(filt)]        # [surface brightness, nanomaggies/arcsec**2]
+                        yyerr = sb['muerr_{}'.format(filt)] # [surface brightness, nanomaggies/arcsec**2]
+
+                        yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
+                        yyerr_rmax = interp1d(rr, yyerr)(rmax)
+
+                        # append the maximum radius to the end of the array
+                        keep = np.where(rr < rmax)[0]
+                        _rr = np.hstack((rr[keep], rmax))
+                        _yy = np.hstack((yy[keep], yy_rmax))
+                        _yyerr = np.hstack((yyerr[keep], yyerr_rmax))
+
+                        flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
+                        fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
+
+                        if fvar <= 0:
+                            ferr = -1.0
+                        else:
+                            ferr = 2 * np.pi * np.sqrt(fvar)
+            
+                        results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                        results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                    else:
+                        results[magkey] = np.float32(-1.0)
+                        results[magerrkey] = np.float32(-1.0)
+
+                    #print(radkey, filt, smamax, results[magkey], results[magerrkey], ellipse[magkey], ellipse[magerrkey])
+                    tractor[magkey.upper()][match] = results[magkey]
+                    tractor[magerrkey.upper()][match] = results[magerrkey]
+
+            # fit the curves of growth
+            dofit = False
+
+            if dofit:
+                sma_arcsec = np.array(list(tractor[match][radkeys].as_array()[0])) # semi-major axis, arcsec
+
+                chi2fail = 1e6
+                nball = 10
+                minerr = 0.0
+
+                cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
+                for filt in ['G', 'R', 'Z']:
+                    # make the initial guess equal to the outer isophote
+                    mtot = tractor['{}_MAG_SB26'.format(filt)][match].item()
+                    if mtot < 0:
+                        if tractor['FLUX_{}'.format(filt)] > 0:
+                            mtot = 22.5 - 2.5 * np.log10(tractor['FLUX_{}'.format(filt)][match].item())
+                        else:
+                            mtot = 20.0
+
+                    #m0 = 5 # 5 mag fainter?
+                    #m0 = mtot + 22.5 - 2.5 * np.log10(0.1*tractor['FLUX_R'][match].item()) # 10 times fainter?
+                    r0 = ellipse['majoraxis'] * ellipse['refpixscale'] # [arcsec]
+                    cogmodel = CogModel(mtot=mtot, r0=r0)# m0=m0, alpha1=0.1, alpha2=2.0)
+                    #cogmodel = CogModel(mtot=mtot, r0=r0, m0=m0, alpha1=alpha1, alpha2=alpha2)                
+
+                    magkeysfilt = [radkey.replace('RADIUS_', '{}_MAG_'.format(filt)) for radkey in radkeys]
+                    magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
+                    cogmag = np.array(list(tractor[match][magkeysfilt].as_array()[0]))
+                    cogmagerr = np.sqrt((np.array(list(tractor[match][magerrkeysfilt].as_array()[0])))**2 + minerr**2)
+                    #print(filt, sma_arcsec, cogmag, cogmagerr)
+                    #if filt == 'R':
+                    #    pdb.set_trace()
+
+                    nparams = len(cogmodel.parameters)
+                    these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
+                    dof = len(these) - nparams
+
+                    # perturb the parameter values
+                    params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
+                    for ii, pp in enumerate(cogmodel.param_names):
+                        pinfo = getattr(cogmodel, pp)
+                        if pinfo.bounds[0] is not None:
+                            #scale = 0.0
+                            #scale = 0.2 * pinfo.default
+                            if 'alpha' in pp:
+                                scale = 0.1 * pinfo.default
+                            else:
+                                scale = 0.1 * pinfo.default
+                            #    #scale = 0.1 * np.diff(pinfo.bounds)
+                            params[ii, :] += rand.normal(scale=scale, size=nball)
+                            toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
+                            if len(toosmall) > 0:
+                                print('{} too small!'.format(pp), params[ii, toosmall])
+                                params[ii, toosmall] = pinfo.default
+                            toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
+                            if len(toobig) > 0:
+                                print('{} too big!'.format(pp), params[ii, toobig])
+                                params[ii, toobig] = pinfo.default
+                        else:
+                            params[ii, :] += rand.normal(scale=0.2*pinfo.default, size=nball)
+
+                    #if filt == 'R':
+                    #    pdb.set_trace()
+                    with warnings.catch_warnings():
+                        warnings.simplefilter('ignore')
+                        chi2 = np.zeros(nball) + chi2fail
+                        for jj in range(nball):
+                            cogmodel.parameters = params[:, jj]
+                            #these = np.where((sma_arcsec > np.min(sma_arcsec)) * (cogmag > 0) * (cogmagerr > 0))[0]
+                            if len(these) > 4: # can happen in corner cases (e.g., PGC155984)
+                                ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
+                                                    maxiter=100, weights=1/cogmagerr[these])
+                                bestfit = ballfit(sma_arcsec)
+
+                                chi2[jj] = np.sum( (cogmag[these] - bestfit[these])**2 / cogmagerr[these]**2 ) / dof
+
+                                if cogfitter.fit_info['param_cov'] is None: # failed
+                                    if False:
+                                        print(jj, cogfitter.fit_info['message'], chi2[jj])
+                                else:
+                                    params[:, jj] = ballfit.parameters # update
+
+                    # if at least one fit succeeded, re-evaluate the model at the chi2
+                    # minimum.
+                    good = chi2 < chi2fail
+                    if np.sum(good) == 0:
+                        pass
+                        #print('{} CoG modeling failed.'.format(filt))
+
+                    mindx = np.argmin(chi2)
+                    minchi2 = chi2[mindx]
+                    cogmodel.parameters = params[:, mindx]
+                    P = cogfitter(cogmodel, sma_arcsec[these], cogmag[these], weights=1/cogmagerr[these], maxiter=100)
+                    #print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+                    #print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, P.alpha2.value, minchi2)
+                    #print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, minchi2)
+
+                    tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = P.mtot.value
+                    tractor['{}_COG_PARAMS_M0'.format(filt)][match] = P.m0.value
+                    tractor['{}_COG_PARAMS_R0'.format(filt)][match] = P.r0.value
+                    tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = P.alpha1.value
+                    tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = P.alpha2.value
+                    tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(minchi2)
+
+                    #tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = np.float32(P.mtot.value)
+                    #tractor['{}_COG_PARAMS_M0'.format(filt)][match] = np.float32(P.m0.value)
+                    #tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = np.float32(P.alpha1.value)
+                    #tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = np.float32(P.alpha2.value)
+                    #tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(chi2)
+
+                    # get the half-light radius!
+
+                    #pdb.set_trace()
+
+                # ###########################################################################
+
+                if False:
+                    import matplotlib.pyplot as plt
+
+                    xplot_arcsec = np.linspace(1, 1.5*np.max(sma_arcsec), 50)
+                    sma_arcsec = np.array(list(tractor[match][radkeys].as_array()[0])) # semi-major axis, arcsec                    
+
+                    plt.clf()
+                    for filt in ['G', 'R', 'Z']:
+                        magkeysfilt = [radkey.replace('RADIUS_', '{}_MAG_'.format(filt)) for radkey in radkeys]
+                        magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
+                        cogmag = np.array(list(tractor[match][magkeysfilt].as_array()[0]))
+                        cogmagerr = np.sqrt((np.array(list(tractor[match][magerrkeysfilt].as_array()[0])))**2 + 0.05**2)
+
+                        plt.errorbar(sma_arcsec, cogmag, yerr=cogmagerr, fmt='s', label=filt.lower())
+
+                        mtot = tractor['{}_COG_PARAMS_MTOT'.format(filt)][match]
+                        m0 = tractor['{}_COG_PARAMS_M0'.format(filt)][match]
+                        r0 = tractor['{}_COG_PARAMS_R0'.format(filt)][match]
+                        alpha1 = tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match]
+                        alpha2 = tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match]
+                        #yplot_mag = mtot + m0 * (1 - np.exp(-(xplot_arcsec / r0)**(-alpha1)))
+                        yplot_mag = mtot + m0 * (1 - np.exp(-alpha1*(xplot_arcsec / r0)**(-alpha2)))
+                        #yplot_mag = (tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] + tractor['{}_COG_PARAMS_M0'.format(filt)][match] *
+                        #             (1 - np.exp(-tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] *
+                        #                         (xplot_arcsec / tractor['{}_COG_PARAMS_R0'.format(filt)][match])**(-tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match]))))
+                        plt.plot(xplot_arcsec, yplot_mag, ls='-', lw=2)
+
+                        try:
+                            r50 = interp1d(yplot_mag, xplot_arcsec)(mtot - 2.5*np.log10(0.5))
+                            print('Half-light radius: ', tractor['SHAPE_R'][match][0], filt.lower(), r50[0])
+                        except:
+                            #pdb.set_trace()
+                            pass
+
+                    #plt.ylim(cogmag.max()+1.0, cogmag.min()-1)
+                    plt.ylim(18.5, 15.5)
+                    plt.xlabel('Semi-major axis (arcsec)')
+                    plt.ylabel('mag')
+                    plt.legend()
+                    plt.title(galaxy)
+                    plt.savefig('debug.png')
+
+                    xplot_arcsec = np.linspace(1, np.max(sma_arcsec), 50)
+                    sma_arcsec = np.array(list(tractor[match][radkeys].as_array()[0])) # semi-major axis, arcsec                    
+
+                    # surface brightness thresholds
+                    if False:
+                        sb = ellipse_sbprofile(ellipse)
+
+                        plt.clf()
+                        ymin, ymax = 28, 20
+                        #plt.plot(sb['sma_r'] * ellipse['refpixscale'], sb['mu_r'], color='red')
+                        plt.fill_between(sb['sma_r'] * ellipse['refpixscale'], sb['mu_r']-sb['muerr_r'],
+                                         sb['mu_r']+sb['muerr_r'], color='red')
+                        for sbcut, rad in zip(SBTHRESH, sma_arcsec):
+                            plt.plot([rad, rad], [ymin, sbcut], color='gray', ls='-')
+                            plt.plot([0, rad], [sbcut, sbcut], color='gray', ls='-')
+                        plt.ylim(ymin, ymax)
+                        plt.xlim(0, 20)
+                        plt.margins(0)
+                        plt.xlabel('Semi-major axis (arcsec)')
+                        plt.ylabel(r'$\mu(r)$')
+                        plt.title(galaxy)
+                        plt.savefig('debug2.png')
 
     # Keep just frozen sources. Can be empty (e.g., if a field contains just a
     # single dropped source, e.g., DR8-2194p447-894).
@@ -2361,6 +2705,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('<tr>\n')
             pngfile = '{}-largegalaxy-{}-ellipse-sbprofile.png'.format(galaxy1, galaxyid)
             html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+
             pngfile = '{}-largegalaxy-{}-ellipse-cog.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('</tr>\n')

@@ -2,18 +2,13 @@
 
 """Update the data model and generate groups.
 
+Load virgofilaments-shifter, source, then run.
+
 """
-import os, fitsio, time, pdb
+import os, time, pdb
 import numpy as np
 from astropy.table import Table, Column
-import matplotlib.pyplot as plt
-import seaborn as sns
-from astrometry.libkd.spherematch import match_radec
-from legacyhalos.misc import viewer_inspect
-
-sns.set(context='talk', style='ticks', font_scale=1.2)
-homedir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'virgofilaments')
-
+    
 def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
     """dmax in arcmin
 
@@ -70,18 +65,18 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
                     # If these two galaxies should be connected, make GNUM the
                     # same for them...
                     #print(dd, mfac * (cat['DIAM'][indx[jj]] / 60. + cat['DIAM'][indx[kk]] / 60.))
-                    if dd < (0.5 * mfac * (cat['DIAM'][indx[jj]] / 60. + cat['DIAM'][indx[kk]] / 60.)):
+                    if dd < (0.5 * mfac * (cat['DIAM_INIT'][indx[jj]] / 60. + cat['DIAM_INIT'][indx[kk]] / 60.)):
                         jndx = np.where(np.logical_or(gnum[indx]==gnum[indx[jj]], gnum[indx]==gnum[indx[kk]]))[0]
                         gnum[indx[jndx]] = gnum[indx[jndx[0]]]
                         mgrp[indx[jndx]] = len(jndx)
             #print(ii, ngroup, gnum[indx], mgrp[indx])
 
     # Special-case the largest galaxies, looking for neighbhors
-    ibig = np.where(cat['DIAM'] / 60. > dmax)[0]
+    ibig = np.where(cat['DIAM_INIT'] / 60. > dmax)[0]
     if len(ibig) > 0:
         for ii in np.arange(len(ibig)):
            dd = degrees_between(cat['RA'][ibig[ii]], cat['DEC'][ibig[ii]], cat['RA'], cat['DEC'])
-           inear = np.where(dd < 0.5*(cat[ibig[ii]]['DIAM'] + cat['DIAM']) / 60.)[0]
+           inear = np.where(dd < 0.5*(cat[ibig[ii]]['DIAM_INIT'] + cat['DIAM_INIT']) / 60.)[0]
            if len(inear) > 0:
                for jj in np.arange(len(inear)):
                   indx = np.where(np.logical_or(gnum==gnum[ibig[ii]], gnum==gnum[inear[jj]]))[0]
@@ -105,7 +100,7 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
     if len(I) > 0:
         cat['GROUP_RA'][I] = cat['RA'][I]
         cat['GROUP_DEC'][I] = cat['DEC'][I]
-        cat['GROUP_DIAMETER'][I] = cat['DIAM'][I]
+        cat['GROUP_DIAMETER'][I] = cat['DIAM_INIT'][I]
         cat['GROUP_NAME'][I] = cat['GALAXY'][I]
         cat['GROUP_PRIMARY'][I] = True
 
@@ -113,22 +108,22 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
     for group in set(cat['GROUP_ID'][more]):
         I = np.where(cat['GROUP_ID'] == group)[0]
         # Compute the DIAM-weighted RA, Dec of the group:
-        weight = cat[I]['DIAM']
+        weight = cat[I]['DIAM_INIT']
         cat['GROUP_RA'][I] = np.sum(weight * cat[I]['RA']) / np.sum(weight)
         cat['GROUP_DEC'][I] = np.sum(weight * cat[I]['DEC']) / np.sum(weight)
         # Get the diameter of the group as the distance between the center of
         # the group and the outermost galaxy (plus the diameter of that galaxy,
         # in case it's a big one!).
         dd = degrees_between(cat['RA'][I], cat['DEC'][I], cat['GROUP_RA'][I[0]], cat['GROUP_DEC'][I[0]])
-        pad = dd + cat['DIAM'][I] / 60.0
+        pad = dd + cat['DIAM_INIT'][I] / 60.0
         cat['GROUP_DIAMETER'][I] = np.max(pad) * 60 # [arcmin]
-        if cat['GROUP_DIAMETER'][I[0]] < np.max(cat['DIAM'][I]):
+        if cat['GROUP_DIAMETER'][I[0]] < np.max(cat['DIAM_INIT'][I]):
             print('Should not happen!')
             pdb.set_trace()
 
         # Assign the group name based on its largest member and also make this
         # galaxy "primary".
-        primary = np.argmax(cat['DIAM'][I])
+        primary = np.argmax(cat['DIAM_INIT'][I])
         cat['GROUP_NAME'][I] = '{}_GROUP'.format(cat['GALAXY'][I][primary])
         cat['GROUP_PRIMARY'][I[primary]] = True
 
@@ -137,6 +132,10 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
     return cat
 
 def qa(version='v1'):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    sns.set(context='talk', style='ticks', font_scale=1.2)
+
     fig, ax = plt.subplots(2, 2, figsize=(13, 10))
     ax[0, 0].scatter(cat['RA'][m1], cat['DEC'][m1], s=5)
     ax[0, 0].scatter(cat['RA'][miss], cat['DEC'][miss], s=5)
@@ -153,7 +152,7 @@ def qa(version='v1'):
     ax[0, 1].set_ylabel('Number of Galaxies')
     ax[0, 1].legend(loc='upper right', fontsize=14)
 
-    ax[1, 0].scatter(sga['DIAM'][m2], cat['RADIUS'][m1]*2/60, s=5)
+    ax[1, 0].scatter(sga['DIAM_INIT'][m2], cat['RADIUS'][m1]*2/60, s=5)
     ax[1, 0].set_xlabel('SGA Diameter [arcmin]')
     ax[1, 0].set_ylabel('Input Diameter [arcmin]')
 
@@ -164,52 +163,62 @@ def qa(version='v1'):
 
 def main(version='v1'):
 
-    sga = Table(fitsio.read(homedir+'/../../SGA/sample/v3.0/SGA-parent-v3.0.fits'))
-    cat = Table(fitsio.read(homedir+'/vf_north_{}_main.fits'.format(version), upper=True))
+    import fitsio
+    from astrometry.libkd.spherematch import match_radec
+    import legacyhalos.io
+
+    sgafile = '/global/cfs/cdirs/cosmo/data/sga/2020/SGA-2020.fits'
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main.fits'.format(version))
+    groupfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups.fits'.format(version))
+
+    sga = Table(fitsio.read(sgafile, 'ELLIPSE'))
+    cat = Table(fitsio.read(samplefile, upper=True, columns=['OBJNAME', 'VFID', 'RA', 'DEC', 'RADIUS']))
     ng = len(cat)
 
-    cat['SGA_MATCH'] = np.zeros(ng, bool)
+    # change RA,DEC to double precision!
+    cat.rename_column('RA', 'RA_ORIG')
+    cat.rename_column('DEC', 'DEC_ORIG')
+    cat.add_column(Column(name='RA', data=np.zeros(ng, dtype='f8')), index=1)
+    cat.add_column(Column(name='DEC', data=np.zeros(ng, dtype='f8')), index=2)
+    cat.add_column(Column(name='VF_ID', data=np.zeros(ng, dtype=np.int32)), index=1)
+    cat['RA'][:] = cat['RA_ORIG']
+    cat['DEC'][:] = cat['DEC_ORIG']
+    cat['VF_ID'] = [int(vfid[4:]) for vfid in cat['VFID']]
+
+    # match to the SGA-2020
+    #cat['SGA_MATCH'] = np.zeros(ng, bool)
     fix = np.where(cat['OBJNAME'] == '')[0]
     if len(fix) > 0:
+        print('Fixing {} OBJNAMEs'.format(len(fix)))
         cat['OBJNAME'][fix] = cat['VFID'][fix]
 
     cat.rename_column('OBJNAME', 'GALAXY')
-    cat.add_column(Column(name='SGA_ID', data=np.arange(ng)))
-    cat.add_column(Column(name='PGC', data=np.zeros(ng, dtype=np.int32)))
-    cat.add_column(Column(name='PA', data=np.zeros(ng, dtype='f4')))
-    cat.add_column(Column(name='BA', data=np.zeros(ng, dtype='f4')))
-    cat.add_column(Column(name='DIAM', data=np.zeros(ng, dtype='f4')))
-
-    cat.rename_column('RA', 'RA_ORIG')
-    cat.rename_column('DEC', 'DEC_ORIG')
-    cat.add_column(Column(name='RA', data=np.zeros(ng, dtype='f8')))
-    cat.add_column(Column(name='DEC', data=np.zeros(ng, dtype='f8')))
-    cat['RA'][:] = cat['RA_ORIG']
-    cat['DEC'][:] = cat['DEC_ORIG']
-
-    #dr8 = Table(fitsio.read(homedir+'/vf_north_v0_legacysurvey_match.fits', upper=True, ext=1))
-    #for cols in 'FLUX_G', 'FLUX_R', 'FLUX_W1', 'FLUX_W2', 'FLUX_W3', 'FLUX_W4', 'FLUX_Z':
-    #    cat[cols] = dr8[cols]
+    cat.add_column(Column(name='SGA_ID', data=np.zeros(ng, dtype=np.int64)-1))
+    cat.add_column(Column(name='PGC', data=np.zeros(ng, dtype=np.int32)-1))
+    cat.add_column(Column(name='PA_INIT', data=np.zeros(ng, dtype='f4')))
+    cat.add_column(Column(name='BA_INIT', data=np.ones(ng, dtype='f4')))
+    cat.add_column(Column(name='DIAM_INIT', data=np.zeros(ng, dtype='f4')))
+    cat.add_column(Column(name='MAG_INIT', data=np.zeros(ng, dtype='f4')))
 
     # fix crummy radii
     fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] == 0))[0]
     if len(fix) > 0:
         cat['RADIUS'][fix] = 100.0
-    cat['DIAM'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
+    cat['DIAM_INIT'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
+    cat['MAG_INIT'][:] = 17.0 # initialize [arcmin]
 
-    m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA'], sga['DEC'], 3/3600)
+    m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA_MOMENT'], sga['DEC_MOMENT'], 10/3600)
     miss = np.delete(np.arange(ng), m1)
     print('N={}/{} matches'.format(len(m1), ng))
 
-    # update data model;
-    cat['SGA_MATCH'][m1] = True
     cat['SGA_ID'][m1] = sga['SGA_ID'][m2]
+    cat['RA'][m1] = sga['RA_MOMENT'][m2]
+    cat['DEC'][m1] = sga['DEC_MOMENT'][m2]
     cat['PGC'][m1] = sga['PGC'][m2]
-    cat['PA'][m1] = sga['PA'][m2]
-    cat['BA'][m1] = sga['BA'][m2]
-    cat['DIAM'][m1] = sga['DIAM'][m2]
-    cat['RA'][m1] = sga['RA'][m2]
-    cat['DEC'][m1] = sga['DEC'][m2]
+    cat['PA_INIT'][m1] = sga['PA'][m2]
+    cat['BA_INIT'][m1] = sga['BA'][m2]
+    cat['DIAM_INIT'][m1] = sga['DIAM'][m2]
+    cat['MAG_INIT'][m1] = sga['MAG_LEDA'][m2]
 
     print('Removing special characters from galaxy names.')
     fix = np.where(['[' in gg or ':' in gg or '(' in gg for gg in cat['GALAXY']])[0]
@@ -218,6 +227,7 @@ def main(version='v1'):
             cat['GALAXY'][ii] = cat['GALAXY'][ii].replace('[', '').replace(']', '_').replace(':', '_').replace('(', '_').replace(')', '_')
 
     if False:
+        from legacyhalos.misc import viewer_inspect
         check = cat[miss]
         check = check[np.logical_or(check['FLUX_R'] == 0, np.isnan(check['FLUX_R']))]
         print(len(check))
@@ -229,12 +239,9 @@ def main(version='v1'):
         qa()
 
     out = build_group_catalog(cat)
-    out.write(os.path.join(homedir, 'vf_north_{}_main_groups.fits'.format(version)), overwrite=True)
-
-    pdb.set_trace()
+    print('Writing {}'.format(groupfile))
+    out.write(groupfile, overwrite=True)
 
 if __name__ == '__main__':
-
-    version = 'v1'
-    main(version)
+    main(version='v1')
 

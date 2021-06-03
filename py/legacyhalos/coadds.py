@@ -234,13 +234,14 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 return ok
 
     if galex:
+        # GALEX imaging can be missing completely around bright stars, so don't fail.
         for band in ('FUV', 'NUV'):
             for imtype in ('image', 'invvar'):
                 ok = _copyfile(
                     os.path.join(output_dir, 'coadd', 'cus', brickname,
                                  'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
                     os.path.join(output_dir, '{}-{}-{}.fits.fz'.format(galaxy, imtype, band)),
-                    clobber=clobber, missing_ok=missing_ok)
+                    clobber=clobber, missing_ok=True)
                 if not ok:
                     return ok
 

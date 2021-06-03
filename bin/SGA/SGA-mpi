@@ -7,9 +7,8 @@ SGA-mpi --coadds
 import os, time, pdb
 import numpy as np
 
-import tempfile # ridiculousness!
-os.environ['MPLCONFIGDIR'] = tempfile.mkdtemp()
-
+#import tempfile # ridiculousness!
+#os.environ['MPLCONFIGDIR'] = tempfile.mkdtemp()
 #import matplotlib
 #matplotlib.use('Agg')
 
@@ -44,8 +43,6 @@ def main():
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
 
-        final_sample = False
-        
         sample = legacyhalos.SGA.read_sample(first=args.first, last=args.last,
                                              d25min=args.d25min, d25max=args.d25max, 
                                              galaxylist=args.galaxylist,
@@ -54,7 +51,7 @@ def main():
                                              #customredux=args.customredux,
                                              nproc=args.nproc,
                                              preselect_sample=True,
-                                             final_sample=final_sample)
+                                             final_sample=False)
         if len(sample) == 0:
             return
         
@@ -62,7 +59,7 @@ def main():
         if args.coadds or args.build_SGA:
             fullsample = legacyhalos.SGA.read_sample(verbose=args.verbose,
                                                      preselect_sample=False,
-                                                     final_sample=final_sample)
+                                                     final_sample=False)
                                                      #customsky=False)
             fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
 
@@ -351,8 +348,11 @@ def main():
             # Write out the individual galaxies for this mosaic.
             thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]
             samplefile = os.path.join(galaxydir, '{}-largegalaxy-sample.fits'.format(galaxy))
-            #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
-            thissample.write(samplefile, overwrite=True)
+            if args.clobber or not os.path.isfile(samplefile):
+                #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+                tmpfile = samplefile+'.tmp'
+                thissample.write(tmpfile, overwrite=True, format='fits')
+                os.rename(tmpfile, samplefile)
 
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
