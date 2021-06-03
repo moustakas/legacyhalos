@@ -1030,7 +1030,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
     tractor['ELLIPSEBIT'][:] = np.zeros(len(tractor), dtype=np.int32) # we don't want -1 here
     
     radkeys = ['RADIUS_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
-    cmagkeys = []
+    magkeys = []
     for radkey in radkeys:
         tractor[radkey] = np.zeros(len(tractor), np.float32) - 1
     for radkey in radkeys:
@@ -2705,6 +2705,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('<tr>\n')
             pngfile = '{}-largegalaxy-{}-ellipse-sbprofile.png'.format(galaxy1, galaxyid)
             html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+
             pngfile = '{}-largegalaxy-{}-ellipse-cog.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('</tr>\n')

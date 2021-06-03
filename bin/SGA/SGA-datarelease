@@ -27,8 +27,6 @@ def main():
     print('Keeping {} SGA galaxies (i.e., removing non-SGA Tractor sources.'.format(len(isga)))
     sgaall = ellipse[isga]
 
-add the tractor ra,dec to the main HDU after brickname and then have ra_moment and dec_moment
-
     # Divide the sample into the pre-burned (in-footprint) and not pre-burned
     # (off-footprint) samples. In the off-footprint sample we don't need all the
     # SGA columns; we will just store the Hyperleda catalog parameters.
@@ -126,14 +124,21 @@ add the tractor ra,dec to the main HDU after brickname and then have ra_moment a
         #'DROPBIT',
         #'G_MAG_TOT', 'R_MAG_TOT', 'Z_MAG_TOT'
         ]
-        
+
     sga_tractor = sga[['SGA_ID']+tractorcols]
     assert(np.all(sga_tractor['REF_ID'] == sga_tractor['SGA_ID']))
     assert(np.all(sga_tractor['REF_CAT'] == 'L3'))
 
+    # add the tractor RA,DEC to the main HDU after brickname and then have
+    # ra_moment and dec_moment; also rename DIAM-->D26
     for col in tractorcols:
         sga.remove_column(col)
         sga_leda.remove_column(col)
+    ib = np.where(np.array(sga.colnames) == 'BRICKNAME')[0][0]
+    sga.add_column(sga_tractor['RA'], index=ib+1)
+    sga.add_column(sga_tractor['DEC'], index=ib+2)
+    sga.rename_column('DIAM', 'D26')
+    sga.rename_column('DIAM_REF', 'D26_REF')
 
     ellipsebit = sga['ELLIPSEBIT']
     sga.remove_column('DROPBIT')
