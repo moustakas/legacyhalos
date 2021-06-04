@@ -205,7 +205,7 @@ def mpi_args():
 
     parser.add_argument('--first', type=int, help='Index of first object to process.')
     parser.add_argument('--last', type=int, help='Index of last object to process.')
-    parser.add_argument('--galaxylist', type=str, nargs='*', default=None, help='List of galaxy names to process.')
+    parser.add_argument('--galaxylist', type=np.int, nargs='*', default=None, help='List of galaxy names to process.')
 
     parser.add_argument('--coadds', action='store_true', help='Build the custom coadds.')
     parser.add_argument('--pipeline-coadds', action='store_true', help='Build the pipelinecoadds.')
@@ -365,7 +365,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False):
     if galaxylist is not None:
         if verbose:
             print('Selecting specific galaxies.')
-        these = np.isin(sample[GALAXYCOLUMN], galaxylist)
+        these = np.in1d(sample[GALAXYCOLUMN], galaxylist)
         if np.count_nonzero(these) == 0:
             print('No matching galaxies!')
             return astropy.table.Table()

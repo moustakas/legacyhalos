@@ -83,8 +83,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         suffix = 'ellipse'
         filesuffix = '-custom-ellipse.isdone'
         dependson = '-custom-coadds.isdone'
-    elif args.build_SGA:
-        suffix = 'build-SGA'
+    elif args.build_catalog:
+        suffix = 'build-catalog'
         filesuffix = '-custom-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
@@ -105,7 +105,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     # Make clobber=False for build_SGA and htmlindex because we're not making
     # the files here, we're just looking for them. The argument args.clobber
     # gets used downstream.
-    if args.htmlindex or args.build_SGA:
+    if args.htmlindex or args.build_catalog:
         clobber = False
     else:
         clobber = args.clobber
@@ -210,7 +210,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
 
-    use_testbed = False
+    use_testbed = True
 
     if use_testbed:
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
