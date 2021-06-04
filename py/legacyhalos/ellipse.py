@@ -9,7 +9,9 @@ import time, warnings
 import numpy as np
 import matplotlib.pyplot as plt
 
+from scipy.optimize import curve_fit
 import astropy.modeling
+
 from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                 Isophote, IsophoteList)
 from photutils.isophote.sample import CentralEllipseSample
@@ -18,6 +20,20 @@ from photutils.isophote.fitter import CentralEllipseFitter
 import legacyhalos.io
 
 REF_SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
+
+def cog_model(radius, mtot, m0, alpha1, alpha2, r0=10.0):
+    return mtot - m0 * np.expm1(-alpha1*((radius / r0)**(-alpha2)))
+
+def cog_dofit(sma, mag, mag_err, bounds=None):
+    try:
+        popt, _ = curve_fit(cog_model, sma, mag, sigma=mag_err, bounds=bounds, max_nfev=10000)
+    except RuntimeError:
+        popt = chisq = None
+    else:
+        chisq = (((cog_model(sma, *popt) - mag) / mag_err) ** 2).sum()
+        
+    return popt, chisq
+
 
 class CogModel(astropy.modeling.Fittable1DModel):
     """Class to empirically model the curve of growth.
@@ -42,7 +58,7 @@ class CogModel(astropy.modeling.Fittable1DModel):
         """Evaluate the COG model."""
         model = mtot + m0 * (1 - np.exp(-alpha1*(radius/self.r0)**(-alpha2)))
         return model
-        
+   
 def _apphot_one(args):
     """Wrapper function for the multiprocessing."""
     return apphot_one(*args)

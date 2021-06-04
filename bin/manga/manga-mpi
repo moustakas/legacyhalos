@@ -56,6 +56,49 @@ def main():
                                     ccdqa=args.ccdqa, args=args)
         return
     
+    if args.build_refcat and rank == 0:
+        if args.build_refcat:
+            # Build a reference catalog for use with the pipeline.
+            import fitsio
+            from astropy.table import Table
+
+            ngal = len(sample)
+
+            ref = Table()
+            ref['ra'] = sample[RACOLUMN]
+            ref['dec'] = sample[DECCOLUMN]
+            ref['sga_id'] = sample['MANGAID_INT']
+
+            ref['mag_leda'] = np.repeat(15.0, len(sample)).astype('f4')
+            ref['ba'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a (circular)
+            ref['pa'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
+            ref['diam'] = np.repeat(2 * MANGA_RADIUS / 60.0, ngal).astype('f4') # fixed diameter [arcmin]
+            
+            igood = np.where(sample['NSA_NSAID'] != -9999)[0]
+            ref['ba'][igood] = sample['NSA_SERSIC_BA'][igood]
+            ref['pa'][igood] = sample['NSA_SERSIC_PHI'][igood]
+            ref['diam'][igood] = 2 * 2 * sample['NSA_SERSIC_TH50'][igood] / 60 # [2*half-light radius, arcmin]
+            ref['mag_leda'][igood] = 22.5-2.5*np.log10(sample['NSA_SERSIC_FLUX'][igood, 4]) # r-band
+
+            reffile = os.path.join(basedir, 'manga-refcat.fits')
+            kdreffile = reffile.replace('.fits', '.kd.fits')
+            print('Writing {} galaxies to {}'.format(ngal, reffile))
+            
+            hdr = fitsio.FITSHDR()
+            hdrver = 'R1'
+            hdr['SGAVER'] = hdrver
+            fitsio.write(reffile, ref.as_array(), header=hdr, clobber=True)
+
+            print('Writing {}'.format(kdreffile))
+            cmd = 'startree -i {} -o {} -T -P -k -n stars'.format(reffile, kdreffile)
+            print(cmd)
+            _ = os.system(cmd)
+
+            cmd = 'modhead {} SGAVER {}'.format(kdreffile, hdrver)
+            _ = os.system(cmd)
+
+        return
+
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
     if rank == 0:
@@ -131,9 +174,10 @@ def main():
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=False, custom=True,
                                apodize=False, unwise=True, galex=True, force=args.force, plots=False,
-                               verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                               verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
-                               require_grz=True, debug=args.debug, logfile=logfile)
+                               require_grz=True, debug=args.debug, logfile=logfile,
+                               write_wise_psf=True)
 
         if args.pipeline_coadds:
             from legacyhalos.mpi import call_custom_coadds
@@ -143,7 +187,7 @@ def main():
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=True, custom=False,
                                apodize=False, unwise=False, force=args.force, plots=False,
-                               verbose=args.verbose, cleanup=True, write_all_pickles=True,
+                               verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds,
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 

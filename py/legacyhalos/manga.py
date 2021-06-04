@@ -12,8 +12,8 @@ import astropy
 import legacyhalos.io
 
 ZCOLUMN = 'Z'
-RACOLUMN = 'RA'
-DECCOLUMN = 'DEC'
+RACOLUMN = 'IFURA' # 'RA'
+DECCOLUMN = 'IFUDEC' # 'DEC'
 GALAXYCOLUMN = 'PLATEIFU'
 
 RADIUSFACTOR = 4 # 10
@@ -39,6 +39,7 @@ def mpi_args():
     parser.add_argument('--customsky', action='store_true', help='Build the largest large-galaxy coadds with custom sky-subtraction.')
     parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
     #parser.add_argument('--custom-coadds', action='store_true', help='Build the custom coadds.')
+    parser.add_argument('--no-cleanup', action='store_false', dest='cleanup', help='Do not clean up legacypipe files after coadds.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
 
@@ -57,7 +58,8 @@ def mpi_args():
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
 
-    parser.add_argument('--build-SGA', action='store_true', help='Build the SGA reference catalog.')
+    parser.add_argument('--build-refcat', action='store_true', help='Build the legacypipe reference catalog.')
+    parser.add_argument('--build-catalog', action='store_true', help='Build the final photometric catalog.')
     args = parser.parse_args()
 
     return args
@@ -208,7 +210,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
 
-    use_testbed = True
+    use_testbed = False
 
     if use_testbed:
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
@@ -280,7 +282,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
                 first, last, len(sample), samplefile))
 
     # Add an (internal) index number:
-    sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
+    #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
     
     ## strip whitespace
     #if 'GALAXY' in sample.colnames:
@@ -299,8 +301,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         else:
             sample = sample[these]
 
-    sample.rename_column('OBJRA', 'RA')
-    sample.rename_column('OBJDEC', 'DEC')
+    #sample.rename_column('OBJRA', 'RA')
+    #sample.rename_column('OBJDEC', 'DEC')
+    sample['MANGAID_INT'] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
 
     return sample
 
