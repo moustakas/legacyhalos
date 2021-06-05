@@ -613,6 +613,25 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     return sample
 
+def _get_r0():
+    r0 = 10.0 # [arcsec]
+
+def cog_model(radius, mtot, m0, alpha1, alpha2):
+    r0 = _get_r0()
+    return mtot - m0 * np.expm1(-alpha1*((radius / r0)**(-alpha2)))
+
+def cog_dofit(sma, mag, mag_err, bounds=None):
+    try:
+        popt, _ = curve_fit(cog_model, sma, mag, sigma=mag_err,
+                            bounds=bounds, max_nfev=10000)
+    except RuntimeError:
+        popt = None
+        chisq = 1e6
+    else:
+        chisq = (((cog_model(sma, *popt) - mag) / mag_err) ** 2).sum()
+        
+    return popt, chisq
+
 class CogModel(astropy.modeling.Fittable1DModel):
     """Class to empirically model the curve of growth.
 
@@ -1395,31 +1414,19 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                     tractor[magerrkey.upper()][match] = results[magerrkey]
 
             # fit the curves of growth
-            dofit = False
+            dofit = True
 
             if dofit:
                 sma_arcsec = np.array(list(tractor[match][radkeys].as_array()[0])) # semi-major axis, arcsec
 
                 chi2fail = 1e6
-                nball = 10
-                minerr = 0.0
+                nparams = 4
 
-                cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
+                #nball = 10
+                #minerr = 0.0
+                #cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
+                
                 for filt in ['G', 'R', 'Z']:
-                    # make the initial guess equal to the outer isophote
-                    mtot = tractor['{}_MAG_SB26'.format(filt)][match].item()
-                    if mtot < 0:
-                        if tractor['FLUX_{}'.format(filt)] > 0:
-                            mtot = 22.5 - 2.5 * np.log10(tractor['FLUX_{}'.format(filt)][match].item())
-                        else:
-                            mtot = 20.0
-
-                    #m0 = 5 # 5 mag fainter?
-                    #m0 = mtot + 22.5 - 2.5 * np.log10(0.1*tractor['FLUX_R'][match].item()) # 10 times fainter?
-                    r0 = ellipse['majoraxis'] * ellipse['refpixscale'] # [arcsec]
-                    cogmodel = CogModel(mtot=mtot, r0=r0)# m0=m0, alpha1=0.1, alpha2=2.0)
-                    #cogmodel = CogModel(mtot=mtot, r0=r0, m0=m0, alpha1=alpha1, alpha2=alpha2)                
-
                     magkeysfilt = [radkey.replace('RADIUS_', '{}_MAG_'.format(filt)) for radkey in radkeys]
                     magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
                     cogmag = np.array(list(tractor[match][magkeysfilt].as_array()[0]))
@@ -1428,82 +1435,117 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                     #if filt == 'R':
                     #    pdb.set_trace()
 
-                    nparams = len(cogmodel.parameters)
                     these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
                     dof = len(these) - nparams
 
-                    # perturb the parameter values
-                    params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
-                    for ii, pp in enumerate(cogmodel.param_names):
-                        pinfo = getattr(cogmodel, pp)
-                        if pinfo.bounds[0] is not None:
-                            #scale = 0.0
-                            #scale = 0.2 * pinfo.default
-                            if 'alpha' in pp:
-                                scale = 0.1 * pinfo.default
-                            else:
-                                scale = 0.1 * pinfo.default
-                            #    #scale = 0.1 * np.diff(pinfo.bounds)
-                            params[ii, :] += rand.normal(scale=scale, size=nball)
-                            toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
-                            if len(toosmall) > 0:
-                                print('{} too small!'.format(pp), params[ii, toosmall])
-                                params[ii, toosmall] = pinfo.default
-                            toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
-                            if len(toobig) > 0:
-                                print('{} too big!'.format(pp), params[ii, toobig])
-                                params[ii, toobig] = pinfo.default
-                        else:
-                            params[ii, :] += rand.normal(scale=0.2*pinfo.default, size=nball)
+                    if len(these) >= nparams:
+                        bounds = ([cogmag[these][-1]-0.5, 2.5, 0, 0], np.inf)
+                        #bounds = (0, np.inf)
+                        (mtot, m0, alpha1, alpha2), minchi2 = cog_dofit(
+                            sma_arcsec[these], cogmag[these], cogmagerr[these], bounds=bounds)
+                        if minchi2 < chi2fail:
+                            print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+                            tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = np.float32(mtot)
+                            tractor['{}_COG_PARAMS_M0'.format(filt)][match] = np.float32(m0)
+                            tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = np.float32(alpha1)
+                            tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = np.float32(alpha2)
+                            tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(minchi2)
 
-                    #if filt == 'R':
-                    #    pdb.set_trace()
-                    with warnings.catch_warnings():
-                        warnings.simplefilter('ignore')
-                        chi2 = np.zeros(nball) + chi2fail
-                        for jj in range(nball):
-                            cogmodel.parameters = params[:, jj]
-                            #these = np.where((sma_arcsec > np.min(sma_arcsec)) * (cogmag > 0) * (cogmagerr > 0))[0]
-                            if len(these) > 4: # can happen in corner cases (e.g., PGC155984)
-                                ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
-                                                    maxiter=100, weights=1/cogmagerr[these])
-                                bestfit = ballfit(sma_arcsec)
+                            # get the half-light radius!
+                            half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
 
-                                chi2[jj] = np.sum( (cogmag[these] - bestfit[these])**2 / cogmagerr[these]**2 ) / dof
-
-                                if cogfitter.fit_info['param_cov'] is None: # failed
-                                    if False:
-                                        print(jj, cogfitter.fit_info['message'], chi2[jj])
-                                else:
-                                    params[:, jj] = ballfit.parameters # update
-
-                    # if at least one fit succeeded, re-evaluate the model at the chi2
-                    # minimum.
-                    good = chi2 < chi2fail
-                    if np.sum(good) == 0:
-                        pass
-                        #print('{} CoG modeling failed.'.format(filt))
-
-                    mindx = np.argmin(chi2)
-                    minchi2 = chi2[mindx]
-                    cogmodel.parameters = params[:, mindx]
-                    P = cogfitter(cogmodel, sma_arcsec[these], cogmag[these], weights=1/cogmagerr[these], maxiter=100)
-                    #print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
-                    #print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, P.alpha2.value, minchi2)
-                    #print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, minchi2)
-
-                    tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = P.mtot.value
-                    tractor['{}_COG_PARAMS_M0'.format(filt)][match] = P.m0.value
-                    tractor['{}_COG_PARAMS_R0'.format(filt)][match] = P.r0.value
-                    tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = P.alpha1.value
-                    tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = P.alpha2.value
-                    tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(minchi2)
-
-                    #tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = np.float32(P.mtot.value)
-                    #tractor['{}_COG_PARAMS_M0'.format(filt)][match] = np.float32(P.m0.value)
-                    #tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = np.float32(P.alpha1.value)
-                    #tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = np.float32(P.alpha2.value)
-                    #tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(chi2)
+                            pdb.set_trace()
+                            
+                    ## make the initial guess equal to the outer isophote
+                    #mtot = tractor['{}_MAG_SB26'.format(filt)][match].item()
+                    #if mtot < 0:
+                    #    if tractor['FLUX_{}'.format(filt)] > 0:
+                    #        mtot = 22.5 - 2.5 * np.log10(tractor['FLUX_{}'.format(filt)][match].item())
+                    #    else:
+                    #        mtot = 20.0
+                    #
+                    ##m0 = 5 # 5 mag fainter?
+                    ##m0 = mtot + 22.5 - 2.5 * np.log10(0.1*tractor['FLUX_R'][match].item()) # 10 times fainter?
+                    #r0 = ellipse['majoraxis'] * ellipse['refpixscale'] # [arcsec]
+                    #cogmodel = CogModel(mtot=mtot, r0=r0)# m0=m0, alpha1=0.1, alpha2=2.0)
+                    ##cogmodel = CogModel(mtot=mtot, r0=r0, m0=m0, alpha1=alpha1, alpha2=alpha2)                
+                    #nparams = len(cogmodel.parameters)
+                    #
+                    #these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
+                    #dof = len(these) - nparams
+                    #
+                    ## perturb the parameter values
+                    #params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
+                    #for ii, pp in enumerate(cogmodel.param_names):
+                    #    pinfo = getattr(cogmodel, pp)
+                    #    if pinfo.bounds[0] is not None:
+                    #        #scale = 0.0
+                    #        #scale = 0.2 * pinfo.default
+                    #        if 'alpha' in pp:
+                    #            scale = 0.1 * pinfo.default
+                    #        else:
+                    #            scale = 0.1 * pinfo.default
+                    #        #    #scale = 0.1 * np.diff(pinfo.bounds)
+                    #        params[ii, :] += rand.normal(scale=scale, size=nball)
+                    #        toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
+                    #        if len(toosmall) > 0:
+                    #            print('{} too small!'.format(pp), params[ii, toosmall])
+                    #            params[ii, toosmall] = pinfo.default
+                    #        toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
+                    #        if len(toobig) > 0:
+                    #            print('{} too big!'.format(pp), params[ii, toobig])
+                    #            params[ii, toobig] = pinfo.default
+                    #    else:
+                    #        params[ii, :] += rand.normal(scale=0.2*pinfo.default, size=nball)
+                    #
+                    ##if filt == 'R':
+                    ##    pdb.set_trace()
+                    #with warnings.catch_warnings():
+                    #    warnings.simplefilter('ignore')
+                    #    chi2 = np.zeros(nball) + chi2fail
+                    #    for jj in range(nball):
+                    #        cogmodel.parameters = params[:, jj]
+                    #        #these = np.where((sma_arcsec > np.min(sma_arcsec)) * (cogmag > 0) * (cogmagerr > 0))[0]
+                    #        if len(these) > 4: # can happen in corner cases (e.g., PGC155984)
+                    #            ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
+                    #                                maxiter=100, weights=1/cogmagerr[these])
+                    #            bestfit = ballfit(sma_arcsec)
+                    #
+                    #            chi2[jj] = np.sum( (cogmag[these] - bestfit[these])**2 / cogmagerr[these]**2 ) / dof
+                    #
+                    #            if cogfitter.fit_info['param_cov'] is None: # failed
+                    #                if False:
+                    #                    print(jj, cogfitter.fit_info['message'], chi2[jj])
+                    #            else:
+                    #                params[:, jj] = ballfit.parameters # update
+                    #
+                    ## if at least one fit succeeded, re-evaluate the model at the chi2
+                    ## minimum.
+                    #good = chi2 < chi2fail
+                    #if np.sum(good) == 0:
+                    #    pass
+                    #    #print('{} CoG modeling failed.'.format(filt))
+                    #
+                    #mindx = np.argmin(chi2)
+                    #minchi2 = chi2[mindx]
+                    #cogmodel.parameters = params[:, mindx]
+                    #P = cogfitter(cogmodel, sma_arcsec[these], cogmag[these], weights=1/cogmagerr[these], maxiter=100)
+                    ##print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+                    ##print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, P.alpha2.value, minchi2)
+                    ##print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, minchi2)
+                    #
+                    #tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = P.mtot.value
+                    #tractor['{}_COG_PARAMS_M0'.format(filt)][match] = P.m0.value
+                    #tractor['{}_COG_PARAMS_R0'.format(filt)][match] = P.r0.value
+                    #tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = P.alpha1.value
+                    #tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = P.alpha2.value
+                    #tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(minchi2)
+                    #
+                    ##tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = np.float32(P.mtot.value)
+                    ##tractor['{}_COG_PARAMS_M0'.format(filt)][match] = np.float32(P.m0.value)
+                    ##tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = np.float32(P.alpha1.value)
+                    ##tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = np.float32(P.alpha2.value)
+                    ##tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(chi2)
 
                     # get the half-light radius!
 

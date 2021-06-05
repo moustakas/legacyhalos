@@ -951,6 +951,12 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
 
     """
     if bool(data):
+        if data['missingdata']:
+            if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, data['filesuffix']))):
+                return 1
+            else:
+                return 0
+
         if data['failed']: # all galaxies dropped
             return 1
 
@@ -974,7 +980,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
         # An object can get here if it's a "known" failure, e.g., if the object
         # falls off the edge of the footprint (and therefore it will never have
         # coadds).
-        if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
+        if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, 'custom'))):
             return 1
         else:
             return 0

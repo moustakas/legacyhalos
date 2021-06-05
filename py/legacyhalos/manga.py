@@ -593,15 +593,17 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
                 missing_data = True
                 break
     
+    data['failed'] = False # be optimistic!
+    data['missingdata'] = False
+    data['filesuffix'] = filesuffix
     if missing_data:
+        data['missingdata'] = True
         return data, None
 
     # Pack some preliminary info into the output dictionary.
-    data['filesuffix'] = filesuffix
     data['bands'] = bands
     data['refband'] = refband
     data['refpixscale'] = np.float32(pixscale)
-    data['failed'] = False # be optimistic!
 
     # We ~have~ to read the tractor catalog using fits_table because we will
     # turn these catalog entries into Tractor sources later.
@@ -826,16 +828,6 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           sky_tests=sky_tests, verbose=verbose)
 
     maxsma, delta_logsma = None, 10.0
-
-    #igal = 0
-    #maxis = data['mge'][igal]['majoraxis'] # [pixels]
-    #
-    #if galaxyinfo[igal]['diam'] > 10:
-    #    maxsma = 1.5 * maxis # [pixels]
-    #    delta_logsma = 10.0
-    #else:
-    #    maxsma = 2 * maxis # [pixels]
-    #    delta_logsma = 6.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!
