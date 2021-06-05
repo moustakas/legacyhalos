@@ -259,7 +259,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     """Plot up the curve of growth versus semi-major axis.
 
     """
-    from legacyhalos.ellipse import CogModel
+    from legacyhalos.ellipse import cog_model
+    #from legacyhalos.ellipse import CogModel
 
     if ellipsefit['success'] is False or np.atleast_1d(ellipsefit['r_sma'])[0] == -1:
         return
@@ -322,7 +323,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             ax.fill_between(_sma, _cog-_cogerr, _cog+_cogerr,
                             facecolor=col, alpha=0.5)#, edgecolor='k', lw=1)
 
-        cogmodel = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
+        cogmodel = cog_model(sma, magtot, m0, alpha1, alpha2)
+        #cogmodel = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
         ax.plot(radius, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
         if sma.max() > maxsma:
             maxsma = sma.max()

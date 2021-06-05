@@ -6,6 +6,7 @@ manga-mpi --coadds
 """
 import os, time, pdb
 import numpy as np
+from astropy.table import Table
 
 def main():
     """Top-level wrapper.
@@ -16,7 +17,8 @@ def main():
 
     from legacypipe.runs import get_survey
     from legacyhalos.manga import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, RADIUSFACTOR, MANGA_RADIUS
-
+    from legacyhalos.manga import get_galaxy_galaxydir
+    
     basedir = legacyhalos.io.legacyhalos_dir()
     datadir = legacyhalos.io.legacyhalos_data_dir()
     htmldir = legacyhalos.io.legacyhalos_html_dir()
@@ -60,7 +62,6 @@ def main():
         if args.build_refcat:
             # Build a reference catalog for use with the pipeline.
             import fitsio
-            from astropy.table import Table
 
             ngal = len(sample)
 
@@ -129,14 +130,14 @@ def main():
             if args.debug:
                 if len(fail[rank]) > 0:
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
-                    galaxy, galaxydir = legacyhalos.manga.get_galaxy_galaxydir(sample[fail[rank]])
+                    galaxy, galaxydir = get_galaxy_galaxydir(sample[fail[rank]])
                     for ii, dd in zip(fail[rank], np.atleast_1d(galaxydir)):
                         print('  {} {}'.format(ii, dd))
 
                 todo = np.hstack(groups)
                 if len(todo) > 0:
                     #print('Galaxies left to do:')
-                    galaxy, galaxydir = legacyhalos.manga.get_galaxy_galaxydir(sample[todo])
+                    galaxy, galaxydir = get_galaxy_galaxydir(sample[todo])
                     for ii, dd in zip(todo, np.atleast_1d(galaxydir)):
                         print('  {} {}'.format(ii, dd))
             return
@@ -149,7 +150,7 @@ def main():
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
-        galaxy, galaxydir = legacyhalos.manga.get_galaxy_galaxydir(onegal)
+        galaxy, galaxydir = get_galaxy_galaxydir(onegal)
         if not os.path.isdir(galaxydir):
             os.makedirs(galaxydir, exist_ok=True)
 
@@ -170,6 +171,15 @@ def main():
 
         if args.coadds:
             from legacyhalos.mpi import call_custom_coadds
+
+            # Write out the individual galaxies for this mosaic.
+            samplefile = os.path.join(galaxydir, '{}-sample.fits'.format(galaxy))
+            if args.clobber or not os.path.isfile(samplefile):
+                #print('Writing {} galaxy(ies) to {}'.format(len(thissample), samplefile))
+                tmpfile = samplefile+'.tmp'
+                Table(onegal).write(tmpfile, overwrite=True, format='fits')
+                os.rename(tmpfile, samplefile)
+
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
                                largegalaxy=False, pipeline=False, custom=True,
@@ -192,14 +202,18 @@ def main():
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
-            from legacyhalos.mpi import call_ellipse
-            call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, pixscale=args.pixscale,
-                         nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                         unwise=True, galex=True,
-                         logfile=logfile, largegalaxy=False, pipeline=False)
+            from legacyhalos.manga import call_ellipse
+            call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                         bands=['g', 'r', 'z'], refband='r',                         
+                         pixscale=args.pixscale, nproc=args.nproc,
+                         verbose=args.verbose, debug=args.debug,
+                         unwise=False, galex=False,
+                         logfile=logfile)
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
+            from legacyhalos.manga import read_multiband
+            
             if radius_mosaic_arcsec > 6 * 60: # [>6] arcmin
                 barlabel = '2 arcmin'
                 barlen = np.ceil(120 / args.pixscale).astype(int) # [pixels]
@@ -211,12 +225,14 @@ def main():
                 barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
             call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
                            verbose=args.verbose, debug=args.debug, clobber=args.clobber,
-                           ccdqa=args.ccdqa, logfile=logfile, zcolumn=ZCOLUMN,
+                           logfile=logfile, 
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
-                           largegalaxy=False, galex=True,
-                           get_galaxy_galaxydir=legacyhalos.manga.get_galaxy_galaxydir)
+                           #galaxy_id=onegal['VF_ID'],                           
+                           galex=True, 
+                           get_galaxy_galaxydir=get_galaxy_galaxydir,
+                           read_multiband=read_multiband)                           
 
     # Wait for all ranks to finish.
     if comm is not None:

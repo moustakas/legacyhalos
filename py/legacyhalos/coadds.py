@@ -236,7 +236,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if not ok:
                 return ok
 
-        for imtype, suffix in zip(('wise', 'wisemodel'), ('image', 'model')):
+        for imtype, suffix in zip(('wise', 'wisemodel', 'wiseresid'), ('image', 'model', 'resid')):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
@@ -265,7 +265,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if not ok:
                 return ok
 
-        for imtype, suffix in zip(('galex', 'galexmodel'), ('image', 'model')):
+        for imtype, suffix in zip(('galex', 'galexmodel', 'galexresid'), ('image', 'model', 'resid')):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
@@ -434,8 +434,12 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
         cat = fitsio.read(os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
                           columns=['ref_cat', 'ref_id', 'wise_coadd_id', 'brickname'])
-        hdr = fitsio.read_header(os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
-                                 'legacysurvey-{}-copsf-r.fits.fz'.format(brickname)))
+        psffile = os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                               'legacysurvey-{}-copsf-r.fits.fz'.format(brickname))
+        if not os.path.isfile(psffile):
+            psffile = os.path.join(survey.output_dir, '{}-{}-psf-r.fits.fz'.format(galaxy, stagesuffix))
+        hdr = fitsio.read_header(psffile)
+        
         for remcard in ('MJD', 'MJD_TAI', 'PSF_SIG', 'INPIXSC'):
             hdr.delete(remcard)
             
@@ -475,6 +479,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         # Move (rename) files into the desired output directory and clean up.
         #print('USING CLEANUP INSTEAD OF FORCE IN COADDS.PY')
+        #missing_ok = True
         ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
                               run, unwise=unwise, galex=galex, cleanup=cleanup,
                               just_coadds=just_coadds,

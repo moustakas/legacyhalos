@@ -333,8 +333,7 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
         if not os.path.isfile(montagefile) or clobber:
             coaddfiles = ('image-{}'.format(filesuffix),
                           'model-{}'.format(filesuffix),
-                          )
-                          #'{}-resid-grz'.format(filesuffix))
+                          'resid-{}'.format(filesuffix))
 
             # Image coadd with the scale bar label--
             barpngfile = os.path.join(htmlgalaxydir, '{}-{}.png'.format(galaxy, coaddfiles[0]))
