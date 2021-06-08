@@ -43,6 +43,11 @@ def main():
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
 
+        if args.remake_cogqa:
+            final_sample = True
+        else:
+            final_sample = False
+
         sample = legacyhalos.SGA.read_sample(first=args.first, last=args.last,
                                              d25min=args.d25min, d25max=args.d25max, 
                                              galaxylist=args.galaxylist,
@@ -51,16 +56,19 @@ def main():
                                              #customredux=args.customredux,
                                              nproc=args.nproc,
                                              preselect_sample=True,
-                                             final_sample=False)
+                                             final_sample=final_sample)
         if len(sample) == 0:
             return
         
         # For the custom coadds step we write out the full sample in each mosaic.
-        if args.coadds or args.build_SGA:
+        if args.coadds or args.build_SGA or args.remake_cogqa:
             fullsample = legacyhalos.SGA.read_sample(verbose=args.verbose,
                                                      preselect_sample=False,
-                                                     final_sample=False)
+                                                     final_sample=final_sample)
                                                      #customsky=False)
+            if args.remake_cogqa:
+                fullsample = fullsample[fullsample['SGA_ID'] > -1]
+                
             fullsample = fullsample[np.isin(fullsample['GROUP_ID'], sample['GROUP_ID'])]
 
             if args.build_SGA:
@@ -405,6 +413,11 @@ def main():
                            write_donefile=False,
                            get_galaxy_galaxydir=legacyhalos.SGA.get_galaxy_galaxydir,
                            read_multiband=legacyhalos.SGA.read_multiband)
+
+        if args.remake_cogqa:
+            from legacyhalos.SGA import remake_cogqa
+            thissample = fullsample[np.where(onegal['GROUP_ID'] == fullsample['GROUP_ID'])[0]]            
+            remake_cogqa(onegal, thissample, htmldir=htmldir, clobber=args.clobber, verbose=args.verbose)
 
     # Wait for all ranks to finish.
     if comm is not None:

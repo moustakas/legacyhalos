@@ -24,31 +24,31 @@ def atticfiles_one(gdir):
 ss = read_sample(verbose=True, final_sample=False)
 galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(ss, html=True)
 
-# move them back!
-atticdir = '/global/cscratch1/sd/ioannis/todelete-SGA-data-2020-donefiles/'
-for ii, (gal, gdir) in enumerate(zip(galaxy, galaxydir)):
-    if ii % 20000 == 0:
-        print(ii)
-    for suffix in ('coadds', 'ellipse'):
-        donefile = os.path.join(atticdir, '{}-largegalaxy-{}.isdone'.format(gal, suffix))
-        if os.path.isfile(donefile):
-            outfile = os.path.join(gdir, '{}-largegalaxy-{}.isdone'.format(gal, suffix))
-            shutil.move(donefile, outfile)
+## move them back!
+#atticdir = '/global/cscratch1/sd/ioannis/todelete-SGA-data-2020-donefiles/'
+#for ii, (gal, gdir) in enumerate(zip(galaxy, galaxydir)):
+#    if ii % 20000 == 0:
+#        print(ii)
+#    for suffix in ('coadds', 'ellipse'):
+#        donefile = os.path.join(atticdir, '{}-largegalaxy-{}.isdone'.format(gal, suffix))
+#        if os.path.isfile(donefile):
+#            outfile = os.path.join(gdir, '{}-largegalaxy-{}.isdone'.format(gal, suffix))
+#            shutil.move(donefile, outfile)
+#
+#pdb.set_trace()
 
-pdb.set_trace()
-
-# remove the html.isdone files from SGA-2020-data
-atticdir = '/global/cscratch1/sd/ioannis/todelete-SGA-data-2020-donefiles/'
-for ii, (gal, gdir) in enumerate(zip(galaxy, galaxydir)):
-    #gdir = gdir.replace('/global/cscratch1/sd/ioannis/SGA-data-2020', '/global/cfs/cdirs/cosmo/work/legacysurvey/sga/2020/data')
-    if ii % 20000 == 0:
-        print(ii)
-    for suffix in ('coadds', 'ellipse'):
-        donefile = os.path.join(gdir, '{}-largegalaxy-{}.isdone'.format(gal, suffix))
-        if os.path.isfile(donefile):
-            shutil.move(donefile, atticdir)
-
-pdb.set_trace()
+## remove the html.isdone files from SGA-2020-data
+#atticdir = '/global/cscratch1/sd/ioannis/todelete-SGA-data-2020-donefiles/'
+#for ii, (gal, gdir) in enumerate(zip(galaxy, galaxydir)):
+#    #gdir = gdir.replace('/global/cscratch1/sd/ioannis/SGA-data-2020', '/global/cfs/cdirs/cosmo/work/legacysurvey/sga/2020/data')
+#    if ii % 20000 == 0:
+#        print(ii)
+#    for suffix in ('coadds', 'ellipse'):
+#        donefile = os.path.join(gdir, '{}-largegalaxy-{}.isdone'.format(gal, suffix))
+#        if os.path.isfile(donefile):
+#            shutil.move(donefile, atticdir)
+#
+#pdb.set_trace()
 
 # remove any existing .html files since we're making these dynamically now
 atticdir = '/global/cscratch1/sd/ioannis/todelete-SGA-html-2020-logfiles'

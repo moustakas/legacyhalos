@@ -22,8 +22,9 @@ import legacyhalos.io
 REF_SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
 
 def cog_model(radius, mtot, m0, alpha1, alpha2):
-    r0 = 10.0
-    return mtot - m0 * np.expm1(-alpha1*((radius / r0)**(-alpha2)))
+    r0 = _get_r0()
+    #return mtot - m0 * np.expm1(-alpha1*((radius / r0)**(-alpha2)))
+    return mtot + m0 * np.log1p(alpha1*(radius/10.0)**(-alpha2))
 
 def cog_dofit(sma, mag, mag_err, bounds=None):
     try:
@@ -235,6 +236,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             results['{}_cog_params_alpha1'.format(filt)] = np.float32(-1)
             results['{}_cog_params_alpha2'.format(filt)] = np.float32(-1)
             results['{}_cog_params_chi2'.format(filt)] = np.float32(1e6)
+            results['{}_cog_r50'.format(filt)] = np.float32(-1)
             for sbcut in sbthresh:
                 results['{}_mag_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
                 results['{}_mag_sb{:0g}_err'.format(filt, sbcut)] = np.float32(-1)
@@ -253,7 +255,8 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         n_params = 4
         popt = chisq = popt_simple = chisq_simple = None
         if len(sma_arcsec) >= n_params:
-            bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
+            bounds = ([cogmag[-1]-1.0, 0, 0, 0], np.inf)
+            #bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
             #bounds = (0, np.inf)
             (mtot, m0, alpha1, alpha2), minchi2 = cog_dofit(sma_arcsec, cogmag, cogmagerr, bounds=bounds)
             if minchi2 < 1e6:
@@ -263,6 +266,12 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 results['{}_cog_params_alpha1'.format(filt)] = np.float32(alpha1)
                 results['{}_cog_params_alpha2'.format(filt)] = np.float32(alpha2)
                 results['{}_cog_params_chi2'.format(filt)] = np.float32(minchi2)
+
+                if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
+                    #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
+                    half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
+                    #half_light_radius = half_light_sma * np.sqrt(1 - ellipse['eps']) # circularized
+                    results['{}_cog_r50'.format(filt)] = half_light_sma
         
         ##################################################
         # begin old COG modeling code

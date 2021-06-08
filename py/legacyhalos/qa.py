@@ -343,7 +343,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
     #ax.set_xlabel(r'Semi-major axis (arcsec)')
     #ax.set_ylabel('Cumulative brightness (AB mag)')
-    ax.set_xlabel(r'(Semi-major axis $r$)$^{1/4}$ (arcsec)')
+    ax.set_xlabel(r'(Semi-major axis $r$ / arcsec)$^{1/4}$')
     ax.set_ylabel('$m(<r)$ (mag)')
 
     if maxsma > 0:
@@ -1374,9 +1374,9 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                              edgecolor='k', lw=2)
 
         if plot_radius:
-            ax2.set_xlabel(r'(Galactocentric radius)$^{1/4}$ (arcsec)')
+            ax2.set_xlabel(r'(Galactocentric radius / arcsec)$^{1/4}$')
         else:
-            ax2.set_xlabel(r'(Semi-major axis $r$)$^{1/4}$ (arcsec)')
+            ax2.set_xlabel(r'(Semi-major axis $r$ / arcsec)$^{1/4}$')
         #ax2.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
 
         hh, ll = ax2.get_legend_handles_labels()

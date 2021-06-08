@@ -477,7 +477,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id=galaxy_id, bands=bands,
                                       refband=refband, pixscale=pixscale,
                                       verbose=verbose)
-    if not bool(data):
+    if not bool(data) or data['missingdata']:
         return
 
     if data['failed']: # all galaxies dropped

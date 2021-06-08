@@ -222,6 +222,7 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         cols.append(('{}_cog_params_alpha1'.format(band), ''))
         cols.append(('{}_cog_params_alpha2'.format(band), ''))
         cols.append(('{}_cog_params_chi2'.format(band), ''))
+        cols.append(('{}_cog_r50'.format(band), u.arcsec))
 
     for thresh in sbthresh:
         cols.append(('radius_sb{:0g}'.format(thresh), u.arcsec))
