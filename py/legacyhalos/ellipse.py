@@ -384,12 +384,13 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
                     flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
                     fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
-                    if fvar <= 0:
-                        ferr = -1.0
-                    else:
+                    if flux > 0 and fvar > 0:
                         ferr = 2 * np.pi * np.sqrt(fvar)
-                    results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
-                    results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                        results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                        results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                    else:
+                        results[magkey] = np.float32(-1.0)
+                        results[magerrkey] = np.float32(-1.0)
                 except:
                     results[magkey] = np.float32(-1.0)
                     results[magerrkey] = np.float32(-1.0)
