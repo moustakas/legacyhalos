@@ -123,6 +123,9 @@ def missing_files_one(checkfile, dependsfile, clobber):
             #        return 'todo'
             #    else:
             #        return 'todo'
+        else:
+            if dependsfile is not None and not os.path.isfile(dependsfile):
+                return 'done'
         return 'todo'
     
 def get_run(onegal, racolumn='RA', deccolumn='DEC'):

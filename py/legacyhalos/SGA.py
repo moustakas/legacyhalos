@@ -196,6 +196,7 @@ def mpi_args():
     return args
 
 def missing_files(args, sample, size=1, clobber_overwrite=None):
+    from glob import glob
     import multiprocessing
     from legacyhalos.io import _missing_files_one
 
@@ -207,7 +208,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         galaxy, galaxydir = get_galaxy_galaxydir(sample)
         if args.verbose:
             print('...took {:.3f} sec'.format(time.time() - t0))
-        
+
+    use_glob = False
     if args.coadds:
         suffix = 'coadds'
         filesuffix = '-largegalaxy-coadds.isdone'
@@ -238,6 +240,15 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             #dependson = '-largegalaxy-coadds.isdone'
             #dependson = '-largegalaxy-image-grz.jpg'
             #dependson = None
+
+            # ##########
+            # hack!
+            use_glob = True
+            dependson = '-ellipse.fits'
+            filesuffix = '-ellipse-sbprofile.png'
+            galaxy_id = [str(galid) for galid in sample['SGA_ID']]
+            # ##########
+            
         galaxy, dependsondir, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
         #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
@@ -247,8 +258,11 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.remake_cogqa:
         suffix = 'remake_cogqa'
+        use_glob = True
+        dependson = '-ellipse.fits'
         filesuffix = '-ellipse-cog.png'
-        galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+        galaxy, dependsondir, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+        galaxy_id = [str(galid) for galid in sample['SGA_ID']]
     else:
         raise ValueError('Need at least one keyword argument.')
 
@@ -271,25 +285,44 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         ngal = len(sample)
     indices = np.arange(ngal)
 
-    pool = multiprocessing.Pool(args.nproc)
     missargs = []
     #if args.htmlplots:
     #    for gal, gdir, ddir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(dependsondir)):
     #        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
     #        missargs.append([checkfile, os.path.join(ddir, '{}{}'.format(gal, dependson)), clobber])
     #else:
-    for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
+    for igal, (gal, gdir) in enumerate(zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))):
         #missargs.append([gal, gdir, filesuffix, dependson, clobber])
-        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+        if use_glob:
+            checkfile = os.path.join(gdir, '{}-largegalaxy-{}{}'.format(gal, galaxy_id[igal], filesuffix))
+            #checkfile = glob(os.path.join(gdir, '{}-*{}'.format(gal, filesuffix)))
+            #if len(checkfile) > 0:
+            #    checkfile = checkfile[0]
+            #else:
+            #    checkfile = 'null'
+            #print(checkfile)
+        else:
+            checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
         if dependson:
-            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+            if use_glob:
+                missargs.append([checkfile, os.path.join(np.atleast_1d(dependsondir)[igal], '{}-largegalaxy-{}{}'.format(
+                    gal, galaxy_id[igal], dependson)), clobber])
+            else:
+                missargs.append([checkfile, os.path.join(np.atleast_1d(dependsondir)[igal], '{}{}'.format(gal, dependson)), clobber])
         else:
             missargs.append([checkfile, None, clobber])
 
     if args.verbose:
         t0 = time.time()
         print('Finding missing files...', end='')
-    todo = np.array(pool.map(_missing_files_one, missargs))
+    if args.nproc > 1:
+        with multiprocessing.Pool(args.nproc) as P:
+            todo = np.array(P.map(_missing_files_one, missargs))
+    else:
+        todo = np.array([_missing_files_one(_missargs) for _missargs in missargs])
+        
+    # hack
+    #todo = np.repeat('todo', len(galaxy))
     if args.verbose:
         print('...took {:.3f} min'.format((time.time() - t0)/60))
 
@@ -1082,7 +1115,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
     for filt in ['G', 'R', 'Z']:
         tractor['{}_COG_PARAMS_MTOT'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_M0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
-        tractor['{}_COG_PARAMS_R0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
+        #tractor['{}_COG_PARAMS_R0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_ALPHA1'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_ALPHA2'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_CHI2'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
@@ -1406,14 +1439,13 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
 
                         flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
                         fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
-
-                        if fvar <= 0:
-                            ferr = -1.0
-                        else:
+                        if flux > 0 and fvar > 0:
                             ferr = 2 * np.pi * np.sqrt(fvar)
-            
-                        results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
-                        results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                            results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                            results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                        else:
+                            results[magkey] = np.float32(-1.0)
+                            results[magerrkey] = np.float32(-1.0)
                     else:
                         results[magkey] = np.float32(-1.0)
                         results[magerrkey] = np.float32(-1.0)
@@ -1439,7 +1471,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                     magkeysfilt = [radkey.replace('RADIUS_', '{}_MAG_'.format(filt)) for radkey in radkeys]
                     magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
                     cogmag = np.array(list(tractor[match][magkeysfilt].as_array()[0]))
-                    cogmagerr = np.sqrt((np.array(list(tractor[match][magerrkeysfilt].as_array()[0])))**2 + minerr**2)
+                    cogmagerr = np.array(list(tractor[match][magerrkeysfilt].as_array()[0]))
                     #print(filt, sma_arcsec, cogmag, cogmagerr)
                     #if filt == 'R':
                     #    pdb.set_trace()
@@ -1908,7 +1940,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
 def read_multiband(galaxy, galaxydir, filesuffix='largegalaxy', refband='r', 
                    bands=['g', 'r', 'z'], pixscale=0.262, fill_value=0.0,
-                   verbose=False):
+                   galaxy_id=None, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
     masked array suitable for ellipse-fitting.
 
@@ -1961,7 +1993,8 @@ def read_multiband(galaxy, galaxydir, filesuffix='largegalaxy', refband='r',
     data['refband'] = refband
     data['refpixscale'] = np.float32(pixscale)
     data['failed'] = False # be optimistic!
-
+    data['missingdata'] = False
+    
     # Add ellipse parameters like maxsma, delta_logsma, etc.?
     
     # We ~have~ to read the tractor catalog using fits_table because we will
@@ -2178,6 +2211,7 @@ def remake_cogqa(onegal, fullsample, htmldir=None, clobber=False, verbose=False)
         sns, _ = legacyhalos.misc.plot_style()        
         colors = _sbprofile_colors()
         colors2 = iter(['navy', 'darkgreen', 'tomato'])
+        marker = iter(['s', 'o', '^'])
         
         bands = ['g', 'r', 'z']
         refband = 'r'
@@ -2194,6 +2228,7 @@ def remake_cogqa(onegal, fullsample, htmldir=None, clobber=False, verbose=False)
         for filt in bands:
             col = next(colors) # iterate here in case we're missing a bandpass
             col2 = next(colors2)
+            mark = next(marker)
 
             magkeysfilt = [radkey.replace('RADIUS_', '{}_MAG_'.format(filt.upper())) for radkey in radkeys]
             magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
@@ -2201,7 +2236,9 @@ def remake_cogqa(onegal, fullsample, htmldir=None, clobber=False, verbose=False)
             cogmagerr = np.sqrt((np.array(list(onegal[magerrkeysfilt].as_array()[0])))**2 + minerr**2)
 
             chi2 = onegal['{}_COG_PARAMS_CHI2'.format(filt.upper())]
-            if np.atleast_1d(cogmag)[0] == -1 or chi2 == 1e6: # no measurement, or failed
+            #if np.atleast_1d(cogmag)[0] == -1 or chi2 == 1e6: # no measurement, or failed
+            #    continue
+            if chi2 == 1e6 or chi2 == -1: # no measurement, or failed
                 continue
 
             these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
@@ -2217,12 +2254,15 @@ def remake_cogqa(onegal, fullsample, htmldir=None, clobber=False, verbose=False)
             m0 = onegal['{}_COG_PARAMS_M0'.format(filt.upper())][0]
             alpha1 = onegal['{}_COG_PARAMS_ALPHA1'.format(filt.upper())][0]
             alpha2 = onegal['{}_COG_PARAMS_ALPHA2'.format(filt.upper())][0]
-            print(filt, magtot, m0, alpha1, alpha2)
+            chi2 = onegal['{}_COG_PARAMS_CHI2'.format(filt.upper())][0]
+            #print(filt, magtot, m0, alpha1, alpha2)
 
-            label = r'${}$'.format(filt)
+            label = r'${}={:.3f}$'.format(filt, magtot)
+            #label = r'${}={:.3f}\ (\chi^{{2}}_{{\nu}}={:.2f})$'.format(filt, magtot, chi2)
+            #label = r'${}$'.format(filt)
 
             #ax.fill_between(radius, cog-cogerr, cog+cogerr, label=label, color=col)
-            ax.errorbar(sma, cog, cogerr, fmt='s', color=col, label=label,
+            ax.errorbar(sma, cog, cogerr, fmt=mark, color=col, label=label,
                         markersize=10, capthick=2, capsize=2)
 
             if magtot != -1.0 and m0 != -1.0 and alpha1 != -1.0 and alpha2 != -1.0:
@@ -2231,8 +2271,8 @@ def remake_cogqa(onegal, fullsample, htmldir=None, clobber=False, verbose=False)
                 ax.plot(xplot_arcsec, yplot_mag, color=col2, lw=2, ls='-', alpha=0.5)
 
             #ax.plot(radius, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
-            if sma.max() > maxsma:
-                maxsma = sma.max()
+            if np.max(sma) > maxsma:
+                maxsma = np.max(sma)
 
             #inrange = np.where((sma >= xlim[0]) * (sma <= xlim[1]))[0]
             ##inrange = np.where((radius >= xlim[0]) * (radius <= xlim[1]))[0]
@@ -2253,14 +2293,14 @@ def remake_cogqa(onegal, fullsample, htmldir=None, clobber=False, verbose=False)
             ax.set_xlim(0.0, maxsma*1.3)
             #ax.set_xlim(0.9, (maxsma**0.25)*1.01)
         else:
-            ax.set_xlim(0, np.max(xplot_arsec))
+            ax.set_xlim(0, np.max(xplot_arcsec))
 
         xlim = ax.get_xlim()
         yfaint += 0.5
         ybright += -0.5
 
         ax.set_ylim(yfaint, ybright)
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+        #ax.yaxis.set_major_locator(ticker.MultipleLocator(0.5))
 
         hh, ll = ax.get_legend_handles_labels()
         if len(hh) > 0:

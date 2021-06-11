@@ -500,25 +500,27 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                                           png=sbprofilefile, verbose=verbose, minerr=0.0,
                                           cosmo=cosmo)
 
-            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
-            if not os.path.isfile(cogfile) or clobber:
-                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=False,
-                                 png=cogfile, verbose=verbose, cosmo=cosmo)
+            # here!!
 
-            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
-            thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
-            if not os.path.isfile(multibandfile) or clobber:
-                with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
-                    display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
-                                      igal=igal, barlen=barlen, barlabel=barlabel,
-                                      png=multibandfile, verbose=verbose, scaledfont=scaledfont)
-
-                # Create a thumbnail.
-                cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
-                if os.path.isfile(thumbfile):
-                    os.remove(thumbfile)
-                print('Writing {}'.format(thumbfile))
-                subprocess.call(cmd.split())
+            #cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
+            #if not os.path.isfile(cogfile) or clobber:
+            #    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=False,
+            #                     png=cogfile, verbose=verbose, cosmo=cosmo)
+            #
+            #multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
+            #thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
+            #if not os.path.isfile(multibandfile) or clobber:
+            #    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
+            #        display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+            #                          igal=igal, barlen=barlen, barlabel=barlabel,
+            #                          png=multibandfile, verbose=verbose, scaledfont=scaledfont)
+            #
+            #    # Create a thumbnail.
+            #    cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
+            #    if os.path.isfile(thumbfile):
+            #        os.remove(thumbfile)
+            #    print('Writing {}'.format(thumbfile))
+            #    subprocess.call(cmd.split())
 
     ## maskbits QA
     #maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, data['filesuffix']))
@@ -652,6 +654,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                             galaxy_id=galaxy_id,
                             clobber=clobber, verbose=verbose, galex=galex, cosmo=cosmo,
                             scaledfont=scaledfont, read_multiband=read_multiband)
+            continue # here!
 
         # CCD positions
         #make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,

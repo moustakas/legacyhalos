@@ -84,6 +84,8 @@ def main():
     sgacols = [
         'DIAM', 'DIAM_REF', 'PA', 'BA',
         'RA_MOMENT', 'DEC_MOMENT', 'RADIUS_MOMENT', 
+
+        'G_RADIUS_HALF', 'R_RADIUS_HALF', 'Z_RADIUS_HALF', 
         
         'RADIUS_SB22', 'RADIUS_SB22.5', 'RADIUS_SB23',
         'RADIUS_SB23.5', 'RADIUS_SB24', 'RADIUS_SB24.5',
@@ -160,7 +162,29 @@ def main():
     for col in sgacols:
         sga_leda.remove_column(col)
 
-    # some magnitude errors are negative, God knows why
+    # rename the radius columns
+    oldcols = (
+        'RADIUS_MOMENT',
+        'G_RADIUS_HALF', 'R_RADIUS_HALF', 'Z_RADIUS_HALF', 
+        'RADIUS_SB22', 'RADIUS_SB22.5', 'RADIUS_SB23',
+        'RADIUS_SB23.5', 'RADIUS_SB24', 'RADIUS_SB24.5',
+        'RADIUS_SB25', 'RADIUS_SB25.5', 'RADIUS_SB26',
+        'RADIUS_SB22_ERR', 'RADIUS_SB22.5_ERR', 'RADIUS_SB23_ERR',
+        'RADIUS_SB23.5_ERR', 'RADIUS_SB24_ERR', 'RADIUS_SB24.5_ERR',
+        'RADIUS_SB25_ERR', 'RADIUS_SB25.5_ERR', 'RADIUS_SB26_ERR')
+    newcols = (
+        'SMA_MOMENT',
+        'G_SMA50', 'R_SMA50', 'Z_SMA50', 
+        'SMA_SB22', 'SMA_SB22.5', 'SMA_SB23',
+        'SMA_SB23.5', 'SMA_SB24', 'SMA_SB24.5',
+        'SMA_SB25', 'SMA_SB25.5', 'SMA_SB26',
+        'SMA_SB22_ERR', 'SMA_SB22.5_ERR', 'SMA_SB23_ERR',
+        'SMA_SB23.5_ERR', 'SMA_SB24_ERR', 'SMA_SB24.5_ERR',
+        'SMA_SB25_ERR', 'SMA_SB25.5_ERR', 'SMA_SB26_ERR')
+    for oldcol, newcol in zip(oldcols, newcols):
+        sga.rename_column(oldcol, newcol)
+
+    pdb.set_trace()
 
     # add an identifier
     sga.add_column(Column(name='SGA_GALAXY', dtype='S16', length=len(sga)), index=1)

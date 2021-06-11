@@ -38,6 +38,8 @@ elif [ $stage = "ellipse" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --ellipse --nproc ${ncores} --mpi --verbose # --clobber
 elif [ $stage = "htmlplots" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --htmlplots --nproc ${ncores} --mpi --verbose
+elif [ $stage = "remake-cogqa" ]; then
+    time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --remake-cogqa --nproc ${ncores} --mpi --verbose
 elif [ $stage = "buildSGA" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/SGA/SGA-mpi --build-SGA --nproc ${ncores} --mpi --verbose --clobber
 else
