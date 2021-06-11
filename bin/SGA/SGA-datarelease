@@ -183,9 +183,12 @@ def main():
         'SMA_SB25_ERR', 'SMA_SB25.5_ERR', 'SMA_SB26_ERR')
     for oldcol, newcol in zip(oldcols, newcols):
         sga.rename_column(oldcol, newcol)
-
-    pdb.set_trace()
-
+    r50 = sga['G_SMA50', 'R_SMA50', 'Z_SMA50']
+    sga.remove_columns(['G_SMA50', 'R_SMA50', 'Z_SMA50'])
+    ib = np.where(np.array(sga.colnames) == 'SMA_MOMENT')[0][0]
+    for ii, col in enumerate(r50.colnames):
+        sga.add_column(r50[col], index=ib+1+ii)    
+    
     # add an identifier
     sga.add_column(Column(name='SGA_GALAXY', dtype='S16', length=len(sga)), index=1)
     sga['SGA_GALAXY'] = ['SGA-2020 {}'.format(sga_id) for sga_id in sga['SGA_ID']]

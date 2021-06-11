@@ -30,9 +30,12 @@ def cogfiles_one(gdir):
     cogfiles = glob(os.path.join(gdir, '*', '*-ellipse-cog.png'))
     sbfiles = glob(os.path.join(gdir, '*', '*-ellipse-sbprofile.png'))
     oldfiles = cogfiles + sbfiles
+
+    oldfiles = glob(os.path.join(gdir, '*', '*-html.log'))
     if len(oldfiles) > 0:
         _oldfiles = ' '.join(oldfiles)
-        cmd = 'mv '+_oldfiles+' '+atticdir+'/'
+        cmd = '/bin/mv '+_oldfiles+' '+atticdir+'/'
+        #print(cmd)
         err = subprocess.call(cmd.split())
 
 os.environ['LEGACYHALOS_HTML_DIR'] = '/global/cfs/cdirs/cosmo/data/sga/2020/html'
@@ -67,7 +70,8 @@ galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(ss, html=True)
 #pdb.set_trace()
 
 # remove old cog and sb qa figures
-atticdir = '/global/cscratch1/sd/ioannis/todelete-SGA-html-2020-cog-and-sb'
+#atticdir = '/global/cscratch1/sd/ioannis/todelete-SGA-html-2020-cog-and-sb'
+atticdir = '/global/cscratch1/sd/ioannis/todelete-SGA-html-2020-logfiles2'
 
 nproc = 32
 glist = [['/global/cfs/cdirs/cosmo/data/sga/2020/html/{:03d}'.format(raslice)] for raslice in np.arange(360)]

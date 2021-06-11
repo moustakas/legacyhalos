@@ -477,6 +477,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id=galaxy_id, bands=bands,
                                       refband=refband, pixscale=pixscale,
                                       verbose=verbose)
+    
     if not bool(data) or data['missingdata']:
         return
 
@@ -499,7 +500,6 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                 display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=False,
                                           png=sbprofilefile, verbose=verbose, minerr=0.0,
                                           cosmo=cosmo)
-
             # here!!
 
             #cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))

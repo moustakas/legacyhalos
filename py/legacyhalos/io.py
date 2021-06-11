@@ -124,7 +124,9 @@ def missing_files_one(checkfile, dependsfile, clobber):
             #    else:
             #        return 'todo'
         else:
-            if dependsfile is not None and not os.path.isfile(dependsfile):
+            if dependsfile is not None and os.path.isfile(dependsfile):
+                return 'todo'
+            else:
                 return 'done'
         return 'todo'
     
