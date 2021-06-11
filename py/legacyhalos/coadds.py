@@ -22,7 +22,8 @@ def _mosaic_width(radius_mosaic, pixscale):
 
 def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                      unwise=True, galex=False, cleanup=False, just_coadds=False,
-                     clobber=False, require_grz=True, missing_ok=False):
+                     clobber=False, require_grz=True, missing_ok=False,
+                     write_wise_psf=False):
     """Move (rename) files into the desired output directory and clean up.
 
     """
@@ -138,6 +139,17 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
                 if not ok:
                     return ok
 
+        if write_wise_psf:
+            for band in ['W1', 'W2', 'W3', 'W4', 'FUV', 'NUV']:
+                for imtype, outtype in zip(['copsf'], ['psf']):
+                    ok = _copyfile(
+                        os.path.join(output_dir, 'coadd', 'cus', brickname,
+                                     'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                                     os.path.join(output_dir, '{}-{}-{}-{}.fits.fz'.format(galaxy, stagesuffix, outtype, band)),
+                        clobber=clobber, missing_ok=missing_ok)
+                    if not ok:
+                        return ok
+
     # tractor catalog
     ok = _copyfile(
         os.path.join(output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
@@ -224,7 +236,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if not ok:
                 return ok
 
-        for imtype, suffix in zip(('wise', 'wisemodel'), ('image', 'model')):
+        for imtype, suffix in zip(('wise', 'wisemodel', 'wiseresid'), ('image', 'model', 'resid')):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
@@ -253,7 +265,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
             if not ok:
                 return ok
 
-        for imtype, suffix in zip(('galex', 'galexmodel'), ('image', 'model')):
+        for imtype, suffix in zip(('galex', 'galexmodel', 'galexresid'), ('image', 'model', 'resid')):
             ok = _copyfile(
                 os.path.join(output_dir, 'coadd', 'cus', brickname,
                              'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
@@ -295,7 +307,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   #no_subsky=False,
                   subsky_radii=None, #ubercal_sky=False,
                   just_coadds=False, require_grz=True, no_gaia=False,
-                  no_tycho=False):
+                  no_tycho=False, write_wise_psf=False):
     """Build a custom set of large-galaxy coadds
 
     radius_mosaic in arcsec
@@ -412,7 +424,54 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     print(cmd, flush=True, file=log)
 
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
-    #err=0
+    #err = 0
+
+    # optionally write out the GALEX and WISE PSFs
+    if write_wise_psf:
+        import fitsio
+        import unwise_psf.unwise_psf as unwise_psf
+        from legacypipe.galex import galex_psf
+
+        cat = fitsio.read(os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
+                          columns=['ref_cat', 'ref_id', 'wise_coadd_id', 'brickname'])
+        psffile = os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
+                               'legacysurvey-{}-copsf-r.fits.fz'.format(brickname))
+        if not os.path.isfile(psffile):
+            psffile = os.path.join(survey.output_dir, '{}-{}-psf-r.fits.fz'.format(galaxy, stagesuffix))
+        hdr = fitsio.read_header(psffile)
+        
+        for remcard in ('MJD', 'MJD_TAI', 'PSF_SIG', 'INPIXSC'):
+            hdr.delete(remcard)
+            
+        thisgal = 0 # fix me
+        coadd_id = cat['wise_coadd_id'][thisgal]
+
+        #hdr['PIXSCAL'] = 2.75
+        hdr.delete('PIXSCAL')
+        hdr.add_record(dict(name='PIXSCAL', value=2.75, comment='pixel scale (arcsec)'))
+        hdr.add_record(dict(name='COADD_ID', value=coadd_id, comment='WISE coadd ID'))
+        
+        for band in (1, 2, 3, 4):
+            wband = 'W{}'.format(band)
+            #hdr['BAND'] = wband
+            hdr.delete('BAND')
+            hdr.add_record(dict(name='BAND', value=wband, comment='Band of this coadd/PSF'))
+            psfimg = unwise_psf.get_unwise_psf(band, coadd_id)
+            with survey.write_output('copsf', brick=brickname, band=wband) as out:
+                out.fits.write(psfimg, header=hdr)
+
+        hdr.delete('COADD_ID')
+        #hdr['PIXSCAL'] = 1.50
+        hdr.delete('PIXSCAL')
+        hdr.add_record(dict(name='PIXSCAL', value=1.50, comment='pixel scale (arcsec)'))
+        gband = {'f': 'FUV', 'n': 'NUV'}
+        for band in ('f', 'n'):
+            #hdr['BAND'] = gband[band]
+            hdr.delete('BAND')
+            hdr.add_record(dict(name='BAND', value=gband[band], comment='Band of this coadd/PSF'))
+            psfimg = galex_psf(band, os.getenv('GALEX_DIR'))
+            with survey.write_output('copsf', brick=brickname, band=gband[band]) as out:
+                out.fits.write(psfimg, header=hdr)
 
     if err != 0:
         print('Something went wrong; please check the logfile.')
@@ -420,10 +479,12 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     else:
         # Move (rename) files into the desired output directory and clean up.
         #print('USING CLEANUP INSTEAD OF FORCE IN COADDS.PY')
+        #missing_ok = True
         ok = _rearrange_files(galaxy, survey.output_dir, brickname, stagesuffix,
                               run, unwise=unwise, galex=galex, cleanup=cleanup,
                               just_coadds=just_coadds,
                               clobber=True,
+                              write_wise_psf=write_wise_psf,
                               #clobber=force,
                               require_grz=require_grz, missing_ok=missing_ok)
         return ok, stagesuffix

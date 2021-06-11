@@ -15,6 +15,7 @@ import os, shutil, time, pdb
 import numpy as np
 import astropy
 import astropy.modeling
+from scipy.optimize import curve_fit
 
 from legacyhalos.desiutil import brickname as get_brickname
 import legacyhalos.io
@@ -188,12 +189,14 @@ def mpi_args():
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output.')
     parser.add_argument('--clobber', action='store_true', help='Overwrite existing files.')                                
 
+    parser.add_argument('--remake-cogqa', action='store_true', help='Remake the COG plots.')
     parser.add_argument('--build-SGA', action='store_true', help='Build the SGA reference catalog.')
     args = parser.parse_args()
 
     return args
 
 def missing_files(args, sample, size=1, clobber_overwrite=None):
+    from glob import glob
     import multiprocessing
     from legacyhalos.io import _missing_files_one
 
@@ -205,7 +208,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         galaxy, galaxydir = get_galaxy_galaxydir(sample)
         if args.verbose:
             print('...took {:.3f} sec'.format(time.time() - t0))
-        
+
+    use_glob = False
     if args.coadds:
         suffix = 'coadds'
         filesuffix = '-largegalaxy-coadds.isdone'
@@ -236,6 +240,15 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             #dependson = '-largegalaxy-coadds.isdone'
             #dependson = '-largegalaxy-image-grz.jpg'
             #dependson = None
+
+            # ##########
+            # hack!
+            use_glob = True
+            dependson = '-ellipse.fits'
+            filesuffix = '-ellipse-sbprofile.png'
+            galaxy_id = [str(galid) for galid in sample['SGA_ID']]
+            # ##########
+            
         galaxy, dependsondir, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
         #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
@@ -243,6 +256,13 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         filesuffix = '-largegalaxy-grz-montage.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
         #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+    elif args.remake_cogqa:
+        suffix = 'remake_cogqa'
+        use_glob = True
+        dependson = '-ellipse.fits'
+        filesuffix = '-ellipse-cog.png'
+        galaxy, dependsondir, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
+        galaxy_id = [str(galid) for galid in sample['SGA_ID']]
     else:
         raise ValueError('Need at least one keyword argument.')
 
@@ -265,25 +285,44 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         ngal = len(sample)
     indices = np.arange(ngal)
 
-    pool = multiprocessing.Pool(args.nproc)
     missargs = []
     #if args.htmlplots:
     #    for gal, gdir, ddir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(dependsondir)):
     #        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
     #        missargs.append([checkfile, os.path.join(ddir, '{}{}'.format(gal, dependson)), clobber])
     #else:
-    for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
+    for igal, (gal, gdir) in enumerate(zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir))):
         #missargs.append([gal, gdir, filesuffix, dependson, clobber])
-        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+        if use_glob:
+            checkfile = os.path.join(gdir, '{}-largegalaxy-{}{}'.format(gal, galaxy_id[igal], filesuffix))
+            #checkfile = glob(os.path.join(gdir, '{}-*{}'.format(gal, filesuffix)))
+            #if len(checkfile) > 0:
+            #    checkfile = checkfile[0]
+            #else:
+            #    checkfile = 'null'
+            #print(checkfile)
+        else:
+            checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
         if dependson:
-            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+            if use_glob:
+                missargs.append([checkfile, os.path.join(np.atleast_1d(dependsondir)[igal], '{}-largegalaxy-{}{}'.format(
+                    gal, galaxy_id[igal], dependson)), clobber])
+            else:
+                missargs.append([checkfile, os.path.join(np.atleast_1d(dependsondir)[igal], '{}{}'.format(gal, dependson)), clobber])
         else:
             missargs.append([checkfile, None, clobber])
 
     if args.verbose:
         t0 = time.time()
         print('Finding missing files...', end='')
-    todo = np.array(pool.map(_missing_files_one, missargs))
+    if args.nproc > 1:
+        with multiprocessing.Pool(args.nproc) as P:
+            todo = np.array(P.map(_missing_files_one, missargs))
+    else:
+        todo = np.array([_missing_files_one(_missargs) for _missargs in missargs])
+        
+    # hack
+    #todo = np.repeat('todo', len(galaxy))
     if args.verbose:
         print('...took {:.3f} min'.format((time.time() - t0)/60))
 
@@ -390,7 +429,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     version = SGA_version()
     if final_sample:
-        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', version, 'SGA-ellipse-{}.fits'.format(version))
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), '2020', 'SGA-ellipse-{}.fits'.format(version))
     else:
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', version, 'SGA-parent-{}.fits'.format(version))
 
@@ -612,6 +651,27 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             sample = sample[these]
 
     return sample
+
+def _get_r0():
+    r0 = 10.0 # [arcsec]
+    return r0
+
+def cog_model(radius, mtot, m0, alpha1, alpha2):
+    r0 = _get_r0()
+    return mtot + m0 * np.log1p(alpha1*(radius/10.0)**(-alpha2))
+    #return mtot - m0 * np.expm1(-alpha1*((radius / r0)**(-alpha2)))
+
+def cog_dofit(sma, mag, mag_err, bounds=None):
+    chisq = 1e6
+    try:
+        popt, _ = curve_fit(cog_model, sma, mag, sigma=mag_err,
+                            bounds=bounds, max_nfev=10000)
+    except RuntimeError:
+        popt = None
+    else:
+        chisq = (((cog_model(sma, *popt) - mag) / mag_err)**2).sum()
+        
+    return popt, chisq
 
 class CogModel(astropy.modeling.Fittable1DModel):
     """Class to empirically model the curve of growth.
@@ -1050,11 +1110,12 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
             magerrkey = raderrkey.replace('RADIUS_', '{}_MAG_'.format(filt))
             tractor[magerrkey] = np.zeros(len(tractor), np.float32) - 1
             magerrkeys.append(magerrkey)
+            tractor['{}_RADIUS_HALF'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
             
     for filt in ['G', 'R', 'Z']:
         tractor['{}_COG_PARAMS_MTOT'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_M0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
-        tractor['{}_COG_PARAMS_R0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
+        #tractor['{}_COG_PARAMS_R0'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_ALPHA1'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_ALPHA2'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
         tractor['{}_COG_PARAMS_CHI2'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
@@ -1378,14 +1439,13 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
 
                         flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
                         fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
-
-                        if fvar <= 0:
-                            ferr = -1.0
-                        else:
+                        if flux > 0 and fvar > 0:
                             ferr = 2 * np.pi * np.sqrt(fvar)
-            
-                        results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
-                        results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                            results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                            results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                        else:
+                            results[magkey] = np.float32(-1.0)
+                            results[magerrkey] = np.float32(-1.0)
                     else:
                         results[magkey] = np.float32(-1.0)
                         results[magerrkey] = np.float32(-1.0)
@@ -1395,115 +1455,142 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                     tractor[magerrkey.upper()][match] = results[magerrkey]
 
             # fit the curves of growth
-            dofit = False
+            dofit = True
 
             if dofit:
                 sma_arcsec = np.array(list(tractor[match][radkeys].as_array()[0])) # semi-major axis, arcsec
 
                 chi2fail = 1e6
-                nball = 10
+                nparams = 4
                 minerr = 0.0
 
-                cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
+                #nball = 10
+                #cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
+                
                 for filt in ['G', 'R', 'Z']:
-                    # make the initial guess equal to the outer isophote
-                    mtot = tractor['{}_MAG_SB26'.format(filt)][match].item()
-                    if mtot < 0:
-                        if tractor['FLUX_{}'.format(filt)] > 0:
-                            mtot = 22.5 - 2.5 * np.log10(tractor['FLUX_{}'.format(filt)][match].item())
-                        else:
-                            mtot = 20.0
-
-                    #m0 = 5 # 5 mag fainter?
-                    #m0 = mtot + 22.5 - 2.5 * np.log10(0.1*tractor['FLUX_R'][match].item()) # 10 times fainter?
-                    r0 = ellipse['majoraxis'] * ellipse['refpixscale'] # [arcsec]
-                    cogmodel = CogModel(mtot=mtot, r0=r0)# m0=m0, alpha1=0.1, alpha2=2.0)
-                    #cogmodel = CogModel(mtot=mtot, r0=r0, m0=m0, alpha1=alpha1, alpha2=alpha2)                
-
                     magkeysfilt = [radkey.replace('RADIUS_', '{}_MAG_'.format(filt)) for radkey in radkeys]
                     magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
                     cogmag = np.array(list(tractor[match][magkeysfilt].as_array()[0]))
-                    cogmagerr = np.sqrt((np.array(list(tractor[match][magerrkeysfilt].as_array()[0])))**2 + minerr**2)
+                    cogmagerr = np.array(list(tractor[match][magerrkeysfilt].as_array()[0]))
                     #print(filt, sma_arcsec, cogmag, cogmagerr)
                     #if filt == 'R':
                     #    pdb.set_trace()
 
-                    nparams = len(cogmodel.parameters)
                     these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
                     dof = len(these) - nparams
 
-                    # perturb the parameter values
-                    params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
-                    for ii, pp in enumerate(cogmodel.param_names):
-                        pinfo = getattr(cogmodel, pp)
-                        if pinfo.bounds[0] is not None:
-                            #scale = 0.0
-                            #scale = 0.2 * pinfo.default
-                            if 'alpha' in pp:
-                                scale = 0.1 * pinfo.default
-                            else:
-                                scale = 0.1 * pinfo.default
-                            #    #scale = 0.1 * np.diff(pinfo.bounds)
-                            params[ii, :] += rand.normal(scale=scale, size=nball)
-                            toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
-                            if len(toosmall) > 0:
-                                print('{} too small!'.format(pp), params[ii, toosmall])
-                                params[ii, toosmall] = pinfo.default
-                            toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
-                            if len(toobig) > 0:
-                                print('{} too big!'.format(pp), params[ii, toobig])
-                                params[ii, toobig] = pinfo.default
-                        else:
-                            params[ii, :] += rand.normal(scale=0.2*pinfo.default, size=nball)
+                    if len(these) >= nparams:
+                        bounds = ([cogmag[these][-1]-1.0, 0, 0, 0], np.inf)
+                        #bounds = ([cogmag[these][-1]-0.5, 0.0, 0.0, 0.0], np.inf)
+                        #bounds = (0, np.inf)
+                        popt, minchi2 = cog_dofit(sma_arcsec[these], cogmag[these], cogmagerr[these], bounds=bounds)
+                        if minchi2 < chi2fail and popt is not None:
+                            mtot, m0, alpha1, alpha2 = popt
+                            #print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+                            tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = np.float32(mtot)
+                            tractor['{}_COG_PARAMS_M0'.format(filt)][match] = np.float32(m0)
+                            tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = np.float32(alpha1)
+                            tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = np.float32(alpha2)
+                            tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(minchi2)
 
-                    #if filt == 'R':
-                    #    pdb.set_trace()
-                    with warnings.catch_warnings():
-                        warnings.simplefilter('ignore')
-                        chi2 = np.zeros(nball) + chi2fail
-                        for jj in range(nball):
-                            cogmodel.parameters = params[:, jj]
-                            #these = np.where((sma_arcsec > np.min(sma_arcsec)) * (cogmag > 0) * (cogmagerr > 0))[0]
-                            if len(these) > 4: # can happen in corner cases (e.g., PGC155984)
-                                ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
-                                                    maxiter=100, weights=1/cogmagerr[these])
-                                bestfit = ballfit(sma_arcsec)
+                            # get the half-light radius (along the major axis)
+                            if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
+                                #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
+                                half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
 
-                                chi2[jj] = np.sum( (cogmag[these] - bestfit[these])**2 / cogmagerr[these]**2 ) / dof
+                                #half_light_radius = half_light_sma * np.sqrt(1 - ellipse['eps']) # circularized
+                                tractor['{}_RADIUS_HALF'.format(filt)][match] = half_light_sma
 
-                                if cogfitter.fit_info['param_cov'] is None: # failed
-                                    if False:
-                                        print(jj, cogfitter.fit_info['message'], chi2[jj])
-                                else:
-                                    params[:, jj] = ballfit.parameters # update
-
-                    # if at least one fit succeeded, re-evaluate the model at the chi2
-                    # minimum.
-                    good = chi2 < chi2fail
-                    if np.sum(good) == 0:
-                        pass
-                        #print('{} CoG modeling failed.'.format(filt))
-
-                    mindx = np.argmin(chi2)
-                    minchi2 = chi2[mindx]
-                    cogmodel.parameters = params[:, mindx]
-                    P = cogfitter(cogmodel, sma_arcsec[these], cogmag[these], weights=1/cogmagerr[these], maxiter=100)
-                    #print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
-                    #print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, P.alpha2.value, minchi2)
-                    #print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, minchi2)
-
-                    tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = P.mtot.value
-                    tractor['{}_COG_PARAMS_M0'.format(filt)][match] = P.m0.value
-                    tractor['{}_COG_PARAMS_R0'.format(filt)][match] = P.r0.value
-                    tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = P.alpha1.value
-                    tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = P.alpha2.value
-                    tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(minchi2)
-
-                    #tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = np.float32(P.mtot.value)
-                    #tractor['{}_COG_PARAMS_M0'.format(filt)][match] = np.float32(P.m0.value)
-                    #tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = np.float32(P.alpha1.value)
-                    #tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = np.float32(P.alpha2.value)
-                    #tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(chi2)
+                    ## make the initial guess equal to the outer isophote
+                    #mtot = tractor['{}_MAG_SB26'.format(filt)][match].item()
+                    #if mtot < 0:
+                    #    if tractor['FLUX_{}'.format(filt)] > 0:
+                    #        mtot = 22.5 - 2.5 * np.log10(tractor['FLUX_{}'.format(filt)][match].item())
+                    #    else:
+                    #        mtot = 20.0
+                    #
+                    ##m0 = 5 # 5 mag fainter?
+                    ##m0 = mtot + 22.5 - 2.5 * np.log10(0.1*tractor['FLUX_R'][match].item()) # 10 times fainter?
+                    #r0 = ellipse['majoraxis'] * ellipse['refpixscale'] # [arcsec]
+                    #cogmodel = CogModel(mtot=mtot, r0=r0)# m0=m0, alpha1=0.1, alpha2=2.0)
+                    ##cogmodel = CogModel(mtot=mtot, r0=r0, m0=m0, alpha1=alpha1, alpha2=alpha2)                
+                    #nparams = len(cogmodel.parameters)
+                    #
+                    #these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
+                    #dof = len(these) - nparams
+                    #
+                    ## perturb the parameter values
+                    #params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
+                    #for ii, pp in enumerate(cogmodel.param_names):
+                    #    pinfo = getattr(cogmodel, pp)
+                    #    if pinfo.bounds[0] is not None:
+                    #        #scale = 0.0
+                    #        #scale = 0.2 * pinfo.default
+                    #        if 'alpha' in pp:
+                    #            scale = 0.1 * pinfo.default
+                    #        else:
+                    #            scale = 0.1 * pinfo.default
+                    #        #    #scale = 0.1 * np.diff(pinfo.bounds)
+                    #        params[ii, :] += rand.normal(scale=scale, size=nball)
+                    #        toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
+                    #        if len(toosmall) > 0:
+                    #            print('{} too small!'.format(pp), params[ii, toosmall])
+                    #            params[ii, toosmall] = pinfo.default
+                    #        toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
+                    #        if len(toobig) > 0:
+                    #            print('{} too big!'.format(pp), params[ii, toobig])
+                    #            params[ii, toobig] = pinfo.default
+                    #    else:
+                    #        params[ii, :] += rand.normal(scale=0.2*pinfo.default, size=nball)
+                    #
+                    ##if filt == 'R':
+                    ##    pdb.set_trace()
+                    #with warnings.catch_warnings():
+                    #    warnings.simplefilter('ignore')
+                    #    chi2 = np.zeros(nball) + chi2fail
+                    #    for jj in range(nball):
+                    #        cogmodel.parameters = params[:, jj]
+                    #        #these = np.where((sma_arcsec > np.min(sma_arcsec)) * (cogmag > 0) * (cogmagerr > 0))[0]
+                    #        if len(these) > 4: # can happen in corner cases (e.g., PGC155984)
+                    #            ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
+                    #                                maxiter=100, weights=1/cogmagerr[these])
+                    #            bestfit = ballfit(sma_arcsec)
+                    #
+                    #            chi2[jj] = np.sum( (cogmag[these] - bestfit[these])**2 / cogmagerr[these]**2 ) / dof
+                    #
+                    #            if cogfitter.fit_info['param_cov'] is None: # failed
+                    #                if False:
+                    #                    print(jj, cogfitter.fit_info['message'], chi2[jj])
+                    #            else:
+                    #                params[:, jj] = ballfit.parameters # update
+                    #
+                    ## if at least one fit succeeded, re-evaluate the model at the chi2
+                    ## minimum.
+                    #good = chi2 < chi2fail
+                    #if np.sum(good) == 0:
+                    #    pass
+                    #    #print('{} CoG modeling failed.'.format(filt))
+                    #
+                    #mindx = np.argmin(chi2)
+                    #minchi2 = chi2[mindx]
+                    #cogmodel.parameters = params[:, mindx]
+                    #P = cogfitter(cogmodel, sma_arcsec[these], cogmag[these], weights=1/cogmagerr[these], maxiter=100)
+                    ##print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+                    ##print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, P.alpha2.value, minchi2)
+                    ##print(P.mtot.value, P.m0.value, P.r0.value, P.alpha1.value, minchi2)
+                    #
+                    #tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = P.mtot.value
+                    #tractor['{}_COG_PARAMS_M0'.format(filt)][match] = P.m0.value
+                    #tractor['{}_COG_PARAMS_R0'.format(filt)][match] = P.r0.value
+                    #tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = P.alpha1.value
+                    #tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = P.alpha2.value
+                    #tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(minchi2)
+                    #
+                    ##tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] = np.float32(P.mtot.value)
+                    ##tractor['{}_COG_PARAMS_M0'.format(filt)][match] = np.float32(P.m0.value)
+                    ##tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] = np.float32(P.alpha1.value)
+                    ##tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match] = np.float32(P.alpha2.value)
+                    ##tractor['{}_COG_PARAMS_CHI2'.format(filt)][match] = np.float32(chi2)
 
                     # get the half-light radius!
 
@@ -1513,8 +1600,10 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
 
                 if False:
                     import matplotlib.pyplot as plt
+                    import matplotlib as mpl
+                    mpl.use('Agg')
 
-                    xplot_arcsec = np.linspace(1, 1.5*np.max(sma_arcsec), 50)
+                    xplot_arcsec = np.linspace(0.01, 1.5*np.max(sma_arcsec), 50)
                     sma_arcsec = np.array(list(tractor[match][radkeys].as_array()[0])) # semi-major axis, arcsec                    
 
                     plt.clf()
@@ -1528,36 +1617,25 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
 
                         mtot = tractor['{}_COG_PARAMS_MTOT'.format(filt)][match]
                         m0 = tractor['{}_COG_PARAMS_M0'.format(filt)][match]
-                        r0 = tractor['{}_COG_PARAMS_R0'.format(filt)][match]
                         alpha1 = tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match]
                         alpha2 = tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match]
-                        #yplot_mag = mtot + m0 * (1 - np.exp(-(xplot_arcsec / r0)**(-alpha1)))
-                        yplot_mag = mtot + m0 * (1 - np.exp(-alpha1*(xplot_arcsec / r0)**(-alpha2)))
-                        #yplot_mag = (tractor['{}_COG_PARAMS_MTOT'.format(filt)][match] + tractor['{}_COG_PARAMS_M0'.format(filt)][match] *
-                        #             (1 - np.exp(-tractor['{}_COG_PARAMS_ALPHA1'.format(filt)][match] *
-                        #                         (xplot_arcsec / tractor['{}_COG_PARAMS_R0'.format(filt)][match])**(-tractor['{}_COG_PARAMS_ALPHA2'.format(filt)][match]))))
+                        r50 = tractor['{}_RADIUS_HALF'.format(filt)][match]
+
+                        yplot_mag = cog_model(xplot_arcsec, mtot, m0, alpha1, alpha2)
                         plt.plot(xplot_arcsec, yplot_mag, ls='-', lw=2)
 
-                        try:
-                            r50 = interp1d(yplot_mag, xplot_arcsec)(mtot - 2.5*np.log10(0.5))
-                            print('Half-light radius: ', tractor['SHAPE_R'][match][0], filt.lower(), r50[0])
-                        except:
-                            #pdb.set_trace()
-                            pass
-
-                    #plt.ylim(cogmag.max()+1.0, cogmag.min()-1)
-                    plt.ylim(18.5, 15.5)
+                    plt.ylim(22.5, 15.5)
                     plt.xlabel('Semi-major axis (arcsec)')
                     plt.ylabel('mag')
                     plt.legend()
                     plt.title(galaxy)
                     plt.savefig('debug.png')
 
-                    xplot_arcsec = np.linspace(1, np.max(sma_arcsec), 50)
-                    sma_arcsec = np.array(list(tractor[match][radkeys].as_array()[0])) # semi-major axis, arcsec                    
-
                     # surface brightness thresholds
                     if False:
+                        xplot_arcsec = np.linspace(1, np.max(sma_arcsec), 50)
+                        sma_arcsec = np.array(list(tractor[match][radkeys].as_array()[0])) # semi-major axis, arcsec
+
                         sb = ellipse_sbprofile(ellipse)
 
                         plt.clf()
@@ -1575,6 +1653,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                         plt.ylabel(r'$\mu(r)$')
                         plt.title(galaxy)
                         plt.savefig('debug2.png')
+
 
     # Keep just frozen sources. Can be empty (e.g., if a field contains just a
     # single dropped source, e.g., DR8-2194p447-894).
@@ -1861,7 +1940,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
 def read_multiband(galaxy, galaxydir, filesuffix='largegalaxy', refband='r', 
                    bands=['g', 'r', 'z'], pixscale=0.262, fill_value=0.0,
-                   verbose=False):
+                   galaxy_id=None, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
     masked array suitable for ellipse-fitting.
 
@@ -1914,7 +1993,8 @@ def read_multiband(galaxy, galaxydir, filesuffix='largegalaxy', refband='r',
     data['refband'] = refband
     data['refpixscale'] = np.float32(pixscale)
     data['failed'] = False # be optimistic!
-
+    data['missingdata'] = False
+    
     # Add ellipse parameters like maxsma, delta_logsma, etc.?
     
     # We ~have~ to read the tractor catalog using fits_table because we will
@@ -2112,6 +2192,162 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      logsma=False, delta_sma=delta_sma, maxsma=maxsma,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      verbose=verbose, debug=debug, logfile=logfile)
+
+def remake_cogqa(onegal, fullsample, htmldir=None, clobber=False, verbose=False):
+    """Remake the curve of growth QA figures just for the SGA-2020 data release. The
+    curve of growth measured from the ellipse files are wrong.
+
+    """
+    def qa_curveofgrowth(onegal, plot_sbradii=False, png=None, verbose=True):
+        """Plot up the curve of growth versus semi-major axis."""
+        import matplotlib.pyplot as plt
+        import matplotlib.ticker as ticker
+        
+        import legacyhalos.misc
+        from legacyhalos.qa import _sbprofile_colors
+        #from legacyhalos.ellipse import cog_model
+        #from legacyhalos.ellipse import CogModel
+
+        sns, _ = legacyhalos.misc.plot_style()        
+        colors = _sbprofile_colors()
+        colors2 = iter(['navy', 'darkgreen', 'tomato'])
+        marker = iter(['s', 'o', '^'])
+        
+        bands = ['g', 'r', 'z']
+        refband = 'r'
+
+        radkeys = ['RADIUS_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
+        sma_arcsec = np.array(list(onegal[radkeys].as_array()[0])) # semi-major axis, arcsec
+        xplot_arcsec = np.linspace(0.01, 1.3*np.max(sma_arcsec), 100)
+
+        minerr = 0.0
+        maxsma = 0
+        
+        fig, ax = plt.subplots(figsize=(9, 7))
+        yfaint, ybright = 0, 50
+        for filt in bands:
+            col = next(colors) # iterate here in case we're missing a bandpass
+            col2 = next(colors2)
+            mark = next(marker)
+
+            magkeysfilt = [radkey.replace('RADIUS_', '{}_MAG_'.format(filt.upper())) for radkey in radkeys]
+            magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
+            cogmag = np.array(list(onegal[magkeysfilt].as_array()[0]))
+            cogmagerr = np.sqrt((np.array(list(onegal[magerrkeysfilt].as_array()[0])))**2 + minerr**2)
+
+            chi2 = onegal['{}_COG_PARAMS_CHI2'.format(filt.upper())]
+            #if np.atleast_1d(cogmag)[0] == -1 or chi2 == 1e6: # no measurement, or failed
+            #    continue
+            if chi2 == 1e6 or chi2 == -1: # no measurement, or failed
+                continue
+
+            these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
+            cog = cogmag[these]
+            cogerr = cogmagerr[these]
+            sma = sma_arcsec[these]
+            
+            #radius = sma**0.25
+            #xlim = (0.9, radius.max()*1.01)
+            #xlim = (0.0, sma.max()*1.3)
+
+            magtot = onegal['{}_COG_PARAMS_MTOT'.format(filt.upper())][0]
+            m0 = onegal['{}_COG_PARAMS_M0'.format(filt.upper())][0]
+            alpha1 = onegal['{}_COG_PARAMS_ALPHA1'.format(filt.upper())][0]
+            alpha2 = onegal['{}_COG_PARAMS_ALPHA2'.format(filt.upper())][0]
+            chi2 = onegal['{}_COG_PARAMS_CHI2'.format(filt.upper())][0]
+            #print(filt, magtot, m0, alpha1, alpha2)
+
+            label = r'${}={:.3f}$'.format(filt, magtot)
+            #label = r'${}={:.3f}\ (\chi^{{2}}_{{\nu}}={:.2f})$'.format(filt, magtot, chi2)
+            #label = r'${}$'.format(filt)
+
+            #ax.fill_between(radius, cog-cogerr, cog+cogerr, label=label, color=col)
+            ax.errorbar(sma, cog, cogerr, fmt=mark, color=col, label=label,
+                        markersize=10, capthick=2, capsize=2)
+
+            if magtot != -1.0 and m0 != -1.0 and alpha1 != -1.0 and alpha2 != -1.0:
+                yplot_mag = cog_model(xplot_arcsec, magtot, m0, alpha1, alpha2)
+                #yplot_mag = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
+                ax.plot(xplot_arcsec, yplot_mag, color=col2, lw=2, ls='-', alpha=0.5)
+
+            #ax.plot(radius, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
+            if np.max(sma) > maxsma:
+                maxsma = np.max(sma)
+
+            #inrange = np.where((sma >= xlim[0]) * (sma <= xlim[1]))[0]
+            ##inrange = np.where((radius >= xlim[0]) * (radius <= xlim[1]))[0]
+            #if cog[inrange].max() > yfaint:
+            #    yfaint = cog[inrange].max()
+            #if cog[inrange].min() < ybright:
+            #    ybright = cog[inrange].min()
+
+            if cog.max() > yfaint:
+                yfaint = cog.max()
+            if cog.min() < ybright:
+                ybright = cog.min()
+
+        ax.set_xlabel(r'Semi-major axis (arcsec)')
+        ax.set_ylabel('$m(<r)$ (mag)')
+        
+        if maxsma > 0:
+            ax.set_xlim(0.0, maxsma*1.3)
+            #ax.set_xlim(0.9, (maxsma**0.25)*1.01)
+        else:
+            ax.set_xlim(0, np.max(xplot_arcsec))
+
+        xlim = ax.get_xlim()
+        yfaint += 0.5
+        ybright += -0.5
+
+        ax.set_ylim(yfaint, ybright)
+        #ax.yaxis.set_major_locator(ticker.MultipleLocator(0.5))
+
+        hh, ll = ax.get_legend_handles_labels()
+        if len(hh) > 0:
+            leg1 = ax.legend(loc='lower right', fontsize=14)#, ncol=3)
+
+        # Plot some threshold radii for the large-galaxy project--
+        if plot_sbradii:
+            lline, llabel = [], []
+            if ellipsefit['radius_sb24'] > 0: #< xlim[1]:
+                ll = ax.axvline(x=ellipsefit['radius_sb24'], lw=2, color='k', ls='-.')
+                lline.append(ll), llabel.append('R(24)')
+            if ellipsefit['radius_sb25'] > 0: #< xlim[1]:
+                ll = ax.axvline(x=ellipsefit['radius_sb25'], lw=2, color='k', ls='--')
+                lline.append(ll), llabel.append('R(25)')
+            if ellipsefit['radius_sb26'] > 0: #< xlim[1]:            
+                ll = ax.axvline(x=ellipsefit['radius_sb26'], lw=2, color='k', ls='-')
+                lline.append(ll), llabel.append('R(26)')
+            if len(lline) > 0:
+                leg2 = ax.legend(lline, llabel, loc='lower left', fontsize=14, frameon=False)
+                ax.add_artist(leg1)
+
+        fig.subplots_adjust(left=0.15, bottom=0.15, top=0.95, right=0.95)
+
+        if png:
+            #if verbose:
+            print('Writing {}'.format(png))
+            fig.savefig(png)
+            plt.close(fig)
+        else:
+            plt.show()
+
+    from astropy.table import Table
+    from legacyhalos.io import read_ellipsefit
+    galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(onegal, htmldir=htmldir, html=True)
+    if not os.path.isdir(htmlgalaxydir):
+        os.makedirs(htmlgalaxydir, exist_ok=True)
+    
+    for thisgal in Table(fullsample):
+        thisgal = Table(thisgal)
+        
+        galid = str(thisgal['SGA_ID'][0])
+        cogfile = os.path.join(htmlgalaxydir, '{}-largegalaxy-{}-ellipse-cog.png'.format(galaxy, galid))
+        if not os.path.isfile(cogfile) or clobber:
+            ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix='largegalaxy',
+                                         galaxy_id=galid, verbose=verbose)
+            if bool(ellipsefit) and ellipsefit['success'] and np.atleast_1d(ellipsefit['r_sma'])[0] != -1:
+                qa_curveofgrowth(thisgal, png=cogfile, verbose=verbose)
 
 def _get_mags(cat, rad='10', kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
     res = []

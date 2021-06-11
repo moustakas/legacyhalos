@@ -7,9 +7,11 @@ Code to do ellipse fitting on the residual coadds.
 import os, pdb
 import time, warnings
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
+from scipy.optimize import curve_fit
 import astropy.modeling
+
 from photutils.isophote import (EllipseGeometry, Ellipse, EllipseSample,
                                 Isophote, IsophoteList)
 from photutils.isophote.sample import CentralEllipseSample
@@ -18,6 +20,23 @@ from photutils.isophote.fitter import CentralEllipseFitter
 import legacyhalos.io
 
 REF_SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
+
+def cog_model(radius, mtot, m0, alpha1, alpha2):
+    r0 = _get_r0()
+    #return mtot - m0 * np.expm1(-alpha1*((radius / r0)**(-alpha2)))
+    return mtot + m0 * np.log1p(alpha1*(radius/10.0)**(-alpha2))
+
+def cog_dofit(sma, mag, mag_err, bounds=None):
+    try:
+        popt, _ = curve_fit(cog_model, sma, mag, sigma=mag_err,
+                            bounds=bounds, max_nfev=10000)
+    except RuntimeError:
+        popt = None
+        chisq = 1e6
+    else:
+        chisq = (((cog_model(sma, *popt) - mag) / mag_err) ** 2).sum()
+        
+    return popt, chisq
 
 class CogModel(astropy.modeling.Fittable1DModel):
     """Class to empirically model the curve of growth.
@@ -42,7 +61,7 @@ class CogModel(astropy.modeling.Fittable1DModel):
         """Evaluate the COG model."""
         model = mtot + m0 * (1 - np.exp(-alpha1*(radius/self.r0)**(-alpha2)))
         return model
-        
+   
 def _apphot_one(args):
     """Wrapper function for the multiprocessing."""
     return apphot_one(*args)
@@ -217,6 +236,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             results['{}_cog_params_alpha1'.format(filt)] = np.float32(-1)
             results['{}_cog_params_alpha2'.format(filt)] = np.float32(-1)
             results['{}_cog_params_chi2'.format(filt)] = np.float32(1e6)
+            results['{}_cog_r50'.format(filt)] = np.float32(-1)
             for sbcut in sbthresh:
                 results['{}_mag_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
                 results['{}_mag_sb{:0g}_err'.format(filt, sbcut)] = np.float32(-1)
@@ -232,83 +252,110 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         results['{}_cog_magerr'.format(filt)] = np.float32(cogmagerr)
 
         #print('Modeling the curve of growth.')
-        def get_chi2(bestfit):
-            sbmodel = bestfit(self.radius, self.wave)
-            chi2 = np.sum( (self.sb - sbmodel)**2 / self.sberr**2 ) / dof
+        n_params = 4
+        popt = chisq = popt_simple = chisq_simple = None
+        if len(sma_arcsec) >= n_params:
+            bounds = ([cogmag[-1]-1.0, 0, 0, 0], np.inf)
+            #bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
+            #bounds = (0, np.inf)
+            (mtot, m0, alpha1, alpha2), minchi2 = cog_dofit(sma_arcsec, cogmag, cogmagerr, bounds=bounds)
+            if minchi2 < 1e6:
+                print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+                results['{}_cog_params_mtot'.format(filt)] = np.float32(mtot)
+                results['{}_cog_params_m0'.format(filt)] = np.float32(m0)
+                results['{}_cog_params_alpha1'.format(filt)] = np.float32(alpha1)
+                results['{}_cog_params_alpha2'.format(filt)] = np.float32(alpha2)
+                results['{}_cog_params_chi2'.format(filt)] = np.float32(minchi2)
+
+                if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
+                    #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
+                    half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
+                    #half_light_radius = half_light_sma * np.sqrt(1 - ellipse['eps']) # circularized
+                    results['{}_cog_r50'.format(filt)] = half_light_sma
         
-        cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
-        cogmodel = CogModel()
-
-        nball = 10
-
-        # perturb the parameter values
-        nparams = len(cogmodel.parameters)
-        dof = len(cogmag) - nparams
-
-        params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
-        for ii, pp in enumerate(cogmodel.param_names):
-            pinfo = getattr(cogmodel, pp)
-            if pinfo.bounds[0] is not None:
-                scale = 0.2 * pinfo.default
-                params[ii, :] += rand.normal(scale=scale, size=nball)
-                toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
-                if len(toosmall) > 0:
-                    params[ii, toosmall] = pinfo.default
-                toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
-                if len(toobig) > 0:
-                    params[ii, toobig] = pinfo.default
-            else:
-                params[ii, :] += rand.normal(scale=0.2 * pinfo.default, size=nball)
-                
-        # perform the fit nball times
-        chi2fail = 1e6
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            chi2 = np.zeros(nball) + chi2fail
-            for jj in range(nball):
-                cogmodel.parameters = params[:, jj]
-                # Fit up until the curve of growth turns over, but no less than
-                # the second moment of the light distribution! Pretty fragile..
-                these = np.where(np.diff(cogmag) < 0)[0]
-                if len(these) > 5: # this is bad if we don't have at least 5 points!
-                    if sma_arcsec[these[0]] < (refellipsefit['majoraxis'] * pixscale * pixscalefactor):
-                        these = np.where(sma_arcsec < refellipsefit['majoraxis'] * pixscale * pixscalefactor)[0]
-                    if len(these) > 5: # can happen in corner cases (e.g., PGC155984)
-                        ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
-                                            maxiter=100, weights=1/cogmagerr[these])
-                        bestfit = ballfit(sma_arcsec)
-
-                        chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
-                        if cogfitter.fit_info['param_cov'] is None: # failed
-                            if False:
-                                print(jj, cogfitter.fit_info['message'], chi2[jj])
-                        else:
-                            params[:, jj] = ballfit.parameters # update
-
-        # if at least one fit succeeded, re-evaluate the model at the chi2
-        # minimum.
-        good = chi2 < chi2fail
-        if np.sum(good) == 0:
-            print('{} CoG modeling failed.'.format(filt))
-            #result.update({'fit_message': cogfitter.fit_info['message']})
-            #return result
-        mindx = np.argmin(chi2)
-        minchi2 = chi2[mindx]
-        cogmodel.parameters = params[:, mindx]
-        P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr, maxiter=100)
-        print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+        ##################################################
+        # begin old COG modeling code
         
-        #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)
-        #results['{}_cog_params'.format(filt)] = {'mtot': np.float32(P.mtot.value),
-        #                                         'm0': np.float32(P.m0.value),
-        #                                         'alpha1': np.float32(P.alpha1.value),
-        #                                         'alpha2': np.float32(P.alpha2.value),
-        #                                         'chi2': np.float32(minchi2)}
-        results['{}_cog_params_mtot'.format(filt)] = np.float32(P.mtot.value)
-        results['{}_cog_params_m0'.format(filt)] = np.float32(P.m0.value)
-        results['{}_cog_params_alpha1'.format(filt)] = np.float32(P.alpha1.value)
-        results['{}_cog_params_alpha2'.format(filt)] = np.float32(P.alpha2.value)
-        results['{}_cog_params_chi2'.format(filt)] = np.float32(minchi2)
+        #def get_chi2(bestfit):
+        #    sbmodel = bestfit(self.radius, self.wave)
+        #    chi2 = np.sum( (self.sb - sbmodel)**2 / self.sberr**2 ) / dof
+        #
+        #cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
+        #cogmodel = CogModel()
+        #
+        #nball = 10
+        #
+        ## perturb the parameter values
+        #nparams = len(cogmodel.parameters)
+        #dof = len(cogmag) - nparams
+        #
+        #params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
+        #for ii, pp in enumerate(cogmodel.param_names):
+        #    pinfo = getattr(cogmodel, pp)
+        #    if pinfo.bounds[0] is not None:
+        #        scale = 0.2 * pinfo.default
+        #        params[ii, :] += rand.normal(scale=scale, size=nball)
+        #        toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
+        #        if len(toosmall) > 0:
+        #            params[ii, toosmall] = pinfo.default
+        #        toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
+        #        if len(toobig) > 0:
+        #            params[ii, toobig] = pinfo.default
+        #    else:
+        #        params[ii, :] += rand.normal(scale=0.2 * pinfo.default, size=nball)
+        #        
+        ## perform the fit nball times
+        #chi2fail = 1e6
+        #with warnings.catch_warnings():
+        #    warnings.simplefilter('ignore')
+        #    chi2 = np.zeros(nball) + chi2fail
+        #    for jj in range(nball):
+        #        cogmodel.parameters = params[:, jj]
+        #        # Fit up until the curve of growth turns over, but no less than
+        #        # the second moment of the light distribution! Pretty fragile..
+        #        these = np.where(np.diff(cogmag) < 0)[0]
+        #        if len(these) > 5: # this is bad if we don't have at least 5 points!
+        #            if sma_arcsec[these[0]] < (refellipsefit['majoraxis'] * pixscale * pixscalefactor):
+        #                these = np.where(sma_arcsec < refellipsefit['majoraxis'] * pixscale * pixscalefactor)[0]
+        #            if len(these) > 5: # can happen in corner cases (e.g., PGC155984)
+        #                ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
+        #                                    maxiter=100, weights=1/cogmagerr[these])
+        #                bestfit = ballfit(sma_arcsec)
+        #
+        #                chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
+        #                if cogfitter.fit_info['param_cov'] is None: # failed
+        #                    if False:
+        #                        print(jj, cogfitter.fit_info['message'], chi2[jj])
+        #                else:
+        #                    params[:, jj] = ballfit.parameters # update
+        #
+        ## if at least one fit succeeded, re-evaluate the model at the chi2
+        ## minimum.
+        #good = chi2 < chi2fail
+        #if np.sum(good) == 0:
+        #    print('{} CoG modeling failed.'.format(filt))
+        #    #result.update({'fit_message': cogfitter.fit_info['message']})
+        #    #return result
+        #mindx = np.argmin(chi2)
+        #minchi2 = chi2[mindx]
+        #cogmodel.parameters = params[:, mindx]
+        #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr, maxiter=100)
+        #print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+        #
+        ##P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)
+        ##results['{}_cog_params'.format(filt)] = {'mtot': np.float32(P.mtot.value),
+        ##                                         'm0': np.float32(P.m0.value),
+        ##                                         'alpha1': np.float32(P.alpha1.value),
+        ##                                         'alpha2': np.float32(P.alpha2.value),
+        ##                                         'chi2': np.float32(minchi2)}
+        #results['{}_cog_params_mtot'.format(filt)] = np.float32(P.mtot.value)
+        #results['{}_cog_params_m0'.format(filt)] = np.float32(P.m0.value)
+        #results['{}_cog_params_alpha1'.format(filt)] = np.float32(P.alpha1.value)
+        #results['{}_cog_params_alpha2'.format(filt)] = np.float32(P.alpha2.value)
+        #results['{}_cog_params_chi2'.format(filt)] = np.float32(minchi2)
+        #
+        # end old COG modeling code
+        ##################################################
 
         #print('Measuring integrated magnitudes to different radii.')
         sb = ellipse_sbprofile(refellipsefit, linear=True)
@@ -337,12 +384,13 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
                     flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
                     fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
-                    if fvar <= 0:
-                        ferr = -1.0
-                    else:
+                    if flux > 0 and fvar > 0:
                         ferr = 2 * np.pi * np.sqrt(fvar)
-                    results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
-                    results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                        results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                        results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                    else:
+                        results[magkey] = np.float32(-1.0)
+                        results[magerrkey] = np.float32(-1.0)
                 except:
                     results[magkey] = np.float32(-1.0)
                     results[magerrkey] = np.float32(-1.0)
@@ -913,6 +961,12 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
 
     """
     if bool(data):
+        if data['missingdata']:
+            if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, data['filesuffix']))):
+                return 1
+            else:
+                return 0
+
         if data['failed']: # all galaxies dropped
             return 1
 
@@ -936,7 +990,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
         # An object can get here if it's a "known" failure, e.g., if the object
         # falls off the edge of the footprint (and therefore it will never have
         # coadds).
-        if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, filesuffix))):
+        if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, 'custom'))):
             return 1
         else:
             return 0

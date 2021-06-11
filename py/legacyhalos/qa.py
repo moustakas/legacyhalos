@@ -259,7 +259,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     """Plot up the curve of growth versus semi-major axis.
 
     """
-    from legacyhalos.ellipse import CogModel
+    from legacyhalos.ellipse import cog_model
+    #from legacyhalos.ellipse import CogModel
 
     if ellipsefit['success'] is False or np.atleast_1d(ellipsefit['r_sma'])[0] == -1:
         return
@@ -322,7 +323,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             ax.fill_between(_sma, _cog-_cogerr, _cog+_cogerr,
                             facecolor=col, alpha=0.5)#, edgecolor='k', lw=1)
 
-        cogmodel = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
+        cogmodel = cog_model(sma, magtot, m0, alpha1, alpha2)
+        #cogmodel = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
         ax.plot(radius, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
         if sma.max() > maxsma:
             maxsma = sma.max()
@@ -341,7 +343,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
     #ax.set_xlabel(r'Semi-major axis (arcsec)')
     #ax.set_ylabel('Cumulative brightness (AB mag)')
-    ax.set_xlabel(r'(Semi-major axis $r$)$^{1/4}$ (arcsec)')
+    ax.set_xlabel(r'(Semi-major axis $r$ / arcsec)$^{1/4}$')
     ax.set_ylabel('$m(<r)$ (mag)')
 
     if maxsma > 0:
@@ -1372,9 +1374,9 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                              edgecolor='k', lw=2)
 
         if plot_radius:
-            ax2.set_xlabel(r'(Galactocentric radius)$^{1/4}$ (arcsec)')
+            ax2.set_xlabel(r'(Galactocentric radius / arcsec)$^{1/4}$')
         else:
-            ax2.set_xlabel(r'(Semi-major axis $r$)$^{1/4}$ (arcsec)')
+            ax2.set_xlabel(r'(Semi-major axis $r$ / arcsec)$^{1/4}$')
         #ax2.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
 
         hh, ll = ax2.get_legend_handles_labels()

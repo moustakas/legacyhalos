@@ -29,8 +29,9 @@ The key science goals are to:
 5. And much more...!
 
 We gratefully acknowledge funding support for this work from the National
-Science Foundation under grant AST-1616414 and the U.S. Department of Energy,
-Office of Science, Office of High Energy Physics under Award Number DE-SC002008.
+Science Foundation under grants AST-1616414 and AST-1909374, and the
+U.S. Department of Energy, Office of Science, Office of High Energy Physics
+under Award Number DE-SC0020086.
 
 .. _`DESI Legacy Imaging Surveys`: http://legacysurvey.org
 

@@ -123,6 +123,11 @@ def missing_files_one(checkfile, dependsfile, clobber):
             #        return 'todo'
             #    else:
             #        return 'todo'
+        else:
+            if dependsfile is not None and os.path.isfile(dependsfile):
+                return 'todo'
+            else:
+                return 'done'
         return 'todo'
     
 def get_run(onegal, racolumn='RA', deccolumn='DEC'):
@@ -222,6 +227,7 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         cols.append(('{}_cog_params_alpha1'.format(band), ''))
         cols.append(('{}_cog_params_alpha2'.format(band), ''))
         cols.append(('{}_cog_params_chi2'.format(band), ''))
+        cols.append(('{}_cog_r50'.format(band), u.arcsec))
 
     for thresh in sbthresh:
         cols.append(('radius_sb{:0g}'.format(thresh), u.arcsec))
