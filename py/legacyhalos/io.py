@@ -124,11 +124,14 @@ def missing_files_one(checkfile, dependsfile, clobber):
             #    else:
             #        return 'todo'
         else:
-            if dependsfile is not None and os.path.isfile(dependsfile):
-                return 'todo'
+            if dependsfile is not None:
+                if os.path.isfile(dependsfile):
+                    return 'todo'
+                else:
+                    print('Missing depends file {}'.format(dependsfile))
+                    return 'fail'
             else:
-                return 'done'
-        return 'todo'
+                return 'todo'
     
 def get_run(onegal, racolumn='RA', deccolumn='DEC'):
     """Get the run based on a simple declination cut."""

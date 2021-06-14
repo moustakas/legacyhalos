@@ -43,7 +43,7 @@ def main():
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
 
-        if args.remake_cogqa:
+        if args.remake_cogqa or args.htmlplots:
             final_sample = True
         else:
             final_sample = False

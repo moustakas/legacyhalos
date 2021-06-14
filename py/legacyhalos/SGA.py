@@ -238,16 +238,17 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             #filesuffix = '-largegalaxy-maskbits.png'
             #dependson = '-largegalaxy-ellipse.isdone'
             #dependson = '-largegalaxy-coadds.isdone'
-            #dependson = '-largegalaxy-image-grz.jpg'
+            dependson = '-largegalaxy-image-grz.jpg'
+            #LeoA-largegalaxy-resid-grz.jpg
             #dependson = None
 
-            # ##########
-            # hack!
-            use_glob = True
-            dependson = '-ellipse.fits'
-            filesuffix = '-ellipse-sbprofile.png'
-            galaxy_id = [str(galid) for galid in sample['SGA_ID']]
-            # ##########
+            ## ##########
+            ## hack!
+            #use_glob = True
+            #dependson = '-ellipse.fits'
+            #filesuffix = '-ellipse-sbprofile.png'
+            #galaxy_id = [str(galid) for galid in sample['SGA_ID']]
+            ## ##########
             
         galaxy, dependsondir, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
         #galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
