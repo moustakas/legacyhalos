@@ -500,11 +500,11 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                 display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=False,
                                           png=sbprofilefile, verbose=verbose, minerr=0.0,
                                           cosmo=cosmo)
-            # here!!
-            #cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
-            #if not os.path.isfile(cogfile) or clobber:
-            #    qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=False,
-            #                     png=cogfile, verbose=verbose, cosmo=cosmo)
+                
+            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(cogfile) or clobber:
+                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=False,
+                                 png=cogfile, verbose=verbose, cosmo=cosmo)
             
             multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
             thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))

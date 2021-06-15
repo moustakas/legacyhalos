@@ -21,18 +21,22 @@ import legacyhalos.io
 
 REF_SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
 
+def _get_r0():
+    r0 = 10.0 # [arcsec]
+    return r0
+
 def cog_model(radius, mtot, m0, alpha1, alpha2):
     r0 = _get_r0()
     #return mtot - m0 * np.expm1(-alpha1*((radius / r0)**(-alpha2)))
     return mtot + m0 * np.log1p(alpha1*(radius/10.0)**(-alpha2))
 
 def cog_dofit(sma, mag, mag_err, bounds=None):
+    chisq = 1e6
     try:
         popt, _ = curve_fit(cog_model, sma, mag, sigma=mag_err,
                             bounds=bounds, max_nfev=10000)
     except RuntimeError:
         popt = None
-        chisq = 1e6
     else:
         chisq = (((cog_model(sma, *popt) - mag) / mag_err) ** 2).sum()
         
@@ -123,8 +127,8 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     for sbcut in sbthresh:
         if sbprofile['mu_r'].max() < sbcut or sbprofile['mu_r'].min() > sbcut:
             print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
-            results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
-            results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
+            results['sma_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
+            results['sma_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
             continue
 
         rr = (sbprofile['sma_r'] * pixscale)**0.25 # [arcsec]
@@ -135,8 +139,8 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
             keep = np.where((sb > -2) * (sb < 2))[0]
             if len(keep) < 5:
                 print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
-                results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
-                results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
+                results['sma_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
+                results['sma_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
                 continue
 
         # Monte Carlo to get the radius
@@ -157,9 +161,12 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         #except:
         #    print('Warning: extrapolating r({:0g})!'.format(sbcut))
         #    rcut = interp1d(sbprofile['mu_r'], sbprofile['sma_r'] * pixscale, fill_value='extrapolate')(sbcut) # [arcsec]
-        results['radius_sb{:0g}'.format(sbcut)] = np.float32(meanrcut)
-        results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(sigrcut)
+        results['sma_sb{:0g}'.format(sbcut)] = np.float32(meanrcut)
+        results['sma_sb{:0g}_err'.format(sbcut)] = np.float32(sigrcut)
 
+    chi2fail = 1e6
+    nparams = 4
+        
     for filt in bands:
         img = ma.getdata(data['{}_masked'.format(filt)][igal]) # [nanomaggies/arcsec2]
         mask = ma.getmask(data['{}_masked'.format(filt)][igal])
@@ -252,14 +259,15 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         results['{}_cog_magerr'.format(filt)] = np.float32(cogmagerr)
 
         #print('Modeling the curve of growth.')
-        n_params = 4
-        popt = chisq = popt_simple = chisq_simple = None
-        if len(sma_arcsec) >= n_params:
-            bounds = ([cogmag[-1]-1.0, 0, 0, 0], np.inf)
+        these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
+        
+        if len(these) >= nparams:
+            bounds = ([cogmag[these][-1]-1.0, 0, 0, 0], np.inf)
             #bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
             #bounds = (0, np.inf)
-            (mtot, m0, alpha1, alpha2), minchi2 = cog_dofit(sma_arcsec, cogmag, cogmagerr, bounds=bounds)
-            if minchi2 < 1e6:
+            popt, minchi2 = cog_dofit(sma_arcsec[these], cogmag[these], cogmagerr[these], bounds=bounds)
+            if minchi2 < chi2fail and popt is not None:
+                mtot, m0, alpha1, alpha2 = popt
                 print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
                 results['{}_cog_params_mtot'.format(filt)] = np.float32(mtot)
                 results['{}_cog_params_m0'.format(filt)] = np.float32(m0)
@@ -267,11 +275,12 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 results['{}_cog_params_alpha2'.format(filt)] = np.float32(alpha2)
                 results['{}_cog_params_chi2'.format(filt)] = np.float32(minchi2)
 
+                # get the half-light radius (along the major axis)
                 if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
                     #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
                     half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
                     #half_light_radius = half_light_sma * np.sqrt(1 - ellipse['eps']) # circularized
-                    results['{}_cog_r50'.format(filt)] = half_light_sma
+                    results['{}_cog_sma50'.format(filt)] = half_light_sma
         
         ##################################################
         # begin old COG modeling code
@@ -359,16 +368,16 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
         #print('Measuring integrated magnitudes to different radii.')
         sb = ellipse_sbprofile(refellipsefit, linear=True)
-        radkeys = ['radius_sb{:0g}'.format(sbcut) for sbcut in sbthresh]
+        radkeys = ['sma_sb{:0g}'.format(sbcut) for sbcut in sbthresh]
         for radkey in radkeys:
-            magkey = radkey.replace('radius_', '{}_mag_'.format(filt))
+            magkey = radkey.replace('sma_', '{}_mag_'.format(filt))
             magerrkey = '{}_err'.format(magkey)
             
             smamax = results[radkey] # semi-major axis
             if smamax > 0 and smamax < np.max(sma_arcsec):
                 rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
 
-                rr = sb['radius_{}'.format(filt)]    # [circularized radius, arcsec]
+                rr = sb['sma_{}'.format(filt)]    # [circularized radius, arcsec]
                 yy = sb['mu_{}'.format(filt)]        # [surface brightness, nanomaggies/arcsec**2]
                 yyerr = sb['muerr_{}'.format(filt)] # [surface brightness, nanomaggies/arcsec**2]
                 try:

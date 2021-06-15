@@ -377,16 +377,16 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     # Plot some threshold radii for the large-galaxy project--
     if plot_sbradii:
         lline, llabel = [], []
-        if ellipsefit['radius_sb24'] > 0: #< xlim[1]:
-            ll = ax.axvline(x=ellipsefit['radius_sb24'], lw=2, color='k', ls='-.')
+        if ellipsefit['sma_sb24'] > 0: #< xlim[1]:
+            ll = ax.axvline(x=ellipsefit['sma_sb24'], lw=2, color='k', ls='-.')
             lline.append(ll), llabel.append('R(24)')
             
-        if ellipsefit['radius_sb25'] > 0: #< xlim[1]:
-            ll = ax.axvline(x=ellipsefit['radius_sb25'], lw=2, color='k', ls='--')
+        if ellipsefit['sma_sb25'] > 0: #< xlim[1]:
+            ll = ax.axvline(x=ellipsefit['sma_sb25'], lw=2, color='k', ls='--')
             lline.append(ll), llabel.append('R(25)')
             
-        if ellipsefit['radius_sb26'] > 0: #< xlim[1]:            
-            ll = ax.axvline(x=ellipsefit['radius_sb26'], lw=2, color='k', ls='-')
+        if ellipsefit['sma_sb26'] > 0: #< xlim[1]:            
+            ll = ax.axvline(x=ellipsefit['sma_sb26'], lw=2, color='k', ls='-')
             lline.append(ll), llabel.append('R(26)')
 
         if False:
@@ -860,10 +860,10 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                                 ellipsefit['pa'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
                                 ellipsefit['refpixscale'], color=cb_colors['green']) # '#ffaa33')
                             
-        if ellipsefit['radius_sb26'] > 0:
-            sbr = ellipsefit['radius_sb26']
-        elif ellipsefit['radius_sb25'] > 0:
-            sbr = ellipsefit['radius_sb25'] * 1.2
+        if ellipsefit['sma_sb26'] > 0:
+            sbr = ellipsefit['sma_sb26']
+        elif ellipsefit['sma_sb25'] > 0:
+            sbr = ellipsefit['sma_sb25'] * 1.2
         else:
             sbr = -1
         if sbr > 0:

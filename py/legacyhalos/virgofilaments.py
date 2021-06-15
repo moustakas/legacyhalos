@@ -240,9 +240,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
         if first > last:
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
-    
-    #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups.fits'.format(version))
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups_testsample2.fits'.format(version))
+
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups.fits'.format(version))    
     if not os.path.isfile(samplefile):
         raise IOError('Sample file not found! {}'.format(samplefile))
     
@@ -252,11 +251,15 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
 
     # Select primary group members with an SGA match--
     if not fullsample:
-        cols = ['GROUP_DIAMETER', 'GROUP_PRIMARY', 'GROUP_MULT']
+        cols = ['GROUP_DIAMETER', 'GROUP_PRIMARY', 'GROUP_MULT', 'VF_ID']
         sample = fitsio.read(samplefile, columns=cols, upper=True)
         rows = np.arange(len(sample))
-    
+
+        testvfid = fitsio.read(os.path.join(legacyhalos.io.legacyhalos_dir(),
+                                            'vf_north_v1_main_groups_testsample2.fits'),
+                                            columns='VF_ID')
         samplecut = np.where(
+            np.isin(sample['VF_ID'], testvfid) *
             sample['GROUP_PRIMARY'] *
             (sample['GROUP_DIAMETER'] > d25min) *
             (sample['GROUP_DIAMETER'] < d25max)
@@ -356,26 +359,36 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     else:
         psfsrcs = None
 
-    def tractor2mge(indx, factor=1.0):
+    def tractor2mge(indx, factor=1.0, minsize=5.0):
     #def tractor2mge(indx, majoraxis=None):
         # Convert a Tractor catalog entry to an MGE object.
         class MGEgalaxy(object):
             pass
 
-        ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
-        ba = (1 - ee) / (1 + ee)
-        pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
-        pa = pa % 180
+        if tractor.shape_r[indx] < minsize: # includes TYPE=PSF
+            pa = tractor.pa_init[indx]
+            ba = tractor.ba_init[indx]
+            r50 = tractor.diam_init[indx] * 60 / 2 # [radius, arcsec]
+            xpos = data[refband].shape[0] // 2
+            ypos = data[refband].shape[0] // 2
+        else:
+            ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
+            ba = (1 - ee) / (1 + ee)
+            pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
+            pa = pa % 180
+            r50 = tractor.shape_r[indx]
+            xpos = tractor.by[indx]
+            ypos = tractor.bx[indx]
 
         mgegalaxy = MGEgalaxy()
-        mgegalaxy.xmed = tractor.by[indx]
-        mgegalaxy.ymed = tractor.bx[indx]
-        mgegalaxy.xpeak = tractor.by[indx]
-        mgegalaxy.ypeak = tractor.bx[indx]
+        mgegalaxy.xmed = xpos
+        mgegalaxy.ymed = ypos
+        mgegalaxy.xpeak = xpos
+        mgegalaxy.ypeak = ypos
         mgegalaxy.eps = 1-ba
         mgegalaxy.pa = pa
         mgegalaxy.theta = (270 - pa) % 180
-        mgegalaxy.majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+        mgegalaxy.majoraxis = factor * r50 / filt2pixscale[refband] # [pixels]
 
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                mgegalaxy.majoraxis,
@@ -589,15 +602,17 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
                 missing_data = True
                 break
     
+    data['failed'] = False # be optimistic!
+    data['missingdata'] = False
+    data['filesuffix'] = filesuffix
     if missing_data:
+        data['missingdata'] = True
         return data, None
 
     # Pack some preliminary info into the output dictionary.
-    data['filesuffix'] = filesuffix
     data['bands'] = bands
     data['refband'] = refband
     data['refpixscale'] = np.float32(pixscale)
-    data['failed'] = False # be optimistic!
 
     # We ~have~ to read the tractor catalog using fits_table because we will
     # turn these catalog entries into Tractor sources later.
@@ -664,70 +679,9 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     sample = Table(fitsio.read(samplefile))
     print('Read {} sources from {}'.format(len(sample), samplefile))
 
-    # Be pedantic to be sure we get it right (np.isin doens't preserve order)-- 
-    msg = []
-    islslga = ['R' in refcat for refcat in tractor.ref_cat] # e.g., R1
-    minsize = 2.0     # [arcsec]
-    minsize_rex = 5.0 # minimum size for REX [arcsec]
-    galaxy_indx, reject_galaxy, keep_galaxy = [], [], []
-    data['tractor_flags'] = {}
-    for ii, sid in enumerate(sample['VF_ID']):
-        I = np.where((sid == tractor.ref_id) * islslga)[0]
-        if len(I) == 0: # dropped by Tractor
-            reject_galaxy.append(ii)
-            data['tractor_flags'].update({str(sid): 'dropped'})
-            msg.append('Dropped by Tractor (spurious?)')
-        else:
-            r50 = tractor.shape_r[I][0]
-            refflux = tractor.get('flux_{}'.format(refband))[I][0]
-            # Bug in fit_on_coadds: nobs_[g,r,z] is 1 even when missing the
-            # band, so use flux_ivar_[g,r,z].
-            #ng, nr, nz = tractor.nobs_g[I][0], tractor.nobs_z[I][0], tractor.nobs_z[I][0]
-            #if ng < 1 or nr < 1 or nz < 1:
-            ng = tractor.flux_g[I][0] * np.sqrt(tractor.flux_ivar_g[I][0]) == 0
-            nr = tractor.flux_r[I][0] * np.sqrt(tractor.flux_ivar_r[I][0]) == 0
-            nz = tractor.flux_z[I][0] * np.sqrt(tractor.flux_ivar_z[I][0]) == 0
-            if ng or nr or nz:
-                reject_galaxy.append(ii)
-                data['tractor_flags'].update({str(sid): 'nogrz'})
-                msg.append('Missing 3-band coverage')
-            elif tractor.type[I] == 'PSF': # always reject
-                reject_galaxy.append(ii)
-                data['tractor_flags'].update({str(sid): 'psf'})
-                msg.append('Tractor type=PSF')
-            elif refflux < 0:
-                reject_galaxy.append(ii)
-                data['tractor_flags'].update({str(sid): 'negflux'})
-                msg.append('{}-band flux={:.3g} (<=0)'.format(refband, refflux))
-            elif r50 < minsize:
-                reject_galaxy.append(ii)
-                data['tractor_flags'].update({str(sid): 'anytype_toosmall'})
-                msg.append('type={}, r50={:.3f} (<{:.1f}) arcsec'.format(tractor.type[I], r50, minsize))
-            elif tractor.type[I] == 'REX':
-                if r50 < minsize_rex: # REX must have a minimum size
-                    reject_galaxy.append(ii)
-                    data['tractor_flags'].update({str(sid): 'rex_toosmall'})
-                    msg.append('Tractor type=REX & r50={:.3f} (<{:.1f}) arcsec'.format(r50, minsize_rex))
-                else:
-                    keep_galaxy.append(ii)
-                    galaxy_indx.append(I)
-            else:
-                keep_galaxy.append(ii)
-                galaxy_indx.append(I)
-
-    if len(reject_galaxy) > 0:
-        reject_galaxy = np.hstack(reject_galaxy)
-        for jj, rej in enumerate(reject_galaxy):
-            print('  Dropping {} (VF_ID={}, RA, Dec = {:.7f} {:.7f}): {}'.format(
-                sample[rej]['GALAXY'], sample[rej]['VF_ID'], sample[rej]['RA'], sample[rej]['DEC'], msg[jj]))
-
-    if len(galaxy_indx) > 0:
-        keep_galaxy = np.hstack(keep_galaxy)
-        galaxy_indx = np.hstack(galaxy_indx)
-        sample = sample[keep_galaxy]
-    else:
-        data['failed'] = True
-        return data, []
+    # keep all objects
+    galaxy_indx = []
+    galaxy_indx = np.hstack([np.where(sid == tractor.ref_id)[0] for sid in sample['VF_ID']])
 
     #sample = sample[np.searchsorted(sample['VF_ID'], tractor.ref_id[galaxy_indx])]
     assert(np.all(sample['VF_ID'] == tractor.ref_id[galaxy_indx]))

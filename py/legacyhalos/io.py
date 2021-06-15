@@ -116,6 +116,8 @@ def missing_files_one(checkfile, dependsfile, clobber):
                 else:
                     os.remove(failfile)
                     return 'todo'
+            else:
+                return 'todo'
             #if dependsfile is None:
             #    return 'todo'
             #else:
@@ -132,7 +134,9 @@ def missing_files_one(checkfile, dependsfile, clobber):
                     return 'fail'
             else:
                 return 'todo'
-    
+
+        return 'todo'
+            
 def get_run(onegal, racolumn='RA', deccolumn='DEC'):
     """Get the run based on a simple declination cut."""
     if onegal[deccolumn] > 32.375:
@@ -230,11 +234,11 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         cols.append(('{}_cog_params_alpha1'.format(band), ''))
         cols.append(('{}_cog_params_alpha2'.format(band), ''))
         cols.append(('{}_cog_params_chi2'.format(band), ''))
-        cols.append(('{}_cog_r50'.format(band), u.arcsec))
+        cols.append(('{}_cog_sma50'.format(band), u.arcsec))
 
     for thresh in sbthresh:
-        cols.append(('radius_sb{:0g}'.format(thresh), u.arcsec))
-        cols.append(('radius_sb{:0g}_err'.format(thresh), u.arcsec))
+        cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
+        cols.append(('sma_sb{:0g}_err'.format(thresh), u.arcsec))
         
     for band in bands:
         for thresh in sbthresh:
