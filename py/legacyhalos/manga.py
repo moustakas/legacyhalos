@@ -813,6 +813,8 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     if type(onegal) == astropy.table.Table:
         onegal = onegal[0] # create a Row object
 
+    pdb.set_trace()
+
     if logfile:
         from contextlib import redirect_stdout, redirect_stderr
         with open(logfile, 'a') as log:

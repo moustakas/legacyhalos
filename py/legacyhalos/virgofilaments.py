@@ -352,7 +352,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #import matplotlib.pyplot as plt ; from astropy.visualization import simple_norm
 
     # Get the PSF sources.
-    psfindx = np.where(tractor.type == 'PSF')[0]
+    psfindx = np.where((tractor.type == 'PSF') * (tractor.ref_cat != 'R1'))[0]
     if len(psfindx) > 0:
         psfsrcs = tractor.copy()
         psfsrcs.cut(psfindx)
@@ -467,7 +467,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         if False:
             #plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
             plt.clf() ; mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=True, plot=True)
-            plt.savefig('/mnt/legacyhalos-data/debug.png')
+            plt.savefig('debug.png')
+            #plt.savefig('/mnt/legacyhalos-data/debug.png')
 
         # [2] Create the satellite mask in all the bandpasses. Use srcs here,
         # which has had the satellites nearest to the central galaxy trimmed
@@ -484,7 +485,11 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             satindx = np.where(np.logical_or(
                 (srcs.type != 'PSF') * (srcs.shape_r > r50mask) *
                 (satflux > 0.0) * ((satflux / cenflux) > threshmask),
-                srcs.ref_cat == 'R1'))[0]
+                srcs.ref_cat != 'R1')
+                )[0]
+            print('Temporary hack -- skipping satellite masking.')
+            satindx = [0]
+            
             #satindx = np.where(srcs.ref_cat == 'R1')[0]
             #if np.isin(central, satindx):
             #    satindx = satindx[np.logical_not(np.isin(satindx, central))]
@@ -777,7 +782,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           pixscale=pixscale, 
                                           sky_tests=sky_tests, verbose=verbose)
 
-    maxsma, delta_logsma = None, 6.0
+    maxsma, delta_logsma = None, 10.0 # 6.0
 
     #igal = 0
     #maxis = data['mge'][igal]['majoraxis'] # [pixels]

@@ -207,7 +207,7 @@ def main():
                          bands=['g', 'r', 'z'], refband='r',                         
                          pixscale=args.pixscale, nproc=args.nproc,
                          verbose=args.verbose, debug=args.debug,
-                         unwise=False, galex=False,
+                         unwise=True, galex=True,
                          logfile=logfile)
                              
         if args.htmlplots:

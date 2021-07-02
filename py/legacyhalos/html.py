@@ -495,17 +495,6 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             if galid.strip() != '':
                 galid = '{}-'.format(galid)
 
-            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, data['filesuffix'], galid))
-            if not os.path.isfile(sbprofilefile) or clobber:
-                display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=False,
-                                          png=sbprofilefile, verbose=verbose, minerr=0.0,
-                                          cosmo=cosmo)
-                
-            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
-            if not os.path.isfile(cogfile) or clobber:
-                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=False,
-                                 png=cogfile, verbose=verbose, cosmo=cosmo)
-            
             multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
             thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
             if not os.path.isfile(multibandfile) or clobber:
@@ -521,6 +510,21 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                 print('Writing {}'.format(thumbfile))
                 subprocess.call(cmd.split())
 
+            ## hack!
+            #print('HACK!!!')
+            #continue
+
+            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(sbprofilefile) or clobber:
+                display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=False,
+                                          png=sbprofilefile, verbose=verbose, minerr=0.0,
+                                          cosmo=cosmo)
+                
+            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(cogfile) or clobber:
+                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=False,
+                                 png=cogfile, verbose=verbose, cosmo=cosmo)
+            
     ## maskbits QA
     #maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, data['filesuffix']))
     #if not os.path.isfile(maskbitsfile) or clobber:

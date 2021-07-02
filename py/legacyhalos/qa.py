@@ -859,13 +859,22 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
                                 ellipsefit['pa'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
                                 ellipsefit['refpixscale'], color=cb_colors['green']) # '#ffaa33')
-                            
-        if ellipsefit['sma_sb26'] > 0:
-            sbr = ellipsefit['sma_sb26']
-        elif ellipsefit['sma_sb25'] > 0:
-            sbr = ellipsefit['sma_sb25'] * 1.2
+
+        if 'radius_sb26' in ellipsefit.keys(): # old data model
+            if ellipsefit['radius_sb26'] > 0:
+                sbr = ellipsefit['radius_sb26']
+            elif ellipsefit['radius_sb25'] > 0:
+                sbr = ellipsefit['radius_sb25'] * 1.2
+            else:
+                sbr = -1
         else:
-            sbr = -1
+            if ellipsefit['sma_sb26'] > 0:
+                sbr = ellipsefit['sma_sb26']
+            elif ellipsefit['sma_sb25'] > 0:
+                sbr = ellipsefit['sma_sb25'] * 1.2
+            else:
+                sbr = -1
+            
         if sbr > 0:
             draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
                                 ellipsefit['pa'], 2 * sbr, ellipsefit['refpixscale'],
