@@ -323,6 +323,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     """
     import numpy.ma as ma
     from copy import copy
+    from skimage.transform import resize
     from legacyhalos.mge import find_galaxy
     from legacyhalos.misc import srcs2image, ellipse_mask
 
@@ -400,6 +401,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # central in case there was a poor deblend.
         largeshift = False
         mge, centralmask = tractor2mge(central, factor=neighborfactor)
+        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('debug.png')
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -467,8 +469,12 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #srcs = tractor.copy()
         satmask = np.zeros(data[refband].shape, bool)
         for filt in bands:
-            cenflux = getattr(tractor, 'flux_{}'.format(filt))[central]
-            satflux = getattr(srcs, 'flux_{}'.format(filt))
+            # do not let GALEX and WISE contribute to the satellite mask
+            if data[filt].shape != satmask.shape:
+                continue
+            
+            cenflux = getattr(tractor, 'flux_{}'.format(filt.lower()))[central]
+            satflux = getattr(srcs, 'flux_{}'.format(filt.lower()))
             if cenflux <= 0.0:
                 raise ValueError('Central galaxy flux is negative!')
             
@@ -489,7 +495,15 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 satimg = srcs2image(satsrcs, data['{}_wcs'.format(filt)],
                                     band=filt.lower(),
                                     pixelized_psf=data['{}_psf'.format(filt)])
-                satmask = np.logical_or(satmask, satimg > 10*data['{}_sigma'.format(filt)])
+                thissatmask = satimg > 10*data['{}_sigma'.format(filt)]
+                #if filt == 'FUV':
+                #    plt.clf() ; plt.imshow(thissatmask, origin='lower') ; plt.savefig('junk-{}.png'.format(filt))
+                #    #plt.clf() ; plt.imshow(data[filt], origin='lower') ; plt.savefig('junk-{}.png'.format(filt))
+                #    pdb.set_trace()
+                if satmask.shape != satimg.shape:
+                    thissatmask = resize(thissatmask, satmask.shape, mode='reflect')
+
+                satmask = np.logical_or(satmask, thissatmask)
                 #if True:
                 #    import matplotlib.pyplot as plt
                 #    plt.clf() ; plt.imshow(np.log10(satimg), origin='lower') ; plt.savefig('debug.png')
@@ -497,12 +511,23 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 ##    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
                 #    pdb.set_trace()
 
+            #print(filt, np.sum(satmask), np.sum(thissatmask))
+
+        #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('junk-satmask.png')
+        
         # [3] Build the final image (in each filter) for ellipse-fitting. First,
         # subtract out the PSF sources. Then update the mask (but ignore the
         # residual mask). Finally convert to surface brightness.
         for filt in bands:
-            mask = np.logical_or(ma.getmask(data[filt]), satmask)
-            mask[centralmask] = False
+            thismask = ma.getmask(data[filt])
+            if satmask.shape != thismask.shape:
+                _satmask = resize(satmask, thismask.shape, mode='reflect')
+                _centralmask = resize(centralmask, thismask.shape, mode='reflect') == 1.0
+                mask = np.logical_or(thismask, _satmask)
+                mask[_centralmask] = False
+            else:
+                mask = np.logical_or(thismask, satmask)
+                mask[centralmask] = False
             #plt.imshow(mask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
 
             varkey = '{}_var'.format(filt)
@@ -518,6 +543,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                                     band=filt.lower(),
                                     pixelized_psf=data['{}_psf'.format(filt)])
                 #data[psfimgkey].append(psfimg)
+                #if filt == 'FUV':# or filt == 'r':
+                #    plt.clf() ; plt.imshow(np.log10(psfimg), origin='lower') ; plt.savefig('junk-psf-{}.png'.format(filt))
+                #    #pdb.set_trace()
                 img -= psfimg
 
             img = ma.masked_array((img / thispixscale**2).astype('f4'), mask) # [nanomaggies/arcsec**2]
@@ -525,7 +553,12 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
             # Fill with zeros, for fun--
             ma.set_fill_value(img, fill_value)
-
+            #if filt == 'FUV' or filt == 'r':
+            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt))
+            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask-{}.png'.format(filt))
+            #    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('junk-thismask-{}.png'.format(filt))
+            #    pdb.set_trace()
+                
             data[imagekey].append(img)
             data[varkey].append(var)
 
@@ -542,7 +575,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
 def read_multiband(galaxy, galaxydir, filesuffix='custom',
                    refband='r', bands=['g', 'r', 'z'], pixscale=0.262,
-                   galaxy_id=None,
+                   galex_pixscale=1.5, unwise_pixscale=2.75,
+                   galaxy_id=None, galex=False, unwise=False,
                    redshift=None, fill_value=0.0, sky_tests=False, verbose=False):
     """Read the multi-band images (converted to surface brightness) and create a
     masked array suitable for ellipse-fitting.
@@ -576,6 +610,22 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
                         'sample': 'sample',
                         'maskbits': '{}-maskbits'.format(filesuffix),
                         })
+
+    if galex:
+        galex_bands = ['FUV', 'NUV']
+        bands = bands + galex_bands
+        for band in galex_bands:
+            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(filesuffix),
+                                       'invvar': 'invvar', 'psf': '{}-psf'.format(filesuffix)}})
+            filt2pixscale.update({band: galex_pixscale})
+        
+    if unwise:
+        unwise_bands = ['W1', 'W2', 'W3', 'W4']
+        bands = bands + unwise_bands
+        for band in unwise_bands:
+            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(filesuffix),
+                                       'invvar': 'invvar', 'psf': '{}-psf'.format(filesuffix)}})
+            filt2pixscale.update({band: unwise_pixscale})
 
     # Do all the files exist? If not, bail!
     missing_data = False
@@ -619,10 +669,11 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
             'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
             'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
             'psfsize_g', 'psfsize_r', 'psfsize_z']
-    #if galex:
-    #    cols = cols+['flux_fuv', 'flux_nuv']
-    #if unwise:
-    #    cols = cols+['flux_w1', 'flux_w1', 'flux_w1', 'flux_w1']
+    if galex:
+        cols = cols+['flux_fuv', 'flux_nuv']
+    if unwise:
+        cols = cols+['flux_w1', 'flux_w2', 'flux_w3', 'flux_w4']
+        
     tractor = fits_table(tractorfile, columns=cols)
     hdr = fitsio.read_header(tractorfile)
     if verbose:
@@ -663,6 +714,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
 
     # Read the basic imaging data and masks.
     data = _read_image_data(data, filt2imfile, starmask=starmask,
+                            filt2pixscale=filt2pixscale,
                             fill_value=fill_value, verbose=verbose)
     
     # Find the galaxies of interest.
@@ -670,72 +722,11 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     sample = Table(fitsio.read(samplefile))
     print('Read {} sources from {}'.format(len(sample), samplefile))
 
-    # Be pedantic to be sure we get it right (np.isin doens't preserve order)-- 
-    msg = []
-    islslga = ['R' in refcat for refcat in tractor.ref_cat] # e.g., R1
-    minsize = 2.0     # [arcsec]
-    minsize_rex = 5.0 # minimum size for REX [arcsec]
-    galaxy_indx, reject_galaxy, keep_galaxy = [], [], []
-    data['tractor_flags'] = {}
-    for ii, sid in enumerate(sample[REFIDCOLUMN]):
-        I = np.where((sid == tractor.ref_id) * islslga)[0]
-        if len(I) == 0: # dropped by Tractor
-            reject_galaxy.append(ii)
-            data['tractor_flags'].update({str(sid): 'dropped'})
-            msg.append('Dropped by Tractor (spurious?)')
-        else:
-            r50 = tractor.shape_r[I][0]
-            refflux = tractor.get('flux_{}'.format(refband))[I][0]
-            # Bug in fit_on_coadds: nobs_[g,r,z] is 1 even when missing the
-            # band, so use flux_ivar_[g,r,z].
-            #ng, nr, nz = tractor.nobs_g[I][0], tractor.nobs_z[I][0], tractor.nobs_z[I][0]
-            #if ng < 1 or nr < 1 or nz < 1:
-            ng = tractor.flux_g[I][0] * np.sqrt(tractor.flux_ivar_g[I][0]) == 0
-            nr = tractor.flux_r[I][0] * np.sqrt(tractor.flux_ivar_r[I][0]) == 0
-            nz = tractor.flux_z[I][0] * np.sqrt(tractor.flux_ivar_z[I][0]) == 0
-            if ng or nr or nz:
-                reject_galaxy.append(ii)
-                data['tractor_flags'].update({str(sid): 'nogrz'})
-                msg.append('Missing 3-band coverage')
-            elif tractor.type[I] == 'PSF': # always reject
-                reject_galaxy.append(ii)
-                data['tractor_flags'].update({str(sid): 'psf'})
-                msg.append('Tractor type=PSF')
-            elif refflux < 0:
-                reject_galaxy.append(ii)
-                data['tractor_flags'].update({str(sid): 'negflux'})
-                msg.append('{}-band flux={:.3g} (<=0)'.format(refband, refflux))
-            elif r50 < minsize:
-                reject_galaxy.append(ii)
-                data['tractor_flags'].update({str(sid): 'anytype_toosmall'})
-                msg.append('type={}, r50={:.3f} (<{:.1f}) arcsec'.format(tractor.type[I], r50, minsize))
-            elif tractor.type[I] == 'REX':
-                if r50 < minsize_rex: # REX must have a minimum size
-                    reject_galaxy.append(ii)
-                    data['tractor_flags'].update({str(sid): 'rex_toosmall'})
-                    msg.append('Tractor type=REX & r50={:.3f} (<{:.1f}) arcsec'.format(r50, minsize_rex))
-                else:
-                    keep_galaxy.append(ii)
-                    galaxy_indx.append(I)
-            else:
-                keep_galaxy.append(ii)
-                galaxy_indx.append(I)
+    # keep all objects
+    galaxy_indx = []
+    galaxy_indx = np.hstack([np.where(sid == tractor.ref_id)[0] for sid in sample[REFIDCOLUMN]])
 
-    if len(reject_galaxy) > 0:
-        reject_galaxy = np.hstack(reject_galaxy)
-        for jj, rej in enumerate(reject_galaxy):
-            print('  Dropping {} (MANGAID={}, RA, Dec = {:.7f} {:.7f}): {}'.format(
-                sample[rej]['PLATEIFU'], sample[rej]['MANGAID'],
-                sample[rej][RACOLUMN], sample[rej][DECCOLUMN], msg[jj]))
-
-    if len(galaxy_indx) > 0:
-        keep_galaxy = np.hstack(keep_galaxy)
-        galaxy_indx = np.hstack(galaxy_indx)
-        sample = sample[keep_galaxy]
-    else:
-        data['failed'] = True
-        return data, []
-
+    #sample = sample[np.searchsorted(sample['VF_ID'], tractor.ref_id[galaxy_indx])]
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
 
     tractor.diam_init = np.zeros(len(tractor), dtype='f4')
@@ -800,6 +791,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
 
 def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                  filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
+                 galex_pixscale=1.5, unwise_pixscale=2.75,
                  sky_tests=False, unwise=False, galex=False, verbose=False,
                  debug=False, logfile=None):
     """Wrapper on legacyhalos.mpi.call_ellipse but with specific preparatory work
@@ -813,20 +805,22 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     if type(onegal) == astropy.table.Table:
         onegal = onegal[0] # create a Row object
 
-    pdb.set_trace()
-
     if logfile:
         from contextlib import redirect_stdout, redirect_stderr
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
                                                   filesuffix=filesuffix, refband=refband,
-                                                  pixscale=pixscale, 
+                                                  pixscale=pixscale,
+                                                  galex_pixscale=galex_pixscale, unwise_pixscale=unwise_pixscale,
+                                                  unwise=unwise, galex=galex,
                                                   sky_tests=sky_tests, verbose=verbose)
     else:
         data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
                                           filesuffix=filesuffix, refband=refband,
-                                          pixscale=pixscale, 
+                                          pixscale=pixscale,
+                                          galex_pixscale=galex_pixscale, unwise_pixscale=unwise_pixscale,
+                                          unwise=unwise, galex=galex,
                                           sky_tests=sky_tests, verbose=verbose)
 
     maxsma, delta_logsma = None, 10.0

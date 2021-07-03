@@ -488,7 +488,7 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
     return out
 
 def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
-                     verbose=False):
+                     filt2pixscale=None, verbose=False):
     """Helper function for the project-specific read_multiband method.
 
     Read the multi-band images and inverse variance images and pack them into a
@@ -504,9 +504,12 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
     from tractor.psf import PixelizedPSF
     from tractor.tractortime import TAITime
     from astrometry.util.util import Tan
-    from legacypipe.survey import LegacySurveyWcs
+    from legacypipe.survey import LegacySurveyWcs, ConstantFitsWcs
 
     bands, refband = data['bands'], data['refband']
+
+    #refhdr = fitsio.read_header(filt2imfile[refband]['image'], ext=1)
+    #refsz = (refhdr['NAXIS1'], refhdr['NAXIS2'])
 
     # Loop on each filter and return the masked data.
     residual_mask = None
@@ -555,10 +558,13 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
         psfimg = fitsio.read(filt2imfile[filt]['psf'])
         data['{}_psf'.format(filt)] = PixelizedPSF(psfimg)
 
-        mjd_tai = hdr['MJD_MEAN'] # [TAI]
         wcs = Tan(filt2imfile[filt]['image'], 1)
-
-        data['{}_wcs'.format(filt)] = LegacySurveyWcs(wcs, TAITime(None, mjd=mjd_tai))
+        if 'MJD_MEAN' in hdr:
+            mjd_tai = hdr['MJD_MEAN'] # [TAI]
+            wcs = LegacySurveyWcs(wcs, TAITime(None, mjd=mjd_tai))
+        else:
+            wcs = ConstantFitsWcs(wcs)
+        data['{}_wcs'.format(filt)] = wcs
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
         if doresize:
@@ -568,7 +574,8 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             mask = np.logical_or(mask, starmask)
 
         # Flag significant residual pixels after subtracting *all* the models
-        # (we will restore the pixels of the galaxies of interest below).
+        # (we will restore the pixels of the galaxies of interest later). Only
+        # consider the optical (grz) bands here.
         resid = gaussian_filter(image - model, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
         data['{}_sigma'.format(filt)] = sig
@@ -576,9 +583,13 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             residual_mask = np.abs(resid) > 5*sig
         else:
             _residual_mask = np.abs(resid) > 5*sig
+            # In grz, use a cumulative residual mask. In UV/IR use an
+            # individual-band mask.
             if doresize:
-                _residual_mask = resize(_residual_mask, residual_mask.shape, mode='reflect')
-            residual_mask = np.logical_or(residual_mask, _residual_mask)
+                pass
+                #residual_mask = resize(_residual_mask, residual_mask.shape, mode='reflect')
+            else:
+                residual_mask = np.logical_or(residual_mask, _residual_mask)
 
         # Dilate the mask, mask out a 10% border, and pack into a dictionary.
         mask = binary_dilation(mask, iterations=2)
