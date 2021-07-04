@@ -457,6 +457,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             hdr.delete('BAND')
             hdr.add_record(dict(name='BAND', value=wband, comment='Band of this coadd/PSF'))
             psfimg = unwise_psf.get_unwise_psf(band, coadd_id)
+            psfimg /= np.sum(psfimg)
             with survey.write_output('copsf', brick=brickname, band=wband) as out:
                 out.fits.write(psfimg, header=hdr)
 
@@ -470,6 +471,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             hdr.delete('BAND')
             hdr.add_record(dict(name='BAND', value=gband[band], comment='Band of this coadd/PSF'))
             psfimg = galex_psf(band, os.getenv('GALEX_DIR'))
+            psfimg /= np.sum(psfimg)
             with survey.write_output('copsf', brick=brickname, band=gband[band]) as out:
                 out.fits.write(psfimg, header=hdr)
 
