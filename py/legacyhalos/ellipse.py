@@ -271,7 +271,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             results['{}_cog_params_alpha1'.format(filt)] = np.float32(-1)
             results['{}_cog_params_alpha2'.format(filt)] = np.float32(-1)
             results['{}_cog_params_chi2'.format(filt)] = np.float32(1e6)
-            results['{}_cog_r50'.format(filt)] = np.float32(-1)
+            results['{}_cog_sma50'.format(filt)] = np.float32(-1)
             for sbcut in sbthresh:
                 results['{}_mag_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
                 results['{}_mag_sb{:0g}_err'.format(filt, sbcut)] = np.float32(-1)
@@ -1001,6 +1001,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                                         galaxyinfo=outgalaxyinfo,
                                         refband=refband,
                                         sbthresh=sbthresh,
+                                        bands=ellipsefit['bands'],
                                         verbose=True,
                                         filesuffix=filesuffix)
 

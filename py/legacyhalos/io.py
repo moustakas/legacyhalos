@@ -248,7 +248,8 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
     return cols
 
 def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
-                     galaxyinfo=None, refband='r', sbthresh=None, verbose=False):
+                     galaxyinfo=None, refband='r', bands=['g', 'r', 'z'],
+                     sbthresh=None, verbose=False):
     """Write out a FITS file based on the output of
     legacyhalos.ellipse.ellipse_multiband..
 
@@ -305,7 +306,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
 
     # Add to the data table
     datakeys = datadict.keys()
-    for key, unit in _get_ellipse_datamodel(sbthresh):
+    for key, unit in _get_ellipse_datamodel(sbthresh, bands=bands):
         if key not in datakeys:
             raise ValueError('Data model change -- no column {} for galaxy {}!'.format(key, galaxy))
         data = datadict[key]
@@ -556,6 +557,7 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
         if verbose:
             print('Reading {}'.format(filt2imfile[filt]['psf']))
         psfimg = fitsio.read(filt2imfile[filt]['psf'])
+        psfimg /= psfimg.sum()
         data['{}_psf'.format(filt)] = PixelizedPSF(psfimg)
 
         wcs = Tan(filt2imfile[filt]['image'], 1)

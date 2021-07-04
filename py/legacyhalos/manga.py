@@ -518,6 +518,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # [3] Build the final image (in each filter) for ellipse-fitting. First,
         # subtract out the PSF sources. Then update the mask (but ignore the
         # residual mask). Finally convert to surface brightness.
+        #for filt in ['W1']:
         for filt in bands:
             thismask = ma.getmask(data[filt])
             if satmask.shape != thismask.shape:
@@ -551,9 +552,11 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 psfimg = srcs2image(psfsrcs, data['{}_wcs'.format(filt)],
                                     band=filt.lower(),
                                     pixelized_psf=data['{}_psf'.format(filt)])
-                #data[psfimgkey].append(psfimg)
+                data[psfimgkey].append(psfimg)
                 #if filt == 'W1':# or filt == 'r':
+                #    plt.clf() ; plt.imshow(np.log10(img), origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt))
                 #    plt.clf() ; plt.imshow(np.log10(psfimg), origin='lower') ; plt.savefig('junk-psf-{}.png'.format(filt))
+                #    plt.clf() ; plt.imshow(img-psfimg, origin='lower') ; plt.savefig('junk-residimg-{}.png'.format(filt))
                 #    pdb.set_trace()
                 img -= psfimg
 
@@ -562,10 +565,10 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
             # Fill with zeros, for fun--
             ma.set_fill_value(img, fill_value)
-            #if filt == 'FUV' or filt == 'r':
+            #if filt == 'W1':# or filt == 'r':
             #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt))
             #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask-{}.png'.format(filt))
-            #    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('junk-thismask-{}.png'.format(filt))
+            ##    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('junk-thismask-{}.png'.format(filt))
             #    pdb.set_trace()
                 
             data[imagekey].append(img)
