@@ -80,21 +80,22 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False, iscir
         aperture = CircularAperture((x0, y0), aa)
     else:
         aperture = EllipticalAperture((x0, y0), aa, bb, theta)
-        
+
     # Integrate the data to get the total surface brightness (in
     # nanomaggies/arcsec2) and the mask to get the fractional area.
     
     #area = (aperture_photometry(~mask*1, aperture, mask=mask, method='exact'))['aperture_sum'].data * pixscale**2 # [arcsec**2]
-    mu_flux = (aperture_photometry(img, aperture, mask=mask, method='exact'))['aperture_sum'].data # [nanomaggies/arcsec2]
+    mu_flux = (aperture_photometry(img, aperture, mask=mask, method='exact'))['aperture_sum'].data # [nanomaggies/arcsec2]        
+    #print(x0, y0, aa, bb, theta, mu_flux, pixscale, img.shape, mask.shape, aperture)
     if variance:
         apphot = np.sqrt(mu_flux) * pixscale**2 # [nanomaggies]
     else:
         apphot = mu_flux * pixscale**2 # [nanomaggies]
+
     return apphot
 
-def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
-                pixscale, igal=0, pool=None, seed=1,
-                sbthresh=REF_SBTHRESH):
+def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
+                seed=1, sbthresh=REF_SBTHRESH):
     """Measure the curve of growth (CoG) by performing elliptical aperture
     photometry.
 
@@ -113,8 +114,11 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
     #deltaa = 1.0 # pixel spacing
 
     #theta, eps = refellipsefit['geometry'].pa, refellipsefit['geometry'].eps
-    theta, eps = np.radians(refellipsefit['pa']-90), refellipsefit['eps']
+    theta = np.radians(refellipsefit['pa']-90)
+    eps = refellipsefit['eps']
     refband = refellipsefit['refband']
+    refpixscale = data['refpixscale']
+
     #maxsma = refellipsefit['maxsma']
 
     results = {}
@@ -125,15 +129,15 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
     #print('We should measure these radii from the extinction-corrected photometry!')
     for sbcut in sbthresh:
-        if sbprofile['mu_r'].max() < sbcut or sbprofile['mu_r'].min() > sbcut:
+        if sbprofile['mu_{}'.format(refband)].max() < sbcut or sbprofile['mu_{}'.format(refband)].min() > sbcut:
             print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
             results['sma_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
             results['sma_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
             continue
 
-        rr = (sbprofile['sma_r'] * pixscale)**0.25 # [arcsec]
-        sb = sbprofile['mu_r'] - sbcut
-        sberr = sbprofile['muerr_r']
+        rr = (sbprofile['sma_{}'.format(refband)] * refpixscale)**0.25 # [arcsec]
+        sb = sbprofile['mu_{}'.format(refband)] - sbcut
+        sberr = sbprofile['muerr_{}'.format(refband)]
         keep = np.where((sb > -1) * (sb < 1))[0]
         if len(keep) < 5:
             keep = np.where((sb > -2) * (sb < 2))[0]
@@ -160,7 +164,7 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         #    rcut = interp1d()(sbcut) # [arcsec]
         #except:
         #    print('Warning: extrapolating r({:0g})!'.format(sbcut))
-        #    rcut = interp1d(sbprofile['mu_r'], sbprofile['sma_r'] * pixscale, fill_value='extrapolate')(sbcut) # [arcsec]
+        #    rcut = interp1d(sbprofile['mu_{}'.format(refband)], sbprofile['sma_{}'.format(refband)] * pixscale, fill_value='extrapolate')(sbcut) # [arcsec]
         results['sma_sb{:0g}'.format(sbcut)] = np.float32(meanrcut)
         results['sma_sb{:0g}_err'.format(sbcut)] = np.float32(sigrcut)
 
@@ -172,35 +176,57 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         mask = ma.getmask(data['{}_masked'.format(filt)][igal])
 
         #deltaa_filt = deltaa * pixscalefactor
-        #if filt in refellipsefit['bands']:
-        #    if len(sbprofile['sma_{}'.format(filt)]) == 0: # can happen with partial coverage in other bands
-        #        maxsma = sbprofile['sma_{}'.format(refband)].max()
-        #    else:
-        #        maxsma = sbprofile['sma_{}'.format(filt)].max()        # [pixels]
-        #    #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt)] # [pixels]
-        #else:
-        #    maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
-        #    #minsma = 3 * refellipsefit['psfsigma_{}'.format(refband)] # [pixels]
-        #
+        if filt in refellipsefit['bands']:
+            if len(sbprofile['sma_{}'.format(filt)]) == 0: # can happen with partial coverage in other bands
+                maxsma = sbprofile['sma_{}'.format(refband)].max()
+            else:
+                maxsma = sbprofile['sma_{}'.format(filt)].max()        # [pixels]
+            #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt)] # [pixels]
+        else:
+            maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
+            #minsma = 3 * refellipsefit['psfsigma_{}'.format(refband)] # [pixels]
+        
         #sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
 
-        sma = refellipsefit['{}_sma'.format(filt)]
+        sma = refellipsefit['{}_sma'.format(filt)] * 1.0
+        keep = np.where((sma > 0) * (sma <= maxsma))[0]
+        #keep = np.where(sma < maxsma)[0]
+        if len(keep) > 0:
+            sma = sma[keep]
+        else:
+            print('Too few good semi-major axis pixels!')
+            pdb.set_trace()
+            raise ValueError
         
         smb = sma * eps
-        if eps == 0:
+        if eps == 0.0:
             iscircle = True
         else:
             iscircle = False
-        
-        x0 = refellipsefit['x0'] * pixscalefactor
-        y0 = refellipsefit['y0'] * pixscalefactor
 
+        # handle GALEX and WISE
+        if 'filt2pixscale' in data.keys():
+            pixscale = data['filt2pixscale'][filt]
+            if np.isclose(pixscale, refpixscale): # avoid rounding issues
+                pixscale = refpixscale                
+                pixscalefactor = 1.0
+            else:
+                pixscalefactor = refpixscale / pixscale
+        else:
+            pixscale = refpixscale
+            pixscalefactor = 1.0
+
+        x0 = pixscalefactor * refellipsefit['x0']
+        y0 = pixscalefactor * refellipsefit['y0']
+
+        #if filt == 'g':
+        #    pdb.set_trace()
         #im = np.log10(img) ; im[mask] = 0 ; plt.clf() ; plt.imshow(im, origin='lower') ; plt.scatter(y0, x0, s=50, color='red') ; plt.savefig('junk.png')
-        #pdb.set_trace()
 
         with np.errstate(all='ignore'):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', category=AstropyUserWarning)
+                #cogflux = [apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle) for aa, bb in zip(sma, smb)]
                 cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle)
                                                 for aa, bb in zip(sma, smb)])
                 if len(cogflux) > 0:
@@ -892,6 +918,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     nbox = 3
     box = np.arange(nbox)-nbox // 2
     
+    refpixscale = data['refpixscale']
+
     # Now get the surface brightness profile.  Need some more code for this to
     # work with fitgeometry=True...
     pool = multiprocessing.Pool(nproc)
@@ -903,15 +931,17 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
 
         # handle GALEX and WISE
         if 'filt2pixscale' in data.keys():
-            pixscalefactor = data['refpixscale'] / data['filt2pixscale'][filt]            
+            pixscale = data['filt2pixscale'][filt]            
+            if np.isclose(pixscale, refpixscale): # avoid rounding issues
+                pixscale = refpixscale                
+                pixscalefactor = 1.0
+            else:
+                pixscalefactor = refpixscale / pixscale
         else:
             pixscalefactor = 1.0
-            filtsma = sma
 
-        x0 = ellipsefit['x0']
-        y0 = ellipsefit['y0']
-        x0 *= pixscalefactor
-        y0 *= pixscalefactor
+        x0 = pixscalefactor * ellipsefit['x0']
+        y0 = pixscalefactor * ellipsefit['y0']
         filtsma = np.round(sma[::int(1/pixscalefactor)] * pixscalefactor).astype('f4')
         filtsma = np.unique(filtsma)
         assert(len(np.unique(filtsma)) == len(filtsma))
@@ -942,9 +972,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
             ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
         
         print('...{:.3f} sec'.format(time.time() - t0))
-
-        if filt == 'FUV':
-            pdb.set_trace()
         
     print('Time for all images = {:.3f} min'.format((time.time()-tall)/60))
 
@@ -953,8 +980,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     # Perform elliptical aperture photometry--
     print('Performing elliptical aperture photometry.')
     t0 = time.time()
-    cog = ellipse_cog(bands, data, ellipsefit, pixscalefactor, refpixscale,
-                      igal=igal, pool=pool, sbthresh=sbthresh)
+    cog = ellipse_cog(bands, data, ellipsefit, igal=igal,
+                      pool=pool, sbthresh=sbthresh)
     ellipsefit.update(cog)
     del cog
     print('Time = {:.3f} min'.format( (time.time() - t0) / 60))

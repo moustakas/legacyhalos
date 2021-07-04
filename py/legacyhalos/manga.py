@@ -353,13 +353,13 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #norm = simple_norm(img, 'log', min_percent=0.05, clip=True)
     #import matplotlib.pyplot as plt ; from astropy.visualization import simple_norm
 
-    # Get the PSF sources.
-    psfindx = np.where(tractor.type == 'PSF')[0]
-    if len(psfindx) > 0:
-        psfsrcs = tractor.copy()
-        psfsrcs.cut(psfindx)
-    else:
-        psfsrcs = None
+    ## Get the PSF sources.
+    #psfindx = np.where(tractor.type == 'PSF')[0]
+    #if len(psfindx) > 0:
+    #    psfsrcs = tractor.copy()
+    #    psfsrcs.cut(psfindx)
+    #else:
+    #    psfsrcs = None
 
     def tractor2mge(indx, factor=1.0):
     #def tractor2mge(indx, majoraxis=None):
@@ -538,14 +538,23 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 data[imagekey], data[varkey], data[psfimgkey] = [], [], []
 
             img = ma.getdata(data[filt]).copy()
+            
+            # Get the PSF sources.
+            psfindx = np.where((tractor.type == 'PSF') * (getattr(tractor, 'flux_{}'.format(filt.lower())) > 0))[0]
+            if len(psfindx) > 0:
+                psfsrcs = tractor.copy()
+                psfsrcs.cut(psfindx)
+            else:
+                psfsrcs = None
+            
             if psfsrcs:
                 psfimg = srcs2image(psfsrcs, data['{}_wcs'.format(filt)],
                                     band=filt.lower(),
                                     pixelized_psf=data['{}_psf'.format(filt)])
                 #data[psfimgkey].append(psfimg)
-                #if filt == 'FUV':# or filt == 'r':
+                #if filt == 'W1':# or filt == 'r':
                 #    plt.clf() ; plt.imshow(np.log10(psfimg), origin='lower') ; plt.savefig('junk-psf-{}.png'.format(filt))
-                #    #pdb.set_trace()
+                #    pdb.set_trace()
                 img -= psfimg
 
             img = ma.masked_array((img / thispixscale**2).astype('f4'), mask) # [nanomaggies/arcsec**2]
@@ -825,7 +834,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           unwise=unwise, galex=galex,
                                           sky_tests=sky_tests, verbose=verbose)
 
-    maxsma, delta_logsma = None, 6.0
+    maxsma, delta_logsma = None, 10.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!
