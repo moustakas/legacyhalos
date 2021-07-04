@@ -627,6 +627,8 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
                                        'invvar': 'invvar', 'psf': '{}-psf'.format(filesuffix)}})
             filt2pixscale.update({band: unwise_pixscale})
 
+    data.update({'filt2pixscale': filt2pixscale})
+
     # Do all the files exist? If not, bail!
     missing_data = False
     for filt in bands:
@@ -823,7 +825,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           unwise=unwise, galex=galex,
                                           sky_tests=sky_tests, verbose=verbose)
 
-    maxsma, delta_logsma = None, 10.0
+    maxsma, delta_logsma = None, 6.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!

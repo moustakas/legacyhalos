@@ -197,9 +197,9 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         #('psfdepth_min_z', u.mag),
         #('psfdepth_max_z', u.mag),
 
-        ('mw_transmission_g', ''),
-        ('mw_transmission_r', ''),
-        ('mw_transmission_z', ''),
+        #('mw_transmission_g', ''),
+        #('mw_transmission_r', ''),
+        #('mw_transmission_z', ''),
 
         ('refband_width', u.pixel),
         ('refband_height', u.pixel)]
