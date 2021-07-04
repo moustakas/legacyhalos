@@ -205,36 +205,36 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         ('refband_height', u.pixel)]
 
     for band in bands:
-        cols.append(('{}_sma'.format(band), u.pixel))
-        cols.append(('{}_intens'.format(band), u.maggy/u.arcsec**2))
-        cols.append(('{}_intens_err'.format(band), u.maggy/u.arcsec**2))
-        cols.append(('{}_eps'.format(band), ''))
-        cols.append(('{}_eps_err'.format(band), ''))
-        cols.append(('{}_pa'.format(band), u.degree))
-        cols.append(('{}_pa_err'.format(band), u.degree))
-        cols.append(('{}_x0'.format(band), u.pixel))
-        cols.append(('{}_x0_err'.format(band), u.pixel))
-        cols.append(('{}_y0'.format(band), u.pixel))
-        cols.append(('{}_y0_err'.format(band), u.pixel))
-        cols.append(('{}_a3'.format(band), '')) # units?
-        cols.append(('{}_a3_err'.format(band), ''))
-        cols.append(('{}_a4'.format(band), ''))
-        cols.append(('{}_a4_err'.format(band), ''))
-        cols.append(('{}_rms'.format(band), u.maggy/u.arcsec**2))
-        cols.append(('{}_pix_stddev'.format(band), u.maggy/u.arcsec**2))
-        cols.append(('{}_stop_code'.format(band), ''))
-        cols.append(('{}_ndata'.format(band), ''))
-        cols.append(('{}_nflag'.format(band), ''))
-        cols.append(('{}_niter'.format(band), ''))
-        cols.append(('{}_cog_sma'.format(band), u.arcsec))
-        cols.append(('{}_cog_mag'.format(band), u.mag))
-        cols.append(('{}_cog_magerr'.format(band), u.mag))
-        cols.append(('{}_cog_params_mtot'.format(band), u.mag))
-        cols.append(('{}_cog_params_m0'.format(band), u.mag))
-        cols.append(('{}_cog_params_alpha1'.format(band), ''))
-        cols.append(('{}_cog_params_alpha2'.format(band), ''))
-        cols.append(('{}_cog_params_chi2'.format(band), ''))
-        cols.append(('{}_cog_sma50'.format(band), u.arcsec))
+        cols.append(('{}_sma'.format(band.lower()), u.pixel))
+        cols.append(('{}_intens'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('{}_intens_err'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('{}_eps'.format(band.lower()), ''))
+        cols.append(('{}_eps_err'.format(band.lower()), ''))
+        cols.append(('{}_pa'.format(band.lower()), u.degree))
+        cols.append(('{}_pa_err'.format(band.lower()), u.degree))
+        cols.append(('{}_x0'.format(band.lower()), u.pixel))
+        cols.append(('{}_x0_err'.format(band.lower()), u.pixel))
+        cols.append(('{}_y0'.format(band.lower()), u.pixel))
+        cols.append(('{}_y0_err'.format(band.lower()), u.pixel))
+        cols.append(('{}_a3'.format(band.lower()), '')) # units?
+        cols.append(('{}_a3_err'.format(band.lower()), ''))
+        cols.append(('{}_a4'.format(band.lower()), ''))
+        cols.append(('{}_a4_err'.format(band.lower()), ''))
+        cols.append(('{}_rms'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('{}_pix_stddev'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('{}_stop_code'.format(band.lower()), ''))
+        cols.append(('{}_ndata'.format(band.lower()), ''))
+        cols.append(('{}_nflag'.format(band.lower()), ''))
+        cols.append(('{}_niter'.format(band.lower()), ''))
+        cols.append(('{}_cog_sma'.format(band.lower()), u.arcsec))
+        cols.append(('{}_cog_mag'.format(band.lower()), u.mag))
+        cols.append(('{}_cog_magerr'.format(band.lower()), u.mag))
+        cols.append(('{}_cog_params_mtot'.format(band.lower()), u.mag))
+        cols.append(('{}_cog_params_m0'.format(band.lower()), u.mag))
+        cols.append(('{}_cog_params_alpha1'.format(band.lower()), ''))
+        cols.append(('{}_cog_params_alpha2'.format(band.lower()), ''))
+        cols.append(('{}_cog_params_chi2'.format(band.lower()), ''))
+        cols.append(('{}_cog_sma50'.format(band.lower()), u.arcsec))
 
     for thresh in sbthresh:
         cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
@@ -242,8 +242,8 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         
     for band in bands:
         for thresh in sbthresh:
-            cols.append(('{}_mag_sb{:0g}'.format(band, thresh), u.mag))
-            cols.append(('{}_mag_sb{:0g}_err'.format(band, thresh), u.mag))
+            cols.append(('{}_mag_sb{:0g}'.format(band.lower(), thresh), u.mag))
+            cols.append(('{}_mag_sb{:0g}_err'.format(band.lower(), thresh), u.mag))
 
     return cols
 
@@ -467,24 +467,24 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
             good = np.where(tractor.get(psfsizecol)[these] > 0)[0]
             if len(good) == 0:
                 print('  No good measurements of the PSF size in band {}!'.format(filt))
-                out['psfsigma_{}'.format(filt)] = np.float32(0.0)
-                out['psfsize_{}'.format(filt)] = np.float32(0.0)
+                out['psfsigma_{}'.format(filt.lower())] = np.float32(0.0)
+                out['psfsize_{}'.format(filt.lower())] = np.float32(0.0)
             else:
                 # Get the PSF size and image depth.
                 psfsize = tractor.get(psfsizecol)[these][good]   # [FWHM, arcsec]
                 psfsigma = psfsize / np.sqrt(8 * np.log(2)) / pixscale # [sigma, pixels]
 
-                out['psfsigma_{}'.format(filt)] = np.median(psfsigma).astype('f4') 
-                out['psfsize_{}'.format(filt)] = np.median(psfsize).astype('f4') 
+                out['psfsigma_{}'.format(filt.lower())] = np.median(psfsigma).astype('f4') 
+                out['psfsize_{}'.format(filt.lower())] = np.median(psfsize).astype('f4') 
             
         if psfsizecol in tractor.columns():
             good = np.where(tractor.get(psfdepthcol)[these] > 0)[0]
             if len(good) == 0:
                 print('  No good measurements of the PSF depth in band {}!'.format(filt))
-                out['psfdepth_{}'.format(filt)] = np.float32(0.0)
+                out['psfdepth_{}'.format(filt.lower())] = np.float32(0.0)
             else:
                 psfdepth = tractor.get(psfdepthcol)[these][good] # [AB mag, 5-sigma]
-                out['psfdepth_{}'.format(filt)] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
+                out['psfdepth_{}'.format(filt.lower())] = (22.5-2.5*np.log10(1/np.sqrt(np.median(psfdepth)))).astype('f4') 
         
     return out
 
@@ -558,7 +558,7 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             print('Reading {}'.format(filt2imfile[filt]['psf']))
         psfimg = fitsio.read(filt2imfile[filt]['psf'])
         psfimg /= psfimg.sum()
-        data['{}_psf'.format(filt)] = PixelizedPSF(psfimg)
+        data['{}_psf'.format(filt.lower())] = PixelizedPSF(psfimg)
 
         wcs = Tan(filt2imfile[filt]['image'], 1)
         if 'MJD_MEAN' in hdr:
@@ -566,7 +566,7 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             wcs = LegacySurveyWcs(wcs, TAITime(None, mjd=mjd_tai))
         else:
             wcs = ConstantFitsWcs(wcs)
-        data['{}_wcs'.format(filt)] = wcs
+        data['{}_wcs'.format(filt.lower())] = wcs
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
         if doresize:
@@ -580,7 +580,7 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
         # consider the optical (grz) bands here.
         resid = gaussian_filter(image - model, 2.0)
         _, _, sig = sigma_clipped_stats(resid, sigma=3.0)
-        data['{}_sigma'.format(filt)] = sig
+        data['{}_sigma'.format(filt.lower())] = sig
         if residual_mask is None:
             residual_mask = np.abs(resid) > 5*sig
         else:
@@ -608,8 +608,8 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             var = np.zeros_like(invvar)
             ok = invvar > 0
             var[ok] = 1 / invvar[ok]
-            data['{}_var_'.format(filt)] = var # [nanomaggies**2]
-            #data['{}_var'.format(filt)] = var / thispixscale**4 # [nanomaggies**2/arcsec**4]
+            data['{}_var_'.format(filt.lower())] = var # [nanomaggies**2]
+            #data['{}_var'.format(filt.lower())] = var / thispixscale**4 # [nanomaggies**2/arcsec**4]
             if np.any(invvar < 0):
                 print('Warning! Negative pixels in the {}-band inverse variance map!'.format(filt))
                 #pdb.set_trace()

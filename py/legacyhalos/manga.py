@@ -408,9 +408,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         
         srcs = tractor.copy()
         srcs.cut(np.delete(np.arange(len(tractor)), iclose))
-        model = srcs2image(srcs, data['{}_wcs'.format(refband)],
+        model = srcs2image(srcs, data['{}_wcs'.format(refband.lower())],
                            band=refband.lower(),
-                           pixelized_psf=data['{}_psf'.format(refband)])
+                           pixelized_psf=data['{}_psf'.format(refband.lower())])
 
         img = data[refband].data - model
         img[centralmask] = data[refband].data[centralmask]
@@ -437,9 +437,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             largeshift = True
             mgegalaxy = copy(mge)
 
-        radec_med = data['{}_wcs'.format(refband)].pixelToPosition(
+        radec_med = data['{}_wcs'.format(refband.lower())].pixelToPosition(
             mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
-        radec_peak = data['{}_wcs'.format(refband)].pixelToPosition(
+        radec_peak = data['{}_wcs'.format(refband.lower())].pixelToPosition(
             mgegalaxy.ypeak+1, mgegalaxy.xpeak+1).vals
         mge = {
             'largeshift': largeshift,
@@ -492,13 +492,13 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 satsrcs = srcs.copy()
                 #satsrcs = tractor.copy()
                 satsrcs.cut(satindx)
-                satimg = srcs2image(satsrcs, data['{}_wcs'.format(filt)],
+                satimg = srcs2image(satsrcs, data['{}_wcs'.format(filt.lower())],
                                     band=filt.lower(),
-                                    pixelized_psf=data['{}_psf'.format(filt)])
-                thissatmask = satimg > 10*data['{}_sigma'.format(filt)]
+                                    pixelized_psf=data['{}_psf'.format(filt.lower())])
+                thissatmask = satimg > 10*data['{}_sigma'.format(filt.lower())]
                 #if filt == 'FUV':
-                #    plt.clf() ; plt.imshow(thissatmask, origin='lower') ; plt.savefig('junk-{}.png'.format(filt))
-                #    #plt.clf() ; plt.imshow(data[filt], origin='lower') ; plt.savefig('junk-{}.png'.format(filt))
+                #    plt.clf() ; plt.imshow(thissatmask, origin='lower') ; plt.savefig('junk-{}.png'.format(filt.lower()))
+                #    #plt.clf() ; plt.imshow(data[filt], origin='lower') ; plt.savefig('junk-{}.png'.format(filt.lower()))
                 #    pdb.set_trace()
                 if satmask.shape != satimg.shape:
                     thissatmask = resize(thissatmask, satmask.shape, mode='reflect')
@@ -531,9 +531,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 mask[centralmask] = False
             #plt.imshow(mask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
 
-            varkey = '{}_var'.format(filt)
-            imagekey = '{}_masked'.format(filt)
-            psfimgkey = '{}_psfimg'.format(filt)
+            varkey = '{}_var'.format(filt.lower())
+            imagekey = '{}_masked'.format(filt.lower())
+            psfimgkey = '{}_psfimg'.format(filt.lower())
             thispixscale = filt2pixscale[filt]
             if imagekey not in data.keys():
                 data[imagekey], data[varkey], data[psfimgkey] = [], [], []
@@ -549,26 +549,26 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 psfsrcs = None
             
             if psfsrcs:
-                psfimg = srcs2image(psfsrcs, data['{}_wcs'.format(filt)],
+                psfimg = srcs2image(psfsrcs, data['{}_wcs'.format(filt.lower())],
                                     band=filt.lower(),
-                                    pixelized_psf=data['{}_psf'.format(filt)])
+                                    pixelized_psf=data['{}_psf'.format(filt.lower())])
                 data[psfimgkey].append(psfimg)
                 #if filt == 'W1':# or filt == 'r':
-                #    plt.clf() ; plt.imshow(np.log10(img), origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt))
-                #    plt.clf() ; plt.imshow(np.log10(psfimg), origin='lower') ; plt.savefig('junk-psf-{}.png'.format(filt))
-                #    plt.clf() ; plt.imshow(img-psfimg, origin='lower') ; plt.savefig('junk-residimg-{}.png'.format(filt))
+                #    plt.clf() ; plt.imshow(np.log10(img), origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt.lower()))
+                #    plt.clf() ; plt.imshow(np.log10(psfimg), origin='lower') ; plt.savefig('junk-psf-{}.png'.format(filt.lower()))
+                #    plt.clf() ; plt.imshow(img-psfimg, origin='lower') ; plt.savefig('junk-residimg-{}.png'.format(filt.lower()))
                 #    pdb.set_trace()
                 img -= psfimg
 
             img = ma.masked_array((img / thispixscale**2).astype('f4'), mask) # [nanomaggies/arcsec**2]
-            var = data['{}_var_'.format(filt)] / thispixscale**4 # [nanomaggies**2/arcsec**4]
+            var = data['{}_var_'.format(filt.lower())] / thispixscale**4 # [nanomaggies**2/arcsec**4]
 
             # Fill with zeros, for fun--
             ma.set_fill_value(img, fill_value)
             #if filt == 'W1':# or filt == 'r':
-            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt))
-            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask-{}.png'.format(filt))
-            ##    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('junk-thismask-{}.png'.format(filt))
+            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt.lower()))
+            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask-{}.png'.format(filt.lower()))
+            ##    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('junk-thismask-{}.png'.format(filt.lower()))
             #    pdb.set_trace()
                 
             data[imagekey].append(img)
@@ -581,7 +581,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     # Cleanup?
     for filt in bands:
         del data[filt]
-        del data['{}_var_'.format(filt)]
+        del data['{}_var_'.format(filt.lower())]
 
     return data            
 
@@ -625,6 +625,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
 
     if galex:
         galex_bands = ['FUV', 'NUV']
+        #galex_bands = ['fuv', 'nuv'] # ['FUV', 'NUV']
         bands = bands + galex_bands
         for band in galex_bands:
             filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(filesuffix),
@@ -633,6 +634,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         
     if unwise:
         unwise_bands = ['W1', 'W2', 'W3', 'W4']
+        #unwise_bands = ['w1', 'w2', 'w3', 'w4'] # ['W1', 'W2', 'W3', 'W4']
         bands = bands + unwise_bands
         for band in unwise_bands:
             filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(filesuffix),
