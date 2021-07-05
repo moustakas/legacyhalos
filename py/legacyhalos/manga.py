@@ -312,6 +312,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.1, maxshift=10,
+                          sigmamask=5.0,
                           neighborfactor=3.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
@@ -495,7 +496,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 satimg = srcs2image(satsrcs, data['{}_wcs'.format(filt.lower())],
                                     band=filt.lower(),
                                     pixelized_psf=data['{}_psf'.format(filt.lower())])
-                thissatmask = satimg > 10*data['{}_sigma'.format(filt.lower())]
+                thissatmask = satimg > sigmamask*data['{}_sigma'.format(filt.lower())]
                 #if filt == 'FUV':
                 #    plt.clf() ; plt.imshow(thissatmask, origin='lower') ; plt.savefig('junk-{}.png'.format(filt.lower()))
                 #    #plt.clf() ; plt.imshow(data[filt], origin='lower') ; plt.savefig('junk-{}.png'.format(filt.lower()))
@@ -839,7 +840,9 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           unwise=unwise, galex=galex,
                                           sky_tests=sky_tests, verbose=verbose)
 
-    maxsma, delta_logsma = None, 10.0
+    maxsma = None
+    #maxsma = 5 * MANGA_RADIUS # None
+    delta_logsma = 3.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!
@@ -1164,7 +1167,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                     ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
 
                 rr = []
-                for rad in [ellipse['radius_sb24'], ellipse['radius_sb25'], ellipse['radius_sb26']]:
+                for rad in [ellipse['sma_sb24'], ellipse['sma_sb25'], ellipse['sma_sb26']]:
                     if rad < 0:
                         rr.append('...')
                     else:

@@ -85,7 +85,8 @@ def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
     paste_shift_y = int(y0 - rotated_height / 2)
     im.paste(rotated, (paste_shift_x, paste_shift_y), rotated)
 
-def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True):
+def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
+                  pixscalefactor=1.0):
     """Support routine for routines in html.
 
     """
@@ -96,7 +97,7 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True):
     with Image.open(jpgfile) as im:
         draw = ImageDraw.Draw(im)
         sz = im.size
-        width = np.round(sz[0]/150).astype('int')
+        width = np.round(sz[0]/(150/pixscalefactor)).astype('int')
         # Bar and label
         if barlen:
             if scaledfont:
@@ -104,9 +105,12 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True):
                 #fntsize = np.round(sz[0]/50).astype('int')
             else:
                 fntsize = 20 # np.round(sz[0]/20).astype('int')
+            #if fntsize < 56:
+            #    fntsize = 56
             font = ImageFont.truetype(fonttype, size=fntsize)
             # Add a scale bar and label--
-            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen/pixscalefactor, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            #print(sz, fntsize, x0, x1, y0, y1, barlen/pixscalefactor)
             draw.line((x0, y1, x1, y1), fill='white', width=width)
             ww, hh = draw.textsize(barlabel, font=font)
             dx = ((x1-x0) - ww)//2
@@ -315,8 +319,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             pipeline_magtot = pipeline_ellipsefit['cog_params_{}'.format(filt.lower())]['mtot']
             label = '{}={:.3f} ({:.3f})'.format(filt, magtot, pipeline_magtot)
         else:
-            label = r'${}$'.format(filt.lower())
-            #label = r'${}_{{\mathrm{{tot}}}}={:.3f}$'.format(filt, magtot)
+            #label = r'${}$'.format(filt.lower())
+            label = r'${}={:.3f}$'.format(filt, magtot)
             #label = r'{}={:.3f} ($\chi^2_\nu={:.1f}$)'.format(filt, magtot, chi2)
             
         #ax.plot(sma, cog, label=label)

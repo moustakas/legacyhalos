@@ -313,9 +313,9 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                 #    print('Writing {}'.format(tf))
                 #    subprocess.call(cmd.split())
 
-def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None, 
-                                barlabel=None, just_coadds=False, clobber=False,
-                                verbose=False):
+def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, refpixscale=0.262,
+                                barlen=None, barlabel=None, just_coadds=False,
+                                clobber=False, verbose=False):
     """Montage the GALEX and WISE coadds into a nice QAplot.
 
     barlen - pixels
@@ -326,7 +326,7 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
 
     Image.MAX_IMAGE_PIXELS = None
 
-    for filesuffix in ('FUVNUV', 'W1W2'):
+    for filesuffix, pixscale in zip(('FUVNUV', 'W1W2'), (1.5, 2.75)):
         montagefile = os.path.join(htmlgalaxydir, '{}-{}-montage.png'.format(galaxy, filesuffix))
         thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-montage.png'.format(galaxy, filesuffix))
         thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-montage.png'.format(galaxy, filesuffix))
@@ -397,7 +397,11 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
                     else:
                         cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
                     if barlen:
-                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile, scaledfont=True)
+                        pixscalefactor = pixscale / refpixscale
+                        #barlen2 = barlen / pixscalefactor
+                        #pixscalefactor = 1.0
+                        addbar_to_png(jpgfile[0], barlen, barlabel, None, barpngfile,
+                                      scaledfont=True, pixscalefactor=pixscalefactor)
                         cmd = cmd+' '+barpngfile+' '
                         cmd = cmd+' '.join(ff for ff in jpgfile[1:])
                     else:
@@ -650,7 +654,21 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         #        redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
-        # Build the ellipse plots.
+        # Multiwavelength coadds (does not support just_coadds=True)--
+        if galex:
+            make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
+                                        refpixscale=pixscale,
+                                        #barlen=barlen, barlabel=barlabel,
+                                        clobber=clobber, verbose=verbose)
+
+            
+
+        # Build the montage coadds.
+        make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
+                            barlabel=barlabel, clobber=clobber, verbose=verbose,
+                            just_coadds=just_coadds)
+            
+        # Build the ellipse and photometry plots.
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel,
@@ -667,17 +685,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         # Build the maskbits figure.
         #make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=clobber, verbose=verbose)
 
-        # Build the montage coadds.
-        make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
-                            barlabel=barlabel, clobber=clobber, verbose=verbose,
-                            just_coadds=just_coadds)
-
-        # Multiwavelength coadds (does not support just_coadds=True)--
-        if galex:
-            make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
-                                        #barlen=barlen, barlabel=barlabel,
-                                        clobber=clobber, verbose=verbose)
-        
         # Sersic fiting results
         if False:
             make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands,
