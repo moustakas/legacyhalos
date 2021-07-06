@@ -60,6 +60,7 @@ def _sbprofile_colors(makeiter=True, galex=False, unwise=False):
 
     if makeiter:
         colors = iter(colors)
+        
     return colors
 
 def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
@@ -328,7 +329,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             #label = r'{}={:.3f} ($\chi^2_\nu={:.1f}$)'.format(filt, magtot, chi2)
             
         #ax.plot(sma, cog, label=label)
-        ax.fill_between(radius, cog-cogerr, cog+cogerr, label=label, color=col)
+        ax.fill_between(radius, cog-cogerr, cog+cogerr, label=label,
+                        color=col, alpha=0.9)
                         #facecolor=col, edgecolor='k', lw=2)
         #if np.any(np.iscomplex(sma)) or np.any(np.iscomplex(cog)) or np.any(np.iscomplex(cogerr)):
         #    pdb.set_trace()
@@ -1430,8 +1432,8 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
             #mu = mu[good]
             #muerr = muerr[good]
             
-            ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt.lower()),
-                             facecolor=col, edgecolor='k', lw=2, alpha=0.75)
+            ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt),
+                             facecolor=col, edgecolor='k', lw=1, alpha=0.9)
 
             if bool(pipeline_ellipsefit) and False:
                 pipeline_sbprofile = ellipse_sbprofile(pipeline_ellipsefit, minerr=minerr,
@@ -1493,6 +1495,10 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         else:
             ax1.set_ylim(ylim)
         ax1.invert_yaxis()
+
+        ylim = ax1.get_ylim()        
+        if np.abs(ylim[1]-ylim[0]) > 15:
+            ax1.yaxis.set_major_locator(ticker.MultipleLocator(5))
 
         #ylim = ax1.get_ylim()        
         #if np.abs(ylim[1]-ylim[0]) > 15:

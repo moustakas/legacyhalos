@@ -700,8 +700,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                             cosmo=cosmo, scaledfont=scaledfont, read_multiband=read_multiband)
             #continue # here!
 
-            pdb.set_trace()
-
         # Multiwavelength coadds (does not support just_coadds=True)--
         if galex:
             make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,

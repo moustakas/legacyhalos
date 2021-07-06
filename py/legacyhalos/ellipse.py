@@ -223,6 +223,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         #    pdb.set_trace()
         #im = np.log10(img) ; im[mask] = 0 ; plt.clf() ; plt.imshow(im, origin='lower') ; plt.scatter(y0, x0, s=50, color='red') ; plt.savefig('junk.png')
 
+        #print(filt, img.shape, pixscale)
         with np.errstate(all='ignore'):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', category=AstropyUserWarning)
