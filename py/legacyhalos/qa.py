@@ -50,10 +50,12 @@ def _sbprofile_colors(makeiter=True, galex=False, unwise=False):
         
     sbcolors = [_colors[1], _colors[2], _colors[0]]
     colorcolors = [_colors[3], _colors[4]]
-    if galex:
-        sbcolors = sbcolors + [_colors[5], _colors[6]]
-    if unwise:
-        sbcolors = sbcolors + [_colors[7], _colors[8], _colors[9], _colors[10]]
+    if galex or unwise:
+        _morecolors = sns.color_palette('Set2', n_colors=8, desat=0.75)
+        if galex:
+            sbcolors = sbcolors + [_morecolors[0], _morecolors[1]]
+        if unwise:
+            sbcolors = sbcolors + [_morecolors[2], _morecolors[3], _morecolors[6], _morecolors[7]]
     colors = sbcolors + colorcolors
 
     if makeiter:
@@ -271,6 +273,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     """Plot up the curve of growth versus semi-major axis.
 
     """
+    import matplotlib.ticker as ticker
     from legacyhalos.ellipse import cog_model
     #from legacyhalos.ellipse import CogModel
 
@@ -337,9 +340,11 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             ax.fill_between(_sma, _cog-_cogerr, _cog+_cogerr,
                             facecolor=col, alpha=0.5)#, edgecolor='k', lw=1)
 
-        cogmodel = cog_model(sma, magtot, m0, alpha1, alpha2)
+        smamodel = np.linspace(np.min(sma), np.max(sma), 50)
+        cogmodel = cog_model(smamodel, magtot, m0, alpha1, alpha2)
         #cogmodel = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
-        ax.plot(radius, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
+        ax.plot(smamodel**0.25, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
+
         if sma.max() > maxsma:
             maxsma = sma.max()
         
@@ -378,6 +383,9 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     ybright += -0.5
     
     ax.set_ylim(yfaint, ybright)
+    ylim = ax.get_ylim()        
+    if np.abs(ylim[1]-ylim[0]) > 15:
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(5)) # wavelength spacing of ticks [Angstrom]
 
     if False:
         ax_twin = ax.twinx()
@@ -1458,9 +1466,9 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
             ax1.set_ylim(ylim)
         ax1.invert_yaxis()
 
-        ylim = ax1.get_ylim()        
-        if np.abs(ylim[1]-ylim[0]) > 15:
-            ax1.yaxis.set_major_locator(ticker.MultipleLocator(5)) # wavelength spacing of ticks [Angstrom]
+        #ylim = ax1.get_ylim()        
+        #if np.abs(ylim[1]-ylim[0]) > 15:
+        #    ax1.yaxis.set_major_locator(ticker.MultipleLocator(5)) # wavelength spacing of ticks [Angstrom]
 
         xlim = [xminmax[0], xminmax[1]*1.01]
         ax1.set_xlim(xlim)
