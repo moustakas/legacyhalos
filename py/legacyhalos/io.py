@@ -512,6 +512,8 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
     #refhdr = fitsio.read_header(filt2imfile[refband]['image'], ext=1)
     #refsz = (refhdr['NAXIS1'], refhdr['NAXIS2'])
 
+    vega2ab = {'W1': 2.699, 'W2': 3.339, 'W3': 5.174, 'W4': 6.620}
+
     # Loop on each filter and return the masked data.
     residual_mask = None
     for filt in bands:
@@ -524,20 +526,6 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
         hdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
         model = fitsio.read(filt2imfile[filt]['model'])
 
-        sz = image.shape
-
-        ## optional additional (scalar) sky-subtraction
-        #if 'sky' in filt2imfile[filt].keys():
-        #    #print('Subtracting!!! ', filt2imfile[filt]['sky'])
-        #    image += filt2imfile[filt]['sky']
-        #    model += filt2imfile[filt]['sky']
-
-        # GALEX, unWISE need to be resized.
-        if starmask.shape == sz:
-            doresize = False
-        else:
-            doresize = True
-
         # Initialize the mask based on the inverse variance
         if 'invvar' in filt2imfile[filt].keys():
             if verbose:
@@ -547,6 +535,22 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
         else:
             invvar = None
             mask = np.zeros_like(image).astype(bool)
+
+        # convert WISE images from Vega nanomaggies to AB nanomaggies
+        # https://www.legacysurvey.org/dr9/description/#photometry
+        if filt.lower() == 'w1' or filt.lower() == 'w2' or filt.lower() == 'w3' or filt.lower() == 'w4':
+            image *= 10**(-0.4*vega2ab[filt])
+            model *= 10**(-0.4*vega2ab[filt])
+            if invvar is not None:
+                invvar /= (10**(-0.4*vega2ab[filt]))**2
+            
+        sz = image.shape
+
+        # GALEX, unWISE need to be resized.
+        if starmask.shape == sz:
+            doresize = False
+        else:
+            doresize = True
 
         # Retrieve the PSF and WCS.
         if filt == refband:
