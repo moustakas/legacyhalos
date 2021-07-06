@@ -570,7 +570,7 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
         if doresize:
-            _starmask = resize(starmask, mask.shape, mode='reflect')
+            _starmask = resize(starmask*1.0, mask.shape, mode='reflect') > 0
             mask = np.logical_or(mask, _starmask)
         else:
             mask = np.logical_or(mask, starmask)

@@ -124,7 +124,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                    verbose=False, debug=False, clobber=False, ccdqa=False,
                    logfile=None, zcolumn='Z', galaxy_id=None,
                    datadir=None, htmldir=None, cosmo=None,
-                   galex=False, just_coadds=False, write_donefile=True,
+                   galex=False, unwise=False, just_coadds=False, write_donefile=True,
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
                    get_galaxy_galaxydir=None, read_multiband=None):
     """Wrapper script to build the pipeline coadds."""
@@ -139,7 +139,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
             radius_mosaic_arcsec=radius_mosaic_arcsec,
             maketrends=False, ccdqa=ccdqa,
             clobber=clobber, verbose=verbose, 
-            cosmo=cosmo, galex=galex, just_coadds=just_coadds,
+            cosmo=cosmo, galex=galex, unwise=unwise, just_coadds=just_coadds,
             get_galaxy_galaxydir=get_galaxy_galaxydir,
             read_multiband=read_multiband)
         if write_donefile:
@@ -155,7 +155,7 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                     radius_mosaic_arcsec=radius_mosaic_arcsec,
                     maketrends=False, ccdqa=ccdqa,
                     clobber=clobber, verbose=verbose,
-                    cosmo=cosmo, galex=galex, just_coadds=just_coadds,
+                    cosmo=cosmo, galex=galex, unwise=unwise, just_coadds=just_coadds,
                     get_galaxy_galaxydir=get_galaxy_galaxydir,
                     read_multiband=read_multiband)
                 if write_donefile:

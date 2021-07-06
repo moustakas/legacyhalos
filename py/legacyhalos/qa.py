@@ -99,11 +99,12 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
     with Image.open(jpgfile) as im:
         draw = ImageDraw.Draw(im)
         sz = im.size
-        width = np.round(sz[0]/(150/pixscalefactor)).astype('int')
+        width = np.round(pixscalefactor*sz[0]/150).astype('int')
         # Bar and label
         if barlen:
             if scaledfont:
-                fntsize = np.round(0.05*sz[0]).astype('int')
+                fntsize = np.round(pixscalefactor*sz[0]/50).astype('int')                
+                #fntsize = np.round(0.05*sz[0]).astype('int')
                 #fntsize = np.round(sz[0]/50).astype('int')
             else:
                 fntsize = 20 # np.round(sz[0]/20).astype('int')
@@ -111,8 +112,8 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
             #    fntsize = 56
             font = ImageFont.truetype(fonttype, size=fntsize)
             # Add a scale bar and label--
-            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen/pixscalefactor, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
-            #print(sz, fntsize, x0, x1, y0, y1, barlen/pixscalefactor)
+            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen*pixscalefactor, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            #print(sz, fntsize, x0, x1, y0, y1, barlen*pixscalefactor)
             draw.line((x0, y1, x1, y1), fill='white', width=width)
             ww, hh = draw.textsize(barlabel, font=font)
             dx = ((x1-x0) - ww)//2
@@ -959,7 +960,7 @@ def display_sersic(sersic, png=None, cosmo=None, verbose=False):
 def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                       igal=0, inchperband=8, contours=False, barlen=None,
                       barlabel=None, png=None, verbose=True, vertical=False,
-                      scaledfont=False):
+                      scaledfont=False, galex=False, unwise=False):
     """Display the multi-band images and, optionally, the isophotal fits based on
     either MGE and/or Ellipse.
 
@@ -979,8 +980,30 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
 
     Image.MAX_IMAGE_PIXELS = None
 
-    band = data['bands']
-    nband = len(band)
+    # stupidly fragile
+    #bands = data['bands']
+    
+    # handle GALEX and WISE
+    refpixscale = data['refpixscale']
+    def _get_pixscalefactor(filt):
+        if 'filt2pixscale' in data.keys():
+            pixscale = data['filt2pixscale'][filt]            
+            if np.isclose(pixscale, refpixscale): # avoid rounding issues
+                pixscale = refpixscale
+                pixscalefactor = 1.0
+            else:
+                pixscalefactor = refpixscale / pixscale
+        else:
+            pixscalefactor = 1.0
+        return pixscalefactor
+                
+    if galex:
+        bands = ['FUV', 'NUV']
+    elif unwise:
+        bands = ['W1', 'W2', 'W3', 'W4']
+    else:
+        bands = ['g', 'r', 'z']
+    nband = len(bands)
 
     # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
     #cmap = plt.cm.plasma
@@ -999,9 +1022,9 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         os.remove(png)
             
     if vertical:
-        fig, ax = plt.subplots(4, 1, figsize=(inchperband, inchperband*(nband+1)))
+        fig, ax = plt.subplots(nband+1, 1, figsize=(inchperband, inchperband*(nband+1)))
     else:
-        fig, ax = plt.subplots(1, 4, figsize=(inchperband*(nband+1), inchperband))
+        fig, ax = plt.subplots(1, nband+1, figsize=(inchperband*(nband+1), inchperband))
 
     # First display the color mosaic...
     if ellipsefit and ellipsefit['success']:
@@ -1034,17 +1057,20 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
                                 ellipsefit['pa'], 2 * sbr, ellipsefit['refpixscale'],
                                 color=cb_colors['blue'])
-                            
+
+        pixscalefactor = _get_pixscalefactor(bands[0]) # not smart!
+
         draw = ImageDraw.Draw(colorimg)
-        if barlen and barlabel:
-            width = np.round(sz[0]/150).astype('int')
+        if barlen and barlabel and galex is False and unwise is False:
+            width = np.round(pixscalefactor*sz[0]/150).astype('int')
             if scaledfont:
-                fntsize = np.round(sz[0]/50).astype('int')
+                fntsize = np.round(pixscalefactor*sz[0]/50).astype('int')
             else:
                 fntsize = 20 # np.round(sz[0]/20).astype('int')
             font = ImageFont.truetype(fonttype, size=fntsize)
             # Add a scale bar and label--
-            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen*pixscalefactor, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            #print(sz, fntsize, x0, x1, y0, y1, barlen*pixscalefactor)            
             draw.line((x0, y1, x1, y1), fill='white', width=width)
             ww, hh = draw.textsize(barlabel, font=font)
             dx = ((x1-x0) - ww)//2
@@ -1058,11 +1084,13 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         ax[0].autoscale(False)
 
     # ...now the individual bandpasses.        
-    for ii, (filt, ax1) in enumerate(zip(band, ax[1:])):
+    for ii, (filt, ax1) in enumerate(zip(bands, ax[1:])):
         #mge = data['mge'][igal]
         dat = data['{}_masked'.format(filt.lower())][igal]
         img = ma.masked_array(dat.data, dat.mask)
         mask = ma.masked_array(dat.data, ~dat.mask)
+
+        pixscalefactor = _get_pixscalefactor(filt)
 
         try:
             norm = ImageNormalize(img, interval=interval, stretch=stretch)
@@ -1084,8 +1112,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         else:
             ax1.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
                        interpolation='nearest')
-        plt.text(0.1, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
-                 ha='center', va='center', color='k', fontsize=34)
+        plt.text(0.09, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
+                 ha='left', va='center', color='k', fontsize=34)
 
         # Add a scale bar and label
         if barlen and ii == 0 and False:
@@ -1145,9 +1173,9 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
 
             # Visualize the ellipse-fitted geometry
             maxis = sbr / ellipsefit['refpixscale'] # [pixels]
-            if maxis > 0:
-                ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                                             maxis, maxis*(1 - ellipsefit['eps']),
+            if maxis > 0:# and galex is False and unwise is False:
+                ellaper = EllipticalAperture((ellipsefit['x0']*pixscalefactor, ellipsefit['y0']*pixscalefactor),
+                                             maxis*pixscalefactor, maxis*(1 - ellipsefit['eps'])*pixscalefactor,
                                              np.radians(ellipsefit['pa']-90))
                 #ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='Ellipse geometry')
                 ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='R(26)')
@@ -1176,7 +1204,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                                                  maxis*(1 - geometry.eps), geometry.pa)
                     ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
 
-            if ii == 2:
+            if ii == nband-1:
                 fntsize = 20
                 #fntsize = np.round(0.01*img.shape[0]).astype('int')
                 #if fntsize < 20:

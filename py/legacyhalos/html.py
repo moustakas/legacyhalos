@@ -456,10 +456,10 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
 
         qa_maskbits(mask, tractor, png=maskbitsfile)
 
-def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
+def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                     refband='r', pixscale=0.262, read_multiband=None,
                     galaxy_id=None, barlen=None, barlabel=None, clobber=False, verbose=False,
-                    cosmo=None, galex=False, scaledfont=False):
+                    cosmo=None, galex=False, unwise=False, scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
 
     """
@@ -480,7 +480,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
     data, galaxyinfo = read_multiband(galaxy, galaxydir, galaxy_id=galaxy_id, bands=bands,
                                       refband=refband, pixscale=pixscale,
-                                      verbose=verbose)
+                                      verbose=verbose, galex=galex, unwise=unwise)
     
     if not bool(data) or data['missingdata']:
         return
@@ -499,11 +499,38 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             if galid.strip() != '':
                 galid = '{}-'.format(galid)
 
+            if unwise:
+                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband-W1W2.png'.format(galaxy, data['filesuffix'], galid))
+                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband-W1W2.png'.format(galaxy, data['filesuffix'], galid))
+                if not os.path.isfile(multibandfile) or clobber:
+                    with Image.open(os.path.join(galaxydir, '{}-image-W1W2.jpg'.format(galaxy))) as colorimg:
+                        display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+                                          igal=igal, barlen=barlen, barlabel=barlabel,
+                                          png=multibandfile, verbose=verbose, scaledfont=scaledfont,
+                                          galex=False, unwise=True)
+                    # Create a thumbnail.
+                    cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
+                    if os.path.isfile(thumbfile):
+                        os.remove(thumbfile)
+                    print('Writing {}'.format(thumbfile))
+                    subprocess.call(cmd.split())
+
             if galex:
-                sedfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sed.png'.format(galaxy, data['filesuffix'], galid))
-                if not os.path.isfile(sedfile) or clobber:
-                    qa_multiwavelength_sed(ellipsefit, png=sedfile, verbose=verbose)
-                    
+                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband-FUVNUV.png'.format(galaxy, data['filesuffix'], galid))
+                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband-FUVNUV.png'.format(galaxy, data['filesuffix'], galid))
+                if not os.path.isfile(multibandfile) or clobber:
+                    with Image.open(os.path.join(galaxydir, '{}-image-FUVNUV.jpg'.format(galaxy))) as colorimg:
+                        display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+                                          igal=igal, barlen=barlen, barlabel=barlabel,
+                                          png=multibandfile, verbose=verbose, scaledfont=scaledfont,
+                                          galex=True, unwise=False)
+                    # Create a thumbnail.
+                    cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
+                    if os.path.isfile(thumbfile):
+                        os.remove(thumbfile)
+                    print('Writing {}'.format(thumbfile))
+                    subprocess.call(cmd.split())
+
             multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
             thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
             if not os.path.isfile(multibandfile) or clobber:
@@ -519,6 +546,11 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
                 print('Writing {}'.format(thumbfile))
                 subprocess.call(cmd.split())
 
+            if galex or unwise:
+                sedfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sed.png'.format(galaxy, data['filesuffix'], galid))
+                if not os.path.isfile(sedfile) or clobber:
+                    qa_multiwavelength_sed(ellipsefit, png=sedfile, verbose=verbose)
+                    
             ## hack!
             #print('HACK!!!')
             #continue
@@ -554,7 +586,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     #    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
     #        qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=True, png=maskbitsfile)
 
-def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
+def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                    cosmo=None, clobber=False, verbose=False):
     """Generate QAplots from the Sersic modeling.
 
@@ -605,12 +637,12 @@ def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
             display_sersic(serexp, cosmo=cosmo, png=serexpfile, verbose=verbose)
 
 def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
-               bands=('g', 'r', 'z'), pixscale=0.262, zcolumn='Z', galaxy_id=None,
+               bands=['g', 'r', 'z'], pixscale=0.262, zcolumn='Z', galaxy_id=None,
                nproc=1, barlen=None, barlabel=None,
                radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
-               read_multiband=None, cosmo=None, galex=False, just_coadds=False,
-               scaledfont=False):
+               read_multiband=None, cosmo=None, galex=False, unwise=False,
+               just_coadds=False, scaledfont=False):
     """Make QA plots.
 
     """
@@ -664,9 +696,11 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel,
                             galaxy_id=galaxy_id,
-                            clobber=clobber, verbose=verbose, galex=galex, cosmo=cosmo,
-                            scaledfont=scaledfont, read_multiband=read_multiband)
+                            clobber=clobber, verbose=verbose, galex=galex, unwise=unwise,
+                            cosmo=cosmo, scaledfont=scaledfont, read_multiband=read_multiband)
             #continue # here!
+
+            pdb.set_trace()
 
         # Multiwavelength coadds (does not support just_coadds=True)--
         if galex:

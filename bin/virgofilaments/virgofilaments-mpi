@@ -358,7 +358,7 @@ def main():
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
                            #galaxy_id=onegal['VF_ID'],                           
-                           galex=True, 
+                           galex=True, unwise=True,
                            get_galaxy_galaxydir=get_galaxy_galaxydir,
                            read_multiband=read_multiband)                           
 
