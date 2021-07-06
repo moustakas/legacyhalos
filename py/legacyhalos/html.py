@@ -469,7 +469,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
     from legacyhalos.io import read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth,
-                                qa_maskbits)
+                                qa_maskbits, qa_multiwavelength_sed)
 
     Image.MAX_IMAGE_PIXELS = None
     
@@ -498,6 +498,13 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=('g', 'r', 'z'),
 
             if galid.strip() != '':
                 galid = '{}-'.format(galid)
+
+            if galex:
+                sedfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sed.png'.format(galaxy, data['filesuffix'], galid))
+                if not os.path.isfile(sedfile) or clobber:
+                    qa_multiwavelength_sed(ellipsefit, png=sedfile, verbose=verbose)
+                    
+                pdb.set_trace()
 
             multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
             thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
@@ -654,20 +661,6 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         #        redshift=onegal[zcolumn], radius_kpc=radius_mosaic_kpc) # [arcsec]
         radius_mosaic_pixels = _mosaic_width(radius_mosaic_arcsec, pixscale) / 2
 
-        # Multiwavelength coadds (does not support just_coadds=True)--
-        if galex:
-            make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
-                                        refpixscale=pixscale,
-                                        #barlen=barlen, barlabel=barlabel,
-                                        clobber=clobber, verbose=verbose)
-
-            
-
-        # Build the montage coadds.
-        make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
-                            barlabel=barlabel, clobber=clobber, verbose=verbose,
-                            just_coadds=just_coadds)
-            
         # Build the ellipse and photometry plots.
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
@@ -677,6 +670,18 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                             scaledfont=scaledfont, read_multiband=read_multiband)
             #continue # here!
 
+        # Multiwavelength coadds (does not support just_coadds=True)--
+        if galex:
+            make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
+                                        refpixscale=pixscale,
+                                        #barlen=barlen, barlabel=barlabel,
+                                        clobber=clobber, verbose=verbose)
+
+        # Build the montage coadds.
+        make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=barlen,
+                            barlabel=barlabel, clobber=clobber, verbose=verbose,
+                            just_coadds=just_coadds)
+            
         # CCD positions
         #make_ccdpos_qa(onegal, galaxy, galaxydir, htmlgalaxydir, pixscale=pixscale,
         #               radius=radius_mosaic_pixels, zcolumn=zcolumn, survey=survey,

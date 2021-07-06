@@ -386,7 +386,11 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
     hh, ll = ax.get_legend_handles_labels()
     if len(hh) > 0:
-        leg1 = ax.legend(loc='lower right', fontsize=14)#, ncol=3)
+        if len(hh) > 3:
+            ncol = 2
+        else:
+            ncol = 1
+        leg1 = ax.legend(loc='lower right', fontsize=14, ncol=ncol)
     
     # Plot some threshold radii for the large-galaxy project--
     if plot_sbradii:
@@ -413,10 +417,139 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             ax.add_artist(leg1)
         
     if smascale:
-        fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.95)
+        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.85, right=0.95)
         #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
     else:
-        fig.subplots_adjust(left=0.12, bottom=0.15, top=0.95, right=0.95)
+        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.95, right=0.95)
+        #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.95, right=0.88)
+
+    if png:
+        #if verbose:
+        print('Writing {}'.format(png))
+        fig.savefig(png)
+        plt.close(fig)
+    else:
+        plt.show()
+
+def qa_multiwavelength_sed(ellipsefit, png=None, verbose=True):
+    """Plot up the multiwavelength SED.
+
+    """
+    import matplotlib.ticker as ticker
+    from astropy.table import Table
+    from legacyhalos.io import get_run
+    
+    if ellipsefit['success'] is False or np.atleast_1d(ellipsefit['r_sma'])[0] == -1:
+        return
+    
+    bands, refband = ellipsefit['bands'], ellipsefit['refband']
+
+    galex = 'FUV' in bands
+    unwise = 'W1' in bands
+    colors = _sbprofile_colors(galex=galex, unwise=unwise)
+        
+    if 'redshift' in ellipsefit.keys():
+        redshift = ellipsefit['redshift']
+        smascale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
+    else:
+        redshift, smascale = None, None
+
+    # see also Morrisey+05
+    effwave_north = {'fuv': 1528.0, 'nuv': 2271.0,
+                     'w1': 34002.54044482, 'w2': 46520.07577119, 'w3': 128103.3789599, 'w4': 223752.7751558,
+                     'g': 4815.95363513, 'r': 6437.79282937, 'z': 9229.65786449}
+    effwave_south = {'fuv': 1528.0, 'nuv': 2271.0,
+                     'w1': 34002.54044482, 'w2': 46520.07577119, 'w3': 128103.3789599, 'w4': 223752.7751558,
+                     'g': 4890.03670428, 'r': 6469.62203811, 'z': 9196.46396394}
+
+    _tt = Table()
+    _tt['RA'] = [ellipsefit['ra_x0']]
+    _tt['DEC'] = [ellipsefit['dec_y0']]
+    run = get_run(_tt)
+
+    if run == 'north':
+        effwave = effwave_north
+    else:
+        effwave = effwave_south
+
+    # build the arrays
+    nband = len(bands)
+    bandwave = np.zeros(nband, 'f4')
+    abmag = np.zeros(nband, 'f4')
+    abmagerr = np.zeros(nband, 'f4')
+    lower = np.zeros(nband, bool)
+    
+    for ifilt, filt in enumerate(bands):
+        bandwave[ifilt] = effwave[filt.lower()]
+        magtot = ellipsefit['{}_cog_params_mtot'.format(filt.lower())]
+
+        abmag[ifilt] = magtot
+
+        if magtot < 0:
+            good = np.where(ellipsefit['{}_cog_mag'.format(filt.lower())] > 0)[0]
+            #pdb.set_trace()
+            if len(good) > 0:
+                abmag[ifilt] = ellipsefit['{}_cog_mag'.format(filt.lower())][good][-1]
+                abmagerr[ifilt] = 0.5
+                lower[ifilt] = True
+
+    print(bandwave, abmag, lower)
+
+    wavemin, wavemax = 0.1, 30
+
+    good = np.where(abmag > 0)[0]
+    if len(good) == 0:
+        ymin, ymax = 25, 10
+    else:
+        ymin = np.max(abmag[good]) + 1.5
+        ymax = np.min(abmag[good]) - 1.5
+
+    # make the plot
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    # have to set the limits before plotting since the axes are reversed
+    ax.set_ylim(ymin, ymax)
+    if np.abs(ymax-ymin) > 15:
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(5)) # wavelength spacing of ticks [Angstrom]
+
+    #good = np.where(abmag > 0)[0]
+    good = np.where((abmag > 0) * (lower == False))[0]
+    if len(good) > 0:
+        ax.errorbar(bandwave[good]/1e4, abmag[good], yerr=abmagerr[good],
+                    fmt='s', markersize=11, markeredgewidth=3, markeredgecolor='k',
+                    markerfacecolor='red', elinewidth=3, ecolor='red', capsize=4)
+        
+    good = np.where((abmag > 0) * (lower == True))[0]
+    if len(good) > 0:
+        #ax.scatter(bandwave[good]/1e4, abmag[good], yerr=abmagerr[good],
+        #            uplims=True,#lower[good],
+        #            markersize=11, markeredgewidth=3, markeredgecolor='k',
+        #            markerfacecolor='red', elinewidth=3, ecolor='red', capsize=4)
+        ax.errorbar(bandwave[good]/1e4, abmag[good], yerr=abmagerr[good],
+                    fmt='s', markersize=11, markeredgewidth=3, markeredgecolor='k',
+                    markerfacecolor='red', elinewidth=3, ecolor='red', capsize=4,
+                    lolims=True)
+    
+    ax.set_xlabel(r'Observed-frame Wavelength ($\mu$m)') 
+    ax.set_ylabel(r'Apparent Brightness (AB mag)') 
+    ax.set_xlim(wavemin, wavemax)
+    ax.set_xscale('log')
+
+    def _frmt(value, _):
+        if value < 1:
+            return '{:.1f}'.format(value)
+        else:
+            return '{:.0f}'.format(value)
+
+    #ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%.1f'))
+    ax.set_xticks([0.1, 0.2, 0.4, 1.0, 3.0, 5.0, 10, 20])
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(_frmt))
+
+    if smascale:
+        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.85, right=0.95)
+        #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
+    else:
+        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.95, right=0.95)
         #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.95, right=0.88)
 
     if png:
@@ -1200,6 +1333,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
     2-panel
 
     """
+    import matplotlib.ticker as ticker
     import astropy.stats
     from legacyhalos.ellipse import ellipse_sbprofile
 
@@ -1313,16 +1447,20 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
 
         ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
-        if ylim[0] < 17:
-            ylim[0] = 17
-        if ylim[1] > 33:
-            ylim[1] = 33
+        if ylim[0] < 13:
+            ylim[0] = 13
+        if ylim[1] > 34:
+            ylim[1] = 34
 
         if use_ylim is not None:
             ax1.set_ylim(use_ylim)
         else:
             ax1.set_ylim(ylim)
         ax1.invert_yaxis()
+
+        ylim = ax1.get_ylim()        
+        if np.abs(ylim[1]-ylim[0]) > 15:
+            ax1.yaxis.set_major_locator(ticker.MultipleLocator(5)) # wavelength spacing of ticks [Angstrom]
 
         xlim = [xminmax[0], xminmax[1]*1.01]
         ax1.set_xlim(xlim)
@@ -1351,7 +1489,11 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 
         hh, ll = ax1.get_legend_handles_labels()
         if len(hh) > 0:
-            leg1 = ax1.legend(loc='upper right')
+            if len(hh) > 3:
+                ncol = 2
+            else:
+                ncol = 1
+            leg1 = ax1.legend(loc='upper right', fontsize=14, ncol=ncol)
 
         # Plot some threshold radii for the large-galaxy project--
         if plot_sbradii:
@@ -1407,7 +1549,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 
         hh, ll = ax2.get_legend_handles_labels()
         if len(hh) > 0:
-            ax2.legend(loc='upper right')
+            ax2.legend(loc='upper right', fontsize=14)
             #ax2.legend(bbox_to_anchor=(0.25, 0.98))
         
         ax2.set_ylabel('Color (mag)')

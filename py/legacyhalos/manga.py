@@ -842,7 +842,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
 
     maxsma = None
     #maxsma = 5 * MANGA_RADIUS # None
-    delta_logsma = 3.0
+    delta_logsma = 10 # 3.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!
@@ -1256,6 +1256,12 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             pngfile = '{}-custom-{}-ellipse-cog.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('</tr>\n')
+
+            html.write('<tr>\n')
+            pngfile = '{}-custom-{}-ellipse-sed.png'.format(galaxy1, galaxyid)
+            html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+            html.write('</tr>\n')
+            
             html.write('</table>\n')
             #html.write('<br />\n')
 

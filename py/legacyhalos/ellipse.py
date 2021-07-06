@@ -254,9 +254,8 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 cogmagerr = np.ones(len(cogmag))
 
         #results['cog_smaunit'] = 'arcsec'
-        
-        if np.count_nonzero(ok) < 10:
-            print('Warning: Too few {}-band pixels to fit the curve of growth; skipping.'.format(filt))
+
+        if np.count_nonzero(ok) == 0:
             results['{}_cog_sma'.format(filt.lower())] = np.float32(-1) # np.array([])
             results['{}_cog_mag'.format(filt.lower())] = np.float32(-1) # np.array([])
             results['{}_cog_magerr'.format(filt.lower())] = np.float32(-1) # np.array([])
@@ -269,187 +268,92 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             for sbcut in sbthresh:
                 results['{}_mag_sb{:0g}'.format(filt.lower(), sbcut)] = np.float32(-1)
                 results['{}_mag_sb{:0g}_err'.format(filt.lower(), sbcut)] = np.float32(-1)
-            continue
+        else:
+            sma_arcsec = sma[ok] * pixscale             # [arcsec]
+            cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
+            if cogferr is not None:
+                cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
 
-        sma_arcsec = sma[ok] * pixscale             # [arcsec]
-        cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
-        if cogferr is not None:
-            cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
+            results['{}_cog_sma'.format(filt.lower())] = np.float32(sma_arcsec)
+            results['{}_cog_mag'.format(filt.lower())] = np.float32(cogmag)
+            results['{}_cog_magerr'.format(filt.lower())] = np.float32(cogmagerr)
 
-        results['{}_cog_sma'.format(filt.lower())] = np.float32(sma_arcsec)
-        results['{}_cog_mag'.format(filt.lower())] = np.float32(cogmag)
-        results['{}_cog_magerr'.format(filt.lower())] = np.float32(cogmagerr)
-
-        #print('Modeling the curve of growth.')
-        these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
-        
-        if len(these) >= nparams:
-            bounds = ([cogmag[these][-1]-1.0, 0, 0, 0], np.inf)
-            #bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
-            #bounds = (0, np.inf)
-            popt, minchi2 = cog_dofit(sma_arcsec[these], cogmag[these], cogmagerr[these], bounds=bounds)
-            if minchi2 < chi2fail and popt is not None:
-                mtot, m0, alpha1, alpha2 = popt
-                print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
-                results['{}_cog_params_mtot'.format(filt.lower())] = np.float32(mtot)
-                results['{}_cog_params_m0'.format(filt.lower())] = np.float32(m0)
-                results['{}_cog_params_alpha1'.format(filt.lower())] = np.float32(alpha1)
-                results['{}_cog_params_alpha2'.format(filt.lower())] = np.float32(alpha2)
-                results['{}_cog_params_chi2'.format(filt.lower())] = np.float32(minchi2)
-
-                # get the half-light radius (along the major axis)
-                if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
-                    #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
-                    half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
-                    #half_light_radius = half_light_sma * np.sqrt(1 - ellipse['eps']) # circularized
-                    results['{}_cog_sma50'.format(filt.lower())] = half_light_sma
-        
-        ##################################################
-        # begin old COG modeling code
-        
-        #def get_chi2(bestfit):
-        #    sbmodel = bestfit(self.radius, self.wave)
-        #    chi2 = np.sum( (self.sb - sbmodel)**2 / self.sberr**2 ) / dof
-        #
-        #cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
-        #cogmodel = CogModel()
-        #
-        #nball = 10
-        #
-        ## perturb the parameter values
-        #nparams = len(cogmodel.parameters)
-        #dof = len(cogmag) - nparams
-        #
-        #params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
-        #for ii, pp in enumerate(cogmodel.param_names):
-        #    pinfo = getattr(cogmodel, pp)
-        #    if pinfo.bounds[0] is not None:
-        #        scale = 0.2 * pinfo.default
-        #        params[ii, :] += rand.normal(scale=scale, size=nball)
-        #        toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
-        #        if len(toosmall) > 0:
-        #            params[ii, toosmall] = pinfo.default
-        #        toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
-        #        if len(toobig) > 0:
-        #            params[ii, toobig] = pinfo.default
-        #    else:
-        #        params[ii, :] += rand.normal(scale=0.2 * pinfo.default, size=nball)
-        #        
-        ## perform the fit nball times
-        #chi2fail = 1e6
-        #with warnings.catch_warnings():
-        #    warnings.simplefilter('ignore')
-        #    chi2 = np.zeros(nball) + chi2fail
-        #    for jj in range(nball):
-        #        cogmodel.parameters = params[:, jj]
-        #        # Fit up until the curve of growth turns over, but no less than
-        #        # the second moment of the light distribution! Pretty fragile..
-        #        these = np.where(np.diff(cogmag) < 0)[0]
-        #        if len(these) > 5: # this is bad if we don't have at least 5 points!
-        #            if sma_arcsec[these[0]] < (refellipsefit['majoraxis'] * pixscale * pixscalefactor):
-        #                these = np.where(sma_arcsec < refellipsefit['majoraxis'] * pixscale * pixscalefactor)[0]
-        #            if len(these) > 5: # can happen in corner cases (e.g., PGC155984)
-        #                ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
-        #                                    maxiter=100, weights=1/cogmagerr[these])
-        #                bestfit = ballfit(sma_arcsec)
-        #
-        #                chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
-        #                if cogfitter.fit_info['param_cov'] is None: # failed
-        #                    if False:
-        #                        print(jj, cogfitter.fit_info['message'], chi2[jj])
-        #                else:
-        #                    params[:, jj] = ballfit.parameters # update
-        #
-        ## if at least one fit succeeded, re-evaluate the model at the chi2
-        ## minimum.
-        #good = chi2 < chi2fail
-        #if np.sum(good) == 0:
-        #    print('{} CoG modeling failed.'.format(filt))
-        #    #result.update({'fit_message': cogfitter.fit_info['message']})
-        #    #return result
-        #mindx = np.argmin(chi2)
-        #minchi2 = chi2[mindx]
-        #cogmodel.parameters = params[:, mindx]
-        #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr, maxiter=100)
-        #print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
-        #
-        ##P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)
-        ##results['{}_cog_params'.format(filt)] = {'mtot': np.float32(P.mtot.value),
-        ##                                         'm0': np.float32(P.m0.value),
-        ##                                         'alpha1': np.float32(P.alpha1.value),
-        ##                                         'alpha2': np.float32(P.alpha2.value),
-        ##                                         'chi2': np.float32(minchi2)}
-        #results['{}_cog_params_mtot'.format(filt)] = np.float32(P.mtot.value)
-        #results['{}_cog_params_m0'.format(filt)] = np.float32(P.m0.value)
-        #results['{}_cog_params_alpha1'.format(filt)] = np.float32(P.alpha1.value)
-        #results['{}_cog_params_alpha2'.format(filt)] = np.float32(P.alpha2.value)
-        #results['{}_cog_params_chi2'.format(filt)] = np.float32(minchi2)
-        #
-        # end old COG modeling code
-        ##################################################
-
-        #print('Measuring integrated magnitudes to different radii.')
-        sb = ellipse_sbprofile(refellipsefit, linear=True)
-        radkeys = ['sma_sb{:0g}'.format(sbcut) for sbcut in sbthresh]
-        for radkey in radkeys:
-            magkey = radkey.replace('sma_', '{}_mag_'.format(filt.lower()))
-            magerrkey = '{}_err'.format(magkey)
+            #if filt == 'FUV':
+            #    pdb.set_trace()
             
-            smamax = results[radkey] # semi-major axis
-            if smamax > 0 and smamax < np.max(sma_arcsec):
-                rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
+            #print('Modeling the curve of growth.')
+            these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
+            if len(these) < nparams:
+                print('Warning: Too few {}-band pixels to fit the curve of growth; skipping.'.format(filt))
+                results['{}_cog_params_mtot'.format(filt.lower())] = np.float32(-1)
+                results['{}_cog_params_m0'.format(filt.lower())] = np.float32(-1)
+                results['{}_cog_params_alpha1'.format(filt.lower())] = np.float32(-1)
+                results['{}_cog_params_alpha2'.format(filt.lower())] = np.float32(-1)
+                results['{}_cog_params_chi2'.format(filt.lower())] = np.float32(1e6)
+                results['{}_cog_sma50'.format(filt.lower())] = np.float32(-1)
+                continue
+            else:
+                bounds = ([cogmag[these][-1]-1.0, 0, 0, 0], np.inf)
+                #bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
+                #bounds = (0, np.inf)
+                popt, minchi2 = cog_dofit(sma_arcsec[these], cogmag[these], cogmagerr[these], bounds=bounds)
+                if minchi2 < chi2fail and popt is not None:
+                    mtot, m0, alpha1, alpha2 = popt
+                    print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+                    results['{}_cog_params_mtot'.format(filt.lower())] = np.float32(mtot)
+                    results['{}_cog_params_m0'.format(filt.lower())] = np.float32(m0)
+                    results['{}_cog_params_alpha1'.format(filt.lower())] = np.float32(alpha1)
+                    results['{}_cog_params_alpha2'.format(filt.lower())] = np.float32(alpha2)
+                    results['{}_cog_params_chi2'.format(filt.lower())] = np.float32(minchi2)
 
-                rr = sb['sma_{}'.format(filt.lower())]    # [circularized radius, arcsec]
-                yy = sb['mu_{}'.format(filt.lower())]        # [surface brightness, nanomaggies/arcsec**2]
-                yyerr = sb['muerr_{}'.format(filt.lower())] # [surface brightness, nanomaggies/arcsec**2]
-                try:
-                    #print(filt, rr.max(), rmax)
-                    yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
-                    yyerr_rmax = interp1d(rr, yyerr)(rmax)
+                    # get the half-light radius (along the major axis)
+                    if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
+                        #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
+                        half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
+                        #half_light_radius = half_light_sma * np.sqrt(1 - ellipse['eps']) # circularized
+                        results['{}_cog_sma50'.format(filt.lower())] = half_light_sma
 
-                    # append the maximum radius to the end of the array
-                    keep = np.where(rr < rmax)[0]
-                    _rr = np.hstack((rr[keep], rmax))
-                    _yy = np.hstack((yy[keep], yy_rmax))
-                    _yyerr = np.hstack((yyerr[keep], yyerr_rmax))
+            #print('Measuring integrated magnitudes to different radii.')
+            sb = ellipse_sbprofile(refellipsefit, linear=True)
+            radkeys = ['sma_sb{:0g}'.format(sbcut) for sbcut in sbthresh]
+            for radkey in radkeys:
+                magkey = radkey.replace('sma_', '{}_mag_'.format(filt.lower()))
+                magerrkey = '{}_err'.format(magkey)
 
-                    flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
-                    fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
-                    if flux > 0 and fvar > 0:
-                        ferr = 2 * np.pi * np.sqrt(fvar)
-                        results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
-                        results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
-                    else:
+                smamax = results[radkey] # semi-major axis
+                if smamax > 0 and smamax < np.max(sma_arcsec):
+                    rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
+
+                    rr = sb['sma_{}'.format(filt.lower())]    # [circularized radius, arcsec]
+                    yy = sb['mu_{}'.format(filt.lower())]        # [surface brightness, nanomaggies/arcsec**2]
+                    yyerr = sb['muerr_{}'.format(filt.lower())] # [surface brightness, nanomaggies/arcsec**2]
+                    try:
+                        #print(filt, rr.max(), rmax)
+                        yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
+                        yyerr_rmax = interp1d(rr, yyerr)(rmax)
+
+                        # append the maximum radius to the end of the array
+                        keep = np.where(rr < rmax)[0]
+                        _rr = np.hstack((rr[keep], rmax))
+                        _yy = np.hstack((yy[keep], yy_rmax))
+                        _yyerr = np.hstack((yyerr[keep], yyerr_rmax))
+
+                        flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
+                        fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
+                        if flux > 0 and fvar > 0:
+                            ferr = 2 * np.pi * np.sqrt(fvar)
+                            results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                            results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                        else:
+                            results[magkey] = np.float32(-1.0)
+                            results[magerrkey] = np.float32(-1.0)
+                    except:
                         results[magkey] = np.float32(-1.0)
                         results[magerrkey] = np.float32(-1.0)
-                except:
+                else:
                     results[magkey] = np.float32(-1.0)
                     results[magerrkey] = np.float32(-1.0)
-            else:
-                results[magkey] = np.float32(-1.0)
-                results[magerrkey] = np.float32(-1.0)
                 
-    #pdb.set_trace()
-        
-    #    print(filt, P)
-    #    default_model = cogmodel.evaluate(radius, P.mtot.default, P.m0.default, P.alpha1.default, P.alpha2.default)
-    #    bestfit_model = cogmodel.evaluate(radius, P.mtot.value, P.m0.value, P.alpha1.value, P.alpha2.value)
-    #    plt.scatter(radius, cog, label='Data {}'.format(filt), s=10)
-    #    plt.plot(radius, bestfit_model, label='Best Fit {}'.format(filt), color='k', lw=1, alpha=0.5)
-    #plt.legend(fontsize=10)
-    #plt.ylim(15, 30)
-    #plt.savefig('junk.png')
-    #pdb.set_trace()
-
-    #fig, ax = plt.subplots()
-    #for filt in bands:
-    #    ax.plot(results['apphot_sma_{}'.format(filt)],
-    #            22.5-2.5*np.log10(results['apphot_mag_{}'.format(filt)]), label=filt)
-    #ax.set_ylim(30, 5)
-    #ax.legend(loc='lower right')
-    #plt.show()
-    #pdb.set_trace()
-
     return results
 
 def _unmask_center(img):
@@ -561,7 +465,7 @@ def integrate_isophot_one(img, sma, theta, eps, x0, y0,
         
     return out
 
-def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
+def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
                       cut_on_cog=False, sdss=False, linear=False):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
@@ -616,6 +520,9 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
                 keep = np.isfinite(sb)
             else:
                 keep = np.isfinite(sb) * ((sb / sberr) > snrmin)
+                #if filt == 'FUV':
+                #    pdb.set_trace()
+                
             if cut_on_cog:
                 keep *= (ellipsefit['{}_sma'.format(filt.lower())] * pixscale) <= np.max(ellipsefit['{}_cog_sma'.format(filt.lower())])
             keep = np.where(keep)[0]
@@ -936,7 +843,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
 
         x0 = pixscalefactor * ellipsefit['x0']
         y0 = pixscalefactor * ellipsefit['y0']
-        filtsma = np.round(sma[::int(1/pixscalefactor)] * pixscalefactor).astype('f4')
+        #if filt == 'W4':
+        #    pdb.set_trace()
+        filtsma = np.round(sma * pixscalefactor).astype('f4')
+        #filtsma = np.round(sma[::int(1/(pixscalefactor))] * pixscalefactor).astype('f4')
         filtsma = np.unique(filtsma)
         assert(len(np.unique(filtsma)) == len(filtsma))
     
@@ -964,6 +874,9 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                 img, _sma, ellipsefit['pa'], ellipsefit['eps'], x0,
                 y0, integrmode, sclip, nclip) for _sma in filtsma])
             ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
+
+        #if filt == 'FUV':
+        #    pdb.set_trace()
         
         print('...{:.3f} sec'.format(time.time() - t0))
         
