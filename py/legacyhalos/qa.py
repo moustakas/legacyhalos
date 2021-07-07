@@ -279,7 +279,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     from legacyhalos.ellipse import cog_model
     #from legacyhalos.ellipse import CogModel
 
-    if ellipsefit['success'] is False or np.atleast_1d(ellipsefit['r_sma'])[0] == -1:
+    if ellipsefit['success'] is False or np.atleast_1d(ellipsefit['sma_r'])[0] == -1:
         return
     
     fig, ax = plt.subplots(figsize=(9, 7))
@@ -450,7 +450,7 @@ def qa_multiwavelength_sed(ellipsefit, png=None, verbose=True):
     from astropy.table import Table
     from legacyhalos.io import get_run
     
-    if ellipsefit['success'] is False or np.atleast_1d(ellipsefit['r_sma'])[0] == -1:
+    if ellipsefit['success'] is False or np.atleast_1d(ellipsefit['sma_r'])[0] == -1:
         return
     
     bands, refband = ellipsefit['bands'], ellipsefit['refband']
@@ -474,8 +474,8 @@ def qa_multiwavelength_sed(ellipsefit, png=None, verbose=True):
                      'g': 4890.03670428, 'r': 6469.62203811, 'z': 9196.46396394}
 
     _tt = Table()
-    _tt['RA'] = [ellipsefit['ra_x0']]
-    _tt['DEC'] = [ellipsefit['dec_y0']]
+    _tt['RA'] = [ellipsefit['ra_x0y0']]
+    _tt['DEC'] = [ellipsefit['dec_x0y0']]
     run = get_run(_tt)
 
     if run == 'north':
@@ -1377,7 +1377,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 
     isdict = type(ellipsefit) is dict
 
-    if ellipsefit['success'] and np.atleast_1d(ellipsefit['r_sma'])[0] != -1:
+    if ellipsefit['success'] and np.atleast_1d(ellipsefit['sma_r'])[0] != -1:
 
         sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr, sma_not_radius=~plot_radius)
 

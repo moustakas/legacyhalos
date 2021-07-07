@@ -873,7 +873,7 @@ def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3
         elif R26:
             mag = cat['{}_mag_sb26'.format(band.lower())]
         elif cog:
-            mag = cat['{}_cog_params_mtot'.format(band.lower())]
+            mag = cat['cog_mtot_{}'.format(band.lower())]
         else:
             print('Thar be rocks ahead!')
         if mag:
@@ -1188,8 +1188,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                     html.write('<td>...</td><td>...</td><td>...</td>\n')
 
                 rr = []
-                if 'g_cog_sma50' in ellipse.keys():
-                    for rad in [ellipse['g_cog_sma50'], ellipse['r_cog_sma50'], ellipse['z_cog_sma50']]:
+                if 'cog_sma50_g' in ellipse.keys():
+                    for rad in [ellipse['cog_sma50_g'], ellipse['cog_sma50_r'], ellipse['cog_sma50_z']]:
                         if rad < 0:
                             rr.append('...')
                         else:
@@ -1234,7 +1234,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             galaxyid = str(tt['ref_id'])
             ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='custom',
                                                         galaxy_id=galaxyid, verbose=False)
-            if bool(ellipse) and 'fuv_cog_params_mtot' in ellipse.keys():
+            if bool(ellipse) and 'cog_mtot_fuv' in ellipse.keys():
                 #g, r, z = _get_mags(ellipse, R24=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                 #g, r, z = _get_mags(ellipse, R25=True)
@@ -1255,7 +1255,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         # Galaxy-specific mosaics--
         for igal in np.arange(len(tractor['ref_id'])):
             galaxyid = str(tractor['ref_id'][igal])
-            html.write('<h4>{}</h4>\n'.format(galaxyid))
+            #html.write('<h4>{}</h4>\n'.format(galaxyid))
+            html.write('<h4>{}</h4>\n'.format(sample[GALAXYCOLUMN][igal]))
 
             ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='custom',
                                                      galaxy_id=galaxyid, verbose=verbose)
