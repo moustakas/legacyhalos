@@ -195,8 +195,8 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             sma = sma[keep]
         else:
             print('Too few good semi-major axis pixels!')
-            pdb.set_trace()
-            raise ValueError
+            #pdb.set_trace()
+            #raise ValueError
         
         smb = sma * eps
         if eps == 0.0:
@@ -249,7 +249,8 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         # Aperture fluxes can be negative (or nan?) sometimes--
         with warnings.catch_warnings():
             if cogferr is not None:
-                ok = (cogflux > 0) * (cogferr > 0) * np.isfinite(cogflux) * np.isfinite(cogferr)
+                with np.errstate(divide='ignore'):
+                    ok = (cogflux > 0) * (cogferr > 0) * np.isfinite(cogflux) * np.isfinite(cogferr) * (cogflux / cogferr > 1)
             else:
                 ok = (cogflux > 0) * np.isfinite(cogflux)
                 cogmagerr = np.ones(len(cogmag))
@@ -310,8 +311,10 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                     # get the half-light radius (along the major axis)
                     if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
                         #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
-                        half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
-                        #half_light_radius = half_light_sma * np.sqrt(1 - ellipse['eps']) # circularized
+                        with np.errstate(all='ignore'):                        
+                            half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
+                            #if filt == 'W4':
+                            #    pdb.set_trace()
                         results['{}_cog_sma50'.format(filt.lower())] = half_light_sma
 
             #print('Measuring integrated magnitudes to different radii.')

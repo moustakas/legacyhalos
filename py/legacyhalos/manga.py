@@ -845,7 +845,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
 
     maxsma = None
     #maxsma = 5 * MANGA_RADIUS # None
-    delta_logsma = 10 # 3.0
+    delta_logsma = 5 # 3.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!
@@ -1177,21 +1177,26 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                     ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
 
                 rr = []
-                for rad in [ellipse['sma_sb24'], ellipse['sma_sb25'], ellipse['sma_sb26']]:
-                    if rad < 0:
-                        rr.append('...')
-                    else:
-                        rr.append('{:.3f}'.format(rad))
-                html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(rr[0], rr[1], rr[2]))
+                if 'sma_sb24' in ellipse.keys():
+                    for rad in [ellipse['sma_sb24'], ellipse['sma_sb25'], ellipse['sma_sb26']]:
+                        if rad < 0:
+                            rr.append('...')
+                        else:
+                            rr.append('{:.3f}'.format(rad))
+                    html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(rr[0], rr[1], rr[2]))
+                else:
+                    html.write('<td>...</td><td>...</td><td>...</td>\n')
 
                 rr = []
-                for rad in [ellipse['g_cog_sma50'], ellipse['r_cog_sma50'], ellipse['z_cog_sma50']]:
-                    if rad < 0:
-                        rr.append('...')
-                    else:
-                        rr.append('{:.3f}'.format(rad))
-                html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(rr[0], rr[1], rr[2]))
-                
+                if 'g_cog_sma50' in ellipse.keys():
+                    for rad in [ellipse['g_cog_sma50'], ellipse['r_cog_sma50'], ellipse['z_cog_sma50']]:
+                        if rad < 0:
+                            rr.append('...')
+                        else:
+                            rr.append('{:.3f}'.format(rad))
+                    html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(rr[0], rr[1], rr[2]))
+                else:
+                    html.write('<td>...</td><td>...</td><td>...</td>\n')                
             else:
                 html.write('<td>...</td><td>...</td><td>...</td>\n')
                 html.write('<td>...</td><td>...</td><td>...</td>\n')
@@ -1229,7 +1234,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             galaxyid = str(tt['ref_id'])
             ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='custom',
                                                         galaxy_id=galaxyid, verbose=False)
-            if bool(ellipse):
+            if bool(ellipse) and 'fuv_cog_params_mtot' in ellipse.keys():
                 #g, r, z = _get_mags(ellipse, R24=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                 #g, r, z = _get_mags(ellipse, R25=True)
