@@ -188,7 +188,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         
         #sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
 
-        sma = refellipsefit['{}_sma'.format(filt.lower())] * 1.0
+        sma = refellipsefit['sma_{}'.format(filt.lower())] * 1.0
         keep = np.where((sma > 0) * (sma <= maxsma))[0]
         #keep = np.where(sma < maxsma)[0]
         if len(keep) > 0:
@@ -258,15 +258,15 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         #results['cog_smaunit'] = 'arcsec'
 
         if np.count_nonzero(ok) == 0:
-            results['{}_cog_sma'.format(filt.lower())] = np.float32(-1) # np.array([])
-            results['{}_cog_mag'.format(filt.lower())] = np.float32(-1) # np.array([])
-            results['{}_cog_magerr'.format(filt.lower())] = np.float32(-1) # np.array([])
-            results['{}_cog_params_mtot'.format(filt.lower())] = np.float32(-1)
-            results['{}_cog_params_m0'.format(filt.lower())] = np.float32(-1)
-            results['{}_cog_params_alpha1'.format(filt.lower())] = np.float32(-1)
-            results['{}_cog_params_alpha2'.format(filt.lower())] = np.float32(-1)
-            results['{}_cog_params_chi2'.format(filt.lower())] = np.float32(1e6)
-            results['{}_cog_sma50'.format(filt.lower())] = np.float32(-1)
+            results['cog_sma_{}'.format(filt.lower())] = np.float32(-1) # np.array([])
+            results['cog_mag_{}'.format(filt.lower())] = np.float32(-1) # np.array([])
+            results['cog_magerr_{}'.format(filt.lower())] = np.float32(-1) # np.array([])
+            results['cog_mtot_{}'.format(filt.lower())] = np.float32(-1)
+            results['cog_m0_{}'.format(filt.lower())] = np.float32(-1)
+            results['cog_alpha1_{}'.format(filt.lower())] = np.float32(-1)
+            results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
+            results['cog_chi2_{}'.format(filt.lower())] = np.float32(1e6)
+            results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
             for sbcut in sbthresh:
                 results['{}_mag_sb{:0g}'.format(filt.lower(), sbcut)] = np.float32(-1)
                 results['{}_mag_sb{:0g}_err'.format(filt.lower(), sbcut)] = np.float32(-1)
@@ -276,9 +276,9 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             if cogferr is not None:
                 cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
 
-            results['{}_cog_sma'.format(filt.lower())] = np.float32(sma_arcsec)
-            results['{}_cog_mag'.format(filt.lower())] = np.float32(cogmag)
-            results['{}_cog_magerr'.format(filt.lower())] = np.float32(cogmagerr)
+            results['cog_sma_{}'.format(filt.lower())] = np.float32(sma_arcsec)
+            results['cog_mag_{}'.format(filt.lower())] = np.float32(cogmag)
+            results['cog_magerr_{}'.format(filt.lower())] = np.float32(cogmagerr)
 
             #if filt == 'FUV':
             #    pdb.set_trace()
@@ -287,12 +287,12 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
             if len(these) < nparams:
                 print('Warning: Too few {}-band pixels to fit the curve of growth; skipping.'.format(filt))
-                results['{}_cog_params_mtot'.format(filt.lower())] = np.float32(-1)
-                results['{}_cog_params_m0'.format(filt.lower())] = np.float32(-1)
-                results['{}_cog_params_alpha1'.format(filt.lower())] = np.float32(-1)
-                results['{}_cog_params_alpha2'.format(filt.lower())] = np.float32(-1)
-                results['{}_cog_params_chi2'.format(filt.lower())] = np.float32(1e6)
-                results['{}_cog_sma50'.format(filt.lower())] = np.float32(-1)
+                results['cog_mtot_{}'.format(filt.lower())] = np.float32(-1)
+                results['cog_m0_{}'.format(filt.lower())] = np.float32(-1)
+                results['cog_alpha1_{}'.format(filt.lower())] = np.float32(-1)
+                results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
+                results['cog_chi2_{}'.format(filt.lower())] = np.float32(1e6)
+                results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
                 continue
             else:
                 bounds = ([cogmag[these][-1]-1.0, 0, 0, 0], np.inf)
@@ -302,11 +302,11 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 if minchi2 < chi2fail and popt is not None:
                     mtot, m0, alpha1, alpha2 = popt
                     print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
-                    results['{}_cog_params_mtot'.format(filt.lower())] = np.float32(mtot)
-                    results['{}_cog_params_m0'.format(filt.lower())] = np.float32(m0)
-                    results['{}_cog_params_alpha1'.format(filt.lower())] = np.float32(alpha1)
-                    results['{}_cog_params_alpha2'.format(filt.lower())] = np.float32(alpha2)
-                    results['{}_cog_params_chi2'.format(filt.lower())] = np.float32(minchi2)
+                    results['cog_mtot_{}'.format(filt.lower())] = np.float32(mtot)
+                    results['cog_m0_{}'.format(filt.lower())] = np.float32(m0)
+                    results['cog_alpha1_{}'.format(filt.lower())] = np.float32(alpha1)
+                    results['cog_alpha2_{}'.format(filt.lower())] = np.float32(alpha2)
+                    results['cog_chi2_{}'.format(filt.lower())] = np.float32(minchi2)
 
                     # get the half-light radius (along the major axis)
                     if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
@@ -315,7 +315,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                             half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
                             #if filt == 'W4':
                             #    pdb.set_trace()
-                        results['{}_cog_sma50'.format(filt.lower())] = half_light_sma
+                        results['cog_sma50_{}'.format(filt.lower())] = half_light_sma
 
             #print('Measuring integrated magnitudes to different radii.')
             sb = ellipse_sbprofile(refellipsefit, linear=True)
@@ -379,51 +379,50 @@ def _unpack_isofit(ellipsefit, filt, isofit, failed=False):
     """
     if failed:
         ellipsefit.update({
-            '{}_sma'.format(filt.lower()): np.array([-1]).astype(np.int16),
-            '{}_intens'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_intens_err'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_eps'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_eps_err'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_pa'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_pa_err'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_x0'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_x0_err'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_y0'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_y0_err'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_a3'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_a3_err'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_a4'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_a4_err'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_rms'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_pix_stddev'.format(filt.lower()): np.array([-1]).astype('f4'),
-            '{}_stop_code'.format(filt.lower()): np.array([-1]).astype(np.int16),
-            '{}_ndata'.format(filt.lower()): np.array([-1]).astype(np.int16), 
-            '{}_nflag'.format(filt.lower()): np.array([-1]).astype(np.int16), 
-            '{}_niter'.format(filt.lower()): np.array([-1]).astype(np.int16)})
+            'sma_{}'.format(filt.lower()): np.array([-1]).astype(np.int16),
+            'intens_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'intens_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'eps_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'eps_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'pa_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'pa_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'x0_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'x0_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'y0_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'y0_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'a3_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'a3_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'a4_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'a4_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'rms_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'pix_stddev_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'stop_code_{}'.format(filt.lower()): np.array([-1]).astype(np.int16),
+            'ndata_{}'.format(filt.lower()): np.array([-1]).astype(np.int16), 
+            'nflag_{}'.format(filt.lower()): np.array([-1]).astype(np.int16), 
+            'niter_{}'.format(filt.lower()): np.array([-1]).astype(np.int16)})
     else:
         ellipsefit.update({
-            '{}_sma'.format(filt.lower()): isofit.sma.astype(np.int16),
-            '{}_intens'.format(filt.lower()): isofit.intens.astype('f4'),
-            '{}_intens_err'.format(filt.lower()): isofit.int_err.astype('f4'),
-            '{}_eps'.format(filt.lower()): isofit.eps.astype('f4'),
-            '{}_eps_err'.format(filt.lower()): isofit.ellip_err.astype('f4'),
-            '{}_pa'.format(filt.lower()): isofit.pa.astype('f4'),
-            '{}_pa_err'.format(filt.lower()): isofit.pa_err.astype('f4'),
-            '{}_x0'.format(filt.lower()): isofit.x0.astype('f4'),
-            '{}_x0_err'.format(filt.lower()): isofit.x0_err.astype('f4'),
-            '{}_y0'.format(filt.lower()): isofit.y0.astype('f4'),
-            '{}_y0_err'.format(filt.lower()): isofit.y0_err.astype('f4'),
-            '{}_a3'.format(filt.lower()): isofit.a3.astype('f4'),
-            '{}_a3_err'.format(filt.lower()): isofit.a3_err.astype('f4'),
-            '{}_a4'.format(filt.lower()): isofit.a4.astype('f4'),
-            '{}_a4_err'.format(filt.lower()): isofit.a4_err.astype('f4'),
-            '{}_rms'.format(filt.lower()): isofit.rms.astype('f4'),
-            '{}_pix_stddev'.format(filt.lower()): isofit.pix_stddev.astype('f4'),
-            '{}_stop_code'.format(filt.lower()): isofit.stop_code.astype(np.int16),
-            '{}_ndata'.format(filt.lower()): isofit.ndata.astype(np.int16),
-            '{}_nflag'.format(filt.lower()): isofit.nflag.astype(np.int16),
-            '{}_niter'.format(filt.lower()): isofit.niter.astype(np.int16)})
-        
+            'sma_{}'.format(filt.lower()): isofit.sma.astype(np.int16),
+            'intens_{}'.format(filt.lower()): isofit.intens.astype('f4'),
+            'intens_err_{}'.format(filt.lower()): isofit.int_err.astype('f4'),
+            'eps_{}'.format(filt.lower()): isofit.eps.astype('f4'),
+            'eps_err_{}'.format(filt.lower()): isofit.ellip_err.astype('f4'),
+            'pa_{}'.format(filt.lower()): isofit.pa.astype('f4'),
+            'pa_err_{}'.format(filt.lower()): isofit.pa_err.astype('f4'),
+            'x0_{}'.format(filt.lower()): isofit.x0.astype('f4'),
+            'x0_err_{}'.format(filt.lower()): isofit.x0_err.astype('f4'),
+            'y0_{}'.format(filt.lower()): isofit.y0.astype('f4'),
+            'y0_err_{}'.format(filt.lower()): isofit.y0_err.astype('f4'),
+            'a3_{}'.format(filt.lower()): isofit.a3.astype('f4'),
+            'a3_err_{}'.format(filt.lower()): isofit.a3_err.astype('f4'),
+            'a4_{}'.format(filt.lower()): isofit.a4.astype('f4'),
+            'a4_err_{}'.format(filt.lower()): isofit.a4_err.astype('f4'),
+            'rms_{}'.format(filt.lower()): isofit.rms.astype('f4'),
+            'pix_stddev_{}'.format(filt.lower()): isofit.pix_stddev.astype('f4'),
+            'stop_code_{}'.format(filt.lower()): isofit.stop_code.astype(np.int16),
+            'ndata_{}'.format(filt.lower()): isofit.ndata.astype(np.int16),
+            'nflag_{}'.format(filt.lower()): isofit.nflag.astype(np.int16),
+            'niter_{}'.format(filt.lower()): isofit.niter.astype(np.int16)})
     return ellipsefit
 
 def _integrate_isophot_one(args):
@@ -509,9 +508,9 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
     for filt in bands:
         #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-        sma = np.atleast_1d(ellipsefit['{}_sma'.format(filt.lower())])   # semi-major axis [pixels]
-        sb = np.atleast_1d(ellipsefit['{}_intens'.format(filt.lower())]) # [nanomaggies/arcsec2]
-        sberr = np.atleast_1d(np.sqrt(ellipsefit['{}_intens_err'.format(filt.lower())]**2 + (0.4 * np.log(10) * sb * minerr)**2))
+        sma = np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])   # semi-major axis [pixels]
+        sb = np.atleast_1d(ellipsefit['intens_{}'.format(filt.lower())]) # [nanomaggies/arcsec2]
+        sberr = np.atleast_1d(np.sqrt(ellipsefit['intens_err_{}'.format(filt.lower())]**2 + (0.4 * np.log(10) * sb * minerr)**2))
             
         if sma_not_radius:
             radius = sma * pixscale # [arcsec]
@@ -528,10 +527,10 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
                 #    pdb.set_trace()
                 
             if cut_on_cog:
-                keep *= (ellipsefit['{}_sma'.format(filt.lower())] * pixscale) <= np.max(ellipsefit['{}_cog_sma'.format(filt.lower())])
+                keep *= (ellipsefit['sma_{}'.format(filt.lower())] * pixscale) <= np.max(ellipsefit['cog_sma_{}'.format(filt.lower())])
             keep = np.where(keep)[0]
                 
-            sbprofile['{}_keep'.format(filt.lower())] = keep
+            sbprofile['keep_{}'.format(filt.lower())] = keep
 
         if len(keep) == 0 or sma[0] == -1:
             sbprofile['sma_{}'.format(filt.lower())] = np.array([-1.0]).astype('f4')    # [pixels]
@@ -732,7 +731,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     # Fix the center to be the peak (pixel) values. Could also use bx,by here
     # from Tractor.  Also initialize the geometry with the moment-derived
     # values.  Note that (x,y) are switched between MGE and photutils!!
-    for key in ['largeshift', 'eps', 'pa', 'theta', 'majoraxis', 'ra_x0', 'dec_y0']:#,
+    for key in ['largeshift', 'eps', 'pa', 'theta', 'majoraxis', 'ra_x0y0', 'dec_x0y0']:#,
                 #'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z']:
         ellipsefit[key] = mge[key]
     for mgekey, ellkey in zip(['ymed', 'xmed'], ['x0', 'y0']):

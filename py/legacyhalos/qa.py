@@ -305,23 +305,23 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         #flux = ellipsefit['apphot_mag_{}'.format(filt)]
         #good = np.where( np.isfinite(flux) * (flux > 0) )[0]
         #mag = 22.5-2.5*np.log10(flux[good])
-        cog = ellipsefit['{}_cog_mag'.format(filt.lower())]
-        cogerr = ellipsefit['{}_cog_magerr'.format(filt.lower())]
-        chi2 = ellipsefit['{}_cog_params_chi2'.format(filt.lower())]
+        cog = ellipsefit['cog_mag_{}'.format(filt.lower())]
+        cogerr = ellipsefit['cog_magerr_{}'.format(filt.lower())]
+        chi2 = ellipsefit['cog_chi2_{}'.format(filt.lower())]
         if np.atleast_1d(cog)[0] == -1 or chi2 == 1e6: # no measurement, or failed
             continue
-        sma = ellipsefit['{}_cog_sma'.format(filt.lower())]
+        sma = ellipsefit['cog_sma_{}'.format(filt.lower())]
         radius = sma**0.25
         xlim = (0.9, radius.max()*1.01)
         
-        magtot = ellipsefit['{}_cog_params_mtot'.format(filt.lower())]
-        m0 = ellipsefit['{}_cog_params_m0'.format(filt.lower())]
-        alpha1 = ellipsefit['{}_cog_params_alpha1'.format(filt.lower())]
-        alpha2 = ellipsefit['{}_cog_params_alpha2'.format(filt.lower())]
+        magtot = ellipsefit['cog_mtot_{}'.format(filt.lower())]
+        m0 = ellipsefit['cog_m0_{}'.format(filt.lower())]
+        alpha1 = ellipsefit['cog_alpha1_{}'.format(filt.lower())]
+        alpha2 = ellipsefit['cog_alpha2_{}'.format(filt.lower())]
 
         #magtot = np.mean(mag[-5:])
         if pipeline_ellipsefit and False:
-            pipeline_magtot = pipeline_ellipsefit['cog_params_{}'.format(filt.lower())]['mtot']
+            pipeline_magtot = pipeline_ellipsefit['cog_mtot_{}'.format(filt.lower())]
             label = '{}={:.3f} ({:.3f})'.format(filt, magtot, pipeline_magtot)
         else:
             #label = r'${}$'.format(filt.lower())
@@ -336,9 +336,9 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         #    pdb.set_trace()
 
         if pipeline_ellipsefit and False:
-            _sma = pipeline_ellipsefit['{}_cog_sma'.format(filt.lower())]
-            _cog = pipeline_ellipsefit['{}_cog_mag'.format(filt.lower())]
-            _cogerr = pipeline_ellipsefit['{}_cog_magerr'.format(filt.lower())]
+            _sma = pipeline_ellipsefit['cog_sma_{}'.format(filt.lower())]
+            _cog = pipeline_ellipsefit['cog_mag_{}'.format(filt.lower())]
+            _cogerr = pipeline_ellipsefit['cog_magerr_{}'.format(filt.lower())]
             #ax.plot(_sma, _cog, alpha=0.5, color='gray')
             ax.fill_between(_sma, _cog-_cogerr, _cog+_cogerr,
                             facecolor=col, alpha=0.5)#, edgecolor='k', lw=1)
@@ -492,15 +492,15 @@ def qa_multiwavelength_sed(ellipsefit, png=None, verbose=True):
     
     for ifilt, filt in enumerate(bands):
         bandwave[ifilt] = effwave[filt.lower()]
-        magtot = ellipsefit['{}_cog_params_mtot'.format(filt.lower())]
+        magtot = ellipsefit['cog_mtot_{}'.format(filt.lower())]
 
         abmag[ifilt] = magtot
 
         if magtot < 0:
-            good = np.where(ellipsefit['{}_cog_mag'.format(filt.lower())] > 0)[0]
+            good = np.where(ellipsefit['cog_mag_{}'.format(filt.lower())] > 0)[0]
             #pdb.set_trace()
             if len(good) > 0:
-                abmag[ifilt] = ellipsefit['{}_cog_mag'.format(filt.lower())][good][-1]
+                abmag[ifilt] = ellipsefit['cog_mag_{}'.format(filt.lower())][good][-1]
                 abmagerr[ifilt] = 0.5
                 lower[ifilt] = True
 
@@ -1131,7 +1131,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         #                                 geometry.sma*(1 - geometry.eps), geometry.pa)
         #    ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.75)
 
-        if ellipsefit and ellipsefit['success'] and np.atleast_1d(ellipsefit['{}_sma'.format(filt.lower())])[0] != -1:
+        if ellipsefit and ellipsefit['success'] and np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])[0] != -1:
             #nfit = len(ellipsefit['{}_sma'.format(filt.lower())])
             #nplot = np.rint(0.01*nfit).astype('int')
             nplot = 9
@@ -1142,10 +1142,10 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #    sma_lw = 3
             #    sma_alpha = 1.0
             #smas = np.linspace(0, ellipsefit['{}_sma'.format(filt.lower())][indx].max(), nplot)
-            if len(ellipsefit['{}_sma'.format(filt.lower())]) > nplot:
-                smas = ellipsefit['{}_sma'.format(filt.lower())][::len(ellipsefit['{}_sma'.format(filt.lower())]) // nplot]
+            if len(ellipsefit['sma_{}'.format(filt.lower())]) > nplot:
+                smas = ellipsefit['sma_{}'.format(filt.lower())][::len(ellipsefit['sma_{}'.format(filt.lower())]) // nplot]
             else:
-                smas = ellipsefit['{}_sma'.format(filt.lower())]
+                smas = ellipsefit['sma_{}'.format(filt.lower())]
 
             # When we used to write out the ellipse pickle files with
             # the Isophote objects we used the snippet of code below to
@@ -1157,11 +1157,11 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #    ax1.plot(x, y, color='k', lw=1, alpha=0.5)#, label='Fitted isophote')
             #x0, y0, eps, pa = mge['x0'], mge['y0'], mge['eps'], mge['pa']
             for sma in smas:
-                this = np.argmin(np.abs(ellipsefit['{}_sma'.format(filt.lower())]-sma))
-                ax1.add_patch(mpatches.Ellipse((ellipsefit['{}_x0'.format(filt.lower())][this], ellipsefit['{}_y0'.format(filt.lower())][this]),
-                                               2*ellipsefit['{}_sma'.format(filt.lower())][this],
-                                               2*ellipsefit['{}_sma'.format(filt.lower())][this]*(1-ellipsefit['{}_eps'.format(filt.lower())][this]),
-                                               ellipsefit['{}_pa'.format(filt.lower())][this]-90,
+                this = np.argmin(np.abs(ellipsefit['sma_{}'.format(filt.lower())]-sma))
+                ax1.add_patch(mpatches.Ellipse((ellipsefit['x0_{}'.format(filt.lower())][this], ellipsefit['y0_{}'.format(filt.lower())][this]),
+                                               2*ellipsefit['sma_{}'.format(filt.lower())][this],
+                                               2*ellipsefit['sma_{}'.format(filt.lower())][this]*(1-ellipsefit['eps_{}'.format(filt.lower())][this]),
+                                               ellipsefit['pa_{}'.format(filt.lower())][this]-90,
                                                color='k', lw=sma_lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
 
             # Visualize the mean geometry

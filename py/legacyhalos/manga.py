@@ -449,7 +449,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             'mw_transmission_g': tractor.mw_transmission_g[central],
             'mw_transmission_r': tractor.mw_transmission_r[central],
             'mw_transmission_z': tractor.mw_transmission_z[central],
-            'ra_x0': radec_med[0], 'dec_y0': radec_med[1],
+            'ra_x0y0': radec_med[0], 'dec_x0y0': radec_med[1],
             #'ra_peak': radec_med[0], 'dec_peak': radec_med[1]
             }
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):

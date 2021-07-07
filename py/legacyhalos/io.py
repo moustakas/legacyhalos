@@ -159,8 +159,8 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         ('input_ellipse', ''),
         ('largeshift', ''),
 
-        ('ra_x0', u.degree),
-        ('dec_y0', u.degree),
+        ('ra_x0y0', u.degree),
+        ('dec_x0y0', u.degree),
         ('x0', u.pixel),
         ('y0', u.pixel),
         ('eps', ''),
@@ -205,36 +205,36 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         ('refband_height', u.pixel)]
 
     for band in bands:
-        cols.append(('{}_sma'.format(band.lower()), u.pixel))
-        cols.append(('{}_intens'.format(band.lower()), u.maggy/u.arcsec**2))
-        cols.append(('{}_intens_err'.format(band.lower()), u.maggy/u.arcsec**2))
-        cols.append(('{}_eps'.format(band.lower()), ''))
-        cols.append(('{}_eps_err'.format(band.lower()), ''))
-        cols.append(('{}_pa'.format(band.lower()), u.degree))
-        cols.append(('{}_pa_err'.format(band.lower()), u.degree))
-        cols.append(('{}_x0'.format(band.lower()), u.pixel))
-        cols.append(('{}_x0_err'.format(band.lower()), u.pixel))
-        cols.append(('{}_y0'.format(band.lower()), u.pixel))
-        cols.append(('{}_y0_err'.format(band.lower()), u.pixel))
-        cols.append(('{}_a3'.format(band.lower()), '')) # units?
-        cols.append(('{}_a3_err'.format(band.lower()), ''))
-        cols.append(('{}_a4'.format(band.lower()), ''))
-        cols.append(('{}_a4_err'.format(band.lower()), ''))
-        cols.append(('{}_rms'.format(band.lower()), u.maggy/u.arcsec**2))
-        cols.append(('{}_pix_stddev'.format(band.lower()), u.maggy/u.arcsec**2))
-        cols.append(('{}_stop_code'.format(band.lower()), ''))
-        cols.append(('{}_ndata'.format(band.lower()), ''))
-        cols.append(('{}_nflag'.format(band.lower()), ''))
-        cols.append(('{}_niter'.format(band.lower()), ''))
-        cols.append(('{}_cog_sma'.format(band.lower()), u.arcsec))
-        cols.append(('{}_cog_mag'.format(band.lower()), u.mag))
-        cols.append(('{}_cog_magerr'.format(band.lower()), u.mag))
-        cols.append(('{}_cog_params_mtot'.format(band.lower()), u.mag))
-        cols.append(('{}_cog_params_m0'.format(band.lower()), u.mag))
-        cols.append(('{}_cog_params_alpha1'.format(band.lower()), ''))
-        cols.append(('{}_cog_params_alpha2'.format(band.lower()), ''))
-        cols.append(('{}_cog_params_chi2'.format(band.lower()), ''))
-        cols.append(('{}_cog_sma50'.format(band.lower()), u.arcsec))
+        cols.append(('sma_{}'.format(band.lower()), u.pixel))
+        cols.append(('intens_{}'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('intens_err_{}'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('eps_{}'.format(band.lower()), ''))
+        cols.append(('eps_err_{}'.format(band.lower()), ''))
+        cols.append(('pa_{}'.format(band.lower()), u.degree))
+        cols.append(('pa_err_{}'.format(band.lower()), u.degree))
+        cols.append(('x0_{}'.format(band.lower()), u.pixel))
+        cols.append(('x0_err_{}'.format(band.lower()), u.pixel))
+        cols.append(('y0_{}'.format(band.lower()), u.pixel))
+        cols.append(('y0_err_{}'.format(band.lower()), u.pixel))
+        cols.append(('a3_{}'.format(band.lower()), '')) # units?
+        cols.append(('a3_err_{}'.format(band.lower()), ''))
+        cols.append(('a4_{}'.format(band.lower()), ''))
+        cols.append(('a4_err_{}'.format(band.lower()), ''))
+        cols.append(('rms_{}'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('pix_stddev_{}'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('stop_code_{}'.format(band.lower()), ''))
+        cols.append(('ndata_{}'.format(band.lower()), ''))
+        cols.append(('nflag_{}'.format(band.lower()), ''))
+        cols.append(('niter_{}'.format(band.lower()), ''))
+        cols.append(('cog_sma_{}'.format(band.lower()), u.arcsec))
+        cols.append(('cog_mag_{}'.format(band.lower()), u.mag))
+        cols.append(('cog_magerr_{}'.format(band.lower()), u.mag))
+        cols.append(('cog_mtot_{}'.format(band.lower()), u.mag))
+        cols.append(('cog_m0_{}'.format(band.lower()), u.mag))
+        cols.append(('cog_alpha1_{}'.format(band.lower()), ''))
+        cols.append(('cog_alpha2_{}'.format(band.lower()), ''))
+        cols.append(('cog_chi2_{}'.format(band.lower()), ''))
+        cols.append(('cog_sma50_{}'.format(band.lower()), u.arcsec))
 
     for thresh in sbthresh:
         cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
