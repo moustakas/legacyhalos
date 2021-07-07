@@ -488,6 +488,13 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
     if data['failed']: # all galaxies dropped
         return
 
+    # optionally read the Tractor catalog
+    tractor = None
+    if galex or unwise:
+        tractorfile = os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, data['filesuffix']))        
+        if os.path.isfile(tractorfile):
+            tractor = Table(fitsio.read(tractorfile, lower=True))
+
     ellipsefitall = []
     for igal, galid in enumerate(data['galaxy_id']):
         galid = str(galid)
@@ -499,6 +506,28 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
             if galid.strip() != '':
                 galid = '{}-'.format(galid)
 
+            if galex or unwise:
+                sedfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sed.png'.format(galaxy, data['filesuffix'], galid))
+                if not os.path.isfile(sedfile) or clobber:
+                    _tractor = None
+                    if tractor is not None:
+                        _tractor = tractor[np.isin(tractor['ref_id'], data['galaxy_id'][igal])] # fragile...
+                    qa_multiwavelength_sed(ellipsefit, tractor=_tractor, png=sedfile, verbose=verbose)
+                    
+            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(sbprofilefile) or clobber:
+                display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=False,
+                                          png=sbprofilefile, verbose=verbose, minerr=0.0,
+                                          cosmo=cosmo)
+                
+            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
+            if not os.path.isfile(cogfile) or clobber:
+                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=False,
+                                 png=cogfile, verbose=verbose, cosmo=cosmo)
+            
+            #print('hack!')
+            #continue
+        
             if unwise:
                 multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband-W1W2.png'.format(galaxy, data['filesuffix'], galid))
                 thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband-W1W2.png'.format(galaxy, data['filesuffix'], galid))
@@ -546,26 +575,10 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                 print('Writing {}'.format(thumbfile))
                 subprocess.call(cmd.split())
 
-            if galex or unwise:
-                sedfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sed.png'.format(galaxy, data['filesuffix'], galid))
-                if not os.path.isfile(sedfile) or clobber:
-                    qa_multiwavelength_sed(ellipsefit, png=sedfile, verbose=verbose)
-                    
             ## hack!
             #print('HACK!!!')
             #continue
 
-            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, data['filesuffix'], galid))
-            if not os.path.isfile(sbprofilefile) or clobber:
-                display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=False,
-                                          png=sbprofilefile, verbose=verbose, minerr=0.0,
-                                          cosmo=cosmo)
-                
-            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
-            if not os.path.isfile(cogfile) or clobber:
-                qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=False,
-                                 png=cogfile, verbose=verbose, cosmo=cosmo)
-            
     ## maskbits QA
     #maskbitsfile = os.path.join(htmlgalaxydir, '{}-{}-maskbits.png'.format(galaxy, data['filesuffix']))
     #if not os.path.isfile(maskbitsfile) or clobber:
@@ -699,6 +712,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                             clobber=clobber, verbose=verbose, galex=galex, unwise=unwise,
                             cosmo=cosmo, scaledfont=scaledfont, read_multiband=read_multiband)
             #continue # here!
+            #pdb.set_trace()
 
         # Multiwavelength coadds (does not support just_coadds=True)--
         if galex:

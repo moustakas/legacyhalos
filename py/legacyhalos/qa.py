@@ -343,10 +343,11 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             ax.fill_between(_sma, _cog-_cogerr, _cog+_cogerr,
                             facecolor=col, alpha=0.5)#, edgecolor='k', lw=1)
 
-        smamodel = np.linspace(np.min(sma), np.max(sma), 50)
+        smamodel = np.linspace(np.min(sma), xlim[1], 50)
+        #smamodel = np.linspace(np.min(sma), np.max(sma), 50)
         cogmodel = cog_model(smamodel, magtot, m0, alpha1, alpha2)
         #cogmodel = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
-        ax.plot(smamodel**0.25, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
+        ax.plot(smamodel**0.25, cogmodel, color=col, lw=2, ls='-', alpha=0.5)
 
         if sma.max() > maxsma:
             maxsma = sma.max()
@@ -368,13 +369,32 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     ax.set_xlabel(r'(Semi-major axis $r$ / arcsec)$^{1/4}$')
     ax.set_ylabel('$m(<r)$ (mag)')
 
+    xmin = 0.9
     if maxsma > 0:
-        ax.set_xlim(0.9, (maxsma**0.25)*1.01)
+        ax.set_xlim(xmin, (maxsma**0.25))#*1.01)
         #ax.set_xlim(0, maxsma*1.01)
     else:
         ax.set_xlim(0, 3) # hack!
-        
-    #ax.margins(x=0)
+
+    # overplot the model curves
+    colors = _sbprofile_colors(galex=galex, unwise=unwise)
+    for filt in bands:
+        col = next(colors) # iterate here in case we're missing a bandpass
+        magtot = ellipsefit['cog_mtot_{}'.format(filt.lower())]
+        m0 = ellipsefit['cog_m0_{}'.format(filt.lower())]
+        alpha1 = ellipsefit['cog_alpha1_{}'.format(filt.lower())]
+        alpha2 = ellipsefit['cog_alpha2_{}'.format(filt.lower())]
+
+        if (magtot > 0) * (m0 > 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
+            smamodel = np.linspace(0.7, maxsma, 200)
+            cogmodel = cog_model(smamodel, magtot, m0, alpha1, alpha2)
+            #if filt == 'W4':
+            #    pdb.set_trace()
+            if np.min(cogmodel) < ybright:
+                ybright = np.min(cogmodel)
+            ax.plot(smamodel**0.25, cogmodel, color=col, lw=2, ls='-', alpha=0.6)
+
+    ax.margins()
     xlim = ax.get_xlim()
     if smascale:
         ax_twin = ax.twiny()
@@ -388,7 +408,9 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     ax.set_ylim(yfaint, ybright)
     ylim = ax.get_ylim()        
     if np.abs(ylim[1]-ylim[0]) > 15:
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(5)) # wavelength spacing of ticks [Angstrom]
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
+    #if np.abs(ylim[1]-ylim[0]) > 8:
+    #    ax.yaxis.set_major_locator(ticker.MultipleLocator(2))
 
     if False:
         ax_twin = ax.twinx()
@@ -428,10 +450,10 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
             ax.add_artist(leg1)
         
     if smascale:
-        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.85, right=0.95)
+        fig.subplots_adjust(left=0.15, bottom=0.15, top=0.85, right=0.95)
         #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
     else:
-        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.95, right=0.95)
+        fig.subplots_adjust(left=0.15, bottom=0.15, top=0.95, right=0.95)
         #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.95, right=0.88)
 
     if png:
@@ -442,10 +464,11 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     else:
         plt.show()
 
-def qa_multiwavelength_sed(ellipsefit, png=None, verbose=True):
+def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
     """Plot up the multiwavelength SED.
 
     """
+    from copy import deepcopy
     import matplotlib.ticker as ticker
     from astropy.table import Table
     from legacyhalos.io import get_run
@@ -485,66 +508,114 @@ def qa_multiwavelength_sed(ellipsefit, png=None, verbose=True):
 
     # build the arrays
     nband = len(bands)
-    bandwave = np.zeros(nband, 'f4')
-    abmag = np.zeros(nband, 'f4')
-    abmagerr = np.zeros(nband, 'f4')
-    lower = np.zeros(nband, bool)
-    
+    bandwave = np.array([effwave[filt.lower()] for filt in bands])
+
+    _phot = {'abmag': np.zeros(nband, 'f4')-1,
+             'abmagerr': np.zeros(nband, 'f4')+0.5,
+             'lower': np.zeros(nband, bool)}
+    phot = {'mag_tot': deepcopy(_phot), 'tractor': deepcopy(_phot), 'mag_sb25': deepcopy(_phot)}
+
     for ifilt, filt in enumerate(bands):
-        bandwave[ifilt] = effwave[filt.lower()]
-        magtot = ellipsefit['cog_mtot_{}'.format(filt.lower())]
+        mtot = ellipsefit['cog_mtot_{}'.format(filt.lower())]
+        if mtot > 0:
+            phot['mag_tot']['abmag'][ifilt] = mtot
+            phot['mag_tot']['abmagerr'][ifilt] = 0.1
+            phot['mag_tot']['lower'][ifilt] = False
 
-        abmag[ifilt] = magtot
+        mag = ellipsefit['{}_mag_sb25'.format(filt.lower())]
+        magerr = ellipsefit['{}_mag_sb25_err'.format(filt.lower())]
+        #print(filt, mag)
+        if mag > 0 and magerr > 0:
+            phot['mag_sb25']['abmag'][ifilt] = mag
+            phot['mag_sb25']['abmagerr'][ifilt] = magerr
+            phot['mag_sb25']['lower'][ifilt] = False
 
-        if magtot < 0:
-            good = np.where(ellipsefit['cog_mag_{}'.format(filt.lower())] > 0)[0]
-            #pdb.set_trace()
-            if len(good) > 0:
-                abmag[ifilt] = ellipsefit['cog_mag_{}'.format(filt.lower())][good][-1]
-                abmagerr[ifilt] = 0.5
-                lower[ifilt] = True
+        if tractor is not None:
+            flux = tractor['flux_{}'.format(filt.lower())]
+            ivar = tractor['flux_ivar_{}'.format(filt.lower())]
+            #if filt == 'FUV':
+            #    pdb.set_trace()
+            if flux > 0 and ivar > 0:
+                phot['tractor']['abmag'][ifilt] = 22.5 - 2.5 * np.log10(flux)
+                phot['tractor']['abmagerr'][ifilt] = 0.1
+            if flux <= 0 and ivar > 0:
+                phot['tractor']['abmag'][ifilt] = 22.5 - 2.5 * np.log10(1/np.sqrt(ivar))
+                phot['tractor']['abmagerr'][ifilt] = 0.75
+                phot['tractor']['lower'][ifilt] = True
 
-    print(bandwave, abmag, lower)
+    #print(phot['mag_tot']['abmag'])
+    #print(phot['mag_sb25']['abmag'])
+    #print(phot['tractor']['abmag'])
 
-    wavemin, wavemax = 0.1, 30
-
-    good = np.where(abmag > 0)[0]
-    if len(good) == 0:
-        ymin, ymax = 25, 10
-    else:
-        ymin = np.max(abmag[good]) + 1.5
-        ymax = np.min(abmag[good]) - 1.5
-
+    def _addphot(thisphot, color, marker, alpha, label):
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == True))[0]
+        if len(good) > 0:
+            ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
+                        marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+                        markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+                        uplims=True, linestyle='none', alpha=alpha)#, lolims=True)
+                        
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == False))[0]
+        if len(good) > 0:
+            ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
+                        marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+                        markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+                        label=label, linestyle='none', alpha=alpha)
+    
     # make the plot
     fig, ax = plt.subplots(figsize=(9, 7))
 
-    # have to set the limits before plotting since the axes are reversed
-    ax.set_ylim(ymin, ymax)
-    if np.abs(ymax-ymin) > 15:
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(5)) # wavelength spacing of ticks [Angstrom]
+    # get the plot limits
+    good = np.where(phot['mag_tot']['abmag'] > 0)[0]
+    ymax = np.min(phot['mag_tot']['abmag'][good])
+    ymin = np.max(phot['mag_tot']['abmag'][good])
 
-    #good = np.where(abmag > 0)[0]
-    good = np.where((abmag > 0) * (lower == False))[0]
-    if len(good) > 0:
-        ax.errorbar(bandwave[good]/1e4, abmag[good], yerr=abmagerr[good],
-                    fmt='s', markersize=11, markeredgewidth=3, markeredgecolor='k',
-                    markerfacecolor='red', elinewidth=3, ecolor='red', capsize=4)
-        
-    good = np.where((abmag > 0) * (lower == True))[0]
-    if len(good) > 0:
-        #ax.scatter(bandwave[good]/1e4, abmag[good], yerr=abmagerr[good],
-        #            uplims=True,#lower[good],
-        #            markersize=11, markeredgewidth=3, markeredgecolor='k',
-        #            markerfacecolor='red', elinewidth=3, ecolor='red', capsize=4)
-        ax.errorbar(bandwave[good]/1e4, abmag[good], yerr=abmagerr[good],
-                    fmt='s', markersize=11, markeredgewidth=3, markeredgecolor='k',
-                    markerfacecolor='red', elinewidth=3, ecolor='red', capsize=4,
-                    lolims=True)
+    good = np.where(phot['tractor']['abmag'] > 0)[0]
+    if np.min(phot['tractor']['abmag'][good]) < ymax:
+        ymax = np.min(phot['tractor']['abmag'][good])
+    if np.max(phot['tractor']['abmag']) > ymin:
+        ymin = np.max(phot['tractor']['abmag'][good])
+
+    print(ymin, ymax)
+    ymin += 1.5
+    ymax -= 1.5
+
+    wavemin, wavemax = 0.1, 30
+
+    # have to set the limits before plotting since the axes are reversed
+    if np.abs(ymax-ymin) > 15:
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
+    ax.set_ylim(ymin, ymax)
+    _addphot(phot['mag_tot'], color='red', marker='s', alpha=1.0, label=r'$m_{\mathrm{tot}}$')
+    _addphot(phot['mag_sb25'], color='orange', marker='^', alpha=0.9, label=r'$m(r<R_{25})$')
+    _addphot(phot['tractor'], color='blue', marker='o', alpha=0.75, label='Tractor')
+
+    #thisphot = phot['tractor']
+    #color='blue'
+    #marker='o'
+    #label='Tractor'
+
+    #good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == False))[0]
+    #if len(good) > 0:
+    #    ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
+    #                marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+    #                markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+    #                label=label, linestyle='none')
     
+    #good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == True))[0]
+    ##ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=0.5, #thisphot['abmagerr'][good],
+    ##            marker='o', uplims=thisphot['lower'][good], linestyle='none')
+    #if len(good) > 0:
+    #    ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=0.5, #thisphot['abmagerr'][good][0],
+    #                marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+    #                markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+    #                uplims=thisphot['lower'][good], linestyle='none')#, lolims=True)
+                    
     ax.set_xlabel(r'Observed-frame Wavelength ($\mu$m)') 
     ax.set_ylabel(r'Apparent Brightness (AB mag)') 
     ax.set_xlim(wavemin, wavemax)
     ax.set_xscale('log')
+    ax.legend(loc='lower right')
 
     def _frmt(value, _):
         if value < 1:
@@ -1409,8 +1480,12 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         yminmax = [40, 0]
         xminmax = [0.9, 0]
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
-                                       gridspec_kw = {'height_ratios':[2, 1]})
+        if galex and unwise:
+            fig, ax1 = plt.subplots(figsize=(9, 7))
+        else:
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
+                                           gridspec_kw = {'height_ratios':[2, 1]})
+            
         for filt in bands:
             col = next(colors)
             
@@ -1569,50 +1644,62 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 ax1.add_artist(leg1)
             
         # Now the color-radius plot
-        if len(sbprofile['radius_gr']) > 0 and sbprofile['radius_gr'][0] != -1:
-            ax2.fill_between(sbprofile['radius_gr']**0.25,
-                             sbprofile['gr'] - sbprofile['gr_err'],
-                             sbprofile['gr'] + sbprofile['gr_err'],
-                             label=r'$g - r$', facecolor=next(colors), alpha=0.75,
-                             edgecolor='k', lw=2)
-
-        if len(sbprofile['radius_rz']) > 0 and sbprofile['radius_rz'][0] != -1:
-            ax2.fill_between(sbprofile['radius_rz']**0.25,
-                             sbprofile['rz'] - sbprofile['rz_err'],
-                             sbprofile['rz'] + sbprofile['rz_err'],
-                             label=r'$r - z$', facecolor=next(colors), alpha=0.75,
-                             edgecolor='k', lw=2)
-
-        if plot_radius:
-            ax2.set_xlabel(r'(Galactocentric radius / arcsec)$^{1/4}$')
-        else:
-            ax2.set_xlabel(r'(Semi-major axis $r$ / arcsec)$^{1/4}$')
-        #ax2.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
-
-        hh, ll = ax2.get_legend_handles_labels()
-        if len(hh) > 0:
-            ax2.legend(loc='upper right', fontsize=14)
-            #ax2.legend(bbox_to_anchor=(0.25, 0.98))
-        
-        ax2.set_ylabel('Color (mag)')
-        ax2.set_ylim(-0.5, 3)
-        ax2.set_xlim(xlim)
-        ax2.autoscale(False) # do not scale further
-
-        for xx in (ax1, ax2):
-            ylim = xx.get_ylim()
-            xx.fill_between([0, (2*ellipsefit['psfsize_r'])**0.25],
-                            [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
+        if galex and unwise:
+            if plot_radius:
+                ax1.set_xlabel(r'(Galactocentric radius / arcsec)$^{1/4}$')
+            else:
+                ax1.set_xlabel(r'(Semi-major axis $r$ / arcsec)$^{1/4}$')
+            #ax1.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
             
-        ax1.text(0.07, 0.1, 'PSF\n(2$\sigma$)', ha='center', va='center',
-            transform=ax1.transAxes, fontsize=10)
-        #ax2.text(0.03, 0.1, 'PSF\n(3$\sigma$)', ha='center', va='center',
-        #    transform=ax2.transAxes, fontsize=10)
+            #ax1.text(0.07, 0.1, 'PSF\n(2$\sigma$)', ha='center', va='center',
+            #         transform=ax1.transAxes, fontsize=10)
+            #ax1.fill_between([0, (2*ellipsefit['psfsize_r'])**0.25],
+            #                [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
+        else:
+            if len(sbprofile['radius_gr']) > 0 and sbprofile['radius_gr'][0] != -1:
+                ax2.fill_between(sbprofile['radius_gr']**0.25,
+                                 sbprofile['gr'] - sbprofile['gr_err'],
+                                 sbprofile['gr'] + sbprofile['gr_err'],
+                                 label=r'$g - r$', facecolor=next(colors), alpha=0.75,
+                                 edgecolor='k', lw=2)
+
+            if len(sbprofile['radius_rz']) > 0 and sbprofile['radius_rz'][0] != -1:
+                ax2.fill_between(sbprofile['radius_rz']**0.25,
+                                 sbprofile['rz'] - sbprofile['rz_err'],
+                                 sbprofile['rz'] + sbprofile['rz_err'],
+                                 label=r'$r - z$', facecolor=next(colors), alpha=0.75,
+                                 edgecolor='k', lw=2)
+
+            if plot_radius:
+                ax2.set_xlabel(r'(Galactocentric radius / arcsec)$^{1/4}$')
+            else:
+                ax2.set_xlabel(r'(Semi-major axis $r$ / arcsec)$^{1/4}$')
+            #ax2.set_xlabel(r'Galactocentric radius $r^{1/4}$ (arcsec)')
+
+            hh, ll = ax2.get_legend_handles_labels()
+            if len(hh) > 0:
+                ax2.legend(loc='upper right', fontsize=14)
+                #ax2.legend(bbox_to_anchor=(0.25, 0.98))
+
+            ax2.set_ylabel('Color (mag)')
+            ax2.set_ylim(-0.5, 3)
+            ax2.set_xlim(xlim)
+            ax2.autoscale(False) # do not scale further
+
+            for xx in (ax1, ax2):
+                ylim = xx.get_ylim()
+                xx.fill_between([0, (2*ellipsefit['psfsize_r'])**0.25],
+                                [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
+            
+            ax1.text(0.07, 0.1, 'PSF\n(2$\sigma$)', ha='center', va='center',
+                     transform=ax1.transAxes, fontsize=10)
+            #ax2.text(0.03, 0.1, 'PSF\n(3$\sigma$)', ha='center', va='center',
+            #    transform=ax2.transAxes, fontsize=10)
 
         if redshift:
-            fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.12, top=0.85)
+            fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.15, top=0.85, right=0.95)
         else:
-            fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.12, top=0.95)
+            fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.15, top=0.95, right=0.95)
 
         if png:
             #if verbose:

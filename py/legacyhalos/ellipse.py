@@ -328,7 +328,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 if smamax > 0 and smamax < np.max(sma_arcsec):
                     rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
 
-                    rr = sb['sma_{}'.format(filt.lower())]    # [circularized radius, arcsec]
+                    rr = sb['radius_{}'.format(filt.lower())]    # [circularized radius, arcsec]
                     yy = sb['mu_{}'.format(filt.lower())]        # [surface brightness, nanomaggies/arcsec**2]
                     yyerr = sb['muerr_{}'.format(filt.lower())] # [surface brightness, nanomaggies/arcsec**2]
                     try:
@@ -351,6 +351,8 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                         else:
                             results[magkey] = np.float32(-1.0)
                             results[magerrkey] = np.float32(-1.0)
+                        #if filt == 'r':
+                        #    pdb.set_trace()
                     except:
                         results[magkey] = np.float32(-1.0)
                         results[magerrkey] = np.float32(-1.0)
@@ -864,13 +866,15 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         imasked, val = False, []
         for xb in box:
             for yb in box:
-                val.append(img.mask[int(xb+x0), int(yb+y0)])
+                val.append(img.mask[int(xb+y0), int(yb+x0)])
+                #val.append(img.mask[int(xb+x0), int(yb+y0)])
         if np.any(val):
             imasked = True
 
         if imasked:
         #if img.mask[np.int(ellipsefit['x0']), np.int(ellipsefit['y0'])]:
             print(' Central pixel is masked; resorting to extreme measures!')
+            pdb.set_trace()
             ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
         else:
             isobandfit = pool.map(_integrate_isophot_one, [(
