@@ -175,17 +175,21 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         img = ma.getdata(data['{}_masked'.format(filt.lower())][igal]) # [nanomaggies/arcsec2]
         mask = ma.getmask(data['{}_masked'.format(filt.lower())][igal])
 
-        #deltaa_filt = deltaa * pixscalefactor
-        if filt in refellipsefit['bands']:
-            if len(sbprofile['sma_{}'.format(filt.lower())]) == 0: # can happen with partial coverage in other bands
-                maxsma = sbprofile['sma_{}'.format(refband.lower())].max()
-            else:
-                maxsma = sbprofile['sma_{}'.format(filt.lower())].max()        # [pixels]
-            #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt.lower())] # [pixels]
-        else:
-            maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
-            #minsma = 3 * refellipsefit['psfsigma_{}'.format(refband)] # [pixels]
-        
+        ## old code...
+        #if filt in refellipsefit['bands']:
+        #    if len(sbprofile['sma_{}'.format(filt.lower())]) == 0: # can happen with partial coverage in other bands
+        #        maxsma = sbprofile['sma_{}'.format(refband.lower())].max()
+        #    else:
+        #        maxsma = sbprofile['sma_{}'.format(filt.lower())].max()        # [pixels]
+        #    #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt.lower())] # [pixels]
+        #else:
+        #    maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
+        #    #minsma = 3 * refellipsefit['psfsigma_{}'.format(refband)] # [pixels]
+
+        maxsma = np.max(sbprofile['sma_{}'.format(filt.lower())])        # [pixels]
+        if maxsma <= 0:
+            maxsma = np.max(refellipsefit['sma_{}'.format(filt.lower())])        # [pixels]
+            
         #sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
 
         sma = refellipsefit['sma_{}'.format(filt.lower())] * 1.0
@@ -196,7 +200,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         else:
             print('Too few good semi-major axis pixels!')
             #pdb.set_trace()
-            #raise ValueError
+            raise ValueError
         
         smb = sma * eps
         if eps == 0.0:

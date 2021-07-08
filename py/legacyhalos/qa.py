@@ -1158,18 +1158,15 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
 
     # ...now the individual bandpasses.        
     for ii, (filt, ax1) in enumerate(zip(bands, ax[1:])):
-        #mge = data['mge'][igal]
-        dat = data['{}_masked'.format(filt.lower())][igal]
-        img = ma.masked_array(dat.data, dat.mask)
-        mask = ma.masked_array(dat.data, ~dat.mask)
 
         pixscalefactor = _get_pixscalefactor(filt)
 
-        try:
-            norm = ImageNormalize(img, interval=interval, stretch=stretch)
-        except:
-            norm = ImageNormalize(img, interval=interval)
-            #pdb.set_trace()
+        #mge = data['mge'][igal]
+        dat = data['{}_masked'.format(filt.lower())][igal]
+
+        if filt == 'W4':
+            plt.clf() ; plt.imshow(dat.data, origin='lower') ; plt.savefig('junk.png')
+            pdb.set_trace()
 
         # There's an annoying bug in matplotlib>2.0.2 which ignores masked
         # pixels (it used to render them in white), so we have to overplot the
@@ -1177,14 +1174,28 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         # https://github.com/matplotlib/matplotlib/issues/11039
         # https://stackoverflow.com/questions/22128166/two-different-color-colormaps-in-the-same-imshow-matplotlib
         #cmap.set_bad('white', alpha=1.0) # doesn't work!
+
         if False:
+            img = ma.masked_array(dat.data, dat.mask)
+            mask = ma.masked_array(dat.data, ~dat.mask)
+            try:
+                norm = ImageNormalize(img, interval=interval, stretch=stretch)
+            except:
+                norm = ImageNormalize(img, interval=interval)
+                #pdb.set_trace()
+
             ax1.imshow(img, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
                        interpolation='none')
             ax1.imshow(mask, origin='lower', cmap=mpl.colors.ListedColormap(['white']),
                        interpolation='none')
         else:
-            ax1.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
-                       interpolation='nearest')
+            try:
+                norm = ImageNormalize(dat, interval=interval, stretch=stretch)
+            except:
+                norm = ImageNormalize(dat, interval=interval)
+                
+        ax1.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
+                   interpolation='nearest')
         plt.text(0.09, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
                  ha='left', va='center', color='k', fontsize=34)
 
@@ -1313,6 +1324,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         plt.close(fig)
     else:
         plt.show()
+
 
 def display_ellipsefit(ellipsefit, xlog=False, cosmo=None, png=None, verbose=True):
     """Display the isophote fitting results."""

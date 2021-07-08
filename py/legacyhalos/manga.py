@@ -558,9 +558,11 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                                     pixelized_psf=data['{}_psf'.format(filt.lower())])
                 data[psfimgkey].append(psfimg)
                 #if filt == 'W1':# or filt == 'r':
-                #    plt.clf() ; plt.imshow(np.log10(img), origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt.lower()))
-                #    plt.clf() ; plt.imshow(np.log10(psfimg), origin='lower') ; plt.savefig('junk-psf-{}.png'.format(filt.lower()))
-                #    plt.clf() ; plt.imshow(img-psfimg, origin='lower') ; plt.savefig('junk-residimg-{}.png'.format(filt.lower()))
+                #    import fitsio ; fitsio.write('junk-psf-{}.fits'.format(filt.lower()), data['{}_psf'.format(filt.lower())].img, clobber=True)
+                #    plt.clf() ; plt.imshow(data['{}_psf'.format(filt.lower())].img, origin='lower') ; plt.colorbar() ; plt.savefig('junk-psf-{}.png'.format(filt.lower()))
+                #    plt.clf() ; plt.imshow(np.log10(img), origin='lower') ; plt.colorbar() ; plt.savefig('junk-img-{}.png'.format(filt.lower()))
+                #    plt.clf() ; plt.imshow(np.log10(psfimg), origin='lower') ; plt.colorbar() ; plt.savefig('junk-psfsrcs-{}.png'.format(filt.lower()))
+                #    plt.clf() ; plt.imshow(img-psfimg, origin='lower') ; plt.colorbar() ; plt.savefig('junk-residimg-{}.png'.format(filt.lower()))
                 #    pdb.set_trace()
                 img -= psfimg
 
