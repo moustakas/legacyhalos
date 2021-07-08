@@ -424,7 +424,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         else:
             ncol = 1
         leg1 = ax.legend(loc='lower right', fontsize=14, ncol=ncol)
-    
+
     # Plot some threshold radii for the large-galaxy project--
     if plot_sbradii:
         lline, llabel = [], []
@@ -575,8 +575,8 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
         ymax = np.min(phot['tractor']['abmag'][good])
     if np.max(phot['tractor']['abmag']) > ymin:
         ymin = np.max(phot['tractor']['abmag'][good])
+    #print(ymin, ymax)
 
-    print(ymin, ymax)
     ymin += 1.5
     ymax -= 1.5
 

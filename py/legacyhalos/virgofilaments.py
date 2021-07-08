@@ -368,20 +368,26 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         class MGEgalaxy(object):
             pass
 
-        ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
-        ba = (1 - ee) / (1 + ee)
-        pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
-        pa = pa % 180
+        if tractor.sga_id[indx] > -1:
+            pa = tractor.pa_init[indx]
+            ba = tractor.ba_init[indx]
+            majoraxis = tractor.diam_init[indx] * 60 / 2 / filt2pixscale[refband] # [pixels]
+        else:
+            ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
+            ba = (1 - ee) / (1 + ee)
+            pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
+            pa = pa % 180
+            majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
         mgegalaxy.xmed = tractor.by[indx]
         mgegalaxy.ymed = tractor.bx[indx]
         mgegalaxy.xpeak = tractor.by[indx]
         mgegalaxy.ypeak = tractor.bx[indx]
-        mgegalaxy.eps = 1-ba
+        mgegalaxy.eps = 1 - ba
         mgegalaxy.pa = pa
         mgegalaxy.theta = (270 - pa) % 180
-        mgegalaxy.majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+        mgegalaxy.majoraxis = majoraxis
 
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                mgegalaxy.majoraxis,
@@ -402,7 +408,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # central in case there was a poor deblend.
         largeshift = False
         mge, centralmask = tractor2mge(central, factor=neighborfactor)
-        plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('debug.png')
+        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png')
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -426,11 +432,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #    pdb.set_trace()
 
         mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('debug.png')
-        #if True:
-        #    import matplotlib.pyplot as plt
-        #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('debug.png')
-        #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
-        #    pdb.set_trace()
+        #plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('debug.png')
+        ##plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #pdb.set_trace()
 
         # Did the galaxy position move? If so, revert back to the Tractor geometry.
@@ -751,10 +754,12 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     #sample = sample[np.searchsorted(sample[REFIDCOLUMN], tractor.ref_id[galaxy_indx])]
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
 
+    tractor.sga_id = np.zeros(len(tractor), dtype=np.int64)-1
     tractor.diam_init = np.zeros(len(tractor), dtype='f4')
     tractor.pa_init = np.zeros(len(tractor), dtype='f4')
     tractor.ba_init = np.zeros(len(tractor), dtype='f4')
     if 'DIAM_INIT' in sample.colnames and 'PA_INIT' in sample.colnames and 'BA_INIT' in sample.colnames:
+        tractor.sga_id[galaxy_indx] = sample['SGA_ID']
         tractor.diam_init[galaxy_indx] = sample['DIAM_INIT']
         tractor.pa_init[galaxy_indx] = sample['PA_INIT']
         tractor.ba_init[galaxy_indx] = sample['BA_INIT']
