@@ -21,18 +21,22 @@ import legacyhalos.io
 
 REF_SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
 
+def _get_r0():
+    r0 = 10.0 # [arcsec]
+    return r0
+
 def cog_model(radius, mtot, m0, alpha1, alpha2):
     r0 = _get_r0()
     #return mtot - m0 * np.expm1(-alpha1*((radius / r0)**(-alpha2)))
     return mtot + m0 * np.log1p(alpha1*(radius/10.0)**(-alpha2))
 
 def cog_dofit(sma, mag, mag_err, bounds=None):
+    chisq = 1e6
     try:
         popt, _ = curve_fit(cog_model, sma, mag, sigma=mag_err,
                             bounds=bounds, max_nfev=10000)
     except RuntimeError:
         popt = None
-        chisq = 1e6
     else:
         chisq = (((cog_model(sma, *popt) - mag) / mag_err) ** 2).sum()
         
@@ -76,21 +80,22 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False, iscir
         aperture = CircularAperture((x0, y0), aa)
     else:
         aperture = EllipticalAperture((x0, y0), aa, bb, theta)
-        
+
     # Integrate the data to get the total surface brightness (in
     # nanomaggies/arcsec2) and the mask to get the fractional area.
     
     #area = (aperture_photometry(~mask*1, aperture, mask=mask, method='exact'))['aperture_sum'].data * pixscale**2 # [arcsec**2]
-    mu_flux = (aperture_photometry(img, aperture, mask=mask, method='exact'))['aperture_sum'].data # [nanomaggies/arcsec2]
+    mu_flux = (aperture_photometry(img, aperture, mask=mask, method='exact'))['aperture_sum'].data # [nanomaggies/arcsec2]        
+    #print(x0, y0, aa, bb, theta, mu_flux, pixscale, img.shape, mask.shape, aperture)
     if variance:
         apphot = np.sqrt(mu_flux) * pixscale**2 # [nanomaggies]
     else:
         apphot = mu_flux * pixscale**2 # [nanomaggies]
+
     return apphot
 
-def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
-                pixscale, igal=0, pool=None, seed=1,
-                sbthresh=REF_SBTHRESH):
+def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
+                seed=1, sbthresh=REF_SBTHRESH):
     """Measure the curve of growth (CoG) by performing elliptical aperture
     photometry.
 
@@ -106,11 +111,14 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
     rand = np.random.RandomState(seed)
     
-    deltaa = 1.0 # pixel spacing
+    #deltaa = 1.0 # pixel spacing
 
     #theta, eps = refellipsefit['geometry'].pa, refellipsefit['geometry'].eps
-    theta, eps = np.radians(refellipsefit['pa']-90), refellipsefit['eps']
+    theta = np.radians(refellipsefit['pa']-90)
+    eps = refellipsefit['eps']
     refband = refellipsefit['refband']
+    refpixscale = data['refpixscale']
+
     #maxsma = refellipsefit['maxsma']
 
     results = {}
@@ -121,22 +129,22 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
 
     #print('We should measure these radii from the extinction-corrected photometry!')
     for sbcut in sbthresh:
-        if sbprofile['mu_r'].max() < sbcut or sbprofile['mu_r'].min() > sbcut:
+        if sbprofile['mu_{}'.format(refband)].max() < sbcut or sbprofile['mu_{}'.format(refband)].min() > sbcut:
             print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
-            results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
-            results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
+            results['sma_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
+            results['sma_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
             continue
 
-        rr = (sbprofile['sma_r'] * pixscale)**0.25 # [arcsec]
-        sb = sbprofile['mu_r'] - sbcut
-        sberr = sbprofile['muerr_r']
+        rr = (sbprofile['sma_{}'.format(refband)] * refpixscale)**0.25 # [arcsec]
+        sb = sbprofile['mu_{}'.format(refband)] - sbcut
+        sberr = sbprofile['muerr_{}'.format(refband)]
         keep = np.where((sb > -1) * (sb < 1))[0]
         if len(keep) < 5:
             keep = np.where((sb > -2) * (sb < 2))[0]
             if len(keep) < 5:
                 print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
-                results['radius_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
-                results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
+                results['sma_sb{:0g}'.format(sbcut)] = np.float32(-1.0)
+                results['sma_sb{:0g}_err'.format(sbcut)] = np.float32(-1.0)
                 continue
 
         # Monte Carlo to get the radius
@@ -156,42 +164,74 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         #    rcut = interp1d()(sbcut) # [arcsec]
         #except:
         #    print('Warning: extrapolating r({:0g})!'.format(sbcut))
-        #    rcut = interp1d(sbprofile['mu_r'], sbprofile['sma_r'] * pixscale, fill_value='extrapolate')(sbcut) # [arcsec]
-        results['radius_sb{:0g}'.format(sbcut)] = np.float32(meanrcut)
-        results['radius_sb{:0g}_err'.format(sbcut)] = np.float32(sigrcut)
+        #    rcut = interp1d(sbprofile['mu_{}'.format(refband)], sbprofile['sma_{}'.format(refband)] * pixscale, fill_value='extrapolate')(sbcut) # [arcsec]
+        results['sma_sb{:0g}'.format(sbcut)] = np.float32(meanrcut)
+        results['sma_sb{:0g}_err'.format(sbcut)] = np.float32(sigrcut)
 
+    chi2fail = 1e6
+    nparams = 4
+        
     for filt in bands:
-        img = ma.getdata(data['{}_masked'.format(filt)][igal]) # [nanomaggies/arcsec2]
-        mask = ma.getmask(data['{}_masked'.format(filt)][igal])
+        img = ma.getdata(data['{}_masked'.format(filt.lower())][igal]) # [nanomaggies/arcsec2]
+        mask = ma.getmask(data['{}_masked'.format(filt.lower())][igal])
 
-        deltaa_filt = deltaa * pixscalefactor
+        ## old code...
+        #if filt in refellipsefit['bands']:
+        #    if len(sbprofile['sma_{}'.format(filt.lower())]) == 0: # can happen with partial coverage in other bands
+        #        maxsma = sbprofile['sma_{}'.format(refband.lower())].max()
+        #    else:
+        #        maxsma = sbprofile['sma_{}'.format(filt.lower())].max()        # [pixels]
+        #    #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt.lower())] # [pixels]
+        #else:
+        #    maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
+        #    #minsma = 3 * refellipsefit['psfsigma_{}'.format(refband)] # [pixels]
 
-        if filt in refellipsefit['bands']:
-            if len(sbprofile['sma_{}'.format(filt)]) == 0: # can happen with partial coverage in other bands
-                maxsma = sbprofile['sma_{}'.format(refband)].max()
-            else:
-                maxsma = sbprofile['sma_{}'.format(filt)].max()        # [pixels]
-            #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt)] # [pixels]
-        else:
-            maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
-            #minsma = 3 * refellipsefit['psfsigma_{}'.format(refband)] # [pixels]
+        maxsma = np.max(sbprofile['sma_{}'.format(filt.lower())])        # [pixels]
+        if maxsma <= 0:
+            maxsma = np.max(refellipsefit['sma_{}'.format(filt.lower())])        # [pixels]
             
-        sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
+        #sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
+
+        sma = refellipsefit['sma_{}'.format(filt.lower())] * 1.0
+        keep = np.where((sma > 0) * (sma <= maxsma))[0]
+        #keep = np.where(sma < maxsma)[0]
+        if len(keep) > 0:
+            sma = sma[keep]
+        else:
+            print('Too few good semi-major axis pixels!')
+            #pdb.set_trace()
+            raise ValueError
+        
         smb = sma * eps
-        if eps == 0:
+        if eps == 0.0:
             iscircle = True
         else:
             iscircle = False
-        
-        x0 = refellipsefit['x0'] * pixscalefactor
-        y0 = refellipsefit['y0'] * pixscalefactor
 
+        # handle GALEX and WISE
+        if 'filt2pixscale' in data.keys():
+            pixscale = data['filt2pixscale'][filt]
+            if np.isclose(pixscale, refpixscale): # avoid rounding issues
+                pixscale = refpixscale                
+                pixscalefactor = 1.0
+            else:
+                pixscalefactor = refpixscale / pixscale
+        else:
+            pixscale = refpixscale
+            pixscalefactor = 1.0
+
+        x0 = pixscalefactor * refellipsefit['x0']
+        y0 = pixscalefactor * refellipsefit['y0']
+
+        #if filt == 'g':
+        #    pdb.set_trace()
         #im = np.log10(img) ; im[mask] = 0 ; plt.clf() ; plt.imshow(im, origin='lower') ; plt.scatter(y0, x0, s=50, color='red') ; plt.savefig('junk.png')
-        #pdb.set_trace()
 
+        #print(filt, img.shape, pixscale)
         with np.errstate(all='ignore'):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore', category=AstropyUserWarning)
+                #cogflux = [apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle) for aa, bb in zip(sma, smb)]
                 cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle)
                                                 for aa, bb in zip(sma, smb)])
                 if len(cogflux) > 0:
@@ -199,8 +239,8 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
                 else:
                     cogflux = np.array([0.0])
 
-                if '{}_var'.format(filt) in data.keys():
-                    var = data['{}_var'.format(filt)][igal] # [nanomaggies**2/arcsec**4]
+                if '{}_var'.format(filt.lower()) in data.keys():
+                    var = data['{}_var'.format(filt.lower())][igal] # [nanomaggies**2/arcsec**4]
                     cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True, iscircle)
                                                     for aa, bb in zip(sma, smb)])
                     if len(cogferr) > 0:
@@ -213,212 +253,120 @@ def ellipse_cog(bands, data, refellipsefit, pixscalefactor,
         # Aperture fluxes can be negative (or nan?) sometimes--
         with warnings.catch_warnings():
             if cogferr is not None:
-                ok = (cogflux > 0) * (cogferr > 0) * np.isfinite(cogflux) * np.isfinite(cogferr)
+                with np.errstate(divide='ignore'):
+                    ok = (cogflux > 0) * (cogferr > 0) * np.isfinite(cogflux) * np.isfinite(cogferr) * (cogflux / cogferr > 1)
             else:
                 ok = (cogflux > 0) * np.isfinite(cogflux)
                 cogmagerr = np.ones(len(cogmag))
 
         #results['cog_smaunit'] = 'arcsec'
-        
-        if np.count_nonzero(ok) < 10:
-            print('Warning: Too few {}-band pixels to fit the curve of growth; skipping.'.format(filt))
-            results['{}_cog_sma'.format(filt)] = np.float32(-1) # np.array([])
-            results['{}_cog_mag'.format(filt)] = np.float32(-1) # np.array([])
-            results['{}_cog_magerr'.format(filt)] = np.float32(-1) # np.array([])
-            # old data model
-            #results['{}_cog_params'.format(filt)] = {'mtot': np.float32(-1),
-            #                                          'm0': np.float32(-1),
-            #                                          'alpha1': np.float32(-1),
-            #                                          'alpha2': np.float32(-1),
-            #                                          'chi2': np.float32(1e6)}
-            results['{}_cog_params_mtot'.format(filt)] = np.float32(-1)
-            results['{}_cog_params_m0'.format(filt)] = np.float32(-1)
-            results['{}_cog_params_alpha1'.format(filt)] = np.float32(-1)
-            results['{}_cog_params_alpha2'.format(filt)] = np.float32(-1)
-            results['{}_cog_params_chi2'.format(filt)] = np.float32(1e6)
-            results['{}_cog_r50'.format(filt)] = np.float32(-1)
+
+        if np.count_nonzero(ok) == 0:
+            results['cog_sma_{}'.format(filt.lower())] = np.float32(-1) # np.array([])
+            results['cog_mag_{}'.format(filt.lower())] = np.float32(-1) # np.array([])
+            results['cog_magerr_{}'.format(filt.lower())] = np.float32(-1) # np.array([])
+            results['cog_mtot_{}'.format(filt.lower())] = np.float32(-1)
+            results['cog_m0_{}'.format(filt.lower())] = np.float32(-1)
+            results['cog_alpha1_{}'.format(filt.lower())] = np.float32(-1)
+            results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
+            results['cog_chi2_{}'.format(filt.lower())] = np.float32(1e6)
+            results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
             for sbcut in sbthresh:
-                results['{}_mag_sb{:0g}'.format(filt, sbcut)] = np.float32(-1)
-                results['{}_mag_sb{:0g}_err'.format(filt, sbcut)] = np.float32(-1)
-            continue
+                results['{}_mag_sb{:0g}'.format(filt.lower(), sbcut)] = np.float32(-1)
+                results['{}_mag_sb{:0g}_err'.format(filt.lower(), sbcut)] = np.float32(-1)
+        else:
+            sma_arcsec = sma[ok] * pixscale             # [arcsec]
+            cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
+            if cogferr is not None:
+                cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
 
-        sma_arcsec = sma[ok] * pixscale             # [arcsec]
-        cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
-        if cogferr is not None:
-            cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
+            results['cog_sma_{}'.format(filt.lower())] = np.float32(sma_arcsec)
+            results['cog_mag_{}'.format(filt.lower())] = np.float32(cogmag)
+            results['cog_magerr_{}'.format(filt.lower())] = np.float32(cogmagerr)
 
-        results['{}_cog_sma'.format(filt)] = np.float32(sma_arcsec)
-        results['{}_cog_mag'.format(filt)] = np.float32(cogmag)
-        results['{}_cog_magerr'.format(filt)] = np.float32(cogmagerr)
-
-        #print('Modeling the curve of growth.')
-        n_params = 4
-        popt = chisq = popt_simple = chisq_simple = None
-        if len(sma_arcsec) >= n_params:
-            bounds = ([cogmag[-1]-1.0, 0, 0, 0], np.inf)
-            #bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
-            #bounds = (0, np.inf)
-            (mtot, m0, alpha1, alpha2), minchi2 = cog_dofit(sma_arcsec, cogmag, cogmagerr, bounds=bounds)
-            if minchi2 < 1e6:
-                print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
-                results['{}_cog_params_mtot'.format(filt)] = np.float32(mtot)
-                results['{}_cog_params_m0'.format(filt)] = np.float32(m0)
-                results['{}_cog_params_alpha1'.format(filt)] = np.float32(alpha1)
-                results['{}_cog_params_alpha2'.format(filt)] = np.float32(alpha2)
-                results['{}_cog_params_chi2'.format(filt)] = np.float32(minchi2)
-
-                if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
-                    #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
-                    half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
-                    #half_light_radius = half_light_sma * np.sqrt(1 - ellipse['eps']) # circularized
-                    results['{}_cog_r50'.format(filt)] = half_light_sma
-        
-        ##################################################
-        # begin old COG modeling code
-        
-        #def get_chi2(bestfit):
-        #    sbmodel = bestfit(self.radius, self.wave)
-        #    chi2 = np.sum( (self.sb - sbmodel)**2 / self.sberr**2 ) / dof
-        #
-        #cogfitter = astropy.modeling.fitting.LevMarLSQFitter()
-        #cogmodel = CogModel()
-        #
-        #nball = 10
-        #
-        ## perturb the parameter values
-        #nparams = len(cogmodel.parameters)
-        #dof = len(cogmag) - nparams
-        #
-        #params = np.repeat(cogmodel.parameters, nball).reshape(nparams, nball)
-        #for ii, pp in enumerate(cogmodel.param_names):
-        #    pinfo = getattr(cogmodel, pp)
-        #    if pinfo.bounds[0] is not None:
-        #        scale = 0.2 * pinfo.default
-        #        params[ii, :] += rand.normal(scale=scale, size=nball)
-        #        toosmall = np.where( params[ii, :] < pinfo.bounds[0] )[0]
-        #        if len(toosmall) > 0:
-        #            params[ii, toosmall] = pinfo.default
-        #        toobig = np.where( params[ii, :] > pinfo.bounds[1] )[0]
-        #        if len(toobig) > 0:
-        #            params[ii, toobig] = pinfo.default
-        #    else:
-        #        params[ii, :] += rand.normal(scale=0.2 * pinfo.default, size=nball)
-        #        
-        ## perform the fit nball times
-        #chi2fail = 1e6
-        #with warnings.catch_warnings():
-        #    warnings.simplefilter('ignore')
-        #    chi2 = np.zeros(nball) + chi2fail
-        #    for jj in range(nball):
-        #        cogmodel.parameters = params[:, jj]
-        #        # Fit up until the curve of growth turns over, but no less than
-        #        # the second moment of the light distribution! Pretty fragile..
-        #        these = np.where(np.diff(cogmag) < 0)[0]
-        #        if len(these) > 5: # this is bad if we don't have at least 5 points!
-        #            if sma_arcsec[these[0]] < (refellipsefit['majoraxis'] * pixscale * pixscalefactor):
-        #                these = np.where(sma_arcsec < refellipsefit['majoraxis'] * pixscale * pixscalefactor)[0]
-        #            if len(these) > 5: # can happen in corner cases (e.g., PGC155984)
-        #                ballfit = cogfitter(cogmodel, sma_arcsec[these], cogmag[these],
-        #                                    maxiter=100, weights=1/cogmagerr[these])
-        #                bestfit = ballfit(sma_arcsec)
-        #
-        #                chi2[jj] = np.sum( (cogmag - bestfit)**2 / cogmagerr**2 ) / dof
-        #                if cogfitter.fit_info['param_cov'] is None: # failed
-        #                    if False:
-        #                        print(jj, cogfitter.fit_info['message'], chi2[jj])
-        #                else:
-        #                    params[:, jj] = ballfit.parameters # update
-        #
-        ## if at least one fit succeeded, re-evaluate the model at the chi2
-        ## minimum.
-        #good = chi2 < chi2fail
-        #if np.sum(good) == 0:
-        #    print('{} CoG modeling failed.'.format(filt))
-        #    #result.update({'fit_message': cogfitter.fit_info['message']})
-        #    #return result
-        #mindx = np.argmin(chi2)
-        #minchi2 = chi2[mindx]
-        #cogmodel.parameters = params[:, mindx]
-        #P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr, maxiter=100)
-        #print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
-        #
-        ##P = cogfitter(cogmodel, sma_arcsec, cogmag, weights=1/cogmagerr)
-        ##results['{}_cog_params'.format(filt)] = {'mtot': np.float32(P.mtot.value),
-        ##                                         'm0': np.float32(P.m0.value),
-        ##                                         'alpha1': np.float32(P.alpha1.value),
-        ##                                         'alpha2': np.float32(P.alpha2.value),
-        ##                                         'chi2': np.float32(minchi2)}
-        #results['{}_cog_params_mtot'.format(filt)] = np.float32(P.mtot.value)
-        #results['{}_cog_params_m0'.format(filt)] = np.float32(P.m0.value)
-        #results['{}_cog_params_alpha1'.format(filt)] = np.float32(P.alpha1.value)
-        #results['{}_cog_params_alpha2'.format(filt)] = np.float32(P.alpha2.value)
-        #results['{}_cog_params_chi2'.format(filt)] = np.float32(minchi2)
-        #
-        # end old COG modeling code
-        ##################################################
-
-        #print('Measuring integrated magnitudes to different radii.')
-        sb = ellipse_sbprofile(refellipsefit, linear=True)
-        radkeys = ['radius_sb{:0g}'.format(sbcut) for sbcut in sbthresh]
-        for radkey in radkeys:
-            magkey = radkey.replace('radius_', '{}_mag_'.format(filt))
-            magerrkey = '{}_err'.format(magkey)
+            #if filt == 'FUV':
+            #    pdb.set_trace()
             
-            smamax = results[radkey] # semi-major axis
-            if smamax > 0 and smamax < np.max(sma_arcsec):
-                rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
+            #print('Modeling the curve of growth.')
+            these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
+            if len(these) < nparams:
+                print('Warning: Too few {}-band pixels to fit the curve of growth; skipping.'.format(filt))
+                results['cog_mtot_{}'.format(filt.lower())] = np.float32(-1)
+                results['cog_m0_{}'.format(filt.lower())] = np.float32(-1)
+                results['cog_alpha1_{}'.format(filt.lower())] = np.float32(-1)
+                results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
+                results['cog_chi2_{}'.format(filt.lower())] = np.float32(1e6)
+                results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
+                for sbcut in sbthresh:
+                    results['{}_mag_sb{:0g}'.format(filt.lower(), sbcut)] = np.float32(-1)
+                    results['{}_mag_sb{:0g}_err'.format(filt.lower(), sbcut)] = np.float32(-1)
+                continue
+            else:
+                bounds = ([cogmag[these][-1]-1.0, 0, 0, 0], np.inf)
+                #bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
+                #bounds = (0, np.inf)
+                popt, minchi2 = cog_dofit(sma_arcsec[these], cogmag[these], cogmagerr[these], bounds=bounds)
+                if minchi2 < chi2fail and popt is not None:
+                    mtot, m0, alpha1, alpha2 = popt
+                    print('{} CoG modeling succeeded with a chi^2 minimum of {:.2f}'.format(filt, minchi2))
+                    results['cog_mtot_{}'.format(filt.lower())] = np.float32(mtot)
+                    results['cog_m0_{}'.format(filt.lower())] = np.float32(m0)
+                    results['cog_alpha1_{}'.format(filt.lower())] = np.float32(alpha1)
+                    results['cog_alpha2_{}'.format(filt.lower())] = np.float32(alpha2)
+                    results['cog_chi2_{}'.format(filt.lower())] = np.float32(minchi2)
 
-                rr = sb['radius_{}'.format(filt)]    # [circularized radius, arcsec]
-                yy = sb['mu_{}'.format(filt)]        # [surface brightness, nanomaggies/arcsec**2]
-                yyerr = sb['muerr_{}'.format(filt)] # [surface brightness, nanomaggies/arcsec**2]
-                try:
-                    #print(filt, rr.max(), rmax)
-                    yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
-                    yyerr_rmax = interp1d(rr, yyerr)(rmax)
+                    # get the half-light radius (along the major axis)
+                    if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
+                        #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
+                        with np.errstate(all='ignore'):                        
+                            half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
+                            #if filt == 'W4':
+                            #    pdb.set_trace()
+                        results['cog_sma50_{}'.format(filt.lower())] = half_light_sma
 
-                    # append the maximum radius to the end of the array
-                    keep = np.where(rr < rmax)[0]
-                    _rr = np.hstack((rr[keep], rmax))
-                    _yy = np.hstack((yy[keep], yy_rmax))
-                    _yyerr = np.hstack((yyerr[keep], yyerr_rmax))
+            #print('Measuring integrated magnitudes to different radii.')
+            sb = ellipse_sbprofile(refellipsefit, linear=True)
+            radkeys = ['sma_sb{:0g}'.format(sbcut) for sbcut in sbthresh]
+            for radkey in radkeys:
+                magkey = radkey.replace('sma_', '{}_mag_'.format(filt.lower()))
+                magerrkey = '{}_err'.format(magkey)
 
-                    flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
-                    fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
-                    if flux > 0 and fvar > 0:
-                        ferr = 2 * np.pi * np.sqrt(fvar)
-                        results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
-                        results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
-                    else:
+                smamax = results[radkey] # semi-major axis
+                if smamax > 0 and smamax < np.max(sma_arcsec):
+                    rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
+
+                    rr = sb['radius_{}'.format(filt.lower())]    # [circularized radius, arcsec]
+                    yy = sb['mu_{}'.format(filt.lower())]        # [surface brightness, nanomaggies/arcsec**2]
+                    yyerr = sb['muerr_{}'.format(filt.lower())] # [surface brightness, nanomaggies/arcsec**2]
+                    try:
+                        #print(filt, rr.max(), rmax)
+                        yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
+                        yyerr_rmax = interp1d(rr, yyerr)(rmax)
+
+                        # append the maximum radius to the end of the array
+                        keep = np.where(rr < rmax)[0]
+                        _rr = np.hstack((rr[keep], rmax))
+                        _yy = np.hstack((yy[keep], yy_rmax))
+                        _yyerr = np.hstack((yyerr[keep], yyerr_rmax))
+
+                        flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy)
+                        fvar = integrate.simps(x=_rr, y=_rr*_yyerr**2)
+                        if flux > 0 and fvar > 0:
+                            ferr = 2 * np.pi * np.sqrt(fvar)
+                            results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+                            results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+                        else:
+                            results[magkey] = np.float32(-1.0)
+                            results[magerrkey] = np.float32(-1.0)
+                        #if filt == 'r':
+                        #    pdb.set_trace()
+                    except:
                         results[magkey] = np.float32(-1.0)
                         results[magerrkey] = np.float32(-1.0)
-                except:
+                else:
                     results[magkey] = np.float32(-1.0)
                     results[magerrkey] = np.float32(-1.0)
-            else:
-                results[magkey] = np.float32(-1.0)
-                results[magerrkey] = np.float32(-1.0)
                 
-    #pdb.set_trace()
-        
-    #    print(filt, P)
-    #    default_model = cogmodel.evaluate(radius, P.mtot.default, P.m0.default, P.alpha1.default, P.alpha2.default)
-    #    bestfit_model = cogmodel.evaluate(radius, P.mtot.value, P.m0.value, P.alpha1.value, P.alpha2.value)
-    #    plt.scatter(radius, cog, label='Data {}'.format(filt), s=10)
-    #    plt.plot(radius, bestfit_model, label='Best Fit {}'.format(filt), color='k', lw=1, alpha=0.5)
-    #plt.legend(fontsize=10)
-    #plt.ylim(15, 30)
-    #plt.savefig('junk.png')
-    #pdb.set_trace()
-
-    #fig, ax = plt.subplots()
-    #for filt in bands:
-    #    ax.plot(results['apphot_sma_{}'.format(filt)],
-    #            22.5-2.5*np.log10(results['apphot_mag_{}'.format(filt)]), label=filt)
-    #ax.set_ylim(30, 5)
-    #ax.legend(loc='lower right')
-    #plt.show()
-    #pdb.set_trace()
-
     return results
 
 def _unmask_center(img):
@@ -440,58 +388,57 @@ def _unpack_isofit(ellipsefit, filt, isofit, failed=False):
     """
     if failed:
         ellipsefit.update({
-            '{}_sma'.format(filt): np.array([-1]).astype(np.int16),
-            '{}_intens'.format(filt): np.array([-1]).astype('f4'),
-            '{}_intens_err'.format(filt): np.array([-1]).astype('f4'),
-            '{}_eps'.format(filt): np.array([-1]).astype('f4'),
-            '{}_eps_err'.format(filt): np.array([-1]).astype('f4'),
-            '{}_pa'.format(filt): np.array([-1]).astype('f4'),
-            '{}_pa_err'.format(filt): np.array([-1]).astype('f4'),
-            '{}_x0'.format(filt): np.array([-1]).astype('f4'),
-            '{}_x0_err'.format(filt): np.array([-1]).astype('f4'),
-            '{}_y0'.format(filt): np.array([-1]).astype('f4'),
-            '{}_y0_err'.format(filt): np.array([-1]).astype('f4'),
-            '{}_a3'.format(filt): np.array([-1]).astype('f4'),
-            '{}_a3_err'.format(filt): np.array([-1]).astype('f4'),
-            '{}_a4'.format(filt): np.array([-1]).astype('f4'),
-            '{}_a4_err'.format(filt): np.array([-1]).astype('f4'),
-            '{}_rms'.format(filt): np.array([-1]).astype('f4'),
-            '{}_pix_stddev'.format(filt): np.array([-1]).astype('f4'),
-            '{}_stop_code'.format(filt): np.array([-1]).astype(np.int16),
-            '{}_ndata'.format(filt): np.array([-1]).astype(np.int16), 
-            '{}_nflag'.format(filt): np.array([-1]).astype(np.int16), 
-            '{}_niter'.format(filt): np.array([-1]).astype(np.int16)})
+            'sma_{}'.format(filt.lower()): np.array([-1]).astype(np.int16),
+            'intens_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'intens_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'eps_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'eps_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'pa_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'pa_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'x0_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'x0_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'y0_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'y0_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'a3_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'a3_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'a4_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'a4_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'rms_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'pix_stddev_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
+            'stop_code_{}'.format(filt.lower()): np.array([-1]).astype(np.int16),
+            'ndata_{}'.format(filt.lower()): np.array([-1]).astype(np.int16), 
+            'nflag_{}'.format(filt.lower()): np.array([-1]).astype(np.int16), 
+            'niter_{}'.format(filt.lower()): np.array([-1]).astype(np.int16)})
     else:
         ellipsefit.update({
-            '{}_sma'.format(filt): isofit.sma.astype(np.int16),
-            '{}_intens'.format(filt): isofit.intens.astype('f4'),
-            '{}_intens_err'.format(filt): isofit.int_err.astype('f4'),
-            '{}_eps'.format(filt): isofit.eps.astype('f4'),
-            '{}_eps_err'.format(filt): isofit.ellip_err.astype('f4'),
-            '{}_pa'.format(filt): isofit.pa.astype('f4'),
-            '{}_pa_err'.format(filt): isofit.pa_err.astype('f4'),
-            '{}_x0'.format(filt): isofit.x0.astype('f4'),
-            '{}_x0_err'.format(filt): isofit.x0_err.astype('f4'),
-            '{}_y0'.format(filt): isofit.y0.astype('f4'),
-            '{}_y0_err'.format(filt): isofit.y0_err.astype('f4'),
-            '{}_a3'.format(filt): isofit.a3.astype('f4'),
-            '{}_a3_err'.format(filt): isofit.a3_err.astype('f4'),
-            '{}_a4'.format(filt): isofit.a4.astype('f4'),
-            '{}_a4_err'.format(filt): isofit.a4_err.astype('f4'),
-            '{}_rms'.format(filt): isofit.rms.astype('f4'),
-            '{}_pix_stddev'.format(filt): isofit.pix_stddev.astype('f4'),
-            '{}_stop_code'.format(filt): isofit.stop_code.astype(np.int16),
-            '{}_ndata'.format(filt): isofit.ndata.astype(np.int16),
-            '{}_nflag'.format(filt): isofit.nflag.astype(np.int16),
-            '{}_niter'.format(filt): isofit.niter.astype(np.int16)})
-        
+            'sma_{}'.format(filt.lower()): isofit.sma.astype(np.int16),
+            'intens_{}'.format(filt.lower()): isofit.intens.astype('f4'),
+            'intens_err_{}'.format(filt.lower()): isofit.int_err.astype('f4'),
+            'eps_{}'.format(filt.lower()): isofit.eps.astype('f4'),
+            'eps_err_{}'.format(filt.lower()): isofit.ellip_err.astype('f4'),
+            'pa_{}'.format(filt.lower()): isofit.pa.astype('f4'),
+            'pa_err_{}'.format(filt.lower()): isofit.pa_err.astype('f4'),
+            'x0_{}'.format(filt.lower()): isofit.x0.astype('f4'),
+            'x0_err_{}'.format(filt.lower()): isofit.x0_err.astype('f4'),
+            'y0_{}'.format(filt.lower()): isofit.y0.astype('f4'),
+            'y0_err_{}'.format(filt.lower()): isofit.y0_err.astype('f4'),
+            'a3_{}'.format(filt.lower()): isofit.a3.astype('f4'),
+            'a3_err_{}'.format(filt.lower()): isofit.a3_err.astype('f4'),
+            'a4_{}'.format(filt.lower()): isofit.a4.astype('f4'),
+            'a4_err_{}'.format(filt.lower()): isofit.a4_err.astype('f4'),
+            'rms_{}'.format(filt.lower()): isofit.rms.astype('f4'),
+            'pix_stddev_{}'.format(filt.lower()): isofit.pix_stddev.astype('f4'),
+            'stop_code_{}'.format(filt.lower()): isofit.stop_code.astype(np.int16),
+            'ndata_{}'.format(filt.lower()): isofit.ndata.astype(np.int16),
+            'nflag_{}'.format(filt.lower()): isofit.nflag.astype(np.int16),
+            'niter_{}'.format(filt.lower()): isofit.niter.astype(np.int16)})
     return ellipsefit
 
 def _integrate_isophot_one(args):
     """Wrapper function for the multiprocessing."""
     return integrate_isophot_one(*args)
 
-def integrate_isophot_one(img, sma, theta, eps, x0, y0, pixscalefactor,
+def integrate_isophot_one(img, sma, theta, eps, x0, y0, 
                           integrmode, sclip, nclip):
     """Integrate the ellipse profile at a single semi-major axis.
 
@@ -516,9 +463,9 @@ def integrate_isophot_one(img, sma, theta, eps, x0, y0, pixscalefactor,
                                            integrmode=integrmode, sclip=sclip, nclip=nclip)
             out = CentralEllipseFitter(censamp).fit()
         else:
-            g.sma *= pixscalefactor
-            g.x0 *= pixscalefactor
-            g.y0 *= pixscalefactor
+            #g.sma *= pixscalefactor
+            #g.x0 *= pixscalefactor
+            #g.y0 *= pixscalefactor
 
             sample = EllipseSample(img, sma=g.sma, geometry=g, integrmode=integrmode,
                                    sclip=sclip, nclip=nclip)
@@ -530,7 +477,7 @@ def integrate_isophot_one(img, sma, theta, eps, x0, y0, pixscalefactor,
         
     return out
 
-def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
+def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
                       cut_on_cog=False, sdss=False, linear=False):
     """Convert ellipse-fitting results to a magnitude, color, and surface brightness
     profiles.
@@ -556,8 +503,9 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
         sbprofile['redshift'] = ellipsefit['redshift']    
             
     for filt in bands:
-        psfkey = 'psfsize_{}'.format(filt)
-        sbprofile[psfkey] = ellipsefit[psfkey]
+        psfkey = 'psfsize_{}'.format(filt.lower())
+        if psfkey in ellipsefit.keys():
+            sbprofile[psfkey] = ellipsefit[psfkey]
 
     sbprofile['minerr'] = minerr
     sbprofile['smaunit'] = 'pixels'
@@ -569,9 +517,9 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
     for filt in bands:
         #area = ellipsefit[filt].sarea[indx] * pixscale**2
 
-        sma = np.atleast_1d(ellipsefit['{}_sma'.format(filt)])   # semi-major axis [pixels]
-        sb = np.atleast_1d(ellipsefit['{}_intens'.format(filt)]) # [nanomaggies/arcsec2]
-        sberr = np.atleast_1d(np.sqrt(ellipsefit['{}_intens_err'.format(filt)]**2 + (0.4 * np.log(10) * sb * minerr)**2))
+        sma = np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])   # semi-major axis [pixels]
+        sb = np.atleast_1d(ellipsefit['intens_{}'.format(filt.lower())]) # [nanomaggies/arcsec2]
+        sberr = np.atleast_1d(np.sqrt(ellipsefit['intens_err_{}'.format(filt.lower())]**2 + (0.4 * np.log(10) * sb * minerr)**2))
             
         if sma_not_radius:
             radius = sma * pixscale # [arcsec]
@@ -584,35 +532,38 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=2.0, sma_not_radius=False,
                 keep = np.isfinite(sb)
             else:
                 keep = np.isfinite(sb) * ((sb / sberr) > snrmin)
+                #if filt == 'FUV':
+                #    pdb.set_trace()
+                
             if cut_on_cog:
-                keep *= (ellipsefit['{}_sma'.format(filt)] * pixscale) <= np.max(ellipsefit['{}_cog_sma'.format(filt)])
+                keep *= (ellipsefit['sma_{}'.format(filt.lower())] * pixscale) <= np.max(ellipsefit['cog_sma_{}'.format(filt.lower())])
             keep = np.where(keep)[0]
                 
-            sbprofile['{}_keep'.format(filt)] = keep
+            sbprofile['keep_{}'.format(filt.lower())] = keep
 
         if len(keep) == 0 or sma[0] == -1:
-            sbprofile['sma_{}'.format(filt)] = np.array([-1.0]).astype('f4')    # [pixels]
-            sbprofile['radius_{}'.format(filt)] = np.array([-1.0]).astype('f4') # [arcsec]
-            sbprofile['mu_{}'.format(filt)] = np.array([-1.0]).astype('f4')     # [nanomaggies/arcsec2]
-            sbprofile['muerr_{}'.format(filt)] = np.array([-1.0]).astype('f4')  # [nanomaggies/arcsec2]
+            sbprofile['sma_{}'.format(filt.lower())] = np.array([-1.0]).astype('f4')    # [pixels]
+            sbprofile['radius_{}'.format(filt.lower())] = np.array([-1.0]).astype('f4') # [arcsec]
+            sbprofile['mu_{}'.format(filt.lower())] = np.array([-1.0]).astype('f4')     # [nanomaggies/arcsec2]
+            sbprofile['muerr_{}'.format(filt.lower())] = np.array([-1.0]).astype('f4')  # [nanomaggies/arcsec2]
         else:
-            sbprofile['sma_{}'.format(filt)] = sma[keep]       # [pixels]
-            sbprofile['radius_{}'.format(filt)] = radius[keep] # [arcsec]
+            sbprofile['sma_{}'.format(filt.lower())] = sma[keep]       # [pixels]
+            sbprofile['radius_{}'.format(filt.lower())] = radius[keep] # [arcsec]
             if linear:
-                sbprofile['mu_{}'.format(filt)] = sb[keep] # [nanomaggies/arcsec2]
-                sbprofile['muerr_{}'.format(filt)] = sberr[keep] # [nanomaggies/arcsec2]
+                sbprofile['mu_{}'.format(filt.lower())] = sb[keep] # [nanomaggies/arcsec2]
+                sbprofile['muerr_{}'.format(filt.lower())] = sberr[keep] # [nanomaggies/arcsec2]
                 continue
             else:
-                sbprofile['mu_{}'.format(filt)] = 22.5 - 2.5 * np.log10(sb[keep]) # [mag/arcsec2]
-                sbprofile['muerr_{}'.format(filt)] = 2.5 * sberr[keep] / sb[keep] / np.log(10) # [mag/arcsec2]
+                sbprofile['mu_{}'.format(filt.lower())] = 22.5 - 2.5 * np.log10(sb[keep]) # [mag/arcsec2]
+                sbprofile['muerr_{}'.format(filt.lower())] = 2.5 * sberr[keep] / sb[keep] / np.log(10) # [mag/arcsec2]
 
         #sbprofile[filt] = 22.5 - 2.5 * np.log10(ellipsefit[filt].intens)
-        #sbprofile['mu_{}_err'.format(filt)] = 2.5 * ellipsefit[filt].int_err / \
+        #sbprofile['mu_{}_err'.format(filt.lower())] = 2.5 * ellipsefit[filt].int_err / \
         #  ellipsefit[filt].intens / np.log(10)
-        #sbprofile['mu_{}_err'.format(filt)] = np.sqrt(sbprofile['mu_{}_err'.format(filt)]**2 + minerr**2)
+        #sbprofile['mu_{}_err'.format(filt.lower())] = np.sqrt(sbprofile['mu_{}_err'.format(filt.lower())]**2 + minerr**2)
 
         # Just for the plot use a minimum uncertainty
-        #sbprofile['{}_err'.format(filt)][sbprofile['{}_err'.format(filt)] < minerr] = minerr
+        #sbprofile['{}_err'.format(filt.lower())][sbprofile['{}_err'.format(filt.lower())] < minerr] = minerr
 
     if 'g' in bands and 'r' in bands and 'z' in bands:
         radius_gr, indx_g, indx_r = np.intersect1d(sbprofile['radius_g'], sbprofile['radius_r'], return_indices=True)
@@ -726,8 +677,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                          integrmode='median', nclip=3, sclip=3,
                          maxsma=None, logsma=True, delta_logsma=5.0, delta_sma=1.0,
                          sbthresh=REF_SBTHRESH,
-                         galaxyinfo=None, input_ellipse=None, fitgeometry=False,
-                         nowrite=False, verbose=False):
+                         galaxyinfo=None, input_ellipse=None,
+                         fitgeometry=False, nowrite=False, verbose=False):
     """Multi-band ellipse-fitting, broadly based on--
     https://github.com/astropy/photutils-datasets/blob/master/notebooks/isophote/isophote_example4.ipynb
 
@@ -789,8 +740,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     # Fix the center to be the peak (pixel) values. Could also use bx,by here
     # from Tractor.  Also initialize the geometry with the moment-derived
     # values.  Note that (x,y) are switched between MGE and photutils!!
-    for key in ['largeshift', 'eps', 'pa', 'theta', 'majoraxis', 'ra_x0', 'dec_y0',
-                'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z']:
+    for key in ['largeshift', 'eps', 'pa', 'theta', 'majoraxis', 'ra_x0y0', 'dec_x0y0']:#,
+                #'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z']:
         ellipsefit[key] = mge[key]
     for mgekey, ellkey in zip(['ymed', 'xmed'], ['x0', 'y0']):
         ellipsefit[ellkey] = mge[mgekey]
@@ -864,6 +815,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         # this algorithm can fail if there are too few points
         nsma = np.ceil(maxsma / delta_logsma).astype('int')
         sma = _mylogspace(maxsma, nsma).astype('f4')
+        assert(len(sma) == len(np.unique(sma)))
+
         #sma = np.hstack((0, np.logspace(0, np.ceil(np.log10(maxsma)).astype('int'), nsma, dtype=np.int))).astype('f4')
         print('  maxsma={:.2f} pix, delta_logsma={:.1f} log-pix, nsma={}'.format(maxsma, delta_logsma, len(sma)))
     else:
@@ -878,15 +831,37 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     nbox = 3
     box = np.arange(nbox)-nbox // 2
     
+    refpixscale = data['refpixscale']
+
     # Now get the surface brightness profile.  Need some more code for this to
     # work with fitgeometry=True...
     pool = multiprocessing.Pool(nproc)
 
     tall = time.time()
     for filt in bands:
-        print('Fitting {}-band took...'.format(filt), end='')
-        img = data['{}_masked'.format(filt)][igal]
+        print('Fitting {}-band took...'.format(filt.lower()), end='')
+        img = data['{}_masked'.format(filt.lower())][igal]
 
+        # handle GALEX and WISE
+        if 'filt2pixscale' in data.keys():
+            pixscale = data['filt2pixscale'][filt]            
+            if np.isclose(pixscale, refpixscale): # avoid rounding issues
+                pixscale = refpixscale                
+                pixscalefactor = 1.0
+            else:
+                pixscalefactor = refpixscale / pixscale
+        else:
+            pixscalefactor = 1.0
+
+        x0 = pixscalefactor * ellipsefit['x0']
+        y0 = pixscalefactor * ellipsefit['y0']
+        #if filt == 'W4':
+        #    pdb.set_trace()
+        filtsma = np.round(sma * pixscalefactor).astype('f4')
+        #filtsma = np.round(sma[::int(1/(pixscalefactor))] * pixscalefactor).astype('f4')
+        filtsma = np.unique(filtsma)
+        assert(len(np.unique(filtsma)) == len(filtsma))
+    
         # Loop on the reference band isophotes.
         t0 = time.time()
         #isobandfit = pool.map(_integrate_isophot_one, [(iso, img, pixscalefactor, integrmode, sclip, nclip)
@@ -898,21 +873,27 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         imasked, val = False, []
         for xb in box:
             for yb in box:
-                val.append(img.mask[int(xb+ellipsefit['x0']), int(yb+ellipsefit['y0'])])
+                val.append(img.mask[int(xb+y0), int(yb+x0)])
+                #val.append(img.mask[int(xb+x0), int(yb+y0)])
         if np.any(val):
             imasked = True
 
         if imasked:
         #if img.mask[np.int(ellipsefit['x0']), np.int(ellipsefit['y0'])]:
             print(' Central pixel is masked; resorting to extreme measures!')
+            pdb.set_trace()
             ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
         else:
             isobandfit = pool.map(_integrate_isophot_one, [(
-                img, _sma, ellipsefit['pa'], ellipsefit['eps'], ellipsefit['x0'],
-                ellipsefit['y0'], 1.0, integrmode, sclip, nclip) for _sma in sma])
+                img, _sma, ellipsefit['pa'], ellipsefit['eps'], x0,
+                y0, integrmode, sclip, nclip) for _sma in filtsma])
             ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
+
+        #if filt == 'FUV':
+        #    pdb.set_trace()
         
         print('...{:.3f} sec'.format(time.time() - t0))
+        
     print('Time for all images = {:.3f} min'.format((time.time()-tall)/60))
 
     ellipsefit['success'] = True
@@ -920,8 +901,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     # Perform elliptical aperture photometry--
     print('Performing elliptical aperture photometry.')
     t0 = time.time()
-    cog = ellipse_cog(bands, data, ellipsefit, 1.0, refpixscale,
-                      igal=igal, pool=pool, sbthresh=sbthresh)
+    cog = ellipse_cog(bands, data, ellipsefit, igal=igal,
+                      pool=pool, sbthresh=sbthresh)
     ellipsefit.update(cog)
     del cog
     print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
@@ -941,6 +922,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                                         galaxyinfo=outgalaxyinfo,
                                         refband=refband,
                                         sbthresh=sbthresh,
+                                        bands=ellipsefit['bands'],
                                         verbose=True,
                                         filesuffix=filesuffix)
 
@@ -982,8 +964,8 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                                               delta_logsma=delta_logsma, maxsma=maxsma,
                                               delta_sma=delta_sma, logsma=logsma,
                                               refband=refband, nproc=nproc, sbthresh=sbthresh,
-                                              integrmode=integrmode, nclip=nclip, sclip=sclip,                                           
-                                              input_ellipse=input_ellipse, 
+                                              integrmode=integrmode, nclip=nclip, sclip=sclip,
+                                              input_ellipse=input_ellipse,
                                               verbose=verbose, fitgeometry=False)
         return 1
     else:

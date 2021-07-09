@@ -22,10 +22,10 @@ else
     export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/$project
 
     #export LEGACYHALOS_DATA_DIR=/global/cfs/cdirs/cosmo/data/sga/2020/data
-    export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/data/sga/2020/html
+    #export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/data/sga/2020/html
 
     export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/SGA-data-2020
-    #export LEGACYHALOS_HTML_DIR=/global/cscratch1/sd/ioannis/SGA-html-2020
+    export LEGACYHALOS_HTML_DIR=/global/cscratch1/sd/ioannis/SGA-html-2020
 
     #export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/SGA-html-2020
     

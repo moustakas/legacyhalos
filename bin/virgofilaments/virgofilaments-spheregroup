@@ -207,17 +207,20 @@ def main(version='v1'):
     cat['DIAM_INIT'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
     cat['MAG_INIT'][:] = 17.0 # initialize [arcmin]
 
-    m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA_MOMENT'], sga['DEC_MOMENT'], 10/3600)
+    m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA'], sga['DEC'], 15/3600, nearest=True)
+    #m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA_MOMENT'], sga['DEC_MOMENT'], 10/3600)
     miss = np.delete(np.arange(ng), m1)
     print('N={}/{} matches'.format(len(m1), ng))
 
     cat['SGA_ID'][m1] = sga['SGA_ID'][m2]
-    cat['RA'][m1] = sga['RA_MOMENT'][m2]
-    cat['DEC'][m1] = sga['DEC_MOMENT'][m2]
+    cat['RA'][m1] = sga['RA'][m2]
+    cat['DEC'][m1] = sga['DEC'][m2]
+    #cat['RA'][m1] = sga['RA_MOMENT'][m2]
+    #cat['DEC'][m1] = sga['DEC_MOMENT'][m2]
     cat['PGC'][m1] = sga['PGC'][m2]
     cat['PA_INIT'][m1] = sga['PA'][m2]
     cat['BA_INIT'][m1] = sga['BA'][m2]
-    cat['DIAM_INIT'][m1] = sga['DIAM'][m2]
+    cat['DIAM_INIT'][m1] = sga['D26'][m2]
     cat['MAG_INIT'][m1] = sga['MAG_LEDA'][m2]
 
     print('Removing special characters from galaxy names.')
