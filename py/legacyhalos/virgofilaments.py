@@ -311,7 +311,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
     return sample
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=0.0005, r50mask=0.05, maxshift=10,
+                          threshmask=0.001, r50mask=0.05, maxshift=10,
                           sigmamask=3.0,
                           neighborfactor=3.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
@@ -550,8 +550,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             img = ma.getdata(data[filt]).copy()
             
             # Get the PSF sources.
-            psfindx = np.where((tractor.type == 'PSF') * (getattr(tractor, 'flux_{}'.format(filt.lower())) > 0))[0]
-            if len(psfindx) > 0:
+            psfindx = np.where((tractor.type == 'PSF') * (getattr(tractor, 'flux_{}'.format(filt.lower())) / cenflux > threshmask))[0]
+            if len(psfindx) > 0 and filt.upper() != 'W3' and filt.upper() != 'W4':
                 psfsrcs = tractor.copy()
                 psfsrcs.cut(psfindx)
             else:
@@ -561,16 +561,22 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 psfimg = srcs2image(psfsrcs, data['{}_wcs'.format(filt.lower())],
                                     band=filt.lower(),
                                     pixelized_psf=data['{}_psf'.format(filt.lower())])
-                data[psfimgkey].append(psfimg)
-                if filt == 'W4':# or filt == 'r':
-                    import fitsio ; fitsio.write('junk-psf-{}.fits'.format(filt.lower()), data['{}_psf'.format(filt.lower())].img, clobber=True)
-                    plt.clf() ; plt.imshow(data['{}_psf'.format(filt.lower())].img, origin='lower') ; plt.colorbar() ; plt.savefig('junk-psf-{}.png'.format(filt.lower()))
-                    plt.clf() ; plt.imshow(np.log10(img), origin='lower') ; plt.colorbar() ; plt.savefig('junk-img-{}.png'.format(filt.lower()))
-                    plt.clf() ; plt.imshow(np.log10(psfimg), origin='lower') ; plt.colorbar() ; plt.savefig('junk-psfsrcs-{}.png'.format(filt.lower()))
-                    plt.clf() ; plt.imshow(img-psfimg, origin='lower') ; plt.colorbar() ; plt.savefig('junk-residimg-{}.png'.format(filt.lower()))
-                    pdb.set_trace()
+                if False:
+                    #import fitsio ; fitsio.write('junk-psf-{}.fits'.format(filt.lower()), data['{}_psf'.format(filt.lower())].img, clobber=True)
+                    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+                    im = ax1.imshow(np.log10(img), origin='lower') ; fig.colorbar(im, ax=ax1)
+                    im = ax2.imshow(np.log10(psfimg), origin='lower') ; fig.colorbar(im, ax=ax2)
+                    im = ax3.imshow(np.log10(data['{}_psf'.format(filt.lower())].img), origin='lower') ; fig.colorbar(im, ax=ax3)
+                    im = ax4.imshow(img-psfimg, origin='lower') ; fig.colorbar(im, ax=ax4)
+                    plt.savefig('qa-psf-{}.png'.format(filt.lower()))
+                    #if filt == 'W4':# or filt == 'r':
+                    #    pdb.set_trace()
                 img -= psfimg
+            else:
+                psfimg = np.zeros((2, 2), 'f4')
 
+            data[psfimgkey].append(psfimg)
+            
             img = ma.masked_array((img / thispixscale**2).astype('f4'), mask) # [nanomaggies/arcsec**2]
             var = data['{}_var_'.format(filt.lower())] / thispixscale**4 # [nanomaggies**2/arcsec**4]
 
@@ -697,9 +703,10 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
             'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
             'psfsize_g', 'psfsize_r', 'psfsize_z']
     if galex:
-        cols = cols+['flux_fuv', 'flux_nuv']
+        cols = cols+['flux_fuv', 'flux_nuv', 'flux_ivar_fuv', 'flux_ivar_nuv']
     if unwise:
-        cols = cols+['flux_w1', 'flux_w2', 'flux_w3', 'flux_w4']
+        cols = cols+['flux_w1', 'flux_w2', 'flux_w3', 'flux_w4',
+                     'flux_ivar_w1', 'flux_ivar_w2', 'flux_ivar_w3', 'flux_ivar_w4']
         
     tractor = fits_table(tractorfile, columns=cols)
     hdr = fitsio.read_header(tractorfile)

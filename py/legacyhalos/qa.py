@@ -1164,9 +1164,9 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         #mge = data['mge'][igal]
         dat = data['{}_masked'.format(filt.lower())][igal]
 
-        if filt == 'W4':
-            plt.clf() ; plt.imshow(dat.data, origin='lower') ; plt.savefig('junk.png')
-            pdb.set_trace()
+        #if filt == 'W4':
+        #    plt.clf() ; plt.imshow(dat.data, origin='lower') ; plt.savefig('junk.png')
+        #    pdb.set_trace()
 
         # There's an annoying bug in matplotlib>2.0.2 which ignores masked
         # pixels (it used to render them in white), so we have to overplot the

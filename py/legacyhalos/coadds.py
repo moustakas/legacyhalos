@@ -450,14 +450,47 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         hdr.delete('PIXSCAL')
         hdr.add_record(dict(name='PIXSCAL', value=2.75, comment='pixel scale (arcsec)'))
         hdr.add_record(dict(name='COADD_ID', value=coadd_id, comment='WISE coadd ID'))
-        
+
+        # https://github.com/legacysurvey/legacypipe/blob/main/py/legacypipe/unwise.py#L267-L310        
+        fluxrescales = {1: 1.04, 2: 1.005, 3: 1.0, 4: 1.0}
         for band in (1, 2, 3, 4):
             wband = 'W{}'.format(band)
             #hdr['BAND'] = wband
             hdr.delete('BAND')
             hdr.add_record(dict(name='BAND', value=wband, comment='Band of this coadd/PSF'))
-            psfimg = unwise_psf.get_unwise_psf(band, coadd_id)
+
+            #psfimg = unwise_psf.get_unwise_psf(band, coadd_id)
+            #psfimg /= psfimg.sum()
+
+            if (band == 1) or (band == 2):
+                # we only have updated PSFs for W1 and W2
+                psfimg = unwise_psf.get_unwise_psf(band, coadd_id,
+                                                   modelname='neo6_unwisecat')
+            else:
+                psfimg = unwise_psf.get_unwise_psf(band, coadd_id)
+
+            if band == 4:
+                # oversample (the unwise_psf models are at native W4 5.5"/pix,
+                # while the unWISE coadds are made at 2.75"/pix.
+                ph,pw = psfimg.shape
+                subpsf = np.zeros((ph*2-1, pw*2-1), np.float32)
+                from astrometry.util.util import lanczos3_interpolate
+                xx,yy = np.meshgrid(np.arange(0., pw-0.51, 0.5, dtype=np.float32),
+                                    np.arange(0., ph-0.51, 0.5, dtype=np.float32))
+                xx = xx.ravel()
+                yy = yy.ravel()
+                ix = xx.astype(np.int32)
+                iy = yy.astype(np.int32)
+                dx = (xx - ix).astype(np.float32)
+                dy = (yy - iy).astype(np.float32)
+                psfimg = psfimg.astype(np.float32)
+                rtn = lanczos3_interpolate(ix, iy, dx, dy, [subpsf.flat], [psfimg])
+
+                psfimg = subpsf
+                del xx, yy, ix, iy, dx, dy
+
             psfimg /= psfimg.sum()
+            psfimg *= fluxrescales[band]
             with survey.write_output('copsf', brick=brickname, band=wband) as out:
                 out.fits.write(psfimg, header=hdr)
 

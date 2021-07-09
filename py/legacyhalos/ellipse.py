@@ -297,6 +297,9 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
                 results['cog_chi2_{}'.format(filt.lower())] = np.float32(1e6)
                 results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
+                for sbcut in sbthresh:
+                    results['{}_mag_sb{:0g}'.format(filt.lower(), sbcut)] = np.float32(-1)
+                    results['{}_mag_sb{:0g}_err'.format(filt.lower(), sbcut)] = np.float32(-1)
                 continue
             else:
                 bounds = ([cogmag[these][-1]-1.0, 0, 0, 0], np.inf)
