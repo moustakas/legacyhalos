@@ -226,6 +226,19 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         cols.append(('ndata_{}'.format(band.lower()), ''))
         cols.append(('nflag_{}'.format(band.lower()), ''))
         cols.append(('niter_{}'.format(band.lower()), ''))
+
+    for thresh in sbthresh:
+        cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
+    for thresh in sbthresh:
+        cols.append(('sma_sb{:0g}_err'.format(thresh), u.arcsec))
+        
+    for band in bands:
+        for thresh in sbthresh:
+            cols.append(('{}_mag_sb{:0g}'.format(band.lower(), thresh), u.mag))
+        for thresh in sbthresh:
+            cols.append(('{}_mag_sb{:0g}_err'.format(band.lower(), thresh), u.mag))
+
+    for band in bands:
         cols.append(('cog_sma_{}'.format(band.lower()), u.arcsec))
         cols.append(('cog_mag_{}'.format(band.lower()), u.mag))
         cols.append(('cog_magerr_{}'.format(band.lower()), u.mag))
@@ -235,15 +248,6 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         cols.append(('cog_alpha2_{}'.format(band.lower()), ''))
         cols.append(('cog_chi2_{}'.format(band.lower()), ''))
         cols.append(('cog_sma50_{}'.format(band.lower()), u.arcsec))
-
-    for thresh in sbthresh:
-        cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
-        cols.append(('sma_sb{:0g}_err'.format(thresh), u.arcsec))
-        
-    for band in bands:
-        for thresh in sbthresh:
-            cols.append(('{}_mag_sb{:0g}'.format(band.lower(), thresh), u.mag))
-            cols.append(('{}_mag_sb{:0g}_err'.format(band.lower(), thresh), u.mag))
 
     return cols
 
@@ -354,7 +358,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     #out.write(ellipsefitfile, overwrite=True)
     #fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
-def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True):
+def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True,
+                    asTable=False):
     """Read the output of write_ellipsefit. Convert the astropy Table into a
     dictionary so we can use a bunch of legacy code.
 
@@ -373,7 +378,9 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True
     if os.path.isfile(ellipsefitfile):
         data = Table.read(ellipsefitfile)
 
-        # Convert (back!) into a dictionary.
+        # Optionally convert (back!) into a dictionary.
+        if asTable:
+            return data
         ellipsefit = {}
         for key in data.colnames:
             val = data[key].tolist()[0]
@@ -383,7 +390,10 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True
     else:
         if verbose:
             print('File {} not found!'.format(ellipsefitfile))
-        ellipsefit = dict()
+        if asTable:
+            ellipsefit = Table()
+        else:
+            ellipsefit = dict()
 
     return ellipsefit
 
