@@ -3,11 +3,31 @@
 # Load the legacyhalos Docker container using shifter.
 
 project=virgofilaments
-SHIFTER=docker:legacysurvey/legacyhalos:v0.0.5
-
-echo 'Updating and loading the shifter image '$SHIFTER
-echo 'Load the environment with: '
-echo '  source '$LEGACYHALOS_CODE_DIR'/bin/'$project'/'$project'-env'
-
-shifterimg pull $SHIFTER
-shifter --image $SHIFTER bash
+if [[ -z "$NERSC_HOST" ]]; then
+    DOCKER=legacysurvey/legacyhalos:v0.0.5
+    echo 'Updating and loading the Docker container '$DOCKER
+    echo 'Load the environment with: '
+    echo '  source /mnt/code/legacyhalos/bin/virgofilaments/virgofilaments-env'
+    docker pull $DOCKER
+    docker run -it \
+           -v $HOME/repos/legacyhalos:/mnt/code/legacyhalos \
+           -v $HOME/repos/legacysurvey/legacypipe:/mnt/code/legacypipe \
+           -v $HOME/research/projects/legacyhalos/virgofilaments:/mnt/virgofilaments \
+           -v $HOME/research/projects/virgofilaments-data:/mnt/virgofilaments-data \
+           -v $HOME/research/projects/virgofilaments-html-v2:/mnt/virgofilaments-html-v2 \
+           -e LEGACYHALOS_DIR=/mnt/virgofilaments \
+           -e LEGACYHALOS_DATA_DIR=/mnt/virgofilaments-data \
+           -e LEGACYHALOS_HTML_DIR=/mnt/virgofilaments-html-v2 \
+           -e LEGACYHALOS_CODE_DIR=/mnt/code/legacyhalos \
+           -e LEGACYPIPE_CODE_DIR=/mnt/code/legacypipe \
+           $DOCKER
+else
+    SHIFTER=docker:legacysurvey/legacyhalos:v0.0.5
+    
+    echo 'Updating and loading the shifter image '$SHIFTER
+    echo 'Load the environment with: '
+    echo '  source '$LEGACYHALOS_CODE_DIR'/bin/'$project'/'$project'-env'
+    
+    shifterimg pull $SHIFTER
+    shifter --image $SHIFTER bash
+fi

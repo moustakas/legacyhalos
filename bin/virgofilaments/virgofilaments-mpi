@@ -47,6 +47,7 @@ def main():
             return
         
         if args.coadds or args.build_catalog or args.build_refcat:
+            refcat = 'R1'
             # For the custom coadds and build_catalog steps we need the full sample, too.
             fullsample = legacyhalos.virgofilaments.read_sample(
                 verbose=args.verbose, fullsample=True)
@@ -94,7 +95,7 @@ def main():
             print('Writing {} galaxies to {}'.format(ngal, reffile))
             
             hdr = fitsio.FITSHDR()
-            hdrver = 'R1'
+            hdrver = refcat
             hdr['SGAVER'] = hdrver
             fitsio.write(reffile, ref.as_array(), header=hdr, clobber=True)
 
@@ -222,7 +223,7 @@ def main():
 
             buildargs = []
             for onegal in chunksample:
-                buildargs.append((onegal, chunkfullsample[chunkfullsample['GROUP_ID'] == onegal['GROUP_ID']], args.verbose))
+                buildargs.append((onegal, chunkfullsample[chunkfullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat, args.verbose))
             results = mp.map(_build_catalog_one, buildargs)
             results = list(zip(*results))
             
