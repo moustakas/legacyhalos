@@ -740,9 +740,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     # Fix the center to be the peak (pixel) values. Could also use bx,by here
     # from Tractor.  Also initialize the geometry with the moment-derived
     # values.  Note that (x,y) are switched between MGE and photutils!!
-    for key in ['largeshift', 'eps', 'pa', 'theta', 'majoraxis', 'ra_x0y0', 'dec_x0y0']:#,
-                #'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z']:
-        ellipsefit[key] = mge[key]
+    for key, newkey in zip(['largeshift', 'ra_x0y0', 'dec_x0y0', 'majoraxis', 'pa', 'eps', 'theta'], #'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z']:
+                           ['largeshift', 'ra_moment', 'dec_moment', 'sma_moment', 'pa', 'eps', 'theta']):
+        ellipsefit[key] = mge[newkey]
+    ellipsefit['ba'] = 1 - mge['eps'] # note!
     for mgekey, ellkey in zip(['ymed', 'xmed'], ['x0', 'y0']):
         ellipsefit[ellkey] = mge[mgekey]
 
