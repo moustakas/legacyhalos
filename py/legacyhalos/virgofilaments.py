@@ -1153,7 +1153,7 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
                     if 'REFBAND' in col or 'PSFSIZE' in col or 'PSFDEPTH' in col:
                         out.remove_column(col)
                 remcols = ('REFPIXSCALE', 'SUCCESS', 'FITGEOMETRY', 'LARGESHIFT',
-                           'MAXSMA', 'MAJORAXIS', 'EPS', 'INTEGRMODE', 'INPUT_ELLIPSE', 'SCLIP', 'NCLIP')
+                           'MAXSMA', 'MAJORAXIS', 'EPS_MOMENT', 'INTEGRMODE', 'INPUT_ELLIPSE', 'SCLIP', 'NCLIP')
                 for col in remcols:
                     out.remove_column(col)
 
