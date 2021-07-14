@@ -187,7 +187,7 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=False, png=N
     minmarker, maxmarker = 30, 300
     for igal, ellipsefit in enumerate(ellipsefitall):
         diam, diamref = _get_diameter(ellipsefit)
-        ragal, decgal, pa, ba = ellipsefit['ra'], ellipsefit['dec'], ellipsefit['pa'], 1-ellipsefit['eps']
+        ragal, decgal, pa, ba = ellipsefit['ra_moment'], ellipsefit['dec_moment'], ellipsefit['pa_moment'], 1-ellipsefit['eps_moment']
 
         reff, e1, e2 = EllipseE.fromRAbPhi(diam*60/2, ba, 180-pa) # note the 180 rotation
         inellipse = np.where(is_in_ellipse(tractor['RA'], tractor['DEC'], ragal, decgal, reff, e1, e2))[0]
@@ -212,28 +212,28 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=False, png=N
 
         # ellipse geometry
         maxis = diam * 60 / ellipsefit['refpixscale'] / 2 # [pixels]
-        ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                                     maxis, maxis*(1 - ellipsefit['eps']),
-                                     np.radians(ellipsefit['pa']-90))
+        ellaper = EllipticalAperture((ellipsefit['x0_moment'], ellipsefit['y0_moment']),
+                                     maxis, maxis*(1 - ellipsefit['eps_moment']),
+                                     np.radians(ellipsefit['pa_moment']-90))
         if igal == 0:
             ellaper.plot(color=cb_colors['blue'], lw=2, axes=ax2, alpha=0.9, label='R(26)')
         else:
             ellaper.plot(color=cb_colors['blue'], lw=2, axes=ax2, alpha=0.9)
         ellaper.plot(color=cb_colors['blue'], lw=2, ls='-', axes=ax3, alpha=0.9)
 
-        draw_ellipse_on_png(colorimg, ellipsefit['x0'], imgsz[1]-ellipsefit['y0'],
-                            1-ellipsefit['eps'],
-                            ellipsefit['pa'], 2 * maxis * ellipsefit['refpixscale'],
+        draw_ellipse_on_png(colorimg, ellipsefit['x0_moment'], imgsz[1]-ellipsefit['y0_moment'],
+                            1-ellipsefit['eps_moment'],
+                            ellipsefit['pa_moment'], 2 * maxis * ellipsefit['refpixscale'],
                             ellipsefit['refpixscale'], color=cb_colors['blue']) # '#ffaa33')
         if 'd25_leda' in ellipsefit.keys():
-            draw_ellipse_on_png(colorimg, ellipsefit['x0'], imgsz[1]-ellipsefit['y0'],
+            draw_ellipse_on_png(colorimg, ellipsefit['x0_moment'], imgsz[1]-ellipsefit['y0_moment'],
                                 ellipsefit['ba_leda'], ellipsefit['pa_leda'],
                                 ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
                                 color=cb_colors['red'])
         
             # Hyperleda geometry
             maxis = ellipsefit['d25_leda'] * 60 / ellipsefit['refpixscale'] / 2 # [pixels]
-            ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
+            ellaper = EllipticalAperture((ellipsefit['x0_moment'], ellipsefit['y0_moment']),
                                          maxis, maxis * ellipsefit['ba_leda'],
                                          np.radians(ellipsefit['pa_leda']-90))
         if igal == 0:
@@ -305,12 +305,19 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
         #flux = ellipsefit['apphot_mag_{}'.format(filt)]
         #good = np.where( np.isfinite(flux) * (flux > 0) )[0]
         #mag = 22.5-2.5*np.log10(flux[good])
-        cog = ellipsefit['cog_mag_{}'.format(filt.lower())]
-        cogerr = ellipsefit['cog_magerr_{}'.format(filt.lower())]
+        cogsma = ellipsefit['cog_sma_{}'.format(filt.lower())]
+        cogflux = ellipsefit['cog_flux_{}'.format(filt.lower())]
+        cogivar = ellipsefit['cog_flux_ivar_{}'.format(filt.lower())]
         chi2 = ellipsefit['cog_chi2_{}'.format(filt.lower())]
-        if np.atleast_1d(cog)[0] == -1 or chi2 == 1e6: # no measurement, or failed
+        if np.atleast_1d(cogsma)[0] == -1.0 or chi2 == -1.0: # no measurement, or failed
             continue
-        sma = ellipsefit['cog_sma_{}'.format(filt.lower())]
+
+        good = np.where((cogflux > 0) * (cogivar > 0))[0]
+        cog = 22.5 - 2.5 * np.log10(cogflux[good])
+        cogferr = 1.0 / np.sqrt(cogivar[good])
+        cogerr = 2.5 * cogferr / cogflux[good] / np.log(10)
+        sma = cogsma[good]
+
         radius = sma**0.25
         xlim = (0.9, radius.max()*1.01)
         
@@ -337,8 +344,8 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
         if pipeline_ellipsefit and False:
             _sma = pipeline_ellipsefit['cog_sma_{}'.format(filt.lower())]
-            _cog = pipeline_ellipsefit['cog_mag_{}'.format(filt.lower())]
-            _cogerr = pipeline_ellipsefit['cog_magerr_{}'.format(filt.lower())]
+            _cog = pipeline_ellipsefit['cog_flux_{}'.format(filt.lower())]
+            _cogerr = pipeline_ellipsefit['cog_flux_ivar_{}'.format(filt.lower())]
             #ax.plot(_sma, _cog, alpha=0.5, color='gray')
             ax.fill_between(_sma, _cog-_cogerr, _cog+_cogerr,
                             facecolor=col, alpha=0.5)#, edgecolor='k', lw=1)
@@ -497,8 +504,8 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
                      'g': 4890.03670428, 'r': 6469.62203811, 'z': 9196.46396394}
 
     _tt = Table()
-    _tt['RA'] = [ellipsefit['ra_x0y0']]
-    _tt['DEC'] = [ellipsefit['dec_x0y0']]
+    _tt['RA'] = [ellipsefit['ra_moment']]
+    _tt['DEC'] = [ellipsefit['dec_moment']]
     run = get_run(_tt)
 
     if run == 'north':
@@ -522,13 +529,22 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
             phot['mag_tot']['abmagerr'][ifilt] = 0.1
             phot['mag_tot']['lower'][ifilt] = False
 
-        mag = ellipsefit['{}_mag_sb25'.format(filt.lower())]
-        magerr = ellipsefit['{}_mag_sb25_err'.format(filt.lower())]
+        flux = ellipsefit['flux_sb25_{}'.format(filt.lower())]
+        ivar = ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
         #print(filt, mag)
-        if mag > 0 and magerr > 0:
+        if flux > 0 and ivar > 0:
+            mag = 22.5 - 2.5 * np.log10(flux)
+            ferr = 1.0 / np.sqrt(ivar)
+            magerr = 2.5 * ferr / flux / np.log(10)
             phot['mag_sb25']['abmag'][ifilt] = mag
             phot['mag_sb25']['abmagerr'][ifilt] = magerr
             phot['mag_sb25']['lower'][ifilt] = False
+        if flux <=0 and ivar > 0:
+            ferr = 1.0 / np.sqrt(ivar)
+            mag = 22.5 - 2.5 * np.log10(ferr)
+            phot['mag_sb25']['abmag'][ifilt] = mag
+            phot['mag_sb25']['abmagerr'][ifilt] = 0.75
+            phot['mag_sb25']['lower'][ifilt] = True
 
         if tractor is not None:
             flux = tractor['flux_{}'.format(filt.lower())]
@@ -1104,11 +1120,11 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         sz = colorimg.size
         if False:
             if 'd25_leda' in ellipsefit.keys():
-                draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], ellipsefit['ba_leda'],
-                                    ellipsefit['pa_leda'], ellipsefit['d25_leda'] * 60.0, ellipsefit['refpixscale'],
-                                    color=cb_colors['red']) # '#3388ff')        
-            draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
-                                ellipsefit['pa'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
+                draw_ellipse_on_png(colorimg, ellipsefit['x0_moment'], sz[1]-ellipsefit['y0_moment'],
+                                    ellipsefit['ba_leda'], ellipsefit['pa_leda'], ellipsefit['d25_leda'] * 60.0,
+                                    ellipsefit['refpixscale'], color=cb_colors['red']) # '#3388ff')        
+            draw_ellipse_on_png(colorimg, ellipsefit['x0_moment'], sz[1]-ellipsefit['y0_moment'], 1-ellipsefit['eps_moment'],
+                                ellipsefit['pa_moment'], 2 * ellipsefit['majoraxis'] * ellipsefit['refpixscale'],
                                 ellipsefit['refpixscale'], color=cb_colors['green']) # '#ffaa33')
 
         if 'radius_sb26' in ellipsefit.keys(): # old data model
@@ -1127,8 +1143,9 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 sbr = -1
             
         if sbr > 0:
-            draw_ellipse_on_png(colorimg, ellipsefit['x0'], sz[1]-ellipsefit['y0'], 1-ellipsefit['eps'],
-                                ellipsefit['pa'], 2 * sbr, ellipsefit['refpixscale'],
+            draw_ellipse_on_png(colorimg, ellipsefit['x0_moment'], sz[1]-ellipsefit['y0_moment'],
+                                1-ellipsefit['eps_moment'],
+                                ellipsefit['pa_moment'], 2 * sbr, ellipsefit['refpixscale'],
                                 color=cb_colors['blue'])
 
         pixscalefactor = _get_pixscalefactor(bands[0]) # not smart!
@@ -1248,9 +1265,9 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
 
             # Visualize the mean geometry
             maxis = ellipsefit['majoraxis'] # [pixels]
-            ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
-                                         maxis, maxis*(1 - ellipsefit['eps']),
-                                         np.radians(ellipsefit['pa']-90))
+            ellaper = EllipticalAperture((ellipsefit['x0_moment'], ellipsefit['y0_moment']),
+                                         maxis, maxis*(1 - ellipsefit['eps_moment']),
+                                         np.radians(ellipsefit['pa_moment']-90))
             if False:
                 ellaper.plot(lw=5, axes=ax1, alpha=1.0, label='Moment geometry',
                              color=cb_colors['green'])
@@ -1258,16 +1275,16 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             # Visualize the ellipse-fitted geometry
             maxis = sbr / ellipsefit['refpixscale'] # [pixels]
             if maxis > 0:# and galex is False and unwise is False:
-                ellaper = EllipticalAperture((ellipsefit['x0']*pixscalefactor, ellipsefit['y0']*pixscalefactor),
-                                             maxis*pixscalefactor, maxis*(1 - ellipsefit['eps'])*pixscalefactor,
-                                             np.radians(ellipsefit['pa']-90))
+                ellaper = EllipticalAperture((ellipsefit['x0_moment']*pixscalefactor, ellipsefit['y0_moment']*pixscalefactor),
+                                             maxis*pixscalefactor, maxis*(1 - ellipsefit['eps_moment'])*pixscalefactor,
+                                             np.radians(ellipsefit['pa_moment']-90))
                 #ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='Ellipse geometry')
                 ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='R(26)')
 
             # Visualize the LSLGA geometry, if present.
             if ('pa_leda' in ellipsefit.keys()) * ('ba_leda' in ellipsefit.keys()) * ('d25_leda' in ellipsefit.keys()):
                 maxis = ellipsefit['d25_leda'] * 60 / ellipsefit['refpixscale'] / 2 # [pixels]
-                ellaper = EllipticalAperture((ellipsefit['x0'], ellipsefit['y0']),
+                ellaper = EllipticalAperture((ellipsefit['x0_moment'], ellipsefit['y0_moment']),
                                              maxis, maxis * ellipsefit['ba_leda'],
                                              np.radians(ellipsefit['pa_leda']-90))
                 if False:
@@ -1347,12 +1364,12 @@ def display_ellipsefit(ellipsefit, xlog=False, cosmo=None, png=None, verbose=Tru
         good = (ellipsefit[refband]['stop_code'] < 4)
         bad = ~good
         ax1.fill_between(ellipsefit[refband]['sma'][good] * refpixscale,
-                         ellipsefit[refband]['eps'][good]-ellipsefit[refband]['eps_err'][good],
-                         ellipsefit[refband]['eps'][good]+ellipsefit[refband]['eps_err'][good])#,
+                         ellipsefit[refband]['eps_moment'][good]-ellipsefit[refband]['eps_moment_err'][good],
+                         ellipsefit[refband]['eps_moment'][good]+ellipsefit[refband]['eps_moment_err'][good])#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax1.scatter(ellipsefit[refband]['sma'][bad] * refpixscale,
-                        ellipsefit[refband]['eps'][bad],
+                        ellipsefit[refband]['eps_moment'][bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
 
         #ax1.errorbar(ellipsefit[refband].sma[good] * smascale,
@@ -1363,12 +1380,12 @@ def display_ellipsefit(ellipsefit, xlog=False, cosmo=None, png=None, verbose=Tru
         ax1.xaxis.set_major_formatter(ScalarFormatter())
 
         ax2.fill_between(ellipsefit[refband]['sma'][good] * refpixscale, 
-                         np.degrees(ellipsefit[refband]['pa'][good]-ellipsefit[refband]['pa_err'][good]),
-                         np.degrees(ellipsefit[refband]['pa'][good]+ellipsefit[refband]['pa_err'][good]))#,
+                         np.degrees(ellipsefit[refband]['pa_moment'][good]-ellipsefit[refband]['pa_moment_err'][good]),
+                         np.degrees(ellipsefit[refband]['pa_moment'][good]+ellipsefit[refband]['pa_moment_err'][good]))#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax2.scatter(ellipsefit[refband]['sma'][bad] * refpixscale,
-                        np.degrees(ellipsefit[refband]['pa'][bad]),
+                        np.degrees(ellipsefit[refband]['pa_moment'][bad]),
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         #ax2.errorbar(ellipsefit[refband].sma[good] * smascale,
         #             np.degrees(ellipsefit[refband].pa[good]),
@@ -1377,12 +1394,12 @@ def display_ellipsefit(ellipsefit, xlog=False, cosmo=None, png=None, verbose=Tru
         #ax2.set_ylim(0, 180)
 
         ax3.fill_between(ellipsefit[refband]['sma'][good] * refpixscale,
-                         ellipsefit[refband]['x0'][good]-ellipsefit[refband]['x0_err'][good],
-                         ellipsefit[refband]['x0'][good]+ellipsefit[refband]['x0_err'][good])#,
+                         ellipsefit[refband]['x0_moment'][good]-ellipsefit[refband]['x0_moment_err'][good],
+                         ellipsefit[refband]['x0_moment'][good]+ellipsefit[refband]['x0_moment_err'][good])#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax3.scatter(ellipsefit[refband]['sma'][bad] * refpixscale,
-                        ellipsefit[refband]['x0'][bad],
+                        ellipsefit[refband]['x0_moment'][bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         #ax3.errorbar(ellipsefit[refband].sma[good] * smascale, ellipsefit[refband].x0[good],
         #             ellipsefit[refband].x0_err[good], fmt='o',
@@ -1391,12 +1408,12 @@ def display_ellipsefit(ellipsefit, xlog=False, cosmo=None, png=None, verbose=Tru
         ax3.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
         ax4.fill_between(ellipsefit[refband]['sma'][good] * refpixscale, 
-                         ellipsefit[refband]['y0'][good]-ellipsefit[refband]['y0_err'][good],
-                         ellipsefit[refband]['y0'][good]+ellipsefit[refband]['y0_err'][good])#,
+                         ellipsefit[refband]['y0_moment'][good]-ellipsefit[refband]['y0_moment_err'][good],
+                         ellipsefit[refband]['y0_moment'][good]+ellipsefit[refband]['y0_moment_err'][good])#,
                          #edgecolor='k', lw=2)
         if np.count_nonzero(bad) > 0:
             ax4.scatter(ellipsefit[refband]['sma'][bad] * refpixscale,
-                        ellipsefit[refband]['y0'][bad],
+                        ellipsefit[refband]['y0_moment'][bad],
                         marker='s', s=40, edgecolor='k', lw=2, alpha=0.75)
         #ax4.errorbar(ellipsefit[refband].sma[good] * smascale, ellipsefit[refband].y0[good],
         #             ellipsefit[refband].y0_err[good], fmt='o',

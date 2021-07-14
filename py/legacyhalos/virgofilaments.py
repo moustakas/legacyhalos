@@ -296,7 +296,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
                 first, last, len(sample), samplefile))
 
     # Add an (internal) index number:
-    sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
+    #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
 
     if galaxylist is not None:
         if verbose:
@@ -451,10 +451,10 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             'largeshift': largeshift,
             'ra': tractor.ra[central], 'dec': tractor.dec[central],
             'bx': tractor.bx[central], 'by': tractor.by[central],
-            'mw_transmission_g': tractor.mw_transmission_g[central],
-            'mw_transmission_r': tractor.mw_transmission_r[central],
-            'mw_transmission_z': tractor.mw_transmission_z[central],
-            'ra_x0y0': radec_med[0], 'dec_x0y0': radec_med[1],
+            #'mw_transmission_g': tractor.mw_transmission_g[central],
+            #'mw_transmission_r': tractor.mw_transmission_r[central],
+            #'mw_transmission_z': tractor.mw_transmission_z[central],
+            'ra_moment': radec_med[0], 'dec_moment': radec_med[1],
             #'ra_peak': radec_med[0], 'dec_peak': radec_med[1]
             }
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
@@ -798,11 +798,11 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     allgalaxyinfo = []
     for igal, (galaxy_id, galaxy_indx) in enumerate(zip(data['galaxy_id'], data['galaxy_indx'])):
         samp = sample[sample[REFIDCOLUMN] == galaxy_id]
-        galaxyinfo = {'vf_id': (str(galaxy_id), ''),
+        galaxyinfo = {'vf_id': (np.int32(galaxy_id), ''),
                       'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
-        for key, unit in zip(['ra', 'dec', 'diam_init', 'pa_init', 'ba_init'],
-                             [u.deg, u.deg, u.arcmin, u.deg, '']):
-            galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
+        #for key, unit in zip(['ra', 'dec', 'diam_init', 'pa_init', 'ba_init'],
+        #                     [u.deg, u.deg, u.arcmin, u.deg, '']):
+        #    galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
         allgalaxyinfo.append(galaxyinfo)
         
     return data, allgalaxyinfo
@@ -866,35 +866,51 @@ def _init_catalog(clobber=False):
     import legacyhalos.io
 
     outdir = legacyhalos.io.legacyhalos_data_dir()
-    outfile = os.path.join(outdir, 'virgofilaments-phot.fits')
-    soutfile = os.path.join(outdir, 'virgofilaments-parent.fits')
+    outfile = os.path.join(outdir, 'virgofilaments-legacyphot.fits')
+    #soutfile = os.path.join(outdir, 'virgofilaments-parent.fits')
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
         return None
 
-    return outfile, soutfile
+    return outfile
 
-def _write_catalog(cat, parent, outfile, soutfile):
-    import shutil
-    import fitsio
-    from astropy.table import Table, vstack, join
+def _write_catalog(tractor, ellipse, parent, outfile):
+    from astropy.table import Table, vstack
+    from astropy.io import fits
     
-    if len(cat) == 0:
+    if len(ellipse) == 0:
         print('Something went wrong and no galaxies were fitted.')
         return
-    cat = vstack(cat)
-    parent = vstack(parent)
-    print('Gathered {} galaxies.'.format(len(cat)))
 
-    # Could merge these together if we wanted to...
-    assert(len(cat) == len(parent))
+    tractor = vstack(tractor, metadata_conflicts='silent')
+    ellipse = vstack(ellipse, metadata_conflicts='silent')
+    parent = vstack(parent, metadata_conflicts='silent')
+    print('Gathered {} galaxies.'.format(len(tractor)))
 
-    out = cat
-    print('Writing {} galaxies to {}'.format(len(out), outfile))
-    fitsio.write(outfile, out.as_array(), clobber=True)#, header=hdr)
+    assert(len(tractor) == len(parent))
+    assert(len(tractor) == len(ellipse))
 
-    print('Writing {} galaxies to {}'.format(len(parent), soutfile))
-    fitsio.write(soutfile, parent.as_array(), clobber=True)#, header=hdr)
+    tractor = tractor[np.argsort(tractor['REF_ID'])]
+    ellipse = ellipse[np.argsort(ellipse[REFIDCOLUMN])]
+    parent = parent[np.argsort(parent[REFIDCOLUMN])]
+
+    assert(np.all(tractor['REF_ID'] == ellipse[REFIDCOLUMN]))
+    assert(np.all(tractor['REF_ID'] == parent[REFIDCOLUMN]))
+
+    hdu_primary = fits.PrimaryHDU()
+    hdu_ellipse = fits.convenience.table_to_hdu(ellipse)
+    hdu_ellipse.header['EXTNAME'] = 'ELLIPSE'
+
+    hdu_tractor = fits.convenience.table_to_hdu(tractor)
+    hdu_tractor.header['EXTNAME'] = 'TRACTOR'
+        
+    hdu_parent = fits.convenience.table_to_hdu(parent)
+    hdu_parent.header['EXTNAME'] = 'PARENT'
+        
+    hx = fits.HDUList([hdu_primary, hdu_ellipse, hdu_tractor, hdu_parent])
+    hx.writeto(outfile, overwrite=True, checksum=True)
+
+    print('Wrote {} galaxies to {}'.format(len(ellipse), outfile))
 
 def _build_catalog_one(args):
     """Wrapper function for the multiprocessing."""
@@ -943,8 +959,7 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
             print('Warning: no Tractor catalog in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
             onegal['DROPBIT'] |= DROPBITS['notfit']
 
-        #tractor = empty_tractor(len(fullsample))
-        return None, onegal
+        return None, None, onegal
 
     # Note: for galaxies on the edge of the footprint we can also sometimes lose
     # 3-band coverage if one or more of the bands is fully masked (these will
@@ -959,7 +974,7 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
     if grzmissing:
         print('Missing grz coverage in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
         onegal['DROPBIT'] |= DROPBITS['nogrz']
-        return None, onegal
+        return None, None, onegal
 
     # OK, now keep going!
     tractor = Table(fitsio.read(tractorfile, upper=True))
@@ -1012,7 +1027,7 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
             else:
                 print('Dropped by Tractor in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
                 onegal['DROPBIT'] |= DROPBITS['dropped']
-        return None, onegal
+        return None, None, onegal
         
     # Next, remove galaxies which do not belong to this group, because they will
     # be handled when we deal with *that* group.
@@ -1024,70 +1039,6 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
         keep = np.delete(np.arange(len(tractor)), isga[toss])
         tractor = tractor[keep]
 
-    ## Next, add all the (new) columns we will need to the Tractor catalog. This
-    ## is a little wasteful because the non-frozen Tractor sources will be tossed
-    ## out at the end, but it's much easier and cleaner to do it this way. Also
-    ## remove the duplicate BRICKNAME column from the Tractor catalog.
-    #tractor.remove_column('BRICKNAME') # of the form custom-BRICKNAME
-    #onegal.rename_column('RA', 'RA_LEDA')
-    #onegal.rename_column('DEC', 'DEC_LEDA')
-    #onegal.remove_column('INDEX')
-    #sgacols = onegal.colnames
-    #tractorcols = tractor.colnames
-    #for col in sgacols[::-1]: # reverse the order
-    #    if col in tractorcols:
-    #        print('  Skipping existing column {}'.format(col), flush=True)
-    #    else:
-    #        if onegal[col].ndim > 1:
-    #            # assume no multidimensional strings
-    #            tractor.add_column(Column(name=col, data=np.zeros((len(tractor), onegal[col].shape[1]),
-    #                                                              dtype=onegal[col].dtype)-1), index=0)
-    #        else:
-    #            typ = onegal[col].dtype.type
-    #            if typ is np.str_ or typ is np.str or typ is np.bool_ or typ is np.bool:
-    #                tractor.add_column(Column(name=col, data=np.zeros(len(tractor), dtype=onegal[col].dtype)), index=0)
-    #            else:
-    #                tractor.add_column(Column(name=col, data=np.zeros(len(tractor), dtype=onegal[col].dtype)-1), index=0)
-    #                
-    #tractor['GROUP_ID'][:] = onegal['GROUP_ID'] # note that we don't change GROUP_MULT
-    #tractor['GROUP_NAME'][:] = onegal['GROUP_NAME']
-    #
-    ## add the columns from legacyhalos.ellipse.ellipse_cog
-    #tractor['RA_MOMENT'] = np.zeros(len(tractor), np.float64) - 1 # =RA_X0
-    #tractor['DEC_MOMENT'] = np.zeros(len(tractor), np.float64) - 1 # =DEC_Y0
-    #tractor['SMA_MOMENT'] = np.zeros(len(tractor), np.float32) - 1 # =majoraxis
-    #tractor['ELLIPSEBIT'][:] = np.zeros(len(tractor), dtype=np.int32) # we don't want -1 here
-    #
-    #radkeys = ['SMA_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
-    #magkeys = []
-    #for radkey in radkeys:
-    #    tractor[radkey] = np.zeros(len(tractor), np.float32) - 1
-    #for radkey in radkeys:
-    #    for filt in ['G', 'R', 'Z']:
-    #        magkey = radkey.replace('SMA_', '{}_MAG_'.format(filt))
-    #        tractor[magkey] = np.zeros(len(tractor), np.float32) - 1
-    #        magkeys.append(magkey)
-    ##for filt in ['G', 'R', 'Z']:
-    ##    tractor['{}_MAG_TOT'.format(filt)] = np.zeros(len(tractor), np.float32) - 1
-    #
-    #raderrkeys = ['SMA_SB{:0g}_ERR'.format(sbcut) for sbcut in SBTHRESH]
-    #magerrkeys = []
-    #for raderrkey in raderrkeys:
-    #    tractor[raderrkey] = np.zeros(len(tractor), np.float32) - 1
-    #for raderrkey in raderrkeys:
-    #    for filt in ['G', 'R', 'Z']:
-    #        magerrkey = raderrkey.replace('RADIUS_', '{}_MAG_'.format(filt))
-    #        tractor[magerrkey] = np.zeros(len(tractor), np.float32) - 1
-    #        magerrkeys.append(magerrkey)
-    #        tractor['{}_RADIUS_HALF'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
-    #        
-    #for filt in ['G', 'R', 'Z']:
-    #    tractor['COG_MTOT_{}'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
-    #    tractor['COG_M0_{}'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
-    #    tractor['COG_ALPHA1_{}'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
-    #    tractor['COG_ALPHA2_{}'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
-    #    tractor['COG_CHI2_{}'.format(filt)] = np.zeros(len(tractor), 'f4') - 1
-
     # Next, gather up all the ellipse files, which *define* the sample. Also
     # track the galaxies that are dropped by Tractor and, separately, galaxies
     # which fail ellipse-fitting (or are not ellipse-fit because they're too
@@ -1095,7 +1046,7 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
     isdonefile = os.path.join(isdonedir, '{}-custom-ellipse.isdone'.format(galaxy))
     isfailfile = os.path.join(isdonedir, '{}-custom-ellipse.isfail'.format(galaxy))
 
-    ellipsecat, dropcat = [], []
+    ellipsecat, tractorcat, parent = [], [], []
     for igal, sga_id in enumerate(np.atleast_1d(fullsample[REFIDCOLUMN])):
         ellipsefile = os.path.join(galaxydir, '{}-custom-{}-ellipse.fits'.format(galaxy, sga_id))
 
@@ -1119,12 +1070,12 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
                     print('Missing grz coverage for galaxy {} in the field of {} (VF_ID={})'.format(
                         fullsample['GALAXY'][igal], galaxy, onegal[REFIDCOLUMN][0]), flush=True)
                     thisgal['DROPBIT'] |= DROPBITS['nogrz']
-                    dropcat.append(thisgal)
+                    parent.append(thisgal)
                 else:
                     if verbose:
                         print('Dropped by Tractor and not ellipse-fit: {} (ID={})'.format(fullsample['GALAXY'][igal], sga_id), flush=True)
                     thisgal['DROPBIT'] |= DROPBITS['dropped']
-                    dropcat.append(thisgal)
+                    parent.append(thisgal)
             else:
                 # Objects here were fit by Tractor but *not* ellipse-fit (for
                 # whatever reason).
@@ -1147,7 +1098,7 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
                 #if ng == 0 or nr == 0 or nz == 0:
                 if ng or nr or nz:
                     thisgal['DROPBIT'] |= DROPBITS['masked']
-                    dropcat.append(thisgal)
+                    parent.append(thisgal)
                 elif typ == 'PSF' or rflux < 0:
                     # In some corner cases we can end up as PSF or with negative
                     # r-band flux because of missing grz coverage right at the
@@ -1156,20 +1107,20 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
                     if grzmissing:
                         print('Missing grz coverage in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
                         thisgal['DROPBIT'] |= DROPBITS['nogrz']
-                        dropcat.append(thisgal)
+                        parent.append(thisgal)
                     else:
                         # check for fully mask (e.g. bleed trail)--
                         if _check_grz(galaxydir, galaxy, radec=(thisgal['RA'], thisgal['DEC']), just_ivar=True):
                             print('Masked galaxy in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
                             thisgal['DROPBIT'] |= DROPBITS['masked']
-                            dropcat.append(thisgal)
+                            parent.append(thisgal)
                         elif typ == 'PSF':
                             thisgal['DROPBIT'] |= DROPBITS['isPSF']
-                            dropcat.append(thisgal)
+                            parent.append(thisgal)
                         elif rflux < 0:
                             #print('Negative r-band flux in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
                             thisgal['DROPBIT'] |= DROPBITS['negflux']
-                            dropcat.append(thisgal)
+                            parent.append(thisgal)
                         else:
                             pass
                 else:
@@ -1177,40 +1128,19 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
                     # ellipse.fits catalog) then something has gone wrong. If
                     # *neither* file exists, then this galaxy was never fit!
                     if os.path.isfile(isfailfile):
-                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['failed']
+                        thisgal['DROPBIT'] |= DROPBITS['failed']
                     elif os.path.isfile(isdonefile):
                         if typ == 'REX' and r50 < 5.0:
-                            tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['rex_toosmall']
+                            thisgal['DROPBIT'] |= DROPBITS['rex_toosmall']
                         elif typ != 'REX' and typ != 'PSF' and r50 < 2.0:
-                            tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notrex_toosmall']
+                            thisgal['DROPBIT'] |= DROPBITS['notrex_toosmall']
                         else:
                             # corner case (e.g., IC1613) where I think I made the done files by fiat
-                            tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notfit']
+                            thisgal['DROPBIT'] |= DROPBITS['notfit']
                     else:
-                        tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['notfit']
-                        
-                    # Populate the output catalog--
-                    thisgal.rename_column('RA', 'RA_LEDA')
-                    thisgal.rename_column('DEC', 'DEC_LEDA')
-                    thisgal.remove_column('INDEX')
-                    for col in thisgal.colnames:
-                        if col == 'ELLIPSEBIT': # skip because we filled it, above
-                            #print('  Skipping existing column {}'.format(col))
-                            pass
-                        else:
-                            tractor[col][match] = thisgal[col]
-                        
-            # Update the nominal diameter and set the default RA_MOMENT and DEC_MOMENT
-            tractor['DIAM'][match] = 1.25 * tractor['DIAM'][match]
-            if 'RA_LEDA' in thisgal.colnames:
-                tractor['RA_MOMENT'][match] = thisgal['RA_LEDA']
-                tractor['DEC_MOMENT'][match] = thisgal['DEC_LEDA']
-            else:
-                tractor['RA_MOMENT'][match] = thisgal['RA']
-                tractor['DEC_MOMENT'][match] = thisgal['DEC']
+                        thisgal['DROPBIT'] |= DROPBITS['notfit']
         else:
             # Objects here were ellipse-fit.
-
             def _datarelease_table(ellipse):
                 """Convert the ellipse table into a data release catalog."""
 
@@ -1222,9 +1152,8 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
                         out.remove_column(col)
                     if 'REFBAND' in col or 'PSFSIZE' in col or 'PSFDEPTH' in col:
                         out.remove_column(col)
-
                 remcols = ('REFPIXSCALE', 'SUCCESS', 'FITGEOMETRY', 'LARGESHIFT',
-                           'MAXSMA', 'INTEGRMODE', 'INPUT_ELLIPSE', 'SCLIP', 'NCLIP')
+                           'MAXSMA', 'MAJORAXIS', 'EPS', 'INTEGRMODE', 'INPUT_ELLIPSE', 'SCLIP', 'NCLIP')
                 for col in remcols:
                     out.remove_column(col)
 
@@ -1236,48 +1165,24 @@ def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
                                       filesuffix='custom', verbose=True, asTable=True)
             out = _datarelease_table(ellipse)
 
-            pdb.set_trace()            
-
             # Objects with "largeshift" shifted positions significantly during
             # ellipse-fitting, which *may* point to a problem. Add a bit--
-            if ellipse['largeshift']:
-                tractor['ELLIPSEBIT'][match] |= ELLIPSEBITS['largeshift']
+            if ellipse['LARGESHIFT']:
+                out['ELLIPSEBIT'] |= ELLIPSEBITS['largeshift']
 
-            pdb.set_trace()
-
-            # Get the ellipse-derived geometry, which we'll add to the Tractor
-            # catalog below. 
-            ragal, decgal = tractor['RA'][match], tractor['DEC'][match]
-            pa, ba = ellipse['pa'], 1 - ellipse['eps']
-            diam, diamref = _get_diameter(ellipse)
+            ellipsecat.append(out)
             
-            # Populate the output catalog--
-            thisgal.rename_column('RA', 'RA_LEDA')
-            thisgal.rename_column('DEC', 'DEC_LEDA')
-            thisgal.remove_column('INDEX')
-            for col in thisgal.colnames:
-                tractor[col][match] = thisgal[col]
+        parent.append(thisgal)
+        tractorcat.append(tractor[match])
 
-            # RA, Dec and the geometry values can be different for the VETO list--
-            tractor['RA'][match] = ragal
-            tractor['DEC'][match] = decgal
-            tractor['PA'][match] = pa
-            tractor['BA'][match] = ba
-            tractor['DIAM'][match] = diam
-            tractor['DIAM_REF'][match] = diamref
+    if len(ellipsecat) > 0:
+        ellipsecat = vstack(ellipsecat, metadata_conflicts='silent')
+    if len(parent) > 0:
+        parent = vstack(parent, metadata_conflicts='silent')
+    if len(tractorcat) > 0:
+        tractorcat = vstack(tractorcat, metadata_conflicts='silent')
 
-            tractor['RA_MOMENT'][match] = ellipse['ra_x0']
-            tractor['DEC_MOMENT'][match] = ellipse['dec_y0']
-            tractor['SMA_MOMENT'][match] = ellipse['majoraxis'] * ellipse['refpixscale'] # [arcsec]
-            for radkey in radkeys:
-                tractor[radkey][match] = ellipse[radkey.lower()]
-            for raderrkey in raderrkeys:
-                tractor[raderrkey][match] = ellipse[raderrkey.lower()]
-
-    if len(dropcat) > 0:
-        dropcat = vstack(dropcat)
-
-    return tractor, dropcat
+    return tractorcat, ellipsecat, parent
 
 def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4'],
               kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
@@ -1735,7 +1640,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                                                      galaxy_id=galaxyid, verbose=False)
             if bool(ellipse):
                 html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                    ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
+                    ellipse['sma_moment'], ellipse['pa_moment'], ellipse['eps_moment']))
+                    #ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa_moment'], ellipse['eps_moment']))
 
                 rr = []
                 if 'sma_sb24' in ellipse.keys():

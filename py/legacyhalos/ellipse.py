@@ -114,8 +114,8 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
     #deltaa = 1.0 # pixel spacing
 
     #theta, eps = refellipsefit['geometry'].pa, refellipsefit['geometry'].eps
-    theta = np.radians(refellipsefit['pa']-90)
-    eps = refellipsefit['eps']
+    theta = np.radians(refellipsefit['pa_moment']-90)
+    eps = refellipsefit['eps_moment']
     refband = refellipsefit['refband']
     refpixscale = data['refpixscale']
 
@@ -224,8 +224,8 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             pixscale = refpixscale
             pixscalefactor = 1.0
 
-        x0 = pixscalefactor * refellipsefit['x0']
-        y0 = pixscalefactor * refellipsefit['y0']
+        x0 = pixscalefactor * refellipsefit['x0_moment']
+        y0 = pixscalefactor * refellipsefit['y0_moment']
 
         #if filt == 'g':
         #    pdb.set_trace()
@@ -278,11 +278,6 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 results['flux_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
                 results['flux_ivar_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
         else:
-            #sma_arcsec = sma[ok] * pixscale             # [arcsec]
-            #cogmag = 22.5 - 2.5 * np.log10(cogflux[ok]) # [mag]
-            #if cogferr is not None:
-            #    cogmagerr = 2.5 * cogferr[ok] / cogflux[ok] / np.log(10)
-
             results['cog_sma_{}'.format(filt.lower())] = np.float32(sma[ok] * pixscale) # [arcsec]
             results['cog_flux_{}'.format(filt.lower())] = np.float32(cogflux[ok])
             results['cog_flux_ivar_{}'.format(filt.lower())] = np.float32(1.0 / cogferr[ok]**2)
@@ -316,7 +311,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             if cogferr is not None:
                 cogmagerr = 2.5 * cogferr[these] / cogflux[these] / np.log(10)
                 
-            bounds = ([cogmag[-1]-1.0, 0, 0, 0], np.inf)
+            bounds = ([cogmag[-1]-2.0, 0, 0, 0], np.inf)
             #bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
             #bounds = (0, np.inf)
             popt, minchi2 = cog_dofit(sma_arcsec, cogmag, cogmagerr, bounds=bounds)
@@ -336,7 +331,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                         half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
                         #if filt == 'W4':
                         #    pdb.set_trace()
-                    results['cog_sma50_{}'.format(filt.lower())] = np.float(half_light_sma)
+                    results['cog_sma50_{}'.format(filt.lower())] = np.float32(half_light_sma)
 
             #print('Measuring integrated magnitudes to different radii.')
             sb = ellipse_sbprofile(refellipsefit, linear=True)
@@ -347,7 +342,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
 
                 smamax = results[radkey] # semi-major axis
                 if smamax > 0 and smamax < np.max(sma_arcsec):
-                    rmax = smamax * np.sqrt(1 - refellipsefit['eps']) # [circularized radius, arcsec]
+                    rmax = smamax * np.sqrt(1 - refellipsefit['eps_moment']) # [circularized radius, arcsec]
 
                     rr = sb['radius_{}'.format(filt.lower())]    # [circularized radius, arcsec]
                     yy = sb['mu_{}'.format(filt.lower())]        # [surface brightness, nanomaggies/arcsec**2]
@@ -367,7 +362,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                         fvar = (2 * np.pi)**2 * integrate.simps(x=_rr, y=_rr*_yyerr**2)
                         if flux > 0 and fvar > 0:
                             results[fluxkey] = np.float32(flux)
-                            results[fluxivarkey] = 1.0 / fvar
+                            results[fluxivarkey] = np.float32(1.0 / fvar)
                             #results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
                             #results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
                         else:
@@ -515,7 +510,7 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
         pixscale = ellipsefit['refpixscale']
     else:
         pixscale = ellipsefit['pixscale']
-    eps = ellipsefit['eps']
+    eps = ellipsefit['eps_moment']
     if 'redshift' in ellipsefit.keys():
         sbprofile['redshift'] = ellipsefit['redshift']    
             
@@ -672,20 +667,20 @@ def _fitgeometry_refband(ellipsefit, geometry0, majoraxis, refband='r', verbose=
             ellipsefit['x0_err'] = np.std(iso0.x0[good]) / np.sqrt(ngood)
             ellipsefit['y0_err'] = np.std(iso0.y0[good]) / np.sqrt(ngood)
 
-            ellipsefit['pa'] = (np.degrees(np.mean(iso0.pa[good]))+90) % 180
-            ellipsefit['pa_err'] = np.degrees(np.std(iso0.pa[good])) / np.sqrt(ngood)
-            ellipsefit['eps'] = np.mean(iso0.eps[good])
-            ellipsefit['eps_err'] = np.std(iso0.eps[good]) / np.sqrt(ngood)
+            ellipsefit['pa_moment'] = (np.degrees(np.mean(iso0.pa[good]))+90) % 180
+            ellipsefit['pa_moment_err'] = np.degrees(np.std(iso0.pa[good])) / np.sqrt(ngood)
+            ellipsefit['eps_moment'] = np.mean(iso0.eps[good])
+            ellipsefit['eps_moment_err'] = np.std(iso0.eps[good]) / np.sqrt(ngood)
 
             if verbose:
                 print(' x0 = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
-                    ellipsefit['x0_median'], ellipsefit['x0_err'], ellipsefit['x0']))
+                    ellipsefit['x0_median'], ellipsefit['x0_err'], ellipsefit['x0_moment']))
                 print(' y0 = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
-                    ellipsefit['y0_median'], ellipsefit['y0_err'], ellipsefit['y0']))
+                    ellipsefit['y0_median'], ellipsefit['y0_err'], ellipsefit['y0_moment']))
                 print(' PA = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
-                    ellipsefit['pa'], ellipsefit['pa_err'], np.degrees(geometry0.pa)+90))
+                    ellipsefit['pa_moment'], ellipsefit['pa_moment_err'], np.degrees(geometry0.pa)+90))
                 print(' eps = {:.3f}+/-{:.3f} (initial={:.3f})'.format(
-                    ellipsefit['eps'], ellipsefit['eps_err'], geometry0.eps))
+                    ellipsefit['eps_moment'], ellipsefit['eps_moment_err'], geometry0.eps))
 
     return ellipsefit
 
@@ -757,11 +752,15 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     # Fix the center to be the peak (pixel) values. Could also use bx,by here
     # from Tractor.  Also initialize the geometry with the moment-derived
     # values.  Note that (x,y) are switched between MGE and photutils!!
-    for key, newkey in zip(['largeshift', 'ra_x0y0', 'dec_x0y0', 'majoraxis', 'pa', 'eps'], #, 'theta''mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z']:
-                           ['largeshift', 'ra_moment', 'dec_moment', 'sma_moment', 'pa', 'eps']):
+    for key, newkey in zip(['largeshift', 'ra_moment', 'dec_moment', 'majoraxis', 'pa', 'eps'],
+                           ['largeshift', 'ra_moment', 'dec_moment', 'majoraxis', 'pa_moment', 'eps_moment']):
+        if key == 'majoraxis':
+            ellipsefit['sma_moment'] = mge['majoraxis'] * refpixscale # [arcsec]
         ellipsefit[newkey] = mge[key]
-    ellipsefit['ba'] = 1 - mge['eps'] # note!
-    for mgekey, ellkey in zip(['ymed', 'xmed'], ['x0', 'y0']):
+            
+    ellipsefit['ba_moment'] = np.float32(1 - mge['eps']) # note!
+    
+    for mgekey, ellkey in zip(['ymed', 'xmed'], ['x0_moment', 'y0_moment']):
         ellipsefit[ellkey] = mge[mgekey]
 
     majoraxis = mge['majoraxis'] # [pixel]
@@ -772,9 +771,9 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     # http://photutils.readthedocs.io/en/stable/isophote_faq.html#isophote-faq
     # Note: position angle in photutils is measured counter-clockwise from the
     # x-axis, while .pa in MGE measured counter-clockwise from the y-axis.
-    geometry0 = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
-                                eps=ellipsefit['eps'], sma=0.5*majoraxis, 
-                                pa=np.radians(ellipsefit['pa']-90))
+    geometry0 = EllipseGeometry(x0=ellipsefit['x0_moment'], y0=ellipsefit['y0_moment'],
+                                eps=ellipsefit['eps_moment'], sma=0.5*majoraxis, 
+                                pa=np.radians(ellipsefit['pa_moment']-90))
     ellipse0 = Ellipse(img, geometry=geometry0)
     #import matplotlib.pyplot as plt
     #plt.imshow(img, origin='lower') ; plt.scatter(ellipsefit['y0'], ellipsefit['x0'], s=50, color='red') ; plt.savefig('junk.png')
@@ -791,17 +790,17 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         print('Using input ellipse parameters.')
         ellipsefit['input_ellipse'] = True
         input_eps, input_pa = input_ellipse['eps'], input_ellipse['pa'] % 180
-        geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
+        geometry = EllipseGeometry(x0=ellipsefit['x0_moment'], y0=ellipsefit['y0_moment'],
                                    eps=input_eps, sma=majoraxis, 
                                    pa=np.radians(input_pa-90))
     else:
         # Note: we use the MGE, not fitted geometry here because it's more
         # reliable based on visual inspection.
-        geometry = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
-                                   eps=ellipsefit['eps'], sma=majoraxis, 
-                                   pa=np.radians(ellipsefit['pa']-90))
+        geometry = EllipseGeometry(x0=ellipsefit['x0_moment'], y0=ellipsefit['y0_moment'],
+                                   eps=ellipsefit['eps_moment'], sma=majoraxis, 
+                                   pa=np.radians(ellipsefit['pa_moment']-90))
 
-    geometry_cen = EllipseGeometry(x0=ellipsefit['x0'], y0=ellipsefit['y0'],
+    geometry_cen = EllipseGeometry(x0=ellipsefit['x0_moment'], y0=ellipsefit['y0_moment'],
                                    eps=0.0, sma=0.0, pa=0.0)
     #ellipsefit['geometry'] = geometry # can't save an object in an .asdf file
     ellipse = Ellipse(img, geometry=geometry)
@@ -871,8 +870,8 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         else:
             pixscalefactor = 1.0
 
-        x0 = pixscalefactor * ellipsefit['x0']
-        y0 = pixscalefactor * ellipsefit['y0']
+        x0 = pixscalefactor * ellipsefit['x0_moment']
+        y0 = pixscalefactor * ellipsefit['y0_moment']
         #if filt == 'W4':
         #    pdb.set_trace()
         filtsma = np.round(sma * pixscalefactor).astype('f4')
@@ -903,7 +902,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
             ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
         else:
             isobandfit = pool.map(_integrate_isophot_one, [(
-                img, _sma, ellipsefit['pa'], ellipsefit['eps'], x0,
+                img, _sma, ellipsefit['pa_moment'], ellipsefit['eps_moment'], x0,
                 y0, integrmode, sclip, nclip) for _sma in filtsma])
             ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
 

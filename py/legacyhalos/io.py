@@ -159,15 +159,16 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         ('input_ellipse', ''),
         ('largeshift', ''),
 
-        ('x0', u.pixel),
-        ('y0', u.pixel),
+        ('x0_moment', u.pixel),
+        ('y0_moment', u.pixel),
         ('ra_moment', u.degree),
         ('dec_moment', u.degree),
-        ('sma_moment', u.pixel),
-        ('pa', u.degree),
-        ('ba', ''),
-        ('eps', ''),
-        #('theta', u.degree),
+        ('sma_moment', u.arcsec),
+        ('majoraxis', u.pixel), # in the reference band
+        ('pa_moment', u.degree),
+        ('ba_moment', ''),
+        ('eps_moment', ''),
+        #('theta_moment', u.degree),
         ('maxsma', u.pixel),
 
         ('integrmode', ''),
