@@ -284,6 +284,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(sample), samplefile))
 
+    # 9673-3703 is off the footprint!
+    if use_testbed:
+        rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], '9673-3703'))
+        if np.sum(rem) > 0:
+            sample = sample[rem]
+
     # Add an (internal) index number:
     #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
     
@@ -858,7 +864,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
 
     maxsma = None
     #maxsma = 5 * MANGA_RADIUS # None
-    delta_logsma = 5 # 3.0
+    delta_logsma = 4 # 3.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!
@@ -1187,7 +1193,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                                                      galaxy_id=galaxyid, verbose=False)
             if bool(ellipse):
                 html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                    ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
+                    ellipse['sma_moment'], ellipse['pa_moment'], ellipse['eps_moment']))
 
                 rr = []
                 if 'sma_sb24' in ellipse.keys():

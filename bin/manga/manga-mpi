@@ -182,7 +182,7 @@ def main():
 
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               largegalaxy=False, pipeline=False, custom=True,
+                               custom=True,
                                apodize=False, unwise=True, galex=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
@@ -195,8 +195,8 @@ def main():
             # model images.
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               largegalaxy=False, pipeline=True, custom=False,
-                               apodize=False, unwise=False, force=args.force, plots=False,
+                               custom=False,
+                               apodize=False, unwise=False, galex=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds,
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
