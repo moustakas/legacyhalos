@@ -279,7 +279,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     else:
         fsuff = '-{}'.format(filesuffix)
         
-    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse.fits'.format(galaxy, fsuff, galid))
+    ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
 
     if sbthresh is None:
         from legacyhalos.ellipse import REF_SBTHRESH as sbthresh
@@ -377,7 +377,7 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True
     else:
         fsuff = '-{}'.format(filesuffix)
 
-    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse.fits'.format(galaxy, fsuff, galid))
+    ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
         
     if os.path.isfile(ellipsefitfile):
         data = Table.read(ellipsefitfile)

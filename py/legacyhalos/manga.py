@@ -640,8 +640,10 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         #galex_bands = ['fuv', 'nuv'] # ['FUV', 'NUV']
         bands = bands + galex_bands
         for band in galex_bands:
-            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(filesuffix),
-                                       'invvar': 'invvar', 'psf': '{}-psf'.format(filesuffix)}})
+            filt2imfile.update({band: {'image': '{}-image'.format(filesuffix),
+                                       'model': '{}-model'.format(filesuffix),
+                                       'invvar': '{}-invvar'.format(filesuffix),
+                                       'psf': '{}-psf'.format(filesuffix)}})
             filt2pixscale.update({band: galex_pixscale})
         
     if unwise:
@@ -649,8 +651,10 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         #unwise_bands = ['w1', 'w2', 'w3', 'w4'] # ['W1', 'W2', 'W3', 'W4']
         bands = bands + unwise_bands
         for band in unwise_bands:
-            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(filesuffix),
-                                       'invvar': 'invvar', 'psf': '{}-psf'.format(filesuffix)}})
+            filt2imfile.update({band: {'image': '{}-image'.format(filesuffix),
+                                       'model': '{}-model'.format(filesuffix),
+                                       'invvar': '{}-invvar'.format(filesuffix),
+                                       'psf': '{}-psf'.format(filesuffix)}})
             filt2pixscale.update({band: unwise_pixscale})
 
     data.update({'filt2pixscale': filt2pixscale})
@@ -1276,20 +1280,20 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('<table width="90%">\n')
 
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
-            thumbfile = 'thumb-{}-custom-{}-ellipse-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
+            thumbfile = 'thumb-{}-custom-ellipse-{}-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="60%"></a></td>\n'.format(pngfile, thumbfile))
             html.write('</tr>\n')
 
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-multiband.png'.format(galaxy1, galaxyid)
-            thumbfile = 'thumb-{}-custom-{}-ellipse-multiband.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-multiband.png'.format(galaxy1, galaxyid)
+            thumbfile = 'thumb-{}-custom-ellipse-{}-multiband.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="80%"></a></td>\n'.format(pngfile, thumbfile))
             html.write('</tr>\n')
 
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-multiband-W1W2.png'.format(galaxy1, galaxyid)
-            thumbfile = 'thumb-{}-custom-{}-ellipse-multiband-W1W2.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-multiband-W1W2.png'.format(galaxy1, galaxyid)
+            thumbfile = 'thumb-{}-custom-ellipse-{}-multiband-W1W2.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="100%"></a></td>\n'.format(pngfile, thumbfile))
             html.write('</tr>\n')
 
@@ -1298,14 +1302,14 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-sbprofile.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-sbprofile.png'.format(galaxy1, galaxyid)
             html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-            pngfile = '{}-custom-{}-ellipse-cog.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-cog.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('</tr>\n')
 
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-sed.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-sed.png'.format(galaxy1, galaxyid)
             html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('</tr>\n')
             
