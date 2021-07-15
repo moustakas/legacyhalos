@@ -84,14 +84,14 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     elif args.htmlplots:
         suffix = 'html'
         if args.just_coadds:
-            filesuffix = '-custom-grz-montage.png'
+            filesuffix = '-custom-montage-grz.png'
         else:
             filesuffix = '-ccdpos.png'
             #filesuffix = '-custom-maskbits.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
         suffix = 'htmlindex'
-        filesuffix = '-custom-grz-montage.png'
+        filesuffix = '-custom-montage-grz.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     else:
         print('Nothing to do.')

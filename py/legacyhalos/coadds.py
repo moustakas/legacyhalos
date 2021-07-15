@@ -300,7 +300,8 @@ def get_ccds(survey, ra, dec, pixscale, width):
     return ccds
 
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
-                  nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC', 
+                  nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC',
+                  nsigma=None, 
                   log=None, apodize=False, custom=True, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True, missing_ok=False,
                   write_all_pickles=False,
@@ -402,6 +403,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         #cmd += '--nsigma 10 '
     else:
         pass # standard pipeline
+
+    if nsigma:
+        cmd += '--nsigma {:.0f} '.format(nsigma)
+    pdb.set_trace()
 
     #cmd += '--stage fit_on_coadds ' ; cleanup = False ; missing_ok = True
     #cmd += '--stage srcs ' ; cleanup = False
