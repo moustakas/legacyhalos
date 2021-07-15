@@ -159,14 +159,16 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         ('input_ellipse', ''),
         ('largeshift', ''),
 
-        ('ra_x0y0', u.degree),
-        ('dec_x0y0', u.degree),
-        ('x0', u.pixel),
-        ('y0', u.pixel),
-        ('eps', ''),
-        ('pa', u.degree),
-        ('theta', u.degree),
-        ('majoraxis', u.pixel),
+        ('x0_moment', u.pixel),
+        ('y0_moment', u.pixel),
+        ('ra_moment', u.degree),
+        ('dec_moment', u.degree),
+        ('sma_moment', u.arcsec),
+        ('majoraxis', u.pixel), # in the reference band
+        ('pa_moment', u.degree),
+        ('ba_moment', ''),
+        ('eps_moment', ''),
+        #('theta_moment', u.degree),
         ('maxsma', u.pixel),
 
         ('integrmode', ''),
@@ -206,8 +208,8 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
 
     for band in bands:
         cols.append(('sma_{}'.format(band.lower()), u.pixel))
-        cols.append(('intens_{}'.format(band.lower()), u.maggy/u.arcsec**2))
-        cols.append(('intens_err_{}'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('intens_{}'.format(band.lower()), 1e-9*u.maggy/u.arcsec**2))
+        cols.append(('intens_err_{}'.format(band.lower()), 1e-9*u.maggy/u.arcsec**2))
         cols.append(('eps_{}'.format(band.lower()), ''))
         cols.append(('eps_err_{}'.format(band.lower()), ''))
         cols.append(('pa_{}'.format(band.lower()), u.degree))
@@ -220,30 +222,36 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         cols.append(('a3_err_{}'.format(band.lower()), ''))
         cols.append(('a4_{}'.format(band.lower()), ''))
         cols.append(('a4_err_{}'.format(band.lower()), ''))
-        cols.append(('rms_{}'.format(band.lower()), u.maggy/u.arcsec**2))
-        cols.append(('pix_stddev_{}'.format(band.lower()), u.maggy/u.arcsec**2))
+        cols.append(('rms_{}'.format(band.lower()), 1e-9*u.maggy/u.arcsec**2))
+        cols.append(('pix_stddev_{}'.format(band.lower()), 1e-9*u.maggy/u.arcsec**2))
         cols.append(('stop_code_{}'.format(band.lower()), ''))
         cols.append(('ndata_{}'.format(band.lower()), ''))
         cols.append(('nflag_{}'.format(band.lower()), ''))
         cols.append(('niter_{}'.format(band.lower()), ''))
+
+    for thresh in sbthresh:
+        cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
+    for thresh in sbthresh:
+        cols.append(('sma_ivar_sb{:0g}'.format(thresh), 1/u.arcsec**2))
+        
+    for band in bands:
+        for thresh in sbthresh:
+            cols.append(('flux_sb{:0g}_{}'.format(thresh, band.lower()), 1e-9*u.maggy))
+        for thresh in sbthresh:
+            cols.append(('flux_ivar_sb{:0g}_{}'.format(thresh, band.lower()), 1e18/u.maggy**2))
+
+    for band in bands:
         cols.append(('cog_sma_{}'.format(band.lower()), u.arcsec))
-        cols.append(('cog_mag_{}'.format(band.lower()), u.mag))
-        cols.append(('cog_magerr_{}'.format(band.lower()), u.mag))
+        cols.append(('cog_flux_{}'.format(band.lower()), 1e-9*u.maggy))
+        cols.append(('cog_flux_ivar_{}'.format(band.lower()), 1e18/u.maggy**2))
+
+    for band in bands:
         cols.append(('cog_mtot_{}'.format(band.lower()), u.mag))
         cols.append(('cog_m0_{}'.format(band.lower()), u.mag))
         cols.append(('cog_alpha1_{}'.format(band.lower()), ''))
         cols.append(('cog_alpha2_{}'.format(band.lower()), ''))
         cols.append(('cog_chi2_{}'.format(band.lower()), ''))
         cols.append(('cog_sma50_{}'.format(band.lower()), u.arcsec))
-
-    for thresh in sbthresh:
-        cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
-        cols.append(('sma_sb{:0g}_err'.format(thresh), u.arcsec))
-        
-    for band in bands:
-        for thresh in sbthresh:
-            cols.append(('{}_mag_sb{:0g}'.format(band.lower(), thresh), u.mag))
-            cols.append(('{}_mag_sb{:0g}_err'.format(band.lower(), thresh), u.mag))
 
     return cols
 
@@ -271,7 +279,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     else:
         fsuff = '-{}'.format(filesuffix)
         
-    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse.fits'.format(galaxy, fsuff, galid))
+    ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
 
     if sbthresh is None:
         from legacyhalos.ellipse import REF_SBTHRESH as sbthresh
@@ -354,7 +362,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     #out.write(ellipsefitfile, overwrite=True)
     #fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
-def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True):
+def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True,
+                    asTable=False):
     """Read the output of write_ellipsefit. Convert the astropy Table into a
     dictionary so we can use a bunch of legacy code.
 
@@ -368,12 +377,14 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True
     else:
         fsuff = '-{}'.format(filesuffix)
 
-    ellipsefitfile = os.path.join(galaxydir, '{}{}{}-ellipse.fits'.format(galaxy, fsuff, galid))
+    ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
         
     if os.path.isfile(ellipsefitfile):
         data = Table.read(ellipsefitfile)
 
-        # Convert (back!) into a dictionary.
+        # Optionally convert (back!) into a dictionary.
+        if asTable:
+            return data
         ellipsefit = {}
         for key in data.colnames:
             val = data[key].tolist()[0]
@@ -383,7 +394,10 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True
     else:
         if verbose:
             print('File {} not found!'.format(ellipsefitfile))
-        ellipsefit = dict()
+        if asTable:
+            ellipsefit = Table()
+        else:
+            ellipsefit = dict()
 
     return ellipsefit
 

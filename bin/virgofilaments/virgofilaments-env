@@ -4,11 +4,6 @@
 project=virgofilaments
 
 if [[ -z "$NERSC_HOST" ]]; then
-    #export LEGACYPIPE_CODE_DIR=$HOME/repos/legacysurvey/legacypipe
-    #export LEGACYHALOS_CODE_DIR=$HOME/repos/$project
-    #export LEGACYHALOS_DIR=$HOME/research/projects/$project
-    #export LEGACYHALOS_DATA_DIR=$HOME/research/projects/$project-data
-    #export LEGACYHALOS_HTML_DIR=$HOME/research/projects/$project-html
     export PYTHONPATH=$LEGACYHALOS_CODE_DIR/py:$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
     export PATH=$LEGACYHALOS_CODE_DIR/bin/$project:$PATH
 else

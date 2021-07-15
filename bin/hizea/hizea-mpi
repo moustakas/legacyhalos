@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-"""MPI wrapper for the MaNGA project.
-
-manga-mpi --coadds
+"""MPI wrapper for the hizea project.
 
 """
 import os, time, pdb
@@ -13,17 +11,16 @@ def main():
 
     """
     import legacyhalos.io
-    import legacyhalos.manga
+    import legacyhalos.hizea
 
     from legacypipe.runs import get_survey
-    from legacyhalos.manga import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, RADIUSFACTOR, MANGA_RADIUS
-    from legacyhalos.manga import get_galaxy_galaxydir
+    from legacyhalos.hizea import RACOLUMN, DECCOLUMN, GALAXYCOLUMN, MOSAICRADIUS, get_galaxy_galaxydir
     
     basedir = legacyhalos.io.legacyhalos_dir()
     datadir = legacyhalos.io.legacyhalos_data_dir()
     htmldir = legacyhalos.io.legacyhalos_html_dir()
     
-    args = legacyhalos.manga.mpi_args()
+    args = legacyhalos.hizea.mpi_args()
 
     if args.mpi:
         from mpi4py import MPI
@@ -39,7 +36,7 @@ def main():
         print('$LEGACYHALOS_DIR={}'.format(basedir))
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
-        sample = legacyhalos.manga.read_sample(first=args.first, last=args.last,
+        sample = legacyhalos.hizea.read_sample(first=args.first, last=args.last,
                                                galaxylist=args.galaxylist,
                                                verbose=args.verbose)
         if len(sample) == 0:
@@ -51,59 +48,17 @@ def main():
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
     if args.htmlindex and rank == 0:
-        legacyhalos.manga.make_html(sample, survey=None, pixscale=args.pixscale,
-                                    racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn=DIAMCOLUMN,
-                                    zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+        legacyhalos.hizea.make_html(sample, survey=None, pixscale=args.pixscale,
+                                    racolumn=RACOLUMN, deccolumn=DECCOLUMN, 
+                                    nproc=args.nproc, clobber=args.clobber,
                                     makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
                                     ccdqa=args.ccdqa, args=args)
         return
     
-    if args.build_refcat and rank == 0:
-        if args.build_refcat:
-            # Build a reference catalog for use with the pipeline.
-            import fitsio
-
-            ngal = len(sample)
-
-            ref = Table()
-            ref['ra'] = sample[RACOLUMN]
-            ref['dec'] = sample[DECCOLUMN]
-            ref['sga_id'] = sample['MANGAID_INT']
-
-            ref['mag_leda'] = np.repeat(15.0, len(sample)).astype('f4')
-            ref['ba'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a (circular)
-            ref['pa'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
-            ref['diam'] = np.repeat(2 * MANGA_RADIUS / 60.0, ngal).astype('f4') # fixed diameter [arcmin]
-            
-            igood = np.where(sample['NSA_NSAID'] != -9999)[0]
-            ref['ba'][igood] = sample['NSA_SERSIC_BA'][igood]
-            ref['pa'][igood] = sample['NSA_SERSIC_PHI'][igood]
-            ref['diam'][igood] = 2 * 2 * sample['NSA_SERSIC_TH50'][igood] / 60 # [2*half-light radius, arcmin]
-            ref['mag_leda'][igood] = 22.5-2.5*np.log10(sample['NSA_SERSIC_FLUX'][igood, 4]) # r-band
-
-            reffile = os.path.join(basedir, 'manga-refcat.fits')
-            kdreffile = reffile.replace('.fits', '.kd.fits')
-            print('Writing {} galaxies to {}'.format(ngal, reffile))
-            
-            hdr = fitsio.FITSHDR()
-            hdrver = 'R1'
-            hdr['SGAVER'] = hdrver
-            fitsio.write(reffile, ref.as_array(), header=hdr, clobber=True)
-
-            print('Writing {}'.format(kdreffile))
-            cmd = 'startree -i {} -o {} -T -P -k -n stars'.format(reffile, kdreffile)
-            print(cmd)
-            _ = os.system(cmd)
-
-            cmd = 'modhead {} SGAVER {}'.format(kdreffile, hdrver)
-            _ = os.system(cmd)
-
-        return
-
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
     if rank == 0:
-        suffix, groups, _, fail = legacyhalos.manga.missing_files(args, sample, size)
+        suffix, groups, _, fail = legacyhalos.hizea.missing_files(args, sample, size)
     else:
         groups, suffix = [], ''
 
@@ -164,7 +119,7 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        radius_mosaic_arcsec = MANGA_RADIUS * RADIUSFACTOR # [arcsec]
+        radius_mosaic_arcsec = MOSAICRADIUS # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
@@ -182,8 +137,8 @@ def main():
 
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               custom=True,
-                               apodize=False, unwise=True, galex=True, force=args.force, plots=False,
+                               nsigma=10, 
+                               custom=True, apodize=False, unwise=True, galex=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile,
@@ -195,14 +150,14 @@ def main():
             # model images.
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               custom=False,
-                               apodize=False, unwise=False, galex=True, force=args.force, plots=False,
+                               nsigma=10, 
+                               custom=False, apodize=False, unwise=True, galex=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds,
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
 
         if args.ellipse:
-            from legacyhalos.manga import call_ellipse
+            from legacyhalos.hizea import call_ellipse
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir,
                          bands=['g', 'r', 'z'], refband='r',                         
                          pixscale=args.pixscale, nproc=args.nproc,
@@ -212,17 +167,10 @@ def main():
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
-            from legacyhalos.manga import read_multiband
+            from legacyhalos.hizea import read_multiband
             
-            if radius_mosaic_arcsec > 6 * 60: # [>6] arcmin
-                barlabel = '2 arcmin'
-                barlen = np.ceil(120 / args.pixscale).astype(int) # [pixels]
-            elif (radius_mosaic_arcsec > 3 * 60) & (radius_mosaic_arcsec < 6 * 60): # [3-6] arcmin
-                barlabel = '1 arcmin'
-                barlen = np.ceil(60 / args.pixscale).astype(int) # [pixels]
-            else:
-                barlabel = '30 arcsec'
-                barlen = np.ceil(30 / args.pixscale).astype(int) # [pixels]
+            barlabel = '10 arcsec'
+            barlen = np.ceil(10 / args.pixscale).astype(int) # [pixels]
             call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
                            verbose=args.verbose, debug=args.debug, clobber=args.clobber,
                            logfile=logfile, 
@@ -241,7 +189,7 @@ def main():
     if rank == 0:
         print('Finished {} {} at {} after {:.3f} minutes'.format(
             ntodo, suffix.upper(), time.asctime(), (time.time() - tall) / 60 ), flush=True)
-        _, groups, _, _ = legacyhalos.manga.missing_files(args, sample, size, clobber_overwrite=False)
+        _, groups, _, _ = legacyhalos.hizea.missing_files(args, sample, size, clobber_overwrite=False)
         if len(groups) > 0:
             stilltodo = len(np.hstack(groups))
         else:

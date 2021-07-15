@@ -201,11 +201,10 @@ def make_montage_coadds(galaxy, galaxydir, htmlgalaxydir, barlen=None,
 
     Image.MAX_IMAGE_PIXELS = None
 
-    for filesuffix in ['largegalaxy', 'custom']:
-    #for filesuffix in ['largegalaxy', 'pipeline', 'custom']:
-        montagefile = os.path.join(htmlgalaxydir, '{}-{}-grz-montage.png'.format(galaxy, filesuffix))
-        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
-        thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-grz-montage.png'.format(galaxy, filesuffix))
+    for filesuffix in ['custom', 'pipeline']:
+        montagefile = os.path.join(htmlgalaxydir, '{}-{}-montage-grz.png'.format(galaxy, filesuffix))
+        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-montage-grz.png'.format(galaxy, filesuffix))
+        thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-montage-grz.png'.format(galaxy, filesuffix))
         if not os.path.isfile(montagefile) or clobber:
             if filesuffix == 'custom':
                 coaddfiles = ('{}-image-grz'.format(filesuffix),
@@ -326,14 +325,16 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, refpixscale=0.
 
     Image.MAX_IMAGE_PIXELS = None
 
-    for filesuffix, pixscale in zip(('FUVNUV', 'W1W2'), (1.5, 2.75)):
-        montagefile = os.path.join(htmlgalaxydir, '{}-{}-montage.png'.format(galaxy, filesuffix))
-        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-montage.png'.format(galaxy, filesuffix))
-        thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-montage.png'.format(galaxy, filesuffix))
+    filesuffix = 'custom'
+
+    for bandsuffix, pixscale in zip(('FUVNUV', 'W1W2'), (1.5, 2.75)):
+        montagefile = os.path.join(htmlgalaxydir, '{}-{}-montage-{}.png'.format(galaxy, filesuffix, bandsuffix))
+        thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-montage-{}.png'.format(galaxy, filesuffix, bandsuffix))
+        thumb2file = os.path.join(htmlgalaxydir, 'thumb2-{}-{}-montage-{}.png'.format(galaxy, filesuffix, bandsuffix))
         if not os.path.isfile(montagefile) or clobber:
-            coaddfiles = ('image-{}'.format(filesuffix),
-                          'model-{}'.format(filesuffix),
-                          'resid-{}'.format(filesuffix))
+            coaddfiles = ('{}-image-{}'.format(filesuffix, bandsuffix),
+                          '{}-model-{}'.format(filesuffix, bandsuffix),
+                          '{}-resid-{}'.format(filesuffix, bandsuffix))
 
             # Image coadd with the scale bar label--
             barpngfile = os.path.join(htmlgalaxydir, '{}-{}.png'.format(galaxy, coaddfiles[0]))
@@ -507,20 +508,20 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                 galid = '{}-'.format(galid)
 
             if galex or unwise:
-                sedfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sed.png'.format(galaxy, data['filesuffix'], galid))
+                sedfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}sed.png'.format(galaxy, data['filesuffix'], galid))
                 if not os.path.isfile(sedfile) or clobber:
                     _tractor = None
                     if tractor is not None:
                         _tractor = tractor[np.isin(tractor['ref_id'], data['galaxy_id'][igal])] # fragile...
                     qa_multiwavelength_sed(ellipsefit, tractor=_tractor, png=sedfile, verbose=verbose)
                     
-            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-sbprofile.png'.format(galaxy, data['filesuffix'], galid))
+            sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}sbprofile.png'.format(galaxy, data['filesuffix'], galid))
             if not os.path.isfile(sbprofilefile) or clobber:
                 display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=False,
                                           png=sbprofilefile, verbose=verbose, minerr=0.0,
                                           cosmo=cosmo)
                 
-            cogfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-cog.png'.format(galaxy, data['filesuffix'], galid))
+            cogfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}cog.png'.format(galaxy, data['filesuffix'], galid))
             if not os.path.isfile(cogfile) or clobber:
                 qa_curveofgrowth(ellipsefit, pipeline_ellipsefit={}, plot_sbradii=False,
                                  png=cogfile, verbose=verbose, cosmo=cosmo)
@@ -529,10 +530,10 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
             #continue
         
             if unwise:
-                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband-W1W2.png'.format(galaxy, data['filesuffix'], galid))
-                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband-W1W2.png'.format(galaxy, data['filesuffix'], galid))
+                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}multiband-W1W2.png'.format(galaxy, data['filesuffix'], galid))
+                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-ellipse-{}multiband-W1W2.png'.format(galaxy, data['filesuffix'], galid))
                 if not os.path.isfile(multibandfile) or clobber:
-                    with Image.open(os.path.join(galaxydir, '{}-image-W1W2.jpg'.format(galaxy))) as colorimg:
+                    with Image.open(os.path.join(galaxydir, '{}-{}-image-W1W2.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
                         display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
                                           igal=igal, barlen=barlen, barlabel=barlabel,
                                           png=multibandfile, verbose=verbose, scaledfont=scaledfont,
@@ -545,10 +546,10 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                     subprocess.call(cmd.split())
 
             if galex:
-                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband-FUVNUV.png'.format(galaxy, data['filesuffix'], galid))
-                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband-FUVNUV.png'.format(galaxy, data['filesuffix'], galid))
+                multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}multiband-FUVNUV.png'.format(galaxy, data['filesuffix'], galid))
+                thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-ellipse-{}multiband-FUVNUV.png'.format(galaxy, data['filesuffix'], galid))
                 if not os.path.isfile(multibandfile) or clobber:
-                    with Image.open(os.path.join(galaxydir, '{}-image-FUVNUV.jpg'.format(galaxy))) as colorimg:
+                    with Image.open(os.path.join(galaxydir, '{}-{}-image-FUVNUV.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
                         display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
                                           igal=igal, barlen=barlen, barlabel=barlabel,
                                           png=multibandfile, verbose=verbose, scaledfont=scaledfont,
@@ -560,8 +561,8 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                     print('Writing {}'.format(thumbfile))
                     subprocess.call(cmd.split())
 
-            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
-            thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-{}ellipse-multiband.png'.format(galaxy, data['filesuffix'], galid))
+            multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}multiband.png'.format(galaxy, data['filesuffix'], galid))
+            thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-ellipse-{}multiband.png'.format(galaxy, data['filesuffix'], galid))
             if not os.path.isfile(multibandfile) or clobber:
                 with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
                     display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,

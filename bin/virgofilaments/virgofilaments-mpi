@@ -47,6 +47,7 @@ def main():
             return
         
         if args.coadds or args.build_catalog or args.build_refcat:
+            refcat = 'R1'
             # For the custom coadds and build_catalog steps we need the full sample, too.
             fullsample = legacyhalos.virgofilaments.read_sample(
                 verbose=args.verbose, fullsample=True)
@@ -94,7 +95,7 @@ def main():
             print('Writing {} galaxies to {}'.format(ngal, reffile))
             
             hdr = fitsio.FITSHDR()
-            hdrver = 'R1'
+            hdrver = refcat
             hdr['SGAVER'] = hdrver
             fitsio.write(reffile, ref.as_array(), header=hdr, clobber=True)
 
@@ -127,7 +128,6 @@ def main():
                     bigchunks.append(these)
             nbigchunks = len(bigchunks)
             groups = np.array_split(bigchunks, size)
-
         else:
             suffix, groups, _, fail = legacyhalos.virgofilaments.missing_files(args, sample, size)
     else:
@@ -181,40 +181,42 @@ def main():
             from legacyhalos.virgofilaments import _init_catalog
 
             tall = time.time()
-            outfile, soutfile = _init_catalog(clobber=args.clobber)
+            outfile = _init_catalog(clobber=args.clobber)
             if outfile is None:
                 return
         else:
-            outfile, soutfile = None, None
+            outfile = None
             
         if comm is not None:
             outfile = comm.bcast(outfile, root=0)
-            soutfile = comm.bcast(soutfile, root=0)
 
         # Now loop over each "chunk" assigned to this rank.
+        from astropy.table import vstack
         from astrometry.util.multiproc import multiproc
         from legacyhalos.virgofilaments import get_raslice, _build_catalog_one, _write_catalog
 
-        chunkdatadir = os.path.join(datadir, 'rachunks')
+        #chunkdatadir = os.path.join(datadir, 'rachunks')
 
         mp = multiproc(nthreads=args.nproc)
+
+        ellipse, tractor, parent = [], [], []
         for ichunk, chunk in enumerate(groups[rank]):
-            print('Working on chunk {:03d}/{:03d}'.format(ichunk, len(groups[rank])-1))
+            #print('Working on chunk {:03d}/{:03d}'.format(ichunk, len(groups[rank])-1))
             tchunk = time.time()
 
-            raslice_str = get_raslice(sample['RA'][chunk[0]])
-            chunkdir = os.path.join(chunkdatadir, raslice_str)
-            if not os.path.isdir(chunkdir):
-                os.makedirs(chunkdir, exist_ok=True)
+            #raslice_str = get_raslice(sample['RA'][chunk[0]])
+            #chunkdir = os.path.join(chunkdatadir, raslice_str)
+            #if not os.path.isdir(chunkdir):
+            #    os.makedirs(chunkdir, exist_ok=True)
 
-            chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
-            chunksoutfile = os.path.join(chunkdir, os.path.basename(soutfile))
+            #chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
+            #chunksoutfile = os.path.join(chunkdir, os.path.basename(soutfile))
 
             # chunkoutfile gets written last, so test "doneness" based on that
             # file's existence.
-            if os.path.isfile(chunkoutfile) and False:
-                print('Skipping completed chunk {:03d}'.format(ichunk))
-                continue
+            #if os.path.isfile(chunkoutfile) and False:
+            #    print('Skipping completed chunk {:03d}'.format(ichunk))
+            #    continue
 
             # Do it!
             chunksample = sample[chunk]
@@ -222,19 +224,24 @@ def main():
 
             buildargs = []
             for onegal in chunksample:
-                buildargs.append((onegal, chunkfullsample[chunkfullsample['GROUP_ID'] == onegal['GROUP_ID']], args.verbose))
+                buildargs.append((onegal, chunkfullsample[chunkfullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat, args.verbose))
             results = mp.map(_build_catalog_one, buildargs)
             results = list(zip(*results))
             
-            cat = list(filter(None, results[0]))
-            parent = list(filter(None, results[1]))
-            
-            print('Chunk {}: N(sample)={}, N(fullsample)={}, N(cat)={}, N(parent)={}'.format(
-                ichunk, len(chunksample), len(chunkfullsample), len(cat), len(parent)))
+            tractor1 = list(filter(None, results[0]))[0]
+            ellipse1 = list(filter(None, results[1]))[0]
+            parent1 = list(filter(None, results[2]))[0]
 
-            _write_catalog(cat, parent, chunkoutfile, chunksoutfile)
-            print('Finished chunk {:03d}/{:03d} after {:.3f} minutes'.format(
-                ichunk, len(groups[rank])-1, (time.time() - tchunk) / 60))
+            tractor.append(tractor1)
+            ellipse.append(ellipse1)
+            parent.append(parent1)
+
+            print('Chunk {}: N(fullsample)={}, N(tractor)={}, N(ellipse)={}, N(parent)={}'.format(
+                ichunk, len(chunkfullsample), len(tractor1), len(ellipse1), len(parent1)))
+
+            #_write_catalog(tractor, ellipse, parent, chunkoutfile)
+            #print('Finished chunk {:03d}/{:03d} after {:.3f} minutes'.format(
+            #    ichunk, len(groups[rank])-1, (time.time() - tchunk) / 60))
 
         if comm is not None:
             comm.barrier() # wait
@@ -244,19 +251,19 @@ def main():
             print('Finished all {:03d} chunks after {:.3f} minutes'.format(nbigchunks, (time.time() - tall) / 60))
 
             tfinal = time.time()
-            cat, parent = [], []
-            for ichunk, chunk in enumerate(np.hstack(groups)):
-                print('Gathering chunk {:03d}/{:03d}'.format(ichunk, len(np.hstack(groups))-1), flush=True)
-                
-                chunkdir = os.path.join(chunkdatadir, raslices[chunk[0]])
-                chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
-                chunksoutfile = os.path.join(chunkdir, os.path.basename(soutfile))
-                if os.path.isfile(chunkoutfile):
-                    cat.append(Table(fitsio.read(chunkoutfile)))
-                if os.path.isfile(chunksoutfile):
-                    parent.append(Table(fitsio.read(chunksoutfile)))
+            #cat, parent = [], []
+            #for ichunk, chunk in enumerate(np.hstack(groups)):
+            #    print('Gathering chunk {:03d}/{:03d}'.format(ichunk, len(np.hstack(groups))-1), flush=True)
+            #    
+            #    chunkdir = os.path.join(chunkdatadir, raslices[chunk[0]])
+            #    chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
+            #    chunksoutfile = os.path.join(chunkdir, os.path.basename(soutfile))
+            #    if os.path.isfile(chunkoutfile):
+            #        cat.append(Table(fitsio.read(chunkoutfile)))
+            #    if os.path.isfile(chunksoutfile):
+            #        parent.append(Table(fitsio.read(chunksoutfile)))
 
-            _write_catalog(cat, parent, outfile, soutfile)
+            _write_catalog(tractor, ellipse, parent, outfile)
             print('Gathering and writing out final files took {:.3f} minutes'.format(
                 (time.time() - tfinal) / 60), flush=True)
             return
@@ -309,8 +316,8 @@ def main():
 
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               largegalaxy=False, pipeline=False, custom=True,
-                               apodize=False, unwise=args.unwise, galex=args.galex, force=args.force, plots=False,
+                               custom=True, apodize=False, unwise=args.unwise, galex=args.galex,
+                               force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile,
@@ -322,8 +329,8 @@ def main():
             # model images.
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               largegalaxy=False, pipeline=True, custom=False,
-                               apodize=False, unwise=False, force=args.force, plots=False,
+                               custom=False, apodize=False, unwise=args.unwise, galex=args.galex,
+                               force=args.force, plots=False,
                                verbose=args.verbose, cleanup=True, write_all_pickles=True,
                                just_coadds=args.just_coadds,
                                no_gaia=False, no_tycho=False, debug=args.debug, logfile=logfile)
