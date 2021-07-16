@@ -47,12 +47,23 @@ def main():
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
-    if args.htmlindex and rank == 0:
-        legacyhalos.hizea.make_html(sample, survey=None, pixscale=args.pixscale,
-                                    racolumn=RACOLUMN, deccolumn=DECCOLUMN, 
-                                    nproc=args.nproc, clobber=args.clobber,
-                                    makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                    ccdqa=args.ccdqa, args=args)
+    if rank == 0:
+        if args.htmlindex:
+            legacyhalos.hizea.make_html(sample, survey=None, pixscale=args.pixscale,
+                                        racolumn=RACOLUMN, deccolumn=DECCOLUMN, 
+                                        nproc=args.nproc, clobber=args.clobber,
+                                        makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                        ccdqa=args.ccdqa, args=args)
+
+        if args.build_catalog:
+            from legacyhalos.hizea import build_catalog
+            args.pipeline_coadds = True
+            _, _, groups, _ = legacyhalos.hizea.missing_files(args, sample, args.nproc)
+            if len(groups) == 0:
+                print('No complete galaxies!')
+                return
+            build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose)
+            
         return
     
     # Determine how many more galaxies we need to analyze and divide them across
@@ -101,7 +112,7 @@ def main():
     print('Starting {} {} on rank {} with {} cores on {}'.format(
         len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
         flush=True)
-    
+
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
@@ -137,7 +148,7 @@ def main():
 
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               nsigma=10, 
+                               #nsigma=10, 
                                custom=True, apodize=False, unwise=True, galex=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
@@ -150,7 +161,7 @@ def main():
             # model images.
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               nsigma=10, 
+                               #nsigma=10, 
                                custom=False, apodize=False, unwise=True, galex=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds,

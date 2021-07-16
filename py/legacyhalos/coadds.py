@@ -406,7 +406,6 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
     if nsigma:
         cmd += '--nsigma {:.0f} '.format(nsigma)
-    pdb.set_trace()
 
     #cmd += '--stage fit_on_coadds ' ; cleanup = False ; missing_ok = True
     #cmd += '--stage srcs ' ; cleanup = False

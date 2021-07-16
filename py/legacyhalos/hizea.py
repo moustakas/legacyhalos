@@ -246,6 +246,59 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     return sample
 
+def build_catalog(sample, nproc=1, verbose=False):
+    import time
+    import fitsio
+    import multiprocessing
+    from astropy.io import fits
+    from astropy.table import Table, vstack
+    from astrometry.libkd.spherematch import match_radec
+    
+    outfile = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'hizea-legacyphot.fits')
+    if os.path.isfile(outfile) and not clobber:
+        print('Use --clobber to overwrite existing catalog {}'.format(outfile))
+        return None
+
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+
+    t0 = time.time()
+    tractor, parent, dist = [], [], []
+    for gal, gdir, onegal in zip(galaxy, galaxydir, sample):
+        tractorfile = os.path.join(gdir, '{}-pipeline-tractor.fits'.format(gal))
+        if os.path.isfile(tractorfile): # just in case
+            parent.append(onegal)
+            cat = fitsio.read(tractorfile, upper=True)
+            m1, m2, d12 = match_radec(cat['RA'], cat['DEC'], onegal['RA'], onegal['DEC'], 1.0/3600, nearest=True)
+            if len(m1) != 1:
+                print('Multiple matches within 1 arcsec for {}'.format(onegal['GALAXY_FULL']))
+                m1 = m1[0]
+            tractor.append(Table(cat)[m1])
+            dist.append(d12[0]*3600)
+    tractor = vstack(tractor)
+    parent = vstack(parent)
+    dist = np.array(dist)
+    print('Merging {} galaxies took {:.2f} min.'.format(len(tractor), (time.time()-t0)/60.0))
+
+    if len(tractor) == 0:
+        print('Something went wrong and no galaxies were fitted.')
+        return
+    assert(len(tractor) == len(parent))
+
+    # write out
+    hdu_primary = fits.PrimaryHDU()
+    hdu_parent = fits.convenience.table_to_hdu(parent)
+    hdu_parent.header['EXTNAME'] = 'PARENT'
+        
+    hdu_tractor = fits.convenience.table_to_hdu(tractor)
+    hdu_tractor.header['EXTNAME'] = 'TRACTOR'
+        
+    hx = fits.HDUList([hdu_primary, hdu_parent, hdu_tractor])
+    hx.writeto(outfile, overwrite=True, checksum=True)
+
+    print('Wrote {} galaxies to {}'.format(len(parent), outfile))
+
+    pdb.set_trace()
+
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.05, maxshift=10,
                           sigmamask=3.0,
