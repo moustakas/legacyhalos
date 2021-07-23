@@ -45,12 +45,14 @@ def mpi_args():
     parser.add_argument('--no-cleanup', action='store_false', dest='cleanup', help='Do not clean up legacypipe files after coadds.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
+    parser.add_argument('--resampled-phot', action='store_true', help='Do photometry on the resampled images.')
 
     parser.add_argument('--htmlplots', action='store_true', help='Build the pipeline figures.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
     parser.add_argument('--htmldir', type=str, help='Output directory for HTML files.')
     
     parser.add_argument('--pixscale', default=0.262, type=float, help='pixel scale (arcsec/pix).')
+    parser.add_argument('--resampled-pixscale', default=0.75, type=float, help='resampled pixel scale (arcsec/pix).')
 
     parser.add_argument('--ccdqa', action='store_true', help='Build the CCD-level diagnostics.')
     parser.add_argument('--nomakeplots', action='store_true', help='Do not remake the QA plots for the HTML pages.')
@@ -86,9 +88,13 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         suffix = 'ellipse'
         filesuffix = '-custom-ellipse.isdone'
         dependson = '-custom-coadds.isdone'
+    elif args.resampled_phot:
+        suffix = 'resampled-phot'
+        filesuffix = '-resampled-phot.isdone'        
+        dependson = '-custom-ellipse.isdone'
     elif args.build_catalog:
         suffix = 'build-catalog'
-        filesuffix = '-custom-ellipse.isdone'
+        dependson = '-custom-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
         if args.just_coadds:
@@ -785,25 +791,6 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     data['galaxy_id'] = galaxy_id
     data['galaxy_indx'] = galaxy_indx
 
-    #data['galaxy_indx'] = []
-    #data['galaxy_id'] = []
-    #for galid in np.atleast_1d(galaxy_id):
-    #    galindx = np.where((tractor.ref_cat == 'R1') * (tractor.ref_id == galid))[0]
-    #    if len(galindx) != 1:
-    #        raise ValueError('Problem finding the central galaxy {} in the tractor catalog!'.format(galid))
-    #    data['galaxy_indx'].append(galindx[0])
-    #    data['galaxy_id'].append(galid)
-    #
-    #    # Is the flux and/or ivar negative (and therefore perhaps off the
-    #    # footprint?) If so, drop it here.
-    #    for filt in bands:
-    #        cenflux = getattr(tractor, 'flux_{}'.format(filt))[galindx[0]]
-    #        cenivar = getattr(tractor, 'flux_ivar_{}'.format(filt))[galindx[0]]
-    #        if cenflux <= 0.0 or cenivar <= 0.0:
-    #            print('Central galaxy flux is negative. Off footprint or gap in coverage?')
-    #            data['failed'] = True
-    #            return data, []
-
     # Now build the multiband mask.
     data = _build_multiband_mask(data, tractor, filt2pixscale,
                                  fill_value=fill_value,
@@ -861,6 +848,61 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           galex_pixscale=galex_pixscale, unwise_pixscale=unwise_pixscale,
                                           unwise=unwise, galex=galex,
                                           sky_tests=sky_tests, verbose=verbose)
+
+    maxsma = None
+    #maxsma = 5 * MANGA_RADIUS # None
+    delta_logsma = 4 # 3.0
+
+    # don't pass logfile and set debug=True because we've already opened the log
+    # above!
+    mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
+                     pixscale=pixscale, nproc=nproc, 
+                     bands=bands, refband=refband, sbthresh=SBTHRESH,
+                     logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
+                     verbose=verbose, debug=True)#debug, logfile=logfile)
+
+def resampled_phot(onegal, galaxy, galaxydir, resampled_pixscale=0.75, nproc=1,
+                   filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
+                   unwise=False, galex=False, verbose=False,
+                   debug=False, logfile=None):
+    """Do photometry on the resampled images.
+
+    """
+    import astropy.table
+    from legacyhalos.io import read_ellipsefit
+
+    if type(onegal) == astropy.table.Table:
+        onegal = onegal[0] # create a Row object
+
+    # push this to its own function
+    data = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix=
+    
+    data = {}
+    
+    
+    bands = ['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4']
+    
+    
+
+    pdb.set_trace()
+
+    if logfile:
+        from contextlib import redirect_stdout, redirect_stderr
+        with open(logfile, 'a') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
+                                                  filesuffix=filesuffix, refband=refband,
+                                                  pixscale=pixscale,
+                                                  galex_pixscale=galex_pixscale, unwise_pixscale=unwise_pixscale,
+                                                  unwise=unwise, galex=galex,
+                                                  verbose=verbose)
+    else:
+        data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
+                                          filesuffix=filesuffix, refband=refband,
+                                          pixscale=pixscale,
+                                          galex_pixscale=galex_pixscale, unwise_pixscale=unwise_pixscale,
+                                          unwise=unwise, galex=galex,
+                                          verbose=verbose)
 
     maxsma = None
     #maxsma = 5 * MANGA_RADIUS # None

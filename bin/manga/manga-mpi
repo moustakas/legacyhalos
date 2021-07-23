@@ -210,6 +210,15 @@ def main():
                          unwise=True, galex=True,
                          logfile=logfile)
                              
+        if args.resampled_phot:
+            from legacyhalos.manga import resampled_phot
+            resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                           bands=['g', 'r', 'z'], refband='r',                         
+                           resampled_pixscale=args.resampled_pixscale,
+                           nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                           unwise=True, galex=True,
+                           logfile=logfile)
+                             
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
             from legacyhalos.manga import read_multiband
