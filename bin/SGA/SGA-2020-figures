@@ -8,6 +8,7 @@
 import os, sys, time, pdb
 import argparse
 import numpy as np
+import fitsio
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -57,17 +58,27 @@ def plot_style(font_scale=1.2, paper=False, talk=True):
 
     return sns, colors
 
-def fig_size_mag(sample, frac=None, png=None):
+def fig_size_mag(sample, frac=None, leda=False, png=None):
     """
     
     """
     import corner
 
     sns, _ = plot_style(talk=True, font_scale=1.2)
-    
-    good = np.where((sample['RADIUS_SB26'] != -1) * (sample['R_MAG_SB26'] != -1))[0]
-    rmag = sample['R_MAG_SB26'][good]
-    radius = np.log10(sample['RADIUS_SB26'][good]/60) # [arcmin]
+
+    if leda:
+        good = np.where((sample['D25_LEDA'] > 0) * (sample['MAG_LEDA'] > 0))[0]
+        rmag = sample['MAG_LEDA'][good]
+        radius = np.log10(sample['D25_LEDA'][good]) # [arcmin]
+        xlabel = r'$B_t$ (Vega mag)'
+        ylabel = r'$D(25)$ (arcmin)'
+        
+    else:
+        good = np.where((sample['RADIUS_SB26'] != -1) * (sample['R_MAG_SB26'] != -1))[0]
+        rmag = sample['R_MAG_SB26'][good]
+        radius = np.log10(sample['RADIUS_SB26'][good]/60) # [arcmin]
+        xlabel = r'$m_{r}(<R_{26})$ (AB mag)'
+        ylabel = r'$R_{26}$ (arcmin)'
     
     xlim, ylim = (8, 20), (-1, 1)
 
@@ -107,9 +118,69 @@ def fig_size_mag(sample, frac=None, png=None):
     ax.set_ylim(ylim)
     #ax.set_yscale('log')
     #ax.xmargins(0)
-    ax.set_xlabel(r'$m_{r}(<R_{26})$ (AB mag)')
-    ax.set_ylabel(r'$R_{26}$ (arcmin)')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
     #ax.set_ylabel(r'$\log_{10}\ R_{26}$ (arcmin)')
+    
+    fig.subplots_adjust(bottom=0.15, top=0.95, right=0.95, left=0.15)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)#, bbox_inches='tight')
+        plt.close(fig)
+
+def fig_d25_hist(sample, png=None):
+    """
+    
+    """
+    import corner
+
+    sns, colors = plot_style(talk=True, font_scale=1.2)
+
+    good = np.where(sample['D25_LEDA'] > 0)[0]
+    #print(len(good), len(sample))
+    #pdb.set_trace()
+    
+    d25 =  np.log10(sample['D25_LEDA'][good]) # [arcmin]
+    xlim = (-1, 2)
+    
+    @ticker.FuncFormatter
+    def major_formatter(x, pos):
+        if x >= 0:
+            return '{:.0f}'.format(10**x)
+        else:
+            return '{:.1f}'.format(10**x)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    ax.hist(d25, bins=150, range=xlim, color=colors[1])
+    ax.axvline(x=np.log10(20/60), lw=2, ls='-', color='k', label='D(25)=20 arcsec')
+    
+    ax.xaxis.set_major_formatter(major_formatter)
+    ax.set_xticks(np.log10([0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60]))
+    ax.legend(loc='upper right', fontsize=14) # frameon=False, 
+
+    igal = np.where(sample['GALAXY'] == 'NGC0598')[0]
+    xpos, y1, y2, y3 = d25[igal]-0.01, 1.5, 6, 8
+    ax.text(xpos, y3, 'NGC0598=M33', ha='center', va='bottom',
+            rotation=90, fontsize=12, alpha=1.0)
+    ax.plot([xpos, xpos], [y1, y2], lw=1, ls='--', color='gray')
+
+    igal = np.where(sample['GALAXY'] == 'NGC5457')[0]
+    xpos, y1, y2, y3 = d25[igal]-0.01, 3, 11, 15
+    ax.text(xpos, y3, 'NGC5457=M101', ha='center', va='bottom',
+            rotation=90, fontsize=12, alpha=1.0)
+    ax.plot([xpos, xpos], [y1, y2], lw=1, ls='--', color='gray')
+
+    # labels and all that
+    ax.set_xlim(xlim)
+    #ax.set_ylim(ylim)
+    #ax.set_yscale('log')
+    #ax.xmargins(0)
+    ax.set_xlabel(r'$D(25)$ (arcmin)')
+    ax.set_ylabel('Number of Galaxies')
+    ax.set_yscale('log')
     
     fig.subplots_adjust(bottom=0.15, top=0.95, right=0.95, left=0.15)
 
@@ -240,7 +311,7 @@ def fig_sky(S, png=None):
     W,H = 800,400
     #W,H = 1000,500
     #W,H = 2000,1000
-    ra_center = 275.
+    ra_center = 120. # 275.
     wcs = anwcs_create_hammer_aitoff(ra_center, 0., zoom, W, H, False)
     ok,S.x,S.y = wcs.radec2pixelxy(S.ra, S.dec)
 
@@ -314,8 +385,8 @@ def fig_sky(S, png=None):
     ok,xx,yy = wcs.radec2pixelxy(rr, dd)
 
     # Label
-    ii = np.argmin(np.abs(rr - 275))
-    angle = 180+np.rad2deg(np.arctan2(yy[ii+1]-yy[ii-1], xx[ii+1]-xx[ii-1]))
+    ii = np.argmin(np.abs(rr - ra_center+5))
+    angle = 185+np.rad2deg(np.arctan2(yy[ii+1]-yy[ii-1], xx[ii+1]-xx[ii-1]))
     plt.text(xx[ii], yy[ii], 'Galactic Plane', ha='center', va='bottom', rotation=angle)
 
     # Plot segments that are above min Dec and not discontinuous
@@ -333,8 +404,8 @@ def fig_sky(S, png=None):
             plt.plot(xx[istart:iend], yy[istart:iend], '-', color='0.6', lw=2)
         istart = iend
 
-    ok,x,y = wcs.radec2pixelxy(ra_center, -45)
-    plt.text(x, y, 'RA (deg)')
+    ok,x,y = wcs.radec2pixelxy(ra_center+8, -45)
+    plt.text(x, y, 'RA (deg)', ha='center')
 
     plt.xticks([])
     plt.yticks([])
@@ -982,10 +1053,40 @@ def fig_sbmontage_gallery(onegal, png):
         fig.savefig(pngfile)#, bbox_inches='tight')
         plt.close(fig)
 
+def fig_sample_montage(sample, png=None):
+    """Show a random sampling of galaxies."""
+    montagefile = os.path.join(adapdir, 'sample-montage.png')
+
+    ss = LSLGA.NLSA.read_nlsa_parent(proposal=True)
+    #these = rand.choice(len(ss), 35, replace=False)
+    #ss = ss[these]
+    ss = ss[np.argsort(ss['SB'])]
+        
+    gal, galdir = LSLGA.NLSA.get_galaxy_galaxydir(ss)
+    infiles = []
+    for gal1, galdir1 in zip(gal, galdir):
+        infile1 = os.path.join(galdir1, '{}-pipeline-image-grz.jpg'.format(gal1))
+        if not os.path.isfile(infile1):
+            infile1 = os.path.join(adapdir, 'smiley.jpg')
+        infiles.append(infile1)
+    ncol = 7
+    nrow = 5
+    
+    #cmd = 'montage -tile {}x{} -geometry 128x128 '.format(ncol, nrow)
+    cmd = 'montage -bordercolor white -borderwidth 1 -tile {}x{} -geometry 256x256 '.format(ncol, nrow)
+    cmd = cmd+' '.join([inff for inff in infiles])
+    cmd = cmd+' {}'.format(montagefile)
+    print(cmd)
+    os.system(cmd)        
+    print('Writing {}'.format(montagefile))    
+
 def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--sky', action='store_true')
+    parser.add_argument('--d25-hist', action='store_true')
+    parser.add_argument('--sample-montage', action='store_true')
+
     parser.add_argument('--sbmontage', action='store_true')
     parser.add_argument('--sbmontage-gallery', action='store_true')
     parser.add_argument('--sb-mag', action='store_true')
@@ -1006,15 +1107,27 @@ def main():
         #S.cut((S.sga_id > -1) * (S.preburned))
         
         sga = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020.fits'), ext='ELLIPSE')
-        #sgaleda = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020-leda.fits'))
-        sga.ra = sga.ra_leda
-        sga.dec = sga.dec_leda
+        #sga.ra = sga.ra_leda
+        #sga.dec = sga.dec_leda
 
         fig_sky(sga, png='sga-2020-sky.png')
-        #fig_sky(sgaleda, png='sga-leda-sky.png')
-        
-        pdb.set_trace()
 
+        #sgaleda = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020-leda.fits'))
+        #fig_sky(sgaleda, png='sga-leda-sky.png')
+
+        sga = fits_table(os.path.join('/mnt', 'SGA', 'sample', 'v3.0', 'SGA-parent-v3.0.fits'))
+        fig_sky(sga, png='sga-2020-parent-sky.png')
+        
+    # Fig - histogram of D(25) from Leda
+    if args.d25_hist:
+        sample = Table(fitsio.read(os.path.join('/mnt', 'SGA', 'sample', 'v3.0', 'SGA-parent-v3.0.fits')))
+        fig_d25_hist(sample, png='d25-hist.png')
+
+    # Fig - sample montage
+    if args.sample_montage:
+        sga = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020.fits'), ext='ELLIPSE')        
+        fig_sample_montage(sample, png='sample-montage.png')
+        
     # Fig - bivariate scatterplot of surface brightness vs magnitude
     if args.sb_mag:
         sample = legacyhalos.SGA.read_sga2020()
@@ -1023,7 +1136,7 @@ def main():
     # Fig - bivariate scatterplot of size vs magnitude
     if args.size_mag:
         sample = legacyhalos.SGA.read_sga2020()
-        fig_size_mag(sample, png='size-vs-mag.png')
+        fig_size_mag(sample, png='size-vs-mag-leda.png', leda=True)
     
     # Fig - SB montage
     if args.sbmontage:
