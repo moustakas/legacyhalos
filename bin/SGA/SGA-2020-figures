@@ -22,11 +22,13 @@ from legacyhalos.SGA import DIAMCOLUMN, RACOLUMN, DECCOLUMN
 
 from astropy.table import Table
 
-figdir = os.path.join('/mnt', 'SGA', 'science', 'paper1', 'figures')
+figdir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'science', 'paper1', 'figures')
+#figdir = os.path.join('/mnt', 'SGA', 'science', 'paper1', 'figures')
 #figdir = os.path.join('/mnt', '20210115-aas-sga')
 #figdir = os.path.join(os.getenv('HOME'), 'research', 'talks', '2021', '20210115-aas-sga')
-if not os.path.isdir(figdir):
-    figdir = os.path.join(os.getenv('HOME'), 'SGA', 'science', 'paper1', 'figures')
+#if not os.path.isdir(figdir):
+#    figdir = os.path.join(os.getenv('HOME'), 'SGA', 'science', 'paper1', 'figures')
+#    #figdir = os.path.join(os.getenv('HOME'), 'SGA', 'science', 'paper1', 'figures')
 fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
 
 #os.environ['LEGACYHALOS_DIR'] = os.path.join(os.getenv('HOME'), 'research', 'projects', 'SGA')
@@ -1053,32 +1055,80 @@ def fig_sbmontage_gallery(onegal, png):
         fig.savefig(pngfile)#, bbox_inches='tight')
         plt.close(fig)
 
-def fig_sample_montage(sample, png=None):
+def fig_sample_montage(sample, tractor, seed=1, png=None):
     """Show a random sampling of galaxies."""
-    montagefile = os.path.join(adapdir, 'sample-montage.png')
 
-    ss = LSLGA.NLSA.read_nlsa_parent(proposal=True)
-    #these = rand.choice(len(ss), 35, replace=False)
-    #ss = ss[these]
-    ss = ss[np.argsort(ss['SB'])]
-        
-    gal, galdir = LSLGA.NLSA.get_galaxy_galaxydir(ss)
+    rand = np.random.RandomState(seed=seed)
+
+    ncol = 7
+    nrow = 6
+    ngal = ncol * nrow
+
+    # Pick XX random galaxies, uniformly selected in surface brightness.
+    r50 = tractor['SHAPE_R']
+    rmag = 22.5-2.5*np.log10(tractor['FLUX_R'])
+    sb = rmag + 2.5 * np.log10(np.pi * (60/2)**2) + 5*np.log10(r50/60)
+    
+    keep = np.where((rmag < 19) * (rmag > 14) * (r50 > 5) * (sb < 25))[0]
+    print(len(keep))
+
+    sb = sb[keep]
+    sample = sample[keep]
+    tractor = tractor[keep]
+    print(np.min(sb), np.max(sb))
+
+    ## mean surface brightness within R(26) where SMA_SB26 is in arcmin
+    #sbkey = 'SB25'
+    #keep = np.where((sample['R_MAG_{}'.format(sbkey)] < 20) * (sample['R_MAG_{}'.format(sbkey)] > 14) * (sample['SMA_{}'.format(sbkey)] > 10))[0]
+    #sample = sample[keep]
+    #sb = sample['R_MAG_{}'.format(sbkey)] + 2.5 * np.log10(np.pi * (60/2)**2) + 5*np.log10(sample['SMA_{}'.format(sbkey)]/60)
+
+    #keep = np.where(sb < 24)[0]
+    #sb = sb[keep]
+    #sample = sample[keep]
+    #print(len(sample))
+    
+    #keep = np.where((sample['SB'] > 18) * (sample['SB'] < 27) *
+    #                (sample['RMAG'] < 19) * (sample['REFF'] > 5))[0]
+    #sample = sample[keep]
+
+    nbin = 20
+    _xbin = np.linspace(np.min(sb), np.max(sb), nbin)
+    idx  = np.digitize(sb, _xbin)
+
+    prob = np.zeros_like(sb)
+    for kk in range(nbin):
+        ww = idx == kk
+        if np.sum(ww) > 0:
+            prob[ww] = 1 / np.sum(ww)
+    prob /= np.sum(prob)
+
+    these = rand.choice(len(sample), ngal, p=prob, replace=False)
+
+    srt = np.argsort(sb[these])
+    sample = sample[these[srt]]
+    tractor = tractor[these[srt]]
+    sb = sb[these[srt]]
+    print(sb)
+
+    gal, galdir = get_galaxy_galaxydir(sample)
     infiles = []
     for gal1, galdir1 in zip(gal, galdir):
-        infile1 = os.path.join(galdir1, '{}-pipeline-image-grz.jpg'.format(gal1))
-        if not os.path.isfile(infile1):
-            infile1 = os.path.join(adapdir, 'smiley.jpg')
+        infile1 = os.path.join(galdir1, '{}-largegalaxy-image-grz.jpg'.format(gal1))
+        #if not os.path.isfile(infile1):
+        #    infile1 = os.path.join(adapdir, 'smiley.jpg')
         infiles.append(infile1)
-    ncol = 7
-    nrow = 5
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
     
-    #cmd = 'montage -tile {}x{} -geometry 128x128 '.format(ncol, nrow)
-    cmd = 'montage -bordercolor white -borderwidth 1 -tile {}x{} -geometry 256x256 '.format(ncol, nrow)
-    cmd = cmd+' '.join([inff for inff in infiles])
-    cmd = cmd+' {}'.format(montagefile)
-    print(cmd)
-    os.system(cmd)        
-    print('Writing {}'.format(montagefile))    
+        #cmd = 'montage -tile {}x{} -geometry 128x128 '.format(ncol, nrow)
+        cmd = 'montage -bordercolor white -borderwidth 1 -tile {}x{} -geometry 256x256 '.format(ncol, nrow)
+        cmd = cmd+' '.join([inff for inff in infiles])
+        cmd = cmd+' {}'.format(pngfile)
+        print(cmd)
+        os.system(cmd)        
 
 def main():
 
@@ -1125,8 +1175,9 @@ def main():
 
     # Fig - sample montage
     if args.sample_montage:
-        sga = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020.fits'), ext='ELLIPSE')        
-        fig_sample_montage(sample, png='sample-montage.png')
+        sample = legacyhalos.SGA.read_sga2020(ext='ELLIPSE')
+        tractor = legacyhalos.SGA.read_sga2020(ext='TRACTOR')
+        fig_sample_montage(sample, tractor, seed=5, png='sample-montage.png')
         
     # Fig - bivariate scatterplot of surface brightness vs magnitude
     if args.sb_mag:

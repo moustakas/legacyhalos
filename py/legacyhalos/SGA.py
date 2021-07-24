@@ -408,7 +408,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
         return galaxy, galaxydir
 
 def read_sga2020(first=None, last=None, galaxylist=None, verbose=False,
-                 columns=None, primary=True, d25min=0.1, d25max=100.0):
+                 columns=None, d25min=None, d25max=None, ext='ELLIPSE'):
     """Read the SGA-2020 catalog.
 
     d25min in arcmin
@@ -421,7 +421,7 @@ def read_sga2020(first=None, last=None, galaxylist=None, verbose=False,
             print('Index first cannot be greater than index last, {} > {}'.format(first, last))
             raise ValueError()
         
-    ext = 1
+    #ext = 1
 
     samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), '2020', 'SGA-2020.fits')
     if not os.path.isfile(samplefile):
@@ -430,15 +430,20 @@ def read_sga2020(first=None, last=None, galaxylist=None, verbose=False,
     info = fitsio.FITS(samplefile)
     nrows = info[ext].get_nrows()
 
-    if primary:
+    if d25min or d25max:
         cols = ['GROUP_DIAMETER', 'GROUP_PRIMARY', 'SGA_ID']
         sample = fitsio.read(samplefile, columns=cols)
         rows = np.arange(len(sample))
 
+        if d25min is None:
+            d25min = 0.0
+        if d25max is None:
+            d25max = 1e5
+
         samplecut = np.where(
             (sample['GROUP_DIAMETER'] > d25min) *
-            (sample['GROUP_DIAMETER'] < d25max) *
-            sample['GROUP_PRIMARY'] #* 
+            (sample['GROUP_DIAMETER'] < d25max)# *
+            #sample['GROUP_PRIMARY'] #* 
             #(sample['SGA_ID'] > -1)
             )[0]
         rows = rows[samplecut]
@@ -474,7 +479,7 @@ def read_sga2020(first=None, last=None, galaxylist=None, verbose=False,
                 first, last, len(sample), samplefile))
 
     # Add an (internal) index number:
-    sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
+    #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
 
     if galaxylist is not None:
         if verbose:
