@@ -94,7 +94,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         dependson = '-custom-ellipse.isdone'
     elif args.build_catalog:
         suffix = 'build-catalog'
-        dependson = '-custom-ellipse.isdone'
+        filesuffix = '-custom-ellipse.isdone'        
+        #dependson = '-custom-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
         if args.just_coadds:
@@ -321,6 +322,73 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     sample[REFIDCOLUMN] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
 
     return sample
+
+def build_catalog(sample, nproc=1, refcat='R1', verbose=False):
+    import time
+    import fitsio
+    from astropy.io import fits
+    from astropy.table import Table, vstack
+    from legacyhalos.io import read_ellipsefit
+    
+    outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot.fits')
+    if os.path.isfile(outfile) and not clobber:
+        print('Use --clobber to overwrite existing catalog {}'.format(outfile))
+        return None
+
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+
+    t0 = time.time()
+    tractor, parent, ellipse = [], [], []
+    for gal, gdir, onegal in zip(galaxy, galaxydir, sample):
+        refid = onegal[REFIDCOLUMN]
+        tractorfile = os.path.join(gdir, '{}-custom-tractor.fits'.format(gal))
+        ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
+        if not os.path.isfile(tractorfile):
+            print('Missing Tractor catalog {}'.format(tractorfile))
+        if not os.path.isfile(ellipsefile):
+            print('Missing ellipse file {}'.format(ellipsefile))
+        
+        if os.path.isfile(tractorfile) and os.path.isfile(ellipsefile):
+            _ellipse = read_ellipsefit(gal, gdir, galaxy_id=str(refid), asTable=True,
+                                      filesuffix='custom', verbose=True)
+            for col in _ellipse.colnames:
+                if _ellipse[col].ndim > 1:
+                    _ellipse.remove_column(col)
+
+            _tractor = Table(fitsio.read(tractorfile, upper=True))
+            match = np.where((_tractor['REF_CAT'] == refcat) * (_tractor['REF_ID'] == refid))[0]
+            if len(match) != 1:
+                raise ValueError('Problem here!')
+
+            ellipse.append(_ellipse)
+            tractor.append(_tractor[match])
+            parent.append(onegal)
+
+    ellipse = vstack(ellipse, metadata_conflicts='silent')
+    tractor = vstack(tractor, metadata_conflicts='silent')
+    parent = vstack(parent, metadata_conflicts='silent')
+    print('Merging {} galaxies took {:.2f} min.'.format(len(tractor), (time.time()-t0)/60.0))
+
+    if len(tractor) == 0:
+        print('Something went wrong and no galaxies were fitted.')
+        return
+    assert(len(tractor) == len(parent))
+
+    # write out
+    hdu_primary = fits.PrimaryHDU()
+    hdu_parent = fits.convenience.table_to_hdu(parent)
+    hdu_parent.header['EXTNAME'] = 'PARENT'
+        
+    hdu_ellipse = fits.convenience.table_to_hdu(ellipse)
+    hdu_ellipse.header['EXTNAME'] = 'ELLIPSE'
+
+    hdu_tractor = fits.convenience.table_to_hdu(tractor)
+    hdu_tractor.header['EXTNAME'] = 'TRACTOR'
+        
+    hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_tractor])
+    hx.writeto(outfile, overwrite=True, checksum=True)
+
+    print('Wrote {} galaxies to {}'.format(len(parent), outfile))
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.05, maxshift=10,
@@ -875,14 +943,10 @@ def resampled_phot(onegal, galaxy, galaxydir, resampled_pixscale=0.75, nproc=1,
         onegal = onegal[0] # create a Row object
 
     # push this to its own function
-    data = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix=
+    data = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix)
     
     data = {}
-    
-    
     bands = ['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4']
-    
-    
 
     pdb.set_trace()
 

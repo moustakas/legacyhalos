@@ -50,15 +50,9 @@ def main():
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
-    if args.htmlindex and rank == 0:
-        legacyhalos.manga.make_html(sample, survey=None, pixscale=args.pixscale,
-                                    racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn=DIAMCOLUMN,
-                                    zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
-                                    makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                    ccdqa=args.ccdqa, args=args)
-        return
-    
-    if args.build_refcat and rank == 0:
+    if rank == 0:
+        refcat = 'R1'
+        
         if args.build_refcat:
             # Build a reference catalog for use with the pipeline.
             import fitsio
@@ -86,7 +80,7 @@ def main():
             print('Writing {} galaxies to {}'.format(ngal, reffile))
             
             hdr = fitsio.FITSHDR()
-            hdrver = 'R1'
+            hdrver = refcat
             hdr['SGAVER'] = hdrver
             fitsio.write(reffile, ref.as_array(), header=hdr, clobber=True)
 
@@ -98,6 +92,22 @@ def main():
             cmd = 'modhead {} SGAVER {}'.format(kdreffile, hdrver)
             _ = os.system(cmd)
 
+        if args.htmlindex:
+            legacyhalos.manga.make_html(sample, survey=None, pixscale=args.pixscale,
+                                        racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn=DIAMCOLUMN,
+                                        zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+                                        makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                        ccdqa=args.ccdqa, args=args)
+
+        if args.build_catalog:
+            from legacyhalos.manga import build_catalog
+            args.custom_coadds = True
+            _, _, groups, _ = legacyhalos.manga.missing_files(args, sample, args.nproc)
+            if len(groups) == 0:
+                print('No complete galaxies!')
+                return
+            build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose, refcat=refcat)
+            
         return
 
     # Determine how many more galaxies we need to analyze and divide them across

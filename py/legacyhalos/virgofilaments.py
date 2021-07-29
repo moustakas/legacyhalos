@@ -869,7 +869,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
 def _init_catalog(clobber=False):
     import legacyhalos.io
 
-    outdir = legacyhalos.io.legacyhalos_data_dir()
+    outdir = legacyhalos.io.legacyhalos_dir()
     outfile = os.path.join(outdir, 'virgofilaments-legacyphot.fits')
     #soutfile = os.path.join(outdir, 'virgofilaments-parent.fits')
     if os.path.isfile(outfile) and not clobber:
