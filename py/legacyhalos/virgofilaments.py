@@ -22,7 +22,7 @@ DIAMCOLUMN = 'GROUP_DIAMETER'
 GALAXYCOLUMN = 'GROUP_NAME'
 REFIDCOLUMN = 'VF_ID'
 
-SBTHRESH = [23.0, 24.0, 25.0, 26.0] # surface brightness thresholds
+SBTHRESH = [22.0, 22.5, 23.0, 23.5, 24.0, 24.5, 25.0, 25.5, 26.0] # surface brightness thresholds
 
 ELLIPSEBITS = dict(
     largeshift = 2**0, # >10-pixel shift in the flux-weighted center
@@ -846,7 +846,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           sky_tests=sky_tests, verbose=verbose)
 
     maxsma = None
-    delta_logsma = 4
+    delta_logsma = 10 # 4
 
     #igal = 0
     #maxis = data['mge'][igal]['majoraxis'] # [pixels]

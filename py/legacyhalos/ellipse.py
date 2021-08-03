@@ -127,7 +127,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
     # crosses a few different thresholds like 25 mag/arcsec, etc.
     sbprofile = ellipse_sbprofile(refellipsefit)
 
-    #print('We should measure these radii from the extinction-corrected photometry!')
+    #print('Should we measure these radii from the extinction-corrected photometry?')
     for sbcut in sbthresh:
         if sbprofile['mu_{}'.format(refband)].max() < sbcut or sbprofile['mu_{}'.format(refband)].min() > sbcut:
             print('Insufficient profile to measure the radius at {:.1f} mag/arcsec2!'.format(sbcut))
@@ -174,43 +174,15 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
 
     chi2fail = 1e6
     nparams = 4
-        
+
+    if eps == 0.0:
+        iscircle = True
+    else:
+        iscircle = False
+    
     for filt in bands:
         img = ma.getdata(data['{}_masked'.format(filt.lower())][igal]) # [nanomaggies/arcsec2]
         mask = ma.getmask(data['{}_masked'.format(filt.lower())][igal])
-
-        ## old code...
-        #if filt in refellipsefit['bands']:
-        #    if len(sbprofile['sma_{}'.format(filt.lower())]) == 0: # can happen with partial coverage in other bands
-        #        maxsma = sbprofile['sma_{}'.format(refband.lower())].max()
-        #    else:
-        #        maxsma = sbprofile['sma_{}'.format(filt.lower())].max()        # [pixels]
-        #    #minsma = 3 * refellipsefit['psfsigma_{}'.format(filt.lower())] # [pixels]
-        #else:
-        #    maxsma = sbprofile['sma_{}'.format(refband)].max()        # [pixels]
-        #    #minsma = 3 * refellipsefit['psfsigma_{}'.format(refband)] # [pixels]
-
-        maxsma = np.max(sbprofile['sma_{}'.format(filt.lower())])        # [pixels]
-        if maxsma <= 0:
-            maxsma = np.max(refellipsefit['sma_{}'.format(filt.lower())])        # [pixels]
-            
-        #sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
-
-        sma = refellipsefit['sma_{}'.format(filt.lower())] * 1.0
-        keep = np.where((sma > 0) * (sma <= maxsma))[0]
-        #keep = np.where(sma < maxsma)[0]
-        if len(keep) > 0:
-            sma = sma[keep]
-        else:
-            print('Too few good semi-major axis pixels!')
-            #pdb.set_trace()
-            raise ValueError
-        
-        smb = sma * eps
-        if eps == 0.0:
-            iscircle = True
-        else:
-            iscircle = False
 
         # handle GALEX and WISE
         if 'filt2pixscale' in data.keys():
@@ -230,6 +202,73 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         #if filt == 'g':
         #    pdb.set_trace()
         #im = np.log10(img) ; im[mask] = 0 ; plt.clf() ; plt.imshow(im, origin='lower') ; plt.scatter(y0, x0, s=50, color='red') ; plt.savefig('junk.png')
+
+        # first get the elliptical aperture photometry within the threshold
+        # radii found above.
+        sma, sblist = [], []
+        for sbcut in sbthresh:
+            # initialize with zeros
+            results['flux_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
+            results['flux_ivar_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
+            _sma = results['sma_sb{:0g}'.format(sbcut)]
+            if _sma > 0:
+                sma.append(_sma)
+                sblist.append(sbcut)
+                
+        if len(sma) > 0:
+            sma = np.hstack(sma)
+            sblist = np.hstack(sblist)
+            smb = sma * eps
+            with np.errstate(all='ignore'):
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', category=AstropyUserWarning)
+                    cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle)
+                                                    for aa, bb in zip(sma, smb)])
+                    if len(cogflux) > 0:
+                        cogflux = np.hstack(cogflux)
+                    else:
+                        cogflux = np.array([0.0])
+                    if '{}_var'.format(filt.lower()) in data.keys():
+                        var = data['{}_var'.format(filt.lower())][igal] # [nanomaggies**2/arcsec**4]
+                        cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True, iscircle)
+                                                        for aa, bb in zip(sma, smb)])
+                        if len(cogferr) > 0:
+                            cogferr = np.hstack(cogferr)
+                        else:
+                            cogferr = np.array([0.0])
+                    else:
+                        cogferr = None
+                        
+            with warnings.catch_warnings():
+                if cogferr is not None:
+                    ok = np.where(np.isfinite(cogflux) * (cogferr > 0) * np.isfinite(cogferr))[0]
+                else:
+                    ok = np.where(np.isfinite(cogflux))[0]
+    
+            if len(ok) > 0:
+                for sbcut, cflux, cferr in zip(sblist[ok], cogflux[ok], cogferr[ok]):
+                    results['flux_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(cflux)
+                    results['flux_ivar_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(1/cferr**2)
+                
+        # now get the curve of growth at a wide range of positions along the
+        # semi-major axis.
+        maxsma = np.max(sbprofile['sma_{}'.format(filt.lower())])        # [pixels]
+        if maxsma <= 0:
+            maxsma = np.max(refellipsefit['sma_{}'.format(filt.lower())])        # [pixels]
+            
+        #sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
+
+        sma = refellipsefit['sma_{}'.format(filt.lower())] * 1.0
+        keep = np.where((sma > 0) * (sma <= maxsma))[0]
+        #keep = np.where(sma < maxsma)[0]
+        if len(keep) > 0:
+            sma = sma[keep]
+        else:
+            print('Too few good semi-major axis pixels!')
+            #pdb.set_trace()
+            raise ValueError
+        
+        smb = sma * eps
 
         #print(filt, img.shape, pixscale)
         with np.errstate(all='ignore'):
