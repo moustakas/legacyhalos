@@ -407,6 +407,97 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False,
     else:
         return galaxy, galaxydir
 
+def read_sga2020(first=None, last=None, galaxylist=None, verbose=False,
+                 columns=None, d25min=None, d25max=None, ext='ELLIPSE'):
+    """Read the SGA-2020 catalog.
+
+    d25min in arcmin
+
+    """
+    import fitsio
+            
+    if first and last:
+        if first > last:
+            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+            raise ValueError()
+        
+    #ext = 1
+
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), '2020', 'SGA-2020.fits')
+    if not os.path.isfile(samplefile):
+        raise IOError('Sample file not found! {}'.format(samplefile))
+    
+    info = fitsio.FITS(samplefile)
+    nrows = info[ext].get_nrows()
+
+    if d25min or d25max:
+        cols = ['GROUP_DIAMETER', 'GROUP_PRIMARY', 'SGA_ID']
+        sample = fitsio.read(samplefile, columns=cols)
+        rows = np.arange(len(sample))
+
+        if d25min is None:
+            d25min = 0.0
+        if d25max is None:
+            d25max = 1e5
+
+        samplecut = np.where(
+            (sample['GROUP_DIAMETER'] > d25min) *
+            (sample['GROUP_DIAMETER'] < d25max)# *
+            #sample['GROUP_PRIMARY'] #* 
+            #(sample['SGA_ID'] > -1)
+            )[0]
+        rows = rows[samplecut]
+
+        nrows = len(rows)
+        print('Reading {} galaxies.'.format(nrows))
+    else:
+        rows = None
+
+    if first is None:
+        first = 0
+    if last is None:
+        last = nrows
+        if rows is None:
+            rows = np.arange(first, last)
+        else:
+            rows = rows[np.arange(first, last)]
+    else:
+        if last >= nrows:
+            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
+            raise ValueError()
+        if rows is None:
+            rows = np.arange(first, last+1)
+        else:
+            rows = rows[np.arange(first, last+1)]
+
+    sample = astropy.table.Table(info[ext].read(rows=rows, upper=True, columns=columns))
+    if verbose:
+        if len(rows) == 1:
+            print('Read galaxy index {} from {}'.format(first, samplefile))
+        else:
+            print('Read galaxy indices {} through {} (N={}) from {}'.format(
+                first, last, len(sample), samplefile))
+
+    # Add an (internal) index number:
+    #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
+
+    if galaxylist is not None:
+        if verbose:
+            print('Selecting specific galaxies.')
+        these = np.isin(sample['GROUP_NAME'], galaxylist)
+        if np.count_nonzero(these) == 0:
+            print('No matching galaxies using column GROUP_NAME!')
+            these = np.isin(sample['GALAXY'], galaxylist)
+            if np.count_nonzero(these) == 0:
+                print('No matching galaxies using column GALAXY!')
+                return astropy.table.Table()
+            else:
+                sample = sample[these]
+        else:
+            sample = sample[these]
+
+    return sample
+
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
                 final_sample=False, preselect_sample=True, nproc=1,
                 #customsky=False, customredux=False, 

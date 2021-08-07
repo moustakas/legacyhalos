@@ -8,6 +8,7 @@
 import os, sys, time, pdb
 import argparse
 import numpy as np
+import fitsio
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -21,11 +22,13 @@ from legacyhalos.SGA import DIAMCOLUMN, RACOLUMN, DECCOLUMN
 
 from astropy.table import Table
 
-figdir = os.path.join('/mnt', 'SGA', 'science', 'paper1', 'figures')
+figdir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'science', 'paper1', 'figures')
+#figdir = os.path.join('/mnt', 'SGA', 'science', 'paper1', 'figures')
 #figdir = os.path.join('/mnt', '20210115-aas-sga')
 #figdir = os.path.join(os.getenv('HOME'), 'research', 'talks', '2021', '20210115-aas-sga')
-if not os.path.isdir(figdir):
-    figdir = os.path.join(os.getenv('HOME'), 'SGA', 'science', 'paper1', 'figures')
+#if not os.path.isdir(figdir):
+#    figdir = os.path.join(os.getenv('HOME'), 'SGA', 'science', 'paper1', 'figures')
+#    #figdir = os.path.join(os.getenv('HOME'), 'SGA', 'science', 'paper1', 'figures')
 fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
 
 #os.environ['LEGACYHALOS_DIR'] = os.path.join(os.getenv('HOME'), 'research', 'projects', 'SGA')
@@ -57,17 +60,27 @@ def plot_style(font_scale=1.2, paper=False, talk=True):
 
     return sns, colors
 
-def fig_size_mag(sample, frac=None, png=None):
+def fig_size_mag(sample, frac=None, leda=False, png=None):
     """
     
     """
     import corner
 
     sns, _ = plot_style(talk=True, font_scale=1.2)
-    
-    good = np.where((sample['RADIUS_SB26'] != -1) * (sample['R_MAG_SB26'] != -1))[0]
-    rmag = sample['R_MAG_SB26'][good]
-    radius = np.log10(sample['RADIUS_SB26'][good]/60) # [arcmin]
+
+    if leda:
+        good = np.where((sample['D25_LEDA'] > 0) * (sample['MAG_LEDA'] > 0))[0]
+        rmag = sample['MAG_LEDA'][good]
+        radius = np.log10(sample['D25_LEDA'][good]) # [arcmin]
+        xlabel = r'$B_t$ (Vega mag)'
+        ylabel = r'$D(25)$ (arcmin)'
+        
+    else:
+        good = np.where((sample['RADIUS_SB26'] != -1) * (sample['R_MAG_SB26'] != -1))[0]
+        rmag = sample['R_MAG_SB26'][good]
+        radius = np.log10(sample['RADIUS_SB26'][good]/60) # [arcmin]
+        xlabel = r'$m_{r}(<R_{26})$ (AB mag)'
+        ylabel = r'$R_{26}$ (arcmin)'
     
     xlim, ylim = (8, 20), (-1, 1)
 
@@ -107,9 +120,79 @@ def fig_size_mag(sample, frac=None, png=None):
     ax.set_ylim(ylim)
     #ax.set_yscale('log')
     #ax.xmargins(0)
-    ax.set_xlabel(r'$m_{r}(<R_{26})$ (AB mag)')
-    ax.set_ylabel(r'$R_{26}$ (arcmin)')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
     #ax.set_ylabel(r'$\log_{10}\ R_{26}$ (arcmin)')
+    
+    fig.subplots_adjust(bottom=0.15, top=0.95, right=0.95, left=0.15)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)#, bbox_inches='tight')
+        plt.close(fig)
+
+def fig_d25_hist(sample, png=None):
+    """
+    
+    """
+    import corner
+
+    sns, colors = plot_style(talk=True, font_scale=1.2)
+
+    good = np.where(sample['D25_LEDA'] > 0)[0]
+    #print(len(good), len(sample))
+    #pdb.set_trace()
+    
+    d25 =  np.log10(sample['D25_LEDA'][good]) # [arcmin]
+    leda = sample['SGA_ID'][good] < 2000000
+    notleda = sample['SGA_ID'][good] >= 2000000
+
+    #allrefs = sample['DIAM_REF']
+    #refs = set(allrefs)
+    
+    xlim = (-1, 1.9)
+    
+    @ticker.FuncFormatter
+    def major_formatter(x, pos):
+        if x >= 0:
+            return '{:.0f}'.format(10**x)
+        else:
+            return '{:.1f}'.format(10**x)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    ax.hist(d25[leda], bins=75, range=xlim, color=colors[0], label='HyperLeda')
+    ax.hist(d25[notleda], bins=75, range=xlim, color=colors[2], label='Supplemental', alpha=0.7)
+    ax.axvline(x=np.log10(20/60), lw=2, ls='--', color='k', label=r'$D_{\mathrm{HL}}(25)=20$ arcsec')
+    
+    ax.xaxis.set_major_formatter(major_formatter)
+    ax.set_xticks(np.log10([0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60]))
+
+    hh, ll = ax.get_legend_handles_labels()
+    ax.legend([hh[1], hh[2], hh[0]], [ll[1], ll[2], ll[0]], loc='upper right', fontsize=14) # frameon=False, 
+
+    if False:
+        igal = np.where(sample['GALAXY'] == 'NGC0598')[0]
+        xpos, y1, y2, y3 = d25[igal]-0.01, 1.5, 6, 8
+        ax.text(xpos, y3, 'NGC0598=M33', ha='center', va='bottom',
+                rotation=90, fontsize=12, alpha=1.0)
+        ax.plot([xpos, xpos], [y1, y2], lw=1, ls='--', color='gray')
+
+        igal = np.where(sample['GALAXY'] == 'NGC5457')[0]
+        xpos, y1, y2, y3 = d25[igal]-0.01, 3, 11, 15
+        ax.text(xpos, y3, 'NGC5457=M101', ha='center', va='bottom',
+                rotation=90, fontsize=12, alpha=1.0)
+        ax.plot([xpos, xpos], [y1, y2], lw=1, ls='--', color='gray')
+
+    # labels and all that
+    ax.set_xlim(xlim)
+    #ax.set_ylim(ylim)
+    #ax.set_yscale('log')
+    #ax.xmargins(0)
+    ax.set_xlabel(r'$D_{\mathrm{HL}}(25)$ (arcmin)')
+    ax.set_ylabel('Number of Galaxies')
+    ax.set_yscale('log')
     
     fig.subplots_adjust(bottom=0.15, top=0.95, right=0.95, left=0.15)
 
@@ -240,7 +323,7 @@ def fig_sky(S, png=None):
     W,H = 800,400
     #W,H = 1000,500
     #W,H = 2000,1000
-    ra_center = 275.
+    ra_center = 120. # 275.
     wcs = anwcs_create_hammer_aitoff(ra_center, 0., zoom, W, H, False)
     ok,S.x,S.y = wcs.radec2pixelxy(S.ra, S.dec)
 
@@ -314,8 +397,8 @@ def fig_sky(S, png=None):
     ok,xx,yy = wcs.radec2pixelxy(rr, dd)
 
     # Label
-    ii = np.argmin(np.abs(rr - 275))
-    angle = 180+np.rad2deg(np.arctan2(yy[ii+1]-yy[ii-1], xx[ii+1]-xx[ii-1]))
+    ii = np.argmin(np.abs(rr - ra_center+5))
+    angle = 185+np.rad2deg(np.arctan2(yy[ii+1]-yy[ii-1], xx[ii+1]-xx[ii-1]))
     plt.text(xx[ii], yy[ii], 'Galactic Plane', ha='center', va='bottom', rotation=angle)
 
     # Plot segments that are above min Dec and not discontinuous
@@ -333,8 +416,8 @@ def fig_sky(S, png=None):
             plt.plot(xx[istart:iend], yy[istart:iend], '-', color='0.6', lw=2)
         istart = iend
 
-    ok,x,y = wcs.radec2pixelxy(ra_center, -45)
-    plt.text(x, y, 'RA (deg)')
+    ok,x,y = wcs.radec2pixelxy(ra_center+8, -45)
+    plt.text(x, y, 'RA (deg)', ha='center')
 
     plt.xticks([])
     plt.yticks([])
@@ -386,7 +469,7 @@ def fig_sbmontage(onegal, png):
     from legacyhalos.io import read_ellipsefit
     from legacyhalos.ellipse import ellipse_sbprofile, CogModel
     from legacyhalos.qa import _sbprofile_colors
-    from legacyhalos.SGA import read_multiband
+    from legacyhalos.SGA import read_multiband, SBTHRESH, cog_model
 
     sns, _ = plot_style(talk=True, font_scale=1.4)
     
@@ -568,8 +651,8 @@ def fig_sbmontage(onegal, png):
     refband = ellipsefit['refband']
 
     yminmax = [40, 0]
-    xminmax = [0.9, 0]
-    #xminmax = [1, 0]
+    xminmax = [1.0, 0]
+    #xminmax = [1.0, 0]
 
     #fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
     #                               gridspec_kw = {'height_ratios':[2, 1]})
@@ -658,60 +741,62 @@ def fig_sbmontage(onegal, png):
     # [3] curve of growth
     ax3 = fig.add_subplot(gs2[2], sharex=ax2)
     colors = _sbprofile_colors()
+    colors2 = iter(['navy', 'darkgreen', 'tomato'])
+    marker = iter(['s', 'o', '^'])
+
+    radkeys = ['SMA_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
+    sma_arcsec = np.array(list(onegal[radkeys].as_array()[0])) # semi-major axis, arcsec
+    xplot_arcsec = np.linspace(0.01, 1.05*xlim[1]**4, 100)
+    #xplot_arcsec = np.linspace(0.01, 1.3*np.max(sma_arcsec), 100)
 
     maxsma = 0
     eps = ellipsefit['eps']
-    
+
     yfaint, ybright = 0, 50
     for filt in bands:
         col = next(colors) # iterate here in case we're missing a bandpass
+        col2 = next(colors2)
+        mark = next(marker)
 
-        sma = ellipsefit['{}_cog_sma'.format(filt)]
-        if plot_radius:
-            radius = (sma * np.sqrt(1-eps) * data['refpixscale'])**0.25 # circularized radius [arcsec]
-        else:
-            radius = sma**0.25 # [arcsec]
+        magkeysfilt = [radkey.replace('SMA_', '{}_MAG_'.format(filt.upper())) for radkey in radkeys]
+        magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
+        cogmag = np.array(list(onegal[magkeysfilt].as_array()[0]))
+        cogmagerr = np.sqrt((np.array(list(onegal[magerrkeysfilt].as_array()[0])))**2 + minerr**2)
 
-        cog = ellipsefit['{}_cog_mag'.format(filt)]
-        cogerr = ellipsefit['{}_cog_magerr'.format(filt)]
-        chi2 = ellipsefit['{}_cog_params_chi2'.format(filt)]
-        if np.atleast_1d(cog)[0] == -1 or chi2 == 1e6: # no measurement, or failed
-            continue
-        magtot = ellipsefit['{}_cog_params_mtot'.format(filt)]
-        m0 = ellipsefit['{}_cog_params_m0'.format(filt)]
-        alpha1 = ellipsefit['{}_cog_params_alpha1'.format(filt)]
-        alpha2 = ellipsefit['{}_cog_params_alpha2'.format(filt)]
+        these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
+        cog = cogmag[these]
+        cogerr = cogmagerr[these]
+        sma = sma_arcsec[these]
 
-        label = r'{}={:.3f} ($\chi^2_\nu={:.1f}$)'.format(filt, magtot, chi2)
-            
-        ax3.fill_between(radius, cog-cogerr, cog+cogerr, label=label, color=col)
-        #ax3.fill_between(sma, cog-cogerr, cog+cogerr, label=label, color=col)
+        magtot = onegal['{}_COG_PARAMS_MTOT'.format(filt.upper())][0]
+        m0 = onegal['{}_COG_PARAMS_M0'.format(filt.upper())][0]
+        alpha1 = onegal['{}_COG_PARAMS_ALPHA1'.format(filt.upper())][0]
+        alpha2 = onegal['{}_COG_PARAMS_ALPHA2'.format(filt.upper())][0]
+        chi2 = onegal['{}_COG_PARAMS_CHI2'.format(filt.upper())][0]
+        #print(filt, magtot, m0, alpha1, alpha2)
 
-        cogmodel = CogModel().evaluate(sma, magtot, m0, alpha1, alpha2)
-        if False:
-            ax3.plot(radius, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
-            #ax3.plot(sma, cogmodel, color='k', lw=2, ls='--', alpha=0.5)
-        if sma.max() > maxsma:
-            maxsma = sma.max()
+        label = r'${}={:.3f}$'.format(filt, magtot)
+        #label = r'${}={:.3f}\ (\chi^{{2}}_{{\nu}}={:.2f})$'.format(filt, magtot, chi2)
+        #label = r'${}$'.format(filt)
 
-        inrange = np.where((radius >= xlim[0]) * (radius <= xlim[1]))[0]
-            
-        if cog[inrange].max() > yfaint:
-            yfaint = cog[inrange].max()
-        if cog[inrange].min() < ybright:
-            ybright = cog[inrange].min()
+        ax3.errorbar(sma**0.25, cog, cogerr, fmt=mark, color=col, label=label,
+                     markersize=10, capthick=2, capsize=2)
 
-    ax3.set_xlabel(r'Semi-major axis $r^{1/4}$ (arcsec)$^{1/4}$')
-    #ax3.set_ylabel('Cumulative brightness (AB mag)')
-    #ax3.set_xlabel(r'(Galactocentric radius $r$)$^{1/4}$ (arcsec)')    
+        yplot_mag = cog_model(xplot_arcsec, magtot, m0, alpha1, alpha2)
+        ax3.plot(xplot_arcsec**0.25, yplot_mag, color=col2, lw=2, ls='-', alpha=0.5)
+
+        if np.max(sma) > maxsma:
+            maxsma = np.max(sma)
+
+        if cog.max() > yfaint:
+            yfaint = cog.max()
+        if cog.min() < ybright:
+            ybright = cog.min()
+
+    ax3.set_xlabel(r'(Semi-major axis / arcsec)$^{1/4}$')
     ax3.set_ylabel(r'm$(<r)$ (mag)')
-    ax3.margins(x=0)
-
+    #ax3.margins(x=0)
     ax3.set_xlim(xlim)
-    #if maxsma > 0:
-    #    ax3.set_xlim(0, maxsma*1.01)
-    #else:
-    #    ax3.set_xlim(0, 1) # hack!
         
     yfaint += 0.7
     ybright += -0.7
@@ -980,10 +1065,88 @@ def fig_sbmontage_gallery(onegal, png):
         fig.savefig(pngfile)#, bbox_inches='tight')
         plt.close(fig)
 
+def fig_sample_montage(sample, tractor, seed=1, png=None):
+    """Show a random sampling of galaxies."""
+
+    rand = np.random.RandomState(seed=seed)
+
+    ncol = 7
+    nrow = 6
+    ngal = ncol * nrow
+
+    # Pick XX random galaxies, uniformly selected in surface brightness.
+    r50 = tractor['SHAPE_R']
+    rmag = 22.5-2.5*np.log10(tractor['FLUX_R'])
+    sb = rmag + 2.5 * np.log10(np.pi * (60/2)**2) + 5*np.log10(r50/60)
+    
+    keep = np.where((rmag < 19) * (rmag > 14) * (r50 > 5) * (sb < 25))[0]
+    print(len(keep))
+
+    sb = sb[keep]
+    sample = sample[keep]
+    tractor = tractor[keep]
+    print(np.min(sb), np.max(sb))
+
+    ## mean surface brightness within R(26) where SMA_SB26 is in arcmin
+    #sbkey = 'SB25'
+    #keep = np.where((sample['R_MAG_{}'.format(sbkey)] < 20) * (sample['R_MAG_{}'.format(sbkey)] > 14) * (sample['SMA_{}'.format(sbkey)] > 10))[0]
+    #sample = sample[keep]
+    #sb = sample['R_MAG_{}'.format(sbkey)] + 2.5 * np.log10(np.pi * (60/2)**2) + 5*np.log10(sample['SMA_{}'.format(sbkey)]/60)
+
+    #keep = np.where(sb < 24)[0]
+    #sb = sb[keep]
+    #sample = sample[keep]
+    #print(len(sample))
+    
+    #keep = np.where((sample['SB'] > 18) * (sample['SB'] < 27) *
+    #                (sample['RMAG'] < 19) * (sample['REFF'] > 5))[0]
+    #sample = sample[keep]
+
+    nbin = 20
+    _xbin = np.linspace(np.min(sb), np.max(sb), nbin)
+    idx  = np.digitize(sb, _xbin)
+
+    prob = np.zeros_like(sb)
+    for kk in range(nbin):
+        ww = idx == kk
+        if np.sum(ww) > 0:
+            prob[ww] = 1 / np.sum(ww)
+    prob /= np.sum(prob)
+
+    these = rand.choice(len(sample), ngal, p=prob, replace=False)
+
+    srt = np.argsort(sb[these])
+    sample = sample[these[srt]]
+    tractor = tractor[these[srt]]
+    sb = sb[these[srt]]
+    print(sb)
+
+    gal, galdir = get_galaxy_galaxydir(sample)
+    infiles = []
+    for gal1, galdir1 in zip(gal, galdir):
+        infile1 = os.path.join(galdir1, '{}-largegalaxy-image-grz.jpg'.format(gal1))
+        #if not os.path.isfile(infile1):
+        #    infile1 = os.path.join(adapdir, 'smiley.jpg')
+        infiles.append(infile1)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+    
+        #cmd = 'montage -tile {}x{} -geometry 128x128 '.format(ncol, nrow)
+        cmd = 'montage -bordercolor white -borderwidth 1 -tile {}x{} -geometry 256x256 '.format(ncol, nrow)
+        cmd = cmd+' '.join([inff for inff in infiles])
+        cmd = cmd+' {}'.format(pngfile)
+        print(cmd)
+        os.system(cmd)        
+
 def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--sky', action='store_true')
+    parser.add_argument('--d25-hist', action='store_true')
+    parser.add_argument('--sample-montage', action='store_true')
+
     parser.add_argument('--sbmontage', action='store_true')
     parser.add_argument('--sbmontage-gallery', action='store_true')
     parser.add_argument('--sb-mag', action='store_true')
@@ -1004,28 +1167,42 @@ def main():
         #S.cut((S.sga_id > -1) * (S.preburned))
         
         sga = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020.fits'), ext='ELLIPSE')
-        #sgaleda = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020-leda.fits'))
-        sga.ra = sga.ra_leda
-        sga.dec = sga.dec_leda
+        #sga.ra = sga.ra_leda
+        #sga.dec = sga.dec_leda
 
         fig_sky(sga, png='sga-2020-sky.png')
-        #fig_sky(sgaleda, png='sga-leda-sky.png')
-        
-        pdb.set_trace()
 
+        #sgaleda = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020-leda.fits'))
+        #fig_sky(sgaleda, png='sga-leda-sky.png')
+
+        sga = fits_table(os.path.join('/mnt', 'SGA', 'sample', 'v3.0', 'SGA-parent-v3.0.fits'))
+        fig_sky(sga, png='sga-2020-parent-sky.png')
+        
+    # Fig - histogram of D(25) from Leda
+    if args.d25_hist:
+        sample = Table(fitsio.read(os.path.join('/mnt', 'SGA', 'sample', 'v3.0', 'SGA-parent-v3.0.fits')))
+        pdb.set_trace()
+        fig_d25_hist(sample, png='d25-hist.png')
+
+    # Fig - sample montage
+    if args.sample_montage:
+        sample = legacyhalos.SGA.read_sga2020(ext='ELLIPSE')
+        tractor = legacyhalos.SGA.read_sga2020(ext='TRACTOR')
+        fig_sample_montage(sample, tractor, seed=5, png='sample-montage.png')
+        
     # Fig - bivariate scatterplot of surface brightness vs magnitude
     if args.sb_mag:
-        sample = legacyhalos.SGA.read_sample()
+        sample = legacyhalos.SGA.read_sga2020()
         fig_sb_mag(sample, png='sb-vs-mag.png')
     
     # Fig - bivariate scatterplot of size vs magnitude
     if args.size_mag:
-        sample = legacyhalos.SGA.read_sample()
-        fig_size_mag(sample, png='size-vs-mag.png')
+        sample = legacyhalos.SGA.read_sga2020()
+        fig_size_mag(sample, png='size-vs-mag-leda.png', leda=True)
     
     # Fig - SB montage
     if args.sbmontage:
-        sample = legacyhalos.SGA.read_sample(galaxylist='PGC193199')
+        sample = legacyhalos.SGA.read_sga2020(galaxylist='PGC193192', primary=False)
         fig_sbmontage(sample, png='PGC193199-sbmontage.png')
         #for gal in galaxy:
         #    fig_surface_brightness(sample, thisgalaxy=gal, png='surface_brightness_{}.png'.format(gal))
