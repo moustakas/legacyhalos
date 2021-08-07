@@ -23,6 +23,7 @@ GALAXYCOLUMN = 'GROUP_NAME'
 REFIDCOLUMN = 'VF_ID'
 
 SBTHRESH = [22.0, 22.5, 23.0, 23.5, 24.0, 24.5, 25.0, 25.5, 26.0] # surface brightness thresholds
+APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0] # multiples of MAJORAXIS
 
 ELLIPSEBITS = dict(
     largeshift = 2**0, # >10-pixel shift in the flux-weighted center
@@ -863,6 +864,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                      pixscale=pixscale, nproc=nproc, 
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
+                     apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
                      verbose=verbose, debug=True)#debug, logfile=logfile)
 

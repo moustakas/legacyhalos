@@ -20,6 +20,7 @@ from photutils.isophote.fitter import CentralEllipseFitter
 import legacyhalos.io
 
 REF_SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
+REF_APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0] # multiples of MAJORAXIS
 
 def _get_r0():
     r0 = 10.0 # [arcsec]
@@ -95,7 +96,7 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False, iscir
     return apphot
 
 def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
-                seed=1, sbthresh=REF_SBTHRESH):
+                seed=1, sbthresh=REF_SBTHRESH, apertures=REF_APERTURES):
     """Measure the curve of growth (CoG) by performing elliptical aperture
     photometry.
 
@@ -166,11 +167,18 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         #    print('Warning: extrapolating r({:0g})!'.format(sbcut))
         #    rcut = interp1d(sbprofile['mu_{}'.format(refband)], sbprofile['sma_{}'.format(refband)] * pixscale, fill_value='extrapolate')(sbcut) # [arcsec]
         if meanrcut > 0 and sigrcut > 0:
-            results['sma_sb{:0g}'.format(sbcut)] = np.float32(meanrcut)
+            results['sma_sb{:0g}'.format(sbcut)] = np.float32(meanrcut) # [arcsec]
             results['sma_ivar_sb{:0g}'.format(sbcut)] = np.float32(1.0 / sigrcut**2)
         else:
             results['sma_sb{:0g}'.format(sbcut)] = np.float32(0.0)
             results['sma_ivar_sb{:0g}'.format(sbcut)] = np.float32(0.0)
+
+    # aperture radii
+    for iap, ap in enumerate(apertures):
+        if refellipsefit['sma_moment'] > 0:
+            results['sma_ap{:02d}'.format(iap+1)] = np.float32(refellipsefit['sma_moment'] * ap) # [arcsec]
+        else:
+            results['sma_ap{:02d}'.format(iap+1)] = np.float32(0.0)
 
     chi2fail = 1e6
     nparams = 4
@@ -203,27 +211,37 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         #    pdb.set_trace()
         #im = np.log10(img) ; im[mask] = 0 ; plt.clf() ; plt.imshow(im, origin='lower') ; plt.scatter(y0, x0, s=50, color='red') ; plt.savefig('junk.png')
 
-        # first get the elliptical aperture photometry within the threshold
-        # radii found above.
-        sma, sblist = [], []
+        # First get the elliptical aperture photometry within the threshold
+        # radii found above. Also measure aperture photometry in integer
+        # multiples of sma_moment.
+        smapixels, sbaplist = [], []
         for sbcut in sbthresh:
             # initialize with zeros
             results['flux_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
             results['flux_ivar_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
-            _sma = results['sma_sb{:0g}'.format(sbcut)]
-            if _sma > 0:
-                sma.append(_sma)
-                sblist.append(sbcut)
-                
-        if len(sma) > 0:
-            sma = np.hstack(sma)
-            sblist = np.hstack(sblist)
-            smb = sma * eps
+            _smapixels = results['sma_sb{:0g}'.format(sbcut)] / pixscale # [pixels]
+            if _smapixels > 0:
+                smapixels.append(_smapixels)
+                sbaplist.append('sb{:0g}'.format(sbcut))
+
+        for iap, ap in enumerate(apertures):
+            # initialize with zeros
+            results['flux_ap{:02d}_{}'.format(iap+1, filt.lower())] = np.float32(0.0)
+            results['flux_ivar_ap{:02d}_{}'.format(iap+1, filt.lower())] = np.float32(0.0)
+            _smapixels = results['sma_ap{:02d}'.format(iap+1)] / pixscale # [pixels]
+            if _smapixels > 0:
+                smapixels.append(_smapixels)
+                sbaplist.append('ap{:02d}'.format(iap+1))
+
+        if len(smapixels) > 0:
+            smapixels = np.hstack(smapixels)
+            sbaplist = np.hstack(sbaplist)
+            smbpixels = smapixels * eps
             with np.errstate(all='ignore'):
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category=AstropyUserWarning)
                     cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle)
-                                                    for aa, bb in zip(sma, smb)])
+                                                    for aa, bb in zip(smapixels, smbpixels)])
                     if len(cogflux) > 0:
                         cogflux = np.hstack(cogflux)
                     else:
@@ -231,7 +249,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                     if '{}_var'.format(filt.lower()) in data.keys():
                         var = data['{}_var'.format(filt.lower())][igal] # [nanomaggies**2/arcsec**4]
                         cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True, iscircle)
-                                                        for aa, bb in zip(sma, smb)])
+                                                        for aa, bb in zip(smapixels, smbpixels)])
                         if len(cogferr) > 0:
                             cogferr = np.hstack(cogferr)
                         else:
@@ -246,19 +264,19 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                     ok = np.where(np.isfinite(cogflux))[0]
     
             if len(ok) > 0:
-                for sbcut, cflux, cferr in zip(sblist[ok], cogflux[ok], cogferr[ok]):
-                    results['flux_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(cflux)
-                    results['flux_ivar_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(1/cferr**2)
-                
-        # now get the curve of growth at a wide range of positions along the
-        # semi-major axis.
+                for label, cflux, cferr in zip(sbaplist[ok], cogflux[ok], cogferr[ok]):
+                    results['flux_{}_{}'.format(label, filt.lower())] = np.float32(cflux)
+                    results['flux_ivar_{}_{}'.format(label, filt.lower())] = np.float32(1/cferr**2)
+
+        # now get the curve of growth at a wide range of regularly spaced
+        # positions along the semi-major axis.
         maxsma = np.max(sbprofile['sma_{}'.format(filt.lower())])        # [pixels]
         if maxsma <= 0:
             maxsma = np.max(refellipsefit['sma_{}'.format(filt.lower())])        # [pixels]
             
         #sma = np.arange(deltaa_filt, maxsma * pixscalefactor, deltaa_filt)
 
-        sma = refellipsefit['sma_{}'.format(filt.lower())] * 1.0
+        sma = refellipsefit['sma_{}'.format(filt.lower())] * 1.0 # [pixels]
         keep = np.where((sma > 0) * (sma <= maxsma))[0]
         #keep = np.where(sma < maxsma)[0]
         if len(keep) > 0:
@@ -721,7 +739,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                          refband='r', nproc=1, 
                          integrmode='median', nclip=3, sclip=3,
                          maxsma=None, logsma=True, delta_logsma=5.0, delta_sma=1.0,
-                         sbthresh=REF_SBTHRESH,
+                         sbthresh=REF_SBTHRESH, apertures=REF_APERTURES,
                          galaxyinfo=None, input_ellipse=None,
                          fitgeometry=False, nowrite=False, verbose=False):
     """Multi-band ellipse-fitting, broadly based on--
@@ -952,7 +970,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     print('Performing elliptical aperture photometry.')
     t0 = time.time()
     cog = ellipse_cog(bands, data, ellipsefit, igal=igal,
-                      pool=pool, sbthresh=sbthresh)
+                      pool=pool, sbthresh=sbthresh, apertures=apertures)
     ellipsefit.update(cog)
     del cog
     print('Time = {:.3f} min'.format( (time.time() - t0) / 60))
@@ -972,6 +990,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                                         galaxyinfo=outgalaxyinfo,
                                         refband=refband,
                                         sbthresh=sbthresh,
+                                        apertures=apertures,
                                         bands=ellipsefit['bands'],
                                         verbose=True,
                                         filesuffix=filesuffix)
@@ -982,6 +1001,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                         pixscale=0.262, nproc=1, refband='r',
                         bands=['g', 'r', 'z'], integrmode='median',
                         nclip=3, sclip=3, sbthresh=REF_SBTHRESH,
+                        apertures=REF_APERTURES,
                         delta_sma=1.0, delta_logsma=5, maxsma=None, logsma=True,
                         input_ellipse=None, fitgeometry=False,
                         verbose=False, debug=False):
@@ -1014,6 +1034,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                                               delta_logsma=delta_logsma, maxsma=maxsma,
                                               delta_sma=delta_sma, logsma=logsma,
                                               refband=refband, nproc=nproc, sbthresh=sbthresh,
+                                              apertures=apertures,
                                               integrmode=integrmode, nclip=nclip, sclip=sclip,
                                               input_ellipse=input_ellipse,
                                               verbose=verbose, fitgeometry=False)
