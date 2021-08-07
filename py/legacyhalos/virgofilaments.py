@@ -23,7 +23,7 @@ GALAXYCOLUMN = 'GROUP_NAME'
 REFIDCOLUMN = 'VF_ID'
 
 SBTHRESH = [22.0, 22.5, 23.0, 23.5, 24.0, 24.5, 25.0, 25.5, 26.0] # surface brightness thresholds
-APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0] # multiples of MAJORAXIS
+APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0] # multiples of MAJORAXIS
 
 ELLIPSEBITS = dict(
     largeshift = 2**0, # >10-pixel shift in the flux-weighted center

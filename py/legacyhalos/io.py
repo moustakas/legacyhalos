@@ -368,7 +368,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     hx.writeto(tmpfile, overwrite=True, checksum=True)
     os.rename(tmpfile, ellipsefitfile)
     #hx.writeto(ellipsefitfile, overwrite=True, checksum=True)
-    
+
     #out.write(ellipsefitfile, overwrite=True)
     #fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
