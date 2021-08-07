@@ -1,4 +1,4 @@
-FROM legacysurvey/legacypipe:DR9.7.0
+FROM legacysurvey/legacypipe:DR9.8.3
 
 RUN for x in \
     ipython \
@@ -6,6 +6,7 @@ RUN for x in \
     pyyaml \
     h5py \
     colossus \
+    gnureadline \
     corner \
     scikit-image \
     ; do pip --no-cache-dir install $x; done
@@ -25,6 +26,6 @@ ENV PYTHONPATH=/src/legacyhalos/py:$PYTHONPATH
 ENV PATH=/src/legacyhalos/bin:$PATH
 
 # update legacyhalos
-RUN cd /src/legacyhalos && git pull && git describe && echo 2
+RUN cd /src/legacyhalos && git pull && git describe && echo 1.1
 
 LABEL Maintainer="John Moustakas jmoustakas@siena.edu"

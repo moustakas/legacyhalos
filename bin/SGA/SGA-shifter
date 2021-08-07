@@ -4,7 +4,7 @@
 #-c 'PATH=/mnt/code/legacyhalos/bin/legacyhalos:$PATH' 
 
 if [[ -z "$NERSC_HOST" ]]; then
-    DOCKER=legacysurvey/legacyhalos:v0.0.5
+    DOCKER=legacysurvey/legacyhalos:v0.1
     echo 'Updating and loading the Docker container '$DOCKER
     echo 'Load the environment with: '
     echo '  source /mnt/code/legacyhalos/bin/SGA/SGA-env'
@@ -23,7 +23,7 @@ if [[ -z "$NERSC_HOST" ]]; then
            -e LEGACYPIPE_CODE_DIR=/mnt/code/legacypipe \
            $DOCKER
 else
-    SHIFTER=docker:legacysurvey/legacyhalos:v0.0.5
+    SHIFTER=docker:legacysurvey/legacyhalos:v0.1
     echo 'Updating and loading the shifter image '$SHIFTER
     echo 'Load the environment with: '
     echo '  source '$LEGACYHALOS_CODE_DIR'/bin/SGA/SGA-env'
