@@ -312,10 +312,6 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
             results['cog_chi2_{}'.format(filt.lower())] = np.float32(-1)
             results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
-
-            for sbcut in sbthresh:
-                results['flux_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
-                results['flux_ivar_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
         else:
             results['cog_sma_{}'.format(filt.lower())] = np.float32(sma[ok] * pixscale) # [arcsec]
             results['cog_flux_{}'.format(filt.lower())] = np.float32(cogflux[ok])
@@ -339,10 +335,6 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
                 results['cog_chi2_{}'.format(filt.lower())] = np.float32(-1)
                 results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
-
-                for sbcut in sbthresh:
-                    results['flux_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
-                    results['flux_ivar_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
                 continue
 
             sma_arcsec = sma[these] * pixscale             # [arcsec]
@@ -372,52 +364,54 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                         #    pdb.set_trace()
                     results['cog_sma50_{}'.format(filt.lower())] = np.float32(half_light_sma)
 
-            #print('Measuring integrated magnitudes to different radii.')
-            sb = ellipse_sbprofile(refellipsefit, linear=True)
-            radkeys = ['sma_sb{:0g}'.format(sbcut) for sbcut in sbthresh]
-            for radkey in radkeys:
-                fluxkey = radkey.replace('sma_', 'flux_')+'_{}'.format(filt.lower())
-                fluxivarkey = radkey.replace('sma_', 'flux_ivar_')+'_{}'.format(filt.lower())
+            # This code is not needed anymore because we do proper aperture photometry above.
 
-                smamax = results[radkey] # semi-major axis
-                if smamax > 0 and smamax < np.max(sma_arcsec):
-                    rmax = smamax * np.sqrt(1 - refellipsefit['eps_moment']) # [circularized radius, arcsec]
+            ##print('Measuring integrated magnitudes to different radii.')
+            #sb = ellipse_sbprofile(refellipsefit, linear=True)
+            #radkeys = ['sma_sb{:0g}'.format(sbcut) for sbcut in sbthresh]
+            #for radkey in radkeys:
+            #    fluxkey = radkey.replace('sma_', 'flux_')+'_{}'.format(filt.lower())
+            #    fluxivarkey = radkey.replace('sma_', 'flux_ivar_')+'_{}'.format(filt.lower())
+            #
+            #    smamax = results[radkey] # semi-major axis
+            #    if smamax > 0 and smamax < np.max(sma_arcsec):
+            #        rmax = smamax * np.sqrt(1 - refellipsefit['eps_moment']) # [circularized radius, arcsec]
+            #
+            #        rr = sb['radius_{}'.format(filt.lower())]    # [circularized radius, arcsec]
+            #        yy = sb['mu_{}'.format(filt.lower())]        # [surface brightness, nanomaggies/arcsec**2]
+            #        yyerr = sb['muerr_{}'.format(filt.lower())] # [surface brightness, nanomaggies/arcsec**2]
+            #        try:
+            #            #print(filt, rr.max(), rmax)
+            #            yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
+            #            yyerr_rmax = interp1d(rr, yyerr)(rmax)
+            #
+            #            # append the maximum radius to the end of the array
+            #            keep = np.where(rr < rmax)[0]
+            #            _rr = np.hstack((rr[keep], rmax))
+            #            _yy = np.hstack((yy[keep], yy_rmax))
+            #            _yyerr = np.hstack((yyerr[keep], yyerr_rmax))
+            #
+            #            flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy) # [nanomaggies]
+            #            fvar = (2 * np.pi)**2 * integrate.simps(x=_rr, y=_rr*_yyerr**2)
+            #            if flux > 0 and fvar > 0:
+            #                results[fluxkey] = np.float32(flux)
+            #                results[fluxivarkey] = np.float32(1.0 / fvar)
+            #                #results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
+            #                #results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
+            #            else:
+            #                results[fluxkey] = np.float32(0.0)
+            #                results[fluxivarkey] = np.float32(0.0)
+            #                #results[magkey] = np.float32(-1.0)
+            #                #results[magerrkey] = np.float32(-1.0)
+            #            #if filt == 'r':
+            #            #    pdb.set_trace()
+            #        except:
+            #            results[fluxkey] = np.float32(0.0)
+            #            results[fluxivarkey] = np.float32(0.0)
+            #    else:
+            #        results[fluxkey] = np.float32(0.0)
+            #        results[fluxivarkey] = np.float32(0.0)
 
-                    rr = sb['radius_{}'.format(filt.lower())]    # [circularized radius, arcsec]
-                    yy = sb['mu_{}'.format(filt.lower())]        # [surface brightness, nanomaggies/arcsec**2]
-                    yyerr = sb['muerr_{}'.format(filt.lower())] # [surface brightness, nanomaggies/arcsec**2]
-                    try:
-                        #print(filt, rr.max(), rmax)
-                        yy_rmax = interp1d(rr, yy)(rmax) # can fail if rmax < np.min(sma_arcsec)
-                        yyerr_rmax = interp1d(rr, yyerr)(rmax)
-
-                        # append the maximum radius to the end of the array
-                        keep = np.where(rr < rmax)[0]
-                        _rr = np.hstack((rr[keep], rmax))
-                        _yy = np.hstack((yy[keep], yy_rmax))
-                        _yyerr = np.hstack((yyerr[keep], yyerr_rmax))
-
-                        flux = 2 * np.pi * integrate.simps(x=_rr, y=_rr*_yy) # [nanomaggies]
-                        fvar = (2 * np.pi)**2 * integrate.simps(x=_rr, y=_rr*_yyerr**2)
-                        if flux > 0 and fvar > 0:
-                            results[fluxkey] = np.float32(flux)
-                            results[fluxivarkey] = np.float32(1.0 / fvar)
-                            #results[magkey] = np.float32(22.5 - 2.5 * np.log10(flux))
-                            #results[magerrkey] = np.float32(2.5 * ferr / flux / np.log(10))
-                        else:
-                            results[fluxkey] = np.float32(0.0)
-                            results[fluxivarkey] = np.float32(0.0)
-                            #results[magkey] = np.float32(-1.0)
-                            #results[magerrkey] = np.float32(-1.0)
-                        #if filt == 'r':
-                        #    pdb.set_trace()
-                    except:
-                        results[fluxkey] = np.float32(0.0)
-                        results[fluxivarkey] = np.float32(0.0)
-                else:
-                    results[fluxkey] = np.float32(0.0)
-                    results[fluxivarkey] = np.float32(0.0)
-                
     return results
 
 def _unmask_center(img):
