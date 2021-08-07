@@ -297,8 +297,6 @@ def build_catalog(sample, nproc=1, verbose=False):
 
     print('Wrote {} galaxies to {}'.format(len(parent), outfile))
 
-    pdb.set_trace()
-
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.05, maxshift=10,
                           sigmamask=3.0,

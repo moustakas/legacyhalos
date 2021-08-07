@@ -22,7 +22,8 @@ DIAMCOLUMN = 'GROUP_DIAMETER'
 GALAXYCOLUMN = 'GROUP_NAME'
 REFIDCOLUMN = 'VF_ID'
 
-SBTHRESH = [23.0, 24.0, 25.0, 26.0] # surface brightness thresholds
+SBTHRESH = [22.0, 22.5, 23.0, 23.5, 24.0, 24.5, 25.0, 25.5, 26.0] # surface brightness thresholds
+APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0] # multiples of MAJORAXIS
 
 ELLIPSEBITS = dict(
     largeshift = 2**0, # >10-pixel shift in the flux-weighted center
@@ -846,7 +847,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           sky_tests=sky_tests, verbose=verbose)
 
     maxsma = None
-    delta_logsma = 4
+    delta_logsma = 4 # 10
 
     #igal = 0
     #maxis = data['mge'][igal]['majoraxis'] # [pixels]
@@ -863,13 +864,14 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                      pixscale=pixscale, nproc=nproc, 
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
+                     apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
                      verbose=verbose, debug=True)#debug, logfile=logfile)
 
 def _init_catalog(clobber=False):
     import legacyhalos.io
 
-    outdir = legacyhalos.io.legacyhalos_data_dir()
+    outdir = legacyhalos.io.legacyhalos_dir()
     outfile = os.path.join(outdir, 'virgofilaments-legacyphot.fits')
     #soutfile = os.path.join(outdir, 'virgofilaments-parent.fits')
     if os.path.isfile(outfile) and not clobber:

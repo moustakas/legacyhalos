@@ -39,7 +39,8 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                  pixscale=0.262, nproc=1, bands=['g', 'r', 'z'], refband='r',
                  delta_logsma=5, maxsma=None, logsma=True,
                  verbose=False, debug=False, write_donefile=True,
-                 logfile=None, input_ellipse=None, sbthresh=None):
+                 logfile=None, input_ellipse=None, sbthresh=None,
+                 apertures=None):
     """Wrapper script to do ellipse-fitting.
 
     """
@@ -56,7 +57,7 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
             galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
             bands=bands, refband=refband,
             pixscale=pixscale, nproc=nproc,
-            sbthresh=sbthresh, input_ellipse=input_ellipse,
+            sbthresh=sbthresh, apertures=apertures, input_ellipse=input_ellipse,
             delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
             verbose=verbose, debug=debug)
         if write_donefile:
@@ -69,7 +70,7 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                     galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                     bands=bands, refband=refband,
                     pixscale=pixscale, nproc=nproc,
-                    sbthresh=sbthresh, input_ellipse=input_ellipse,
+                    sbthresh=sbthresh, apertures=apertures, input_ellipse=input_ellipse,
                     delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
                     verbose=verbose)
                 if write_donefile:

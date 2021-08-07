@@ -149,7 +149,7 @@ def get_run(onegal, racolumn='RA', deccolumn='DEC'):
     return run
 
 # ellipsefit data model
-def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
+def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z']):
     cols = [
         ('bands', ''),
         ('refband', ''),
@@ -233,12 +233,19 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
         cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
     for thresh in sbthresh:
         cols.append(('sma_ivar_sb{:0g}'.format(thresh), 1/u.arcsec**2))
-        
     for band in bands:
         for thresh in sbthresh:
             cols.append(('flux_sb{:0g}_{}'.format(thresh, band.lower()), 1e-9*u.maggy))
         for thresh in sbthresh:
             cols.append(('flux_ivar_sb{:0g}_{}'.format(thresh, band.lower()), 1e18/u.maggy**2))
+
+    for iap, ap in enumerate(apertures):
+        cols.append(('sma_ap{:02d}'.format(iap+1), u.arcsec))
+    for band in bands:
+        for iap, ap in enumerate(apertures):
+            cols.append(('flux_ap{:02d}_{}'.format(iap+1, band.lower()), 1e-9*u.maggy))
+        for iap, ap in enumerate(apertures):
+            cols.append(('flux_ivar_ap{:02d}_{}'.format(iap+1, band.lower()), 1e18/u.maggy**2))
 
     for band in bands:
         cols.append(('cog_sma_{}'.format(band.lower()), u.arcsec))
@@ -257,7 +264,7 @@ def _get_ellipse_datamodel(sbthresh, bands=['g', 'r', 'z']):
 
 def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
                      galaxyinfo=None, refband='r', bands=['g', 'r', 'z'],
-                     sbthresh=None, verbose=False):
+                     sbthresh=None, apertures=None, verbose=False):
     """Write out a FITS file based on the output of
     legacyhalos.ellipse.ellipse_multiband..
 
@@ -283,6 +290,9 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
 
     if sbthresh is None:
         from legacyhalos.ellipse import REF_SBTHRESH as sbthresh
+    
+    if apertures is None:
+        from legacyhalos.ellipse import REF_APERTURES as apertures
     
     # Turn the ellipsefit dictionary into a FITS table, starting with the
     # galaxyinfo dictionary (if provided).
@@ -314,7 +324,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
 
     # Add to the data table
     datakeys = datadict.keys()
-    for key, unit in _get_ellipse_datamodel(sbthresh, bands=bands):
+    for key, unit in _get_ellipse_datamodel(sbthresh, apertures, bands=bands):
         if key not in datakeys:
             raise ValueError('Data model change -- no column {} for galaxy {}!'.format(key, galaxy))
         data = datadict[key]
@@ -358,7 +368,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     hx.writeto(tmpfile, overwrite=True, checksum=True)
     os.rename(tmpfile, ellipsefitfile)
     #hx.writeto(ellipsefitfile, overwrite=True, checksum=True)
-    
+
     #out.write(ellipsefitfile, overwrite=True)
     #fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
