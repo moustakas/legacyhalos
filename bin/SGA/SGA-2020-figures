@@ -145,7 +145,13 @@ def fig_d25_hist(sample, png=None):
     #pdb.set_trace()
     
     d25 =  np.log10(sample['D25_LEDA'][good]) # [arcmin]
-    xlim = (-1, 2)
+    leda = sample['SGA_ID'][good] < 2000000
+    notleda = sample['SGA_ID'][good] >= 2000000
+
+    #allrefs = sample['DIAM_REF']
+    #refs = set(allrefs)
+    
+    xlim = (-1, 1.9)
     
     @ticker.FuncFormatter
     def major_formatter(x, pos):
@@ -156,31 +162,35 @@ def fig_d25_hist(sample, png=None):
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    ax.hist(d25, bins=150, range=xlim, color=colors[1])
-    ax.axvline(x=np.log10(20/60), lw=2, ls='-', color='k', label='D(25)=20 arcsec')
+    ax.hist(d25[leda], bins=75, range=xlim, color=colors[0], label='HyperLeda')
+    ax.hist(d25[notleda], bins=75, range=xlim, color=colors[2], label='Supplemental', alpha=0.7)
+    ax.axvline(x=np.log10(20/60), lw=2, ls='--', color='k', label=r'$D_{\mathrm{HL}}(25)=20$ arcsec')
     
     ax.xaxis.set_major_formatter(major_formatter)
     ax.set_xticks(np.log10([0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60]))
-    ax.legend(loc='upper right', fontsize=14) # frameon=False, 
 
-    igal = np.where(sample['GALAXY'] == 'NGC0598')[0]
-    xpos, y1, y2, y3 = d25[igal]-0.01, 1.5, 6, 8
-    ax.text(xpos, y3, 'NGC0598=M33', ha='center', va='bottom',
-            rotation=90, fontsize=12, alpha=1.0)
-    ax.plot([xpos, xpos], [y1, y2], lw=1, ls='--', color='gray')
+    hh, ll = ax.get_legend_handles_labels()
+    ax.legend([hh[1], hh[2], hh[0]], [ll[1], ll[2], ll[0]], loc='upper right', fontsize=14) # frameon=False, 
 
-    igal = np.where(sample['GALAXY'] == 'NGC5457')[0]
-    xpos, y1, y2, y3 = d25[igal]-0.01, 3, 11, 15
-    ax.text(xpos, y3, 'NGC5457=M101', ha='center', va='bottom',
-            rotation=90, fontsize=12, alpha=1.0)
-    ax.plot([xpos, xpos], [y1, y2], lw=1, ls='--', color='gray')
+    if False:
+        igal = np.where(sample['GALAXY'] == 'NGC0598')[0]
+        xpos, y1, y2, y3 = d25[igal]-0.01, 1.5, 6, 8
+        ax.text(xpos, y3, 'NGC0598=M33', ha='center', va='bottom',
+                rotation=90, fontsize=12, alpha=1.0)
+        ax.plot([xpos, xpos], [y1, y2], lw=1, ls='--', color='gray')
+
+        igal = np.where(sample['GALAXY'] == 'NGC5457')[0]
+        xpos, y1, y2, y3 = d25[igal]-0.01, 3, 11, 15
+        ax.text(xpos, y3, 'NGC5457=M101', ha='center', va='bottom',
+                rotation=90, fontsize=12, alpha=1.0)
+        ax.plot([xpos, xpos], [y1, y2], lw=1, ls='--', color='gray')
 
     # labels and all that
     ax.set_xlim(xlim)
     #ax.set_ylim(ylim)
     #ax.set_yscale('log')
     #ax.xmargins(0)
-    ax.set_xlabel(r'$D(25)$ (arcmin)')
+    ax.set_xlabel(r'$D_{\mathrm{HL}}(25)$ (arcmin)')
     ax.set_ylabel('Number of Galaxies')
     ax.set_yscale('log')
     
@@ -1171,6 +1181,7 @@ def main():
     # Fig - histogram of D(25) from Leda
     if args.d25_hist:
         sample = Table(fitsio.read(os.path.join('/mnt', 'SGA', 'sample', 'v3.0', 'SGA-parent-v3.0.fits')))
+        pdb.set_trace()
         fig_d25_hist(sample, png='d25-hist.png')
 
     # Fig - sample montage
