@@ -26,7 +26,7 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
     nchar = np.max([len(gg) for gg in cat['GALAXY']])+6 # add six characters for "_GROUP"
     
     t0 = time.time()
-    cat.add_column(Column(name='GROUP_ID', data=np.zeros(len(cat), dtype=np.int)-1))
+    cat.add_column(Column(name='GROUP_ID', data=np.zeros(len(cat), dtype=np.int32)-1))
     cat.add_column(Column(name='GROUP_NAME', length=len(cat), dtype='<U{}'.format(nchar)))
     cat.add_column(Column(name='GROUP_MULT', data=np.zeros(len(cat), dtype=np.int16)))
     cat.add_column(Column(name='GROUP_PRIMARY', data=np.zeros(len(cat), dtype=bool)))
@@ -39,7 +39,7 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
     #ww = np.where((parent['RA'] > 193) * (parent['RA'] < 196) * (parent['DEC'] > 26) * (parent['DEC'] < 30))[0]
     
     # Initialize a unique group number for each galaxy
-    gnum = np.arange(len(cat)).astype(np.int)
+    gnum = np.arange(len(cat)).astype(np.int32)
     mgrp = np.ones(len(cat)).astype(np.int16)
     
     # First group galaxies within 10 arcmin, setting those to have the same
@@ -127,6 +127,14 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
         cat['GROUP_NAME'][I] = '{}_GROUP'.format(cat['GALAXY'][I][primary])
         cat['GROUP_PRIMARY'][I[primary]] = True
 
+        # Corner case with NGC5665_GROUP: NGC5665 is large (D25>3 arcmin) and
+        # therefore the group RA,Dec is very close to the center of
+        # NGC5665. Meanwhile, its neighbor, SDSSJ143230.31+080809.0 is small and
+        # ends up on the edge.
+    fix = np.where(cat['GROUP_NAME'] == 'NGC5665_GROUP')[0]
+    if len(fix) > 0:
+        cat['GROUP_DIAMETER'][fix] *= 1.4
+        
     print('Building a group catalog took {:.3f} min'.format((time.time() - t0)/60))
         
     return cat
