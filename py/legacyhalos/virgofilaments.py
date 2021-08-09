@@ -381,7 +381,12 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             ba = (1 - ee) / (1 + ee)
             pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
             pa = pa % 180
-            majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+
+            # can be zero (or very small) if fit as a PSF or REX
+            if tractor.shape_r[indx] > 1:
+                majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+            else:
+                majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
         mgegalaxy.xmed = tractor.by[indx]
@@ -435,8 +440,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #if ii == 1:
         #    pdb.set_trace()
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('debug.png')
-        #plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('debug.png')
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('junk-mge.png')
+        #plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask.png')
         ##plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #pdb.set_trace()
 
