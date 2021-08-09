@@ -270,6 +270,18 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
 
         # now get the curve of growth at a wide range of regularly spaced
         # positions along the semi-major axis.
+
+        # initialize
+        results['cog_mtot_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_m0_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_alpha1_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_chi2_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_sma_{}'.format(filt.lower())] = np.float32(-1) # np.array([])
+        results['cog_flux_{}'.format(filt.lower())] = np.float32(0.0) # np.array([])
+        results['cog_flux_ivar_{}'.format(filt.lower())] = np.float32(0.0) # np.array([])
+        
         maxsma = np.max(sbprofile['sma_{}'.format(filt.lower())])        # [pixels]
         if maxsma <= 0:
             maxsma = np.max(refellipsefit['sma_{}'.format(filt.lower())])        # [pixels]
@@ -319,18 +331,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             else:
                 ok = np.isfinite(cogflux)
 
-        if np.count_nonzero(ok) == 0:
-            results['cog_sma_{}'.format(filt.lower())] = np.float32(-1) # np.array([])
-            results['cog_flux_{}'.format(filt.lower())] = np.float32(0.0) # np.array([])
-            results['cog_flux_ivar_{}'.format(filt.lower())] = np.float32(0.0) # np.array([])
-
-            results['cog_mtot_{}'.format(filt.lower())] = np.float32(-1)
-            results['cog_m0_{}'.format(filt.lower())] = np.float32(-1)
-            results['cog_alpha1_{}'.format(filt.lower())] = np.float32(-1)
-            results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
-            results['cog_chi2_{}'.format(filt.lower())] = np.float32(-1)
-            results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
-        else:
+        if np.count_nonzero(ok) > 0:
             results['cog_sma_{}'.format(filt.lower())] = np.float32(sma[ok] * pixscale) # [arcsec]
             results['cog_flux_{}'.format(filt.lower())] = np.float32(cogflux[ok])
             results['cog_flux_ivar_{}'.format(filt.lower())] = np.float32(1.0 / cogferr[ok]**2)
@@ -347,12 +348,6 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
 
             if len(these) < nparams:
                 print('Warning: Too few {}-band pixels to fit the curve of growth; skipping.'.format(filt))
-                results['cog_mtot_{}'.format(filt.lower())] = np.float32(-1)
-                results['cog_m0_{}'.format(filt.lower())] = np.float32(-1)
-                results['cog_alpha1_{}'.format(filt.lower())] = np.float32(-1)
-                results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
-                results['cog_chi2_{}'.format(filt.lower())] = np.float32(-1)
-                results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
                 continue
 
             sma_arcsec = sma[these] * pixscale             # [arcsec]

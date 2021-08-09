@@ -178,6 +178,9 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             todo_indices = np.array_split(_todo_indices[np.argsort(weight)], size) # unweighted but sorted
         else:
             todo_indices = np.array_split(_todo_indices, idx) # weighted
+        for ii in range(size): # sort by weight
+            srt = np.argsort(sample[DIAMCOLUMN][todo_indices[ii]])
+            todo_indices[ii] = todo_indices[ii][srt]            
     else:
         todo_indices = [np.array([])]
 

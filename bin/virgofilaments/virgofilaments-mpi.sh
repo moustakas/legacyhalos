@@ -7,7 +7,7 @@
 
 # Example: build the coadds using 16 MPI tasks with 8 cores per node (and therefore 16*8/32=4 nodes)
 
-#salloc -N 4 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v0.0.5
+#salloc -N 4 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v0.1
 #srun -n 8 -c 16 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi.sh coadds 16 > virgofilaments-coadds.log.1 2>&1 &
 #srun -n 8 -c 16 --kill-on-bad-exit=0 --no-kill shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi.sh ellipse 16 > virgofilaments-ellipse.log.1 2>&1 &
 
