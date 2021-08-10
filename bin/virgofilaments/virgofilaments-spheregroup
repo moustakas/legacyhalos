@@ -10,7 +10,7 @@ import numpy as np
 from astropy.table import Table, Column
     
 def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
-    """dmax in arcmin
+    """dmax in degrees
 
     Group SGA galaxies together where their circular radii would overlap.  Use
     the catalog D25 diameters (in arcmin) multiplied by a scaling factor MFAC.
@@ -116,10 +116,10 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
         # in case it's a big one!).
         dd = degrees_between(cat['RA'][I], cat['DEC'][I], cat['GROUP_RA'][I[0]], cat['GROUP_DEC'][I[0]])
         pad = dd + cat['DIAM_INIT'][I] / 60.0
-        cat['GROUP_DIAMETER'][I] = np.max(pad) * 60 # [arcmin]
+        cat['GROUP_DIAMETER'][I] = 2 * np.max(pad) * 60 # [arcmin]
         if cat['GROUP_DIAMETER'][I[0]] < np.max(cat['DIAM_INIT'][I]):
             print('Should not happen!')
-            pdb.set_trace()
+            raise ValueError
 
         # Assign the group name based on its largest member and also make this
         # galaxy "primary".
@@ -127,13 +127,16 @@ def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
         cat['GROUP_NAME'][I] = '{}_GROUP'.format(cat['GALAXY'][I][primary])
         cat['GROUP_PRIMARY'][I[primary]] = True
 
-        # Corner case with NGC5665_GROUP: NGC5665 is large (D25>3 arcmin) and
-        # therefore the group RA,Dec is very close to the center of
-        # NGC5665. Meanwhile, its neighbor, SDSSJ143230.31+080809.0 is small and
-        # ends up on the edge.
-    fix = np.where(cat['GROUP_NAME'] == 'NGC5665_GROUP')[0]
-    if len(fix) > 0:
-        cat['GROUP_DIAMETER'][fix] *= 1.4
+        #if cat['GROUP_ID'][I][0] == 3070:
+        #    pdb.set_trace()
+        
+    # Corner case with NGC5665_GROUP: NGC5665 is large (D25>3 arcmin) and
+    # therefore the group RA,Dec is very close to the center of
+    # NGC5665. Meanwhile, its neighbor, SDSSJ143230.31+080809.0 is small and
+    # ends up on the edge.
+    #fix = np.where(cat['GROUP_NAME'] == 'NGC5665_GROUP')[0]
+    #if len(fix) > 0:
+    #    cat['GROUP_DIAMETER'][fix] *= 1.4
         
     print('Building a group catalog took {:.3f} min'.format((time.time() - t0)/60))
         
@@ -179,8 +182,14 @@ def main(version='v1'):
     samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main.fits'.format(version))
     groupfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups.fits'.format(version))
 
-    sga = Table(fitsio.read(sgafile, 'ELLIPSE'))
     cat = Table(fitsio.read(samplefile, upper=True, columns=['OBJNAME', 'VFID', 'RA', 'DEC', 'RADIUS']))
+
+    # hack! remove VFID1241 which is a shred of UGC04499
+    keep = np.where(cat['VFID'] != 'VFID1241')[0]
+    #pdb.set_trace()
+    #cat = cat[keep]
+
+    sga = Table(fitsio.read(sgafile, 'ELLIPSE'))
     ng = len(cat)
 
     # change RA,DEC to double precision!
@@ -218,7 +227,7 @@ def main(version='v1'):
     m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA'], sga['DEC'], 15/3600, nearest=True)
     #m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA_MOMENT'], sga['DEC_MOMENT'], 10/3600)
     miss = np.delete(np.arange(ng), m1)
-    print('N={}/{} matches'.format(len(m1), ng))
+    print('N={}/{} SGA matches'.format(len(m1), ng))
 
     cat['SGA_ID'][m1] = sga['SGA_ID'][m2]
     cat['RA'][m1] = sga['RA'][m2]

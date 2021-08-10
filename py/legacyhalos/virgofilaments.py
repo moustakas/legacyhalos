@@ -774,6 +774,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     galaxy_indx = np.hstack([np.where(sid == tractor.ref_id)[0] for sid in sample[REFIDCOLUMN]])
 
     #sample = sample[np.searchsorted(sample[REFIDCOLUMN], tractor.ref_id[galaxy_indx])]
+    pdb.set_trace()
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
 
     tractor.sga_id = np.zeros(len(tractor), dtype=np.int64)-1
@@ -874,7 +875,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, debug=True)#debug, logfile=logfile)
+                     verbose=verbose, debug=debug, logfile=logfile)
 
 def _init_catalog(clobber=False):
     import legacyhalos.io

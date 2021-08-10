@@ -45,7 +45,7 @@ def main():
             d25min=args.d25min, d25max=args.d25max)
         if len(sample) == 0:
             return
-        
+
         if args.coadds or args.build_catalog or args.build_refcat:
             refcat = 'R1'
             # For the custom coadds and build_catalog steps we need the full sample, too.
