@@ -343,6 +343,7 @@ def main():
                          pixscale=args.pixscale, nproc=args.nproc,
                          verbose=args.verbose, debug=args.debug,
                          #sky_tests=args.sky_tests,
+                         clobber=args.clobber,
                          unwise=True, galex=True,
                          logfile=logfile)
                              

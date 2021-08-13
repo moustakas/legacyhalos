@@ -262,6 +262,25 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z']):
 
     return cols
 
+def get_ellipsefit_filename(galaxy, galaxydir, filesuffix='', galaxy_id=''):
+    
+    if type(galaxy_id) is not str:
+        galaxy_id = str(galaxy_id)
+
+    if galaxy_id.strip() == '':
+        galid = ''
+    else:
+        galid = '-{}'.format(galaxy_id)
+        
+    if filesuffix.strip() == '':
+        fsuff = ''
+    else:
+        fsuff = '-{}'.format(filesuffix)
+        
+    ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
+
+    return ellipsefitfile
+
 def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
                      galaxyinfo=None, refband='r', bands=['g', 'r', 'z'],
                      sbthresh=None, apertures=None, verbose=False):
@@ -274,19 +293,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     from astropy.io import fits
     from astropy.table import QTable
 
-    if type(galaxy_id) is not str:
-        galaxy_id = str(galaxy_id)
-
-    if galaxy_id.strip() == '':
-        galid = ''
-    else:
-        galid = '-{}'.format(galaxy_id)
-    if filesuffix.strip() == '':
-        fsuff = ''
-    else:
-        fsuff = '-{}'.format(filesuffix)
-        
-    ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
+    ellipsefitfile = get_ellipsefit_filename(galaxy, galaxydir, filesuffix=filesuffix, galaxy_id=galaxy_id)
 
     if sbthresh is None:
         from legacyhalos.ellipse import REF_SBTHRESH as sbthresh

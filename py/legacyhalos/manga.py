@@ -912,7 +912,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                  filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
                  galex_pixscale=1.5, unwise_pixscale=2.75,
                  sky_tests=False, unwise=False, galex=False, verbose=False,
-                 debug=False, logfile=None):
+                 clobber=False, debug=False, logfile=None):
     """Wrapper on legacyhalos.mpi.call_ellipse but with specific preparatory work
     and hooks for the legacyhalos project.
 
@@ -953,7 +953,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, debug=True)#debug, logfile=logfile)
+                     clobber=clobber, verbose=verbose, debug=True)#debug, logfile=logfile)
 
 def resampled_phot(onegal, galaxy, galaxydir, resampled_pixscale=0.75, nproc=1,
                    filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
