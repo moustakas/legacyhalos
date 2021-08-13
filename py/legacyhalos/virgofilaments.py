@@ -375,7 +375,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         if tractor.sga_id[indx] > -1:
             pa = tractor.pa_init[indx]
             ba = tractor.ba_init[indx]
-            majoraxis = tractor.diam_init[indx] * 60 / 2 / filt2pixscale[refband] # [pixels]
+            majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
         else:
             ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
             ba = (1 - ee) / (1 + ee)
@@ -417,7 +417,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # central in case there was a poor deblend.
         largeshift = False
         mge, centralmask = tractor2mge(central, factor=neighborfactor)
-        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png')
+        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -774,7 +774,6 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     galaxy_indx = np.hstack([np.where(sid == tractor.ref_id)[0] for sid in sample[REFIDCOLUMN]])
 
     #sample = sample[np.searchsorted(sample[REFIDCOLUMN], tractor.ref_id[galaxy_indx])]
-    pdb.set_trace()
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
 
     tractor.sga_id = np.zeros(len(tractor), dtype=np.int64)-1
@@ -875,7 +874,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, debug=debug, logfile=logfile)
+                     verbose=verbose, debug=True)#debug, logfile=logfile)
 
 def _init_catalog(clobber=False):
     import legacyhalos.io

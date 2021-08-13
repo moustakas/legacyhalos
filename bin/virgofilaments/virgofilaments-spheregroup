@@ -186,8 +186,7 @@ def main(version='v1'):
 
     # hack! remove VFID1241 which is a shred of UGC04499
     keep = np.where(cat['VFID'] != 'VFID1241')[0]
-    #pdb.set_trace()
-    #cat = cat[keep]
+    cat = cat[keep]
 
     sga = Table(fitsio.read(sgafile, 'ELLIPSE'))
     ng = len(cat)

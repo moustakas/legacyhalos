@@ -15,7 +15,7 @@ ZCOLUMN = 'Z'
 RACOLUMN = 'IFURA' # 'RA'
 DECCOLUMN = 'IFUDEC' # 'DEC'
 GALAXYCOLUMN = 'PLATEIFU'
-REFIDCOLUMN = 'MANGAID_INT'
+REFIDCOLUMN = 'MANGANUM' # 'MANGAID_INT'
 
 RADIUSFACTOR = 4 # 10
 MANGA_RADIUS = 36.75 # / 2 # [arcsec]
@@ -25,6 +25,7 @@ ELLIPSEBITS = dict(
     )
 
 SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
+APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0] # multiples of MAJORAXIS
 
 def mpi_args():
     import argparse
@@ -223,7 +224,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     use_testbed = True
 
     if use_testbed:
-        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed100.fits')
+        #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
     else:
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
 
@@ -317,13 +319,26 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         else:
             sample = sample[these]
 
+    # add some geometric columns we can use for the ellipse-fitting
+    ngal = len(sample)
+    sample['BA_INIT'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a (circular)
+    sample['PA_INIT'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
+    sample['DIAM_INIT'] = np.repeat(2 * MANGA_RADIUS / 60.0, ngal).astype('f4') # fixed diameter [arcmin]
+    
+    igood = np.where(sample['NSA_NSAID'] != -9999)[0]
+    if len(igood) > 0:
+        sample['BA_INIT'][igood] = sample['NSA_SERSIC_BA'][igood]
+        sample['PA_INIT'][igood] = sample['NSA_SERSIC_PHI'][igood]
+        sample['DIAM_INIT'][igood] = 2 * 2 * sample['NSA_SERSIC_TH50'][igood] / 60 # [2*half-light radius, arcmin]
+
     #sample.rename_column('OBJRA', 'RA')
     #sample.rename_column('OBJDEC', 'DEC')
-    sample[REFIDCOLUMN] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
+    #sample[REFIDCOLUMN] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
+    sample[REFIDCOLUMN] = sample['PLATE'] * 1000000 + np.int32(sample['IFUDSGN'])
 
     return sample
 
-def build_catalog(sample, nproc=1, refcat='R1', verbose=False):
+def build_catalog(sample, nproc=1, refcat='R1', verbose=False, clobber=False):
     import time
     import fitsio
     from astropy.io import fits
@@ -448,10 +463,20 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         class MGEgalaxy(object):
             pass
 
-        ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
-        ba = (1 - ee) / (1 + ee)
-        pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
-        pa = pa % 180
+        if tractor.type[indx] == 'PSF' or tractor.shape_r[indx] < 5:
+            pa = tractor.pa_init[indx]
+            ba = tractor.ba_init[indx]
+            # take away the extra factor of 2 we put in in read_sample()
+            r50 = tractor.diam_init[indx] * 60 / 2 / 2
+            if r50 < 5:
+                r50 = 5.0 # minimum size, arcsec
+            majoraxis = factor * r50 / filt2pixscale[refband] # [pixels]
+        else:
+            ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
+            ba = (1 - ee) / (1 + ee)
+            pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
+            pa = pa % 180
+            majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
         mgegalaxy.xmed = tractor.by[indx]
@@ -461,7 +486,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         mgegalaxy.eps = 1-ba
         mgegalaxy.pa = pa
         mgegalaxy.theta = (270 - pa) % 180
-        mgegalaxy.majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+        mgegalaxy.majoraxis = majoraxis
 
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                mgegalaxy.majoraxis,
@@ -482,7 +507,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # central in case there was a poor deblend.
         largeshift = False
         mge, centralmask = tractor2mge(central, factor=neighborfactor)
-        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('debug.png')
+        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -926,6 +951,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                      pixscale=pixscale, nproc=nproc, 
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
+                     apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
                      verbose=verbose, debug=True)#debug, logfile=logfile)
 
@@ -972,13 +998,6 @@ def resampled_phot(onegal, galaxy, galaxydir, resampled_pixscale=0.75, nproc=1,
     #maxsma = 5 * MANGA_RADIUS # None
     delta_logsma = 4 # 3.0
 
-    # don't pass logfile and set debug=True because we've already opened the log
-    # above!
-    mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
-                     pixscale=pixscale, nproc=nproc, 
-                     bands=bands, refband=refband, sbthresh=SBTHRESH,
-                     logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, debug=True)#debug, logfile=logfile)
 
 def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4'],
               kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
