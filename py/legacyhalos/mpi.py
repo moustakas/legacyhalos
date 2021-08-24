@@ -66,7 +66,7 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
                 _start(galaxy, log=log)
-                err, filesuffix = legacyhalos.ellipse.legacyhalos_ellipse(
+                err = legacyhalos.ellipse.legacyhalos_ellipse(
                     galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                     bands=bands, refband=refband,
                     pixscale=pixscale, nproc=nproc,
