@@ -88,10 +88,10 @@ def main():
         
         if args.htmlindex:
             legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale,
-                                      racolumn=RACOLUMN, deccolumn=DECCOLUMN,
+                                      racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
                                       zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
                                       makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                      args=args)
+                                      mpiargs=args)
             return
 
         if args.build_catalog:
@@ -187,7 +187,6 @@ def main():
 
             samplefile = os.path.join(galaxydir, '{}-sample.fits'.format(galaxy))
             if args.clobber or not os.path.isfile(samplefile):
-                from astropy.table import Table
                 tmpfile = samplefile+'.tmp'
                 Table(onegal).write(tmpfile, overwrite=True, format='fits')
                 os.rename(tmpfile, samplefile)
