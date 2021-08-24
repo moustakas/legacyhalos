@@ -1,7 +1,7 @@
 #! /bin/bash
 # Shell script to set the environment variables for SGA project.
 
-project=legacyhsc
+project=legacyhsc-demo
 
 #############################
 # For a power-user / testing. Use local checkouts of the code even though it's
@@ -9,20 +9,21 @@ project=legacyhsc
 export LEGACYPIPE_CODE_DIR=/global/homes/i/ioannis/repos/git/legacypipe
 export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
 export PYTHONPATH=$LEGACYHALOS_CODE_DIR/py:$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
-export PATH=$LEGACYHALOS_CODE_DIR/bin/$project:$PATH
+export PATH=$LEGACYHALOS_CODE_DIR/bin/legacyhsc:$PATH
+#export PATH=$LEGACYHALOS_CODE_DIR/bin/$project:$PATH
 #############################
 
 # Specify the location of the input and output data.
 export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/$project
-export LEGACYHALOS_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/$project-data
-#export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data
+#export LEGACYHALOS_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/$project-data
+export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data
 export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html
+
+export LARGEGALAXIES_CAT=$LEGACYHALOS_DIR/legacyhsc-refcat.kd.fits
 
 # Pipeline variables---only change these if you know what you're doing!
 export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr9
 export SKY_TEMPLATE_DIR=/global/cfs/cdirs/cosmo/data/legacysurvey/dr9/calib/sky_pattern
-
-export LARGEGALAXIES_CAT=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/legacyhsc/legacyhsc-refcat.kd.fits
 
 export GAIA_CAT_VER=2
 export GAIA_CAT_DIR=/global/cfs/cdirs/cosmo/work/gaia/chunks-gaia-dr2-astrom-2

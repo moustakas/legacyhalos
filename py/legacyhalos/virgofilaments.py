@@ -316,8 +316,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.05, maxshift=10,
-                          sigmamask=3.0,
-                          neighborfactor=3.0, verbose=False):
+                          sigmamask=3.0, neighborfactor=3.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -367,7 +366,6 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #    psfsrcs = None
 
     def tractor2mge(indx, factor=1.0):
-    #def tractor2mge(indx, majoraxis=None):
         # Convert a Tractor catalog entry to an MGE object.
         class MGEgalaxy(object):
             pass
@@ -481,7 +479,6 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # which has had the satellites nearest to the central galaxy trimmed
         # out.
         print('Building the satellite mask.')
-        #srcs = tractor.copy()
         satmask = np.zeros(data[refband].shape, bool)
         for filt in bands:
             # do not let GALEX and WISE contribute to the satellite mask
@@ -712,7 +709,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
             'flux_g', 'flux_r', 'flux_z',
             'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z',
             'nobs_g', 'nobs_r', 'nobs_z',
-            'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
+            #'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
             'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
             'psfsize_g', 'psfsize_r', 'psfsize_z']
     if galex:
