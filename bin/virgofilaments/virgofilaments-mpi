@@ -45,7 +45,7 @@ def main():
             d25min=args.d25min, d25max=args.d25max)
         if len(sample) == 0:
             return
-        
+
         if args.coadds or args.build_catalog or args.build_refcat:
             refcat = 'R1'
             # For the custom coadds and build_catalog steps we need the full sample, too.
@@ -62,16 +62,16 @@ def main():
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
-    if args.htmlindex and rank == 0:
-        legacyhalos.virgofilaments.make_html(sample, survey=None, pixscale=args.pixscale,
-                                             racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
-                                             nproc=args.nproc, clobber=args.clobber,
-                                             makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                             htmlhome=args.htmlhome, html_raslices=args.html_raslices,
-                                             args=args)
-        return
+    if rank == 0:    
+        if args.htmlindex:
+            legacyhalos.virgofilaments.make_html(sample, survey=None, pixscale=args.pixscale,
+                                                 racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
+                                                 nproc=args.nproc, clobber=args.clobber,
+                                                 makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                                 htmlhome=args.htmlhome, html_raslices=args.html_raslices,
+                                                 args=args)
+            return
 
-    if args.build_refcat and rank == 0:
         if args.build_refcat:
             # Build a reference catalog for use with the pipeline. satellites
             # can belong to more than one cluster, so trim to unique IDs.
@@ -106,33 +106,29 @@ def main():
 
             cmd = 'modhead {} SGAVER {}'.format(kdreffile, hdrver)
             _ = os.system(cmd)
-        return
+            return
+
+        if args.build_catalog:
+            from legacyhalos.virgofilaments import build_catalog
+            #args.ellipse = True
+            #_, _, groups, _ = legacyhalos.virgofilaments.missing_files(args, sample, args.nproc)
+            #if len(groups) == 0:
+            #    print('No complete galaxies!')
+            #    return
+            build_catalog(sample, fullsample, nproc=args.nproc, verbose=args.verbose,
+                          refcat=refcat, clobber=args.clobber)
+    
+            #build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose, refcat=refcat,
+            #              clobber=args.clobber)
+            return
 
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
-    if rank == 0:
-        if args.build_catalog:
-            # When building the final catalog, process the full sample, divided
-            # into a *fixed* number of bigchunks, distributed to all the
-            # available ranks.
-            suffix, fail = 'build-catalog', []
-
-            from legacyhalos.virgofilaments import get_raslice
-            raslices_str = np.array(['{:03d}'.format(raslice) for raslice in np.arange(360)])
-            raslices = np.array([get_raslice(ra) for ra in sample[RACOLUMN]])
-            bigchunks = []
-            for raslice in raslices_str:
-                these = np.where(raslices == raslice)[0]
-                #print(raslice, len(these))
-                if len(these) > 0:
-                    bigchunks.append(these)
-            nbigchunks = len(bigchunks)
-            groups = np.array_split(bigchunks, size)
-        else:
-            suffix, groups, _, fail = legacyhalos.virgofilaments.missing_files(args, sample, size)
+    if rank == 0:    
+        suffix, groups, _, fail = legacyhalos.virgofilaments.missing_files(args, sample, size)
     else:
         groups, suffix = [], ''
-
+    
     if comm:
         groups = comm.bcast(groups, root=0)
         suffix = comm.bcast(suffix, root=0)
@@ -172,104 +168,6 @@ def main():
     print('Starting {} {} on rank {} with {} cores on {}'.format(
         len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
         flush=True)
-
-    # Build the catalog only on rank 0 in order to avoid memory problems--
-    if args.build_catalog:
-        if rank == 0:
-            import fitsio
-            from astropy.table import Table
-            from legacyhalos.virgofilaments import _init_catalog
-
-            tall = time.time()
-            outfile = _init_catalog(clobber=args.clobber)
-            if outfile is None:
-                return
-        else:
-            outfile = None
-            
-        if comm is not None:
-            outfile = comm.bcast(outfile, root=0)
-
-        # Now loop over each "chunk" assigned to this rank.
-        from astropy.table import vstack
-        from astrometry.util.multiproc import multiproc
-        from legacyhalos.virgofilaments import get_raslice, _build_catalog_one, _write_catalog
-
-        #chunkdatadir = os.path.join(datadir, 'rachunks')
-
-        mp = multiproc(nthreads=args.nproc)
-
-        ellipse, tractor, parent = [], [], []
-        for ichunk, chunk in enumerate(groups[rank]):
-            #print('Working on chunk {:03d}/{:03d}'.format(ichunk, len(groups[rank])-1))
-            tchunk = time.time()
-
-            #raslice_str = get_raslice(sample['RA'][chunk[0]])
-            #chunkdir = os.path.join(chunkdatadir, raslice_str)
-            #if not os.path.isdir(chunkdir):
-            #    os.makedirs(chunkdir, exist_ok=True)
-
-            #chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
-            #chunksoutfile = os.path.join(chunkdir, os.path.basename(soutfile))
-
-            # chunkoutfile gets written last, so test "doneness" based on that
-            # file's existence.
-            #if os.path.isfile(chunkoutfile) and False:
-            #    print('Skipping completed chunk {:03d}'.format(ichunk))
-            #    continue
-
-            # Do it!
-            chunksample = sample[chunk]
-            chunkfullsample = fullsample[np.isin(fullsample['GROUP_ID'], chunksample['GROUP_ID'])]
-
-            buildargs = []
-            for onegal in chunksample:
-                buildargs.append((onegal, chunkfullsample[chunkfullsample['GROUP_ID'] == onegal['GROUP_ID']], refcat, args.verbose))
-            results = mp.map(_build_catalog_one, buildargs)
-            results = list(zip(*results))
-            
-            tractor1 = list(filter(None, results[0]))[0]
-            ellipse1 = list(filter(None, results[1]))[0]
-            parent1 = list(filter(None, results[2]))[0]
-
-            tractor.append(tractor1)
-            ellipse.append(ellipse1)
-            parent.append(parent1)
-
-            print('Chunk {}: N(fullsample)={}, N(tractor)={}, N(ellipse)={}, N(parent)={}'.format(
-                ichunk, len(chunkfullsample), len(tractor1), len(ellipse1), len(parent1)))
-
-            #_write_catalog(tractor, ellipse, parent, chunkoutfile)
-            #print('Finished chunk {:03d}/{:03d} after {:.3f} minutes'.format(
-            #    ichunk, len(groups[rank])-1, (time.time() - tchunk) / 60))
-
-        if comm is not None:
-            comm.barrier() # wait
-
-        # Now gather up all the chunks and write out!
-        if rank == 0:
-            print('Finished all {:03d} chunks after {:.3f} minutes'.format(nbigchunks, (time.time() - tall) / 60))
-
-            tfinal = time.time()
-            #cat, parent = [], []
-            #for ichunk, chunk in enumerate(np.hstack(groups)):
-            #    print('Gathering chunk {:03d}/{:03d}'.format(ichunk, len(np.hstack(groups))-1), flush=True)
-            #    
-            #    chunkdir = os.path.join(chunkdatadir, raslices[chunk[0]])
-            #    chunkoutfile = os.path.join(chunkdir, os.path.basename(outfile))
-            #    chunksoutfile = os.path.join(chunkdir, os.path.basename(soutfile))
-            #    if os.path.isfile(chunkoutfile):
-            #        cat.append(Table(fitsio.read(chunkoutfile)))
-            #    if os.path.isfile(chunksoutfile):
-            #        parent.append(Table(fitsio.read(chunksoutfile)))
-
-            _write_catalog(tractor, ellipse, parent, outfile)
-            print('Gathering and writing out final files took {:.3f} minutes'.format(
-                (time.time() - tfinal) / 60), flush=True)
-            return
-        else:
-            print('All done on rank {}'.format(rank), flush=True)
-            return
 
     # The rest of the pipeline--
     tall = time.time()
@@ -343,6 +241,7 @@ def main():
                          pixscale=args.pixscale, nproc=args.nproc,
                          verbose=args.verbose, debug=args.debug,
                          #sky_tests=args.sky_tests,
+                         clobber=args.clobber,
                          unwise=True, galex=True,
                          logfile=logfile)
                              

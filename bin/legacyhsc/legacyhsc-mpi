@@ -6,6 +6,7 @@ legacyhsc-mpi --coadds
 """
 import os, time, pdb
 import numpy as np
+from astropy.table import Table
 
 def main():
     """Top-level wrapper.
@@ -15,7 +16,7 @@ def main():
     import legacyhalos.hsc
 
     from legacypipe.runs import get_survey
-    from legacyhalos.hsc import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN, GALAXYCOLUMN
+    from legacyhalos.hsc import ZCOLUMN, RACOLUMN, DECCOLUMN, DIAMCOLUMN, GALAXYCOLUMN, REFIDCOLUMN
     from legacyhalos.hsc import get_galaxy_galaxydir
 
     basedir = legacyhalos.io.legacyhalos_dir()
@@ -49,25 +50,18 @@ def main():
 
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
-    if args.htmlindex and rank == 0:
-        legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale,
-                                  zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
-                                  makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
-                                  args=args)
-        return
-
-    if args.build_refcat or args.integrate and rank == 0:
+    if rank == 0:
+        refcat = 'R1'
         if args.build_refcat:
             # Build a reference catalog for use with the pipeline.
             import fitsio
-            from astropy.table import Table
 
             ngal = len(sample)
 
             ref = Table()
-            ref['ra'] = sample['RA']
-            ref['dec'] = sample['DEC']
-            ref['sga_id'] = sample['ID_S16A']
+            ref['ra'] = sample[RACOLUMN]
+            ref['dec'] = sample[DECCOLUMN]
+            ref['sga_id'] = sample[REFIDCOLUMN]
             ref['mag_leda'] = sample['GCMODEL_MAG']
             ref['ba'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a
             ref['pa'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
@@ -76,9 +70,9 @@ def main():
             reffile = os.path.join(basedir, 'legacyhsc-refcat.fits')
             kdreffile = reffile.replace('.fits', '.kd.fits')
             print('Writing {} galaxies to {}'.format(ngal, reffile))
-            
+
             hdr = fitsio.FITSHDR()
-            hdrver = 'R1'
+            hdrver = refcat
             hdr['SGAVER'] = hdrver
             fitsio.write(reffile, ref.as_array(), header=hdr, clobber=True)
 
@@ -90,21 +84,30 @@ def main():
             cmd = 'modhead {} SGAVER {}'.format(kdreffile, hdrver)
             _ = os.system(cmd)
 
+            return
+        
+        if args.htmlindex:
+            legacyhalos.hsc.make_html(sample, survey=None, pixscale=args.pixscale,
+                                      racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
+                                      zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
+                                      makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
+                                      mpiargs=args)
+            return
+
+        if args.build_catalog:
+            print('Write me!')
+            return
+
         #if args.integrate:
         #    import legacyhalos.integrate
         #    results = legacyhalos.integrate.integrate(
         #        sample, nproc=args.nproc, verbose=args.verbose, clobber=args.clobber)
-        return
+        #    return
 
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
     if rank == 0:
-        if args.build_catalog:
-            print('Write me!')
-            pass
-        else:
-            suffix, groups, _, fail = legacyhalos.hsc.missing_files(args, sample, size)
-            #groups[0] = groups[0][32:]
+        suffix, groups, _, fail = legacyhalos.hsc.missing_files(args, sample, size)
     else:
         groups, suffix = [], ''
 
@@ -132,8 +135,7 @@ def main():
                     print('  {} {} (r={:.3f} arcsec)'.format(ii, dd, diam))
         return
     else:
-        if not args.build_catalog:
-            print(' Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
+        print(' Rank {}: {} galaxies left to do.'.format(rank, len(groups[rank])), flush=True)
         if rank == 0 and args.count:
             if args.debug:
                 if len(fail[rank]) > 0:
@@ -155,12 +157,6 @@ def main():
         len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),
         flush=True)
     
-    # Build the catalog only on rank 0 in order to avoid memory problems--
-    if args.build_catalog:
-        print('Write me!')
-        return
-
-    # The rest of the pipeline--
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
@@ -191,25 +187,25 @@ def main():
 
             samplefile = os.path.join(galaxydir, '{}-sample.fits'.format(galaxy))
             if args.clobber or not os.path.isfile(samplefile):
-                from astropy.table import Table
                 tmpfile = samplefile+'.tmp'
                 Table(onegal).write(tmpfile, overwrite=True, format='fits')
                 os.rename(tmpfile, samplefile)
             
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               largegalaxy=False, pipeline=False, custom=True,
+                               custom=True,
                                apodize=False, unwise=args.unwise, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                subsky_radii=subsky_radii,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
-                               require_grz=True, debug=args.debug, logfile=logfile)
+                               require_grz=True, debug=args.debug, logfile=logfile,
+                               write_wise_psf=False)
 
         if args.pipeline_coadds:
             from legacyhalos.mpi import call_custom_coadds
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               largegalaxy=False, pipeline=True, custom=False,
+                               custom=False,
                                unwise=False, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=True, write_all_pickles=True,
                                just_coadds=args.just_coadds,
@@ -217,13 +213,11 @@ def main():
 
         if args.ellipse:
             from legacyhalos.hsc import call_ellipse
-            input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
 
-            #from astropy.table import Table
-            #samplefile = os.path.join(galaxydir, '{}-sample.fits'.format(galaxy))
-            #tmpfile = samplefile+'.tmp'
-            #Table(onegal).write(tmpfile, overwrite=True, format='fits')
-            #os.rename(tmpfile, samplefile)
+            if False:
+                input_ellipse = {'eps': onegal['MEAN_E'], 'pa': onegal['MEAN_PA']}
+            else:
+                input_ellipse = None
 
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir, 
                          input_ellipse=input_ellipse,

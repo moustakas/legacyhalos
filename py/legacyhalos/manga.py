@@ -15,7 +15,7 @@ ZCOLUMN = 'Z'
 RACOLUMN = 'IFURA' # 'RA'
 DECCOLUMN = 'IFUDEC' # 'DEC'
 GALAXYCOLUMN = 'PLATEIFU'
-REFIDCOLUMN = 'MANGAID_INT'
+REFIDCOLUMN = 'MANGANUM' # 'MANGAID_INT'
 
 RADIUSFACTOR = 4 # 10
 MANGA_RADIUS = 36.75 # / 2 # [arcsec]
@@ -25,6 +25,7 @@ ELLIPSEBITS = dict(
     )
 
 SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
+APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0] # multiples of MAJORAXIS
 
 def mpi_args():
     import argparse
@@ -223,7 +224,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     use_testbed = True
 
     if use_testbed:
-        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed100.fits')
+        #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
     else:
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
 
@@ -317,13 +319,26 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         else:
             sample = sample[these]
 
+    # add some geometric columns we can use for the ellipse-fitting
+    ngal = len(sample)
+    sample['BA_INIT'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a (circular)
+    sample['PA_INIT'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
+    sample['DIAM_INIT'] = np.repeat(2 * MANGA_RADIUS / 60.0, ngal).astype('f4') # fixed diameter [arcmin]
+    
+    igood = np.where(sample['NSA_NSAID'] != -9999)[0]
+    if len(igood) > 0:
+        sample['BA_INIT'][igood] = sample['NSA_SERSIC_BA'][igood]
+        sample['PA_INIT'][igood] = sample['NSA_SERSIC_PHI'][igood]
+        sample['DIAM_INIT'][igood] = 2 * 2 * sample['NSA_SERSIC_TH50'][igood] / 60 # [2*half-light radius, arcmin]
+
     #sample.rename_column('OBJRA', 'RA')
     #sample.rename_column('OBJDEC', 'DEC')
-    sample[REFIDCOLUMN] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
+    #sample[REFIDCOLUMN] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
+    sample[REFIDCOLUMN] = sample['PLATE'] * 1000000 + np.int32(sample['IFUDSGN'])
 
     return sample
 
-def build_catalog(sample, nproc=1, refcat='R1', verbose=False):
+def build_catalog(sample, nproc=1, refcat='R1', verbose=False, clobber=False):
     import time
     import fitsio
     from astropy.io import fits
@@ -448,10 +463,20 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         class MGEgalaxy(object):
             pass
 
-        ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
-        ba = (1 - ee) / (1 + ee)
-        pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
-        pa = pa % 180
+        if tractor.type[indx] == 'PSF' or tractor.shape_r[indx] < 5:
+            pa = tractor.pa_init[indx]
+            ba = tractor.ba_init[indx]
+            # take away the extra factor of 2 we put in in read_sample()
+            r50 = tractor.diam_init[indx] * 60 / 2 / 2
+            if r50 < 5:
+                r50 = 5.0 # minimum size, arcsec
+            majoraxis = factor * r50 / filt2pixscale[refband] # [pixels]
+        else:
+            ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
+            ba = (1 - ee) / (1 + ee)
+            pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
+            pa = pa % 180
+            majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
         mgegalaxy.xmed = tractor.by[indx]
@@ -461,7 +486,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         mgegalaxy.eps = 1-ba
         mgegalaxy.pa = pa
         mgegalaxy.theta = (270 - pa) % 180
-        mgegalaxy.majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+        mgegalaxy.majoraxis = majoraxis
 
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                mgegalaxy.majoraxis,
@@ -482,7 +507,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # central in case there was a poor deblend.
         largeshift = False
         mge, centralmask = tractor2mge(central, factor=neighborfactor)
-        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('debug.png')
+        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -887,7 +912,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                  filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
                  galex_pixscale=1.5, unwise_pixscale=2.75,
                  sky_tests=False, unwise=False, galex=False, verbose=False,
-                 debug=False, logfile=None):
+                 clobber=False, debug=False, logfile=None):
     """Wrapper on legacyhalos.mpi.call_ellipse but with specific preparatory work
     and hooks for the legacyhalos project.
 
@@ -926,8 +951,9 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                      pixscale=pixscale, nproc=nproc, 
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
+                     apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, debug=True)#debug, logfile=logfile)
+                     clobber=clobber, verbose=verbose, debug=True)#debug, logfile=logfile)
 
 def resampled_phot(onegal, galaxy, galaxydir, resampled_pixscale=0.75, nproc=1,
                    filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
@@ -971,14 +997,6 @@ def resampled_phot(onegal, galaxy, galaxydir, resampled_pixscale=0.75, nproc=1,
     maxsma = None
     #maxsma = 5 * MANGA_RADIUS # None
     delta_logsma = 4 # 3.0
-
-    # don't pass logfile and set debug=True because we've already opened the log
-    # above!
-    mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
-                     pixscale=pixscale, nproc=nproc, 
-                     bands=bands, refband=refband, sbthresh=SBTHRESH,
-                     logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, debug=True)#debug, logfile=logfile)
 
 def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4'],
               kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
@@ -1559,330 +1577,3 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     ok = mp.map(_build_htmlpage_one, args)
     
     return 1
-
-#def read_manga_parent(verbose=False):
-#    """Read the parent MaNGA-NSA catalog.
-#    
-#    """
-#    sampledir = sample_dir()
-#    mangafile = os.path.join(sampledir, 'drpall-v2_1_2.fits')
-#    nsafile = os.path.join(sampledir, 'nsa_v1_0_1.fits')
-#
-#    allmanga = Table(fitsio.read(mangafile, upper=True))
-#    _, uindx = np.unique(allmanga['MANGAID'], return_index=True)
-#    manga = allmanga[uindx]
-#    if verbose:
-#        print('Read {}/{} unique galaxies from {}'.format(len(manga), len(allmanga), mangafile), flush=True)
-#    #plateifu = [pfu.strip() for pfu in manga['PLATEIFU']]
-#
-#    catid, rowid = [], []
-#    for mid in manga['MANGAID']:
-#        cid, rid = mid.split('-')
-#        catid.append(cid.strip())
-#        rowid.append(rid.strip())
-#    catid, rowid = np.hstack(catid), np.hstack(rowid)
-#    keep = np.where(catid == '1')[0] # NSA
-#    rows = rowid[keep].astype(np.int32)
-#
-#    print('Selected {} MaNGA galaxies from the NSA'.format(len(rows)))
-#    #ww = [np.argwhere(rr[0]==rows) for rr in np.array(np.unique(rows, return_counts=True)).T if rr[1]>=2]
-#
-#    srt = np.argsort(rows)
-#    manga = manga[keep][srt]
-#    nsa = Table(fitsio.read(nsafile, rows=rows[srt], upper=True))
-#    if verbose:
-#        print('Read {} galaxies from {}'.format(len(nsa), nsafile), flush=True)
-#    nsa.rename_column('PLATE', 'PLATE_NSA')
-#    
-#    return hstack( (manga, nsa) )
-
-#def make_html(sample, analysisdir=None, htmldir=None, band=('g', 'r', 'z'),
-#              refband='r', pixscale=0.262, nproc=1, dr='dr7', ccdqa=False,
-#              makeplots=True, survey=None, clobber=False, verbose=True):
-#    """Make the HTML pages.
-#
-#    """
-#    #import legacyhalos.io
-#    #from legacyhalos.misc import cutout_radius_150kpc
-#
-#    if analysisdir is None:
-#        analysisdir = analysis_dir()
-#    if htmldir is None:
-#        htmldir = html_dir()
-#
-#    # Write the last-updated date to a webpage.
-#    js = _javastring()       
-#
-#    # Get the viewer link
-#    def _viewer_link(onegal, dr):
-#        baseurl = 'http://legacysurvey.org/viewer/'
-#        width = 3 * onegal['NSA_PETRO_TH50'] / pixscale # [pixels]
-#        if width > 400:
-#            zoom = 14
-#        else:
-#            zoom = 15
-#        viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=decals-{}'.format(
-#            baseurl, onegal['RA'], onegal['DEC'], zoom, dr)
-#        return viewer
-#
-#    htmlhome = 'index.html'
-#
-#    # Build the home (index.html) page--
-#    if not os.path.exists(htmldir):
-#        os.makedirs(htmldir)
-#    htmlfile = os.path.join(htmldir, htmlhome)
-#
-#    with open(htmlfile, 'w') as html:
-#        html.write('<html><body>\n')
-#        html.write('<style type="text/css">\n')
-#        html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
-#        html.write('</style>\n')
-#
-#        html.write('<h1>MaNGA-NSA</h1>\n')
-#        html.write('<p>\n')
-#        html.write('<a href="https://github.com/moustakas/LSLGA">Code and documentation</a>\n')
-#        html.write('</p>\n')
-#
-#        html.write('<table>\n')
-#        html.write('<tr>\n')
-#        html.write('<th>Number</th>\n')
-#        html.write('<th>Galaxy</th>\n')
-#        html.write('<th>RA</th>\n')
-#        html.write('<th>Dec</th>\n')
-#        html.write('<th>Redshift</th>\n')
-#        html.write('<th>Viewer</th>\n')
-#        html.write('</tr>\n')
-#        for ii, onegal in enumerate( np.atleast_1d(sample) ):
-#            galaxy = onegal['MANGAID']
-#            if type(galaxy) is np.bytes_:
-#                galaxy = galaxy.decode('utf-8')
-#                
-#            htmlfile = os.path.join(galaxy, '{}.html'.format(galaxy))
-#            html.write('<tr>\n')
-#            html.write('<td>{:g}</td>\n'.format(ii))
-#            html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile, galaxy))
-#            html.write('<td>{:.7f}</td>\n'.format(onegal['RA']))
-#            html.write('<td>{:.7f}</td>\n'.format(onegal['DEC']))
-#            html.write('<td>{:.5f}</td>\n'.format(onegal['Z']))
-#            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(onegal, dr)))
-#            html.write('</tr>\n')
-#        html.write('</table>\n')
-#        
-#        html.write('<br /><br />\n')
-#        html.write('<b><i>Last updated {}</b></i>\n'.format(js))
-#        html.write('</html></body>\n')
-#        html.close()
-#
-#    # Make a separate HTML page for each object.
-#    for ii, onegal in enumerate( np.atleast_1d(sample) ):
-#        galaxy = onegal['MANGAID']
-#        if type(galaxy) is np.bytes_:
-#            galaxy = galaxy.decode('utf-8')
-#        plateifu = onegal['PLATEIFU']
-#        if type(plateifu) is np.bytes_:
-#            plateifu = plateifu.decode('utf-8')
-#
-#        width_arcsec = 2 * MANGA_RADIUS
-#        #width_arcsec = RADIUSFACTOR * onegal['NSA_PETRO_TH50']
-#        width_kpc = width_arcsec / LSLGA.misc.arcsec2kpc(onegal['Z'])
-#
-#        survey.output_dir = os.path.join(analysisdir, galaxy)
-#        survey.ccds = fits_table(os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy)))
-#        
-#        htmlgalaxydir = os.path.join(htmldir, '{}'.format(galaxy))
-#        if not os.path.exists(htmlgalaxydir):
-#            os.makedirs(htmlgalaxydir)
-#
-#        htmlfile = os.path.join(htmlgalaxydir, '{}.html'.format(galaxy))
-#        with open(htmlfile, 'w') as html:
-#            html.write('<html><body>\n')
-#            html.write('<style type="text/css">\n')
-#            html.write('table, td, th {padding: 5px; text-align: left; border: 1px solid black;}\n')
-#            html.write('</style>\n')
-#
-#            html.write('<h1>MaNGA ID {}</h1>\n'.format(galaxy))
-#
-#            html.write('<a href="../{}">Home</a>\n'.format(htmlhome))
-#            html.write('<br />\n')
-#            html.write('<br />\n')
-#
-#            # Table of properties
-#            html.write('<table>\n')
-#            html.write('<tr>\n')
-#            html.write('<th>Number</th>\n')
-#            html.write('<th>MaNGA ID</th>\n')
-#            html.write('<th>PLATEIFU</th>\n')
-#            html.write('<th>RA</th>\n')
-#            html.write('<th>Dec</th>\n')
-#            html.write('<th>Redshift</th>\n')
-#            html.write('<th>Viewer</th>\n')
-#            html.write('</tr>\n')
-#
-#            html.write('<tr>\n')
-#            html.write('<td>{:g}</td>\n'.format(ii))
-#            html.write('<td>{}</td>\n'.format(galaxy))
-#            html.write('<td>{}</td>\n'.format(plateifu))
-#            html.write('<td>{:.7f}</td>\n'.format(onegal['RA']))
-#            html.write('<td>{:.7f}</td>\n'.format(onegal['DEC']))
-#            html.write('<td>{:.5f}</td>\n'.format(onegal['Z']))
-#            html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_viewer_link(onegal, dr)))
-#            html.write('</tr>\n')
-#            html.write('</table>\n')
-#
-#            html.write('<h2>Multiwavelength mosaics</h2>\n')
-#            html.write("""<p>From left to right: GALEX (FUV/NUV), DESI Legacy Surveys (grz), and unWISE (W1/W2)
-#            mosaics ({:.2f} arcsec or {:.0f} kpc on a side).</p>\n""".format(width_arcsec, width_kpc))
-#            #html.write("""<p>From left to right: GALEX (FUV/NUV), DESI Legacy Surveys (grz), and unWISE (W1/W2)
-#            #mosaic ({0:.0f} kpc on a side).</p>\n""".format(width_kpc))
-#            html.write('<table width="90%">\n')
-#            pngfile = '{}-multiwavelength-data.png'.format(galaxy)
-#            html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
-#                pngfile))
-#            html.write('</table>\n')
-#            #html.write('<br />\n')
-#            
-#            ###########################################################################
-#            html.write('<h2>Multiwavelength image modeling</h2>\n')
-#            html.write("""<p>From left to right: data; model image of all sources except the central, resolved galaxy;
-#            residual image containing just the central galaxy.</p><p>From top to bottom: GALEX (FUV/NUV), DESI Legacy
-#            Surveys (grz), and unWISE (W1/W2) mosaic ({:.2f} arcsec or {:.0f} kpc on a side).</p>\n""".format(
-#                width_arcsec, width_kpc))
-#
-#            html.write('<table width="90%">\n')
-#            pngfile = '{}-multiwavelength-models.png'.format(galaxy)
-#            html.write('<tr><td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
-#                pngfile))
-#            #html.write('<tr><td>Data, Model, Residuals</td></tr>\n')
-#            html.write('</table>\n')
-#            html.write('<br />\n')
-#
-#            ###########################################################################
-#            
-#            html.write('<h2>Elliptical Isophote Analysis</h2>\n')
-#
-#            if False:
-#                html.write('<table width="90%">\n')
-#                html.write('<tr>\n')
-#                pngfile = '{}-ellipse-multiband.png'.format(galaxy)
-#                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                    pngfile))
-#                html.write('</tr>\n')
-#                html.write('</table>\n')
-#
-#            html.write('<table width="90%">\n')
-#            html.write('<tr>\n')
-#            pngfile = '{}-ellipse-sbprofile.png'.format(galaxy)
-#            html.write('<td width="100%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                pngfile))
-#            html.write('<td></td>\n')
-#            html.write('</tr>\n')
-#            html.write('</table>\n')
-#
-#            if False:
-#                html.write('<h2>Surface Brightness Profile Modeling</h2>\n')
-#                html.write('<table width="90%">\n')
-#
-#                # single-sersic
-#                html.write('<tr>\n')
-#                html.write('<th>Single Sersic (No Wavelength Dependence)</th><th>Single Sersic</th>\n')
-#                html.write('</tr>\n')
-#                html.write('<tr>\n')
-#                pngfile = '{}-sersic-single-nowavepower.png'.format(galaxy)
-#                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                    pngfile))
-#                pngfile = '{}-sersic-single.png'.format(galaxy)
-#                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                    pngfile))
-#                html.write('</tr>\n')
-#
-#                # Sersic+exponential
-#                html.write('<tr>\n')
-#                html.write('<th>Sersic+Exponential (No Wavelength Dependence)</th><th>Sersic+Exponential</th>\n')
-#                html.write('</tr>\n')
-#                html.write('<tr>\n')
-#                pngfile = '{}-sersic-exponential-nowavepower.png'.format(galaxy)
-#                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                    pngfile))
-#                pngfile = '{}-sersic-exponential.png'.format(galaxy)
-#                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                    pngfile))
-#                html.write('</tr>\n')
-#
-#                # double-sersic
-#                html.write('<tr>\n')
-#                html.write('<th>Double Sersic (No Wavelength Dependence)</th><th>Double Sersic</th>\n')
-#                html.write('</tr>\n')
-#                html.write('<tr>\n')
-#                pngfile = '{}-sersic-double-nowavepower.png'.format(galaxy)
-#                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                    pngfile))
-#                pngfile = '{}-sersic-double.png'.format(galaxy)
-#                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                    pngfile))
-#                html.write('</tr>\n')
-#                html.write('</table>\n')
-#                html.write('<br />\n')
-#
-#            if False:
-#                html.write('<h2>CCD Diagnostics</h2>\n')
-#                html.write('<table width="90%">\n')
-#                html.write('<tr>\n')
-#                pngfile = '{}-ccdpos.png'.format(galaxy)
-#                html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                    pngfile))
-#                html.write('</tr>\n')
-#
-#                for iccd in range(len(survey.ccds)):
-#                    html.write('<tr>\n')
-#                    pngfile = '{}-2d-ccd{:02d}.png'.format(galaxy, iccd)
-#                    html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(
-#                        pngfile))
-#                    html.write('</tr>\n')
-#                html.write('</table>\n')
-#                html.write('<br />\n')
-#            
-#            html.write('<br />\n')
-#            html.write('<br />\n')
-#            html.write('<a href="../{}">Home</a>\n'.format(htmlhome))
-#            html.write('<br />\n')
-#
-#            html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
-#            html.write('<br />\n')
-#            html.write('</html></body>\n')
-#            html.close()
-#
-#    if makeplots:
-#        for onegal in sample:
-#            galaxy = onegal['MANGAID']
-#            if type(galaxy) is np.bytes_:
-#                galaxy = galaxy.decode('utf-8')
-#            galaxydir = os.path.join(analysisdir, galaxy)
-#            htmlgalaxydir = os.path.join(htmldir, galaxy)
-#
-#            survey.output_dir = os.path.join(analysisdir, galaxy)
-#            #survey.ccds = fits_table(os.path.join(survey.output_dir, '{}-ccds.fits'.format(galaxy)))
-#
-#            # Custom plots
-#            ellipsefit = read_ellipsefit(galaxy, galaxydir)
-#            
-#            cogfile = os.path.join(htmlgalaxydir, '{}-curve-of-growth.png'.format(galaxy))
-#            if not os.path.isfile(cogfile) or clobber:
-#                LSLGA.qa.qa_curveofgrowth(ellipsefit, png=cogfile, verbose=verbose)
-#                
-#            #pdb.set_trace()
-#                
-#            sbprofilefile = os.path.join(htmlgalaxydir, '{}-ellipse-sbprofile.png'.format(galaxy))
-#            if not os.path.isfile(sbprofilefile) or clobber:
-#                LSLGA.qa.display_ellipse_sbprofile(ellipsefit, png=sbprofilefile,
-#                                                   verbose=verbose)
-#            
-#            LSLGA.qa.qa_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
-#                                               clobber=clobber, verbose=verbose)
-#
-#            # Plots common to legacyhalos
-#            #make_plots([onegal], galaxylist=[galaxy], analysisdir=analysisdir,
-#            #           htmldir=htmldir, clobber=clobber, verbose=verbose,
-#            #           survey=survey, refband=refband, pixscale=pixscale,
-#            #           band=band, nproc=nproc, ccdqa=ccdqa, trends=False)
-#
-#    print('HTML pages written to {}'.format(htmldir))

@@ -316,8 +316,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.05, maxshift=10,
-                          sigmamask=3.0,
-                          neighborfactor=3.0, verbose=False):
+                          sigmamask=3.0, neighborfactor=3.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -367,7 +366,6 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #    psfsrcs = None
 
     def tractor2mge(indx, factor=1.0):
-    #def tractor2mge(indx, majoraxis=None):
         # Convert a Tractor catalog entry to an MGE object.
         class MGEgalaxy(object):
             pass
@@ -375,7 +373,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         if tractor.sga_id[indx] > -1:
             pa = tractor.pa_init[indx]
             ba = tractor.ba_init[indx]
-            majoraxis = tractor.diam_init[indx] * 60 / 2 / filt2pixscale[refband] # [pixels]
+            majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
         else:
             ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
             ba = (1 - ee) / (1 + ee)
@@ -417,7 +415,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # central in case there was a poor deblend.
         largeshift = False
         mge, centralmask = tractor2mge(central, factor=neighborfactor)
-        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png')
+        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -481,7 +479,6 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # which has had the satellites nearest to the central galaxy trimmed
         # out.
         print('Building the satellite mask.')
-        #srcs = tractor.copy()
         satmask = np.zeros(data[refband].shape, bool)
         for filt in bands:
             # do not let GALEX and WISE contribute to the satellite mask
@@ -712,7 +709,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
             'flux_g', 'flux_r', 'flux_z',
             'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z',
             'nobs_g', 'nobs_r', 'nobs_z',
-            'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
+            #'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
             'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
             'psfsize_g', 'psfsize_r', 'psfsize_z']
     if galex:
@@ -824,7 +821,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                  filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
                  galex_pixscale=1.5, unwise_pixscale=2.75,
                  sky_tests=False, unwise=False, galex=False, verbose=False,
-                 debug=False, logfile=None):
+                 clobber=False, debug=False, logfile=None):
     """Wrapper on legacyhalos.mpi.call_ellipse but with specific preparatory work
     and hooks for the legacyhalos project.
 
@@ -874,329 +871,138 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, debug=True)#debug, logfile=logfile)
+                     verbose=verbose, clobber=clobber, debug=True)#debug, logfile=logfile)
 
-def _init_catalog(clobber=False):
-    import legacyhalos.io
+def _datarelease_table(ellipse):
+    """Convert the ellipse table into a data release catalog."""
 
-    outdir = legacyhalos.io.legacyhalos_dir()
-    outfile = os.path.join(outdir, 'virgofilaments-legacyphot.fits')
-    #soutfile = os.path.join(outdir, 'virgofilaments-parent.fits')
-    if os.path.isfile(outfile) and not clobber:
-        print('Use --clobber to overwrite existing catalog {}'.format(outfile))
-        return None
+    from copy import deepcopy
 
-    return outfile
+    out = deepcopy(ellipse)
+    for col in out.colnames:
+        if out[col].ndim > 1:
+            out.remove_column(col)
+        if 'REFBAND' in col or 'PSFSIZE' in col or 'PSFDEPTH' in col:
+            out.remove_column(col)
+    remcols = ('REFPIXSCALE', 'SUCCESS', 'FITGEOMETRY', 'LARGESHIFT',
+               'MAXSMA', 'MAJORAXIS', 'EPS_MOMENT', 'INTEGRMODE', 'INPUT_ELLIPSE', 'SCLIP', 'NCLIP')
+    for col in remcols:
+        out.remove_column(col)
 
-def _write_catalog(tractor, ellipse, parent, outfile):
+    out['ELLIPSEBIT'] = np.zeros(1, dtype=np.int32) # we don't want -1 here                
+
+    return out
+
+def _build_catalog_one(args):
+    """Wrapper function for the multiprocessing."""
+    return build_catalog_one(*args)
+
+def build_catalog_one(galaxy, galaxydir, fullsample, refcat='R1', verbose=False):
+    """Gather the ellipse-fitting results for a single group."""
+    import fitsio
     from astropy.table import Table, vstack
-    from astropy.io import fits
-    
-    if len(ellipse) == 0:
-        print('Something went wrong and no galaxies were fitted.')
-        return
+    from legacyhalos.io import read_ellipsefit
+
+    tractor, parent, ellipse = [], [], []
+
+    tractorfile = os.path.join(galaxydir, '{}-custom-tractor.fits'.format(galaxy))
+    if not os.path.isfile(tractorfile):
+        print('Missing Tractor catalog {}'.format(tractorfile))
+        return None, None, None #tractor, parent, ellipse
+        #return tractor, parent, ellipse
+
+    for onegal in fullsample:
+        refid = onegal[REFIDCOLUMN]
+        
+        ellipsefile = os.path.join(galaxydir, '{}-custom-ellipse-{}.fits'.format(galaxy, refid))
+        if not os.path.isfile(ellipsefile):
+            print('Missing ellipse file {}'.format(ellipsefile))
+            return None, None, None #tractor, parent, ellipse
+
+        _ellipse = read_ellipsefit(galaxy, galaxydir, galaxy_id=str(refid), asTable=True,
+                                  filesuffix='custom', verbose=True)
+        _ellipse = _datarelease_table(_ellipse)
+        #for col in _ellipse.colnames:
+        #    if _ellipse[col].ndim > 1:
+        #        _ellipse.remove_column(col)
+
+        _tractor = Table(fitsio.read(tractorfile, upper=True))
+        match = np.where((_tractor['REF_CAT'] == refcat) * (_tractor['REF_ID'] == refid))[0]
+        if len(match) != 1:
+            raise ValueError('Problem here!')
+
+        ellipse.append(_ellipse)
+        tractor.append(_tractor[match])
+        parent.append(onegal)
 
     tractor = vstack(tractor, metadata_conflicts='silent')
-    ellipse = vstack(ellipse, metadata_conflicts='silent')
     parent = vstack(parent, metadata_conflicts='silent')
-    print('Gathered {} galaxies.'.format(len(tractor)))
+    ellipse = vstack(ellipse, metadata_conflicts='silent')
 
+    return tractor, parent, ellipse
+
+def build_catalog(sample, fullsample, nproc=1, refcat='R1', verbose=False, clobber=False):
+    import time
+    import multiprocessing
+    from astropy.io import fits
+    from astropy.table import vstack
+    
+    outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'virgofilaments-legacyphot.fits')
+    if os.path.isfile(outfile) and not clobber:
+        print('Use --clobber to overwrite existing catalog {}'.format(outfile))
+        return
+
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    
+    buildargs = []
+    for gal, gdir, onegal in zip(galaxy, galaxydir, sample):
+        _fullsample = fullsample[fullsample['GROUP_ID'] == onegal['GROUP_ID']]
+        buildargs.append((gal, gdir, _fullsample, refcat, verbose))
+
+    t0 = time.time()
+    if nproc > 1:
+        with multiprocessing.Pool(nproc) as P:
+            results = P.map(_build_catalog_one, buildargs)
+    else:
+        results = [build_catalog_one(*_buildargs) for _buildargs in buildargs]
+
+    results = list(zip(*results))
+
+    tractor1 = list(filter(None, results[0]))
+    parent1 = list(filter(None, results[1]))
+    ellipse1 = list(filter(None, results[2]))
+
+    tractor = vstack(tractor1, metadata_conflicts='silent')
+    parent = vstack(parent1, metadata_conflicts='silent')
+    ellipse = vstack(ellipse1, metadata_conflicts='silent')
+
+    #results = list(zip(*results))
+    #tractor = vstack(results[0], metadata_conflicts='silent')
+    #parent = vstack(results[1], metadata_conflicts='silent')
+    #ellipse = vstack(results[2], metadata_conflicts='silent')
+    print('Merging {} galaxies took {:.2f} min.'.format(len(tractor), (time.time()-t0)/60.0))
+
+    if len(tractor) == 0:
+        print('Something went wrong and no galaxies were fitted.')
+        return
     assert(len(tractor) == len(parent))
-    assert(len(tractor) == len(ellipse))
-
-    tractor = tractor[np.argsort(tractor['REF_ID'])]
-    ellipse = ellipse[np.argsort(ellipse[REFIDCOLUMN])]
-    parent = parent[np.argsort(parent[REFIDCOLUMN])]
-
-    assert(np.all(tractor['REF_ID'] == ellipse[REFIDCOLUMN]))
     assert(np.all(tractor['REF_ID'] == parent[REFIDCOLUMN]))
 
+    # write out
     hdu_primary = fits.PrimaryHDU()
+    hdu_parent = fits.convenience.table_to_hdu(parent)
+    hdu_parent.header['EXTNAME'] = 'PARENT'
+
     hdu_ellipse = fits.convenience.table_to_hdu(ellipse)
     hdu_ellipse.header['EXTNAME'] = 'ELLIPSE'
 
     hdu_tractor = fits.convenience.table_to_hdu(tractor)
     hdu_tractor.header['EXTNAME'] = 'TRACTOR'
         
-    hdu_parent = fits.convenience.table_to_hdu(parent)
-    hdu_parent.header['EXTNAME'] = 'PARENT'
-        
-    hx = fits.HDUList([hdu_primary, hdu_ellipse, hdu_tractor, hdu_parent])
+    hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_tractor])
     hx.writeto(outfile, overwrite=True, checksum=True)
 
-    print('Wrote {} galaxies to {}'.format(len(ellipse), outfile))
-
-def _build_catalog_one(args):
-    """Wrapper function for the multiprocessing."""
-    return build_catalog_one(*args)
-
-def build_catalog_one(onegal, fullsample, refcat='R1', verbose=False):
-    """Gather the ellipse-fitting results for a single galaxy.
-
-    """
-    from glob import glob
-
-    import warnings
-    import fitsio
-    from astrometry.util.util import Tan    
-    from astropy.table import Table, vstack, hstack, Column
-    from legacyhalos.io import read_ellipsefit, get_run
-
-    from astrometry.libkd.spherematch import match_radec
-
-    onegal = Table(onegal)
-    galaxy, galaxydir = get_galaxy_galaxydir(onegal)
-
-    onegal['DROPBIT'] = np.zeros(1, dtype=np.int32)
-    fullsample['DROPBIT'] = np.zeros(len(fullsample), dtype=np.int32)
-
-    isdonedir = galaxydir
-
-    # An object may be missing a Tractor catalog either because it wasn't fit or
-    # because it is missing grz coverage. In both cases, however, we want to
-    # keep them in the output catalog, not reject them.
-    run = get_run(onegal)
-    ccdsfile = os.path.join(galaxydir, '{}-ccds-{}.fits'.format(galaxy, run))
-    isdonefile = os.path.join(galaxydir, '{}-custom-coadds.isdone'.format(galaxy))
-    tractorfile = os.path.join(galaxydir, '{}-custom-tractor.fits'.format(galaxy))
-    if not os.path.isfile(tractorfile):
-        if os.path.isfile(ccdsfile) and os.path.isfile(isdonefile):
-            print('Missing grz coverage in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-            onegal['DROPBIT'] |= DROPBITS['nogrz']
-        elif not os.path.isfile(ccdsfile) and os.path.isfile(isdonefile): # no photometric CCDs touching brick
-            print('Missing grz coverage in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-            onegal['DROPBIT'] |= DROPBITS['nogrz']
-        elif os.path.isfile(ccdsfile) and not os.path.isfile(isdonefile):
-            print('Missing fitting results in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-            onegal['DROPBIT'] |= DROPBITS['notfit']
-        else: # shouldn't happen...I think
-            print('Warning: no Tractor catalog in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-            onegal['DROPBIT'] |= DROPBITS['notfit']
-
-        return None, None, onegal
-
-    # Note: for galaxies on the edge of the footprint we can also sometimes lose
-    # 3-band coverage if one or more of the bands is fully masked (these will
-    # fail the "found_data" check in legacyhalos.io.read_multiband. Do a similar
-    # check here before continuing.
-    grzmissing = False
-    for band in ['g', 'r', 'z']:
-        imfile = os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, band))
-        if not os.path.isfile(imfile):
-            print('  Missing image {}'.format(imfile), flush=True)
-            grzmissing = True
-    if grzmissing:
-        print('Missing grz coverage in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-        onegal['DROPBIT'] |= DROPBITS['nogrz']
-        return None, None, onegal
-
-    # OK, now keep going!
-    tractor = Table(fitsio.read(tractorfile, upper=True))
-
-    def _check_grz(galaxydir, galaxy, radec=None, just_ivar=False):
-        grzmissing, box = False, 2
-        for band in ['g', 'r', 'z']:
-            imfile = os.path.join(galaxydir, '{}-custom-image-{}.fits.fz'.format(galaxy, band))
-            ivarfile = os.path.join(galaxydir, '{}-custom-invvar-{}.fits.fz'.format(galaxy, band))
-            wcs = Tan(imfile, 1)
-            img = fitsio.read(imfile)
-            ivar = fitsio.read(ivarfile)
-            H, W = img.shape
-            if radec is not None:
-                _, xcen, ycen = wcs.radec2pixelxy(radec[0], radec[1])
-                ycen, xcen = np.int(ycen-1), np.int(xcen-1)
-            else:
-                ycen, xcen = H//2, W//2
-            #print(band, img[ycen-box:ycen+box, xcen-box:xcen+box],
-            #      ivar[ycen-box:ycen+box, xcen-box:xcen+box])
-            if just_ivar:
-                if np.all(ivar[ycen-box:ycen+box, xcen-box:xcen+box] == 0):
-                    grzmissing = True
-                    break
-            else:
-                if (np.all(img[ycen-box:ycen+box, xcen-box:xcen+box] == 0) and
-                    np.all(ivar[ycen-box:ycen+box, xcen-box:xcen+box] == 0)):
-                    grzmissing = True
-                    break
-        return grzmissing
-
-    # Make sure we have at least one galaxy in this field; if not, it means the
-    # galaxy is spurious (or *all* the galaxies, in the case of a galaxy group
-    # are spurious). Actually, on the edge of the footprint we can also have a
-    # catalog without any primary sources (i.e., if there are no
-    # pixels). Capture that case here, too.
-    isga = np.where(tractor['REF_CAT'] == refcat)[0]
-    if len(isga) == 0:
-        #print('Warning: No galaxies in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]))
-        # Are there pixels?
-        grzmissing = _check_grz(galaxydir, galaxy)
-        if grzmissing:
-            print('Missing grz coverage in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-            onegal['DROPBIT'] |= DROPBITS['nogrz']
-        else:
-            # Is it fully masked because of a bleed trail or just dropped?
-            if _check_grz(galaxydir, galaxy, just_ivar=True):
-                print('Masked and dropped by Tractor in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-                onegal['DROPBIT'] |= DROPBITS['masked']
-            else:
-                print('Dropped by Tractor in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-                onegal['DROPBIT'] |= DROPBITS['dropped']
-        return None, None, onegal
-        
-    # Next, remove galaxies which do not belong to this group, because they will
-    # be handled when we deal with *that* group.
-    toss = np.where(np.logical_not(np.isin(tractor['REF_ID'][isga], fullsample[REFIDCOLUMN])))[0]
-    if len(toss) > 0:
-        for tt in toss:
-            if verbose:
-                print('  Removing non-primary VF_ID={}'.format(tractor[isga][tt]['REF_ID']), flush=True)
-        keep = np.delete(np.arange(len(tractor)), isga[toss])
-        tractor = tractor[keep]
-
-    # Next, gather up all the ellipse files, which *define* the sample. Also
-    # track the galaxies that are dropped by Tractor and, separately, galaxies
-    # which fail ellipse-fitting (or are not ellipse-fit because they're too
-    # small).
-    isdonefile = os.path.join(isdonedir, '{}-custom-ellipse.isdone'.format(galaxy))
-    isfailfile = os.path.join(isdonedir, '{}-custom-ellipse.isfail'.format(galaxy))
-
-    ellipsecat, tractorcat, parent = [], [], []
-    for igal, sga_id in enumerate(np.atleast_1d(fullsample[REFIDCOLUMN])):
-        ellipsefile = os.path.join(galaxydir, '{}-custom-ellipse-{}.fits'.format(galaxy, sga_id))
-
-        # Find this object in the Tractor catalog. 
-        match = np.where((tractor['REF_CAT'] == refcat) * (tractor['REF_ID'] == sga_id))[0]
-        if len(match) > 1:
-            raise ValueError('Multiple matches should never happen but it did in the field of ID={}?!?'.format(onegal[REFIDCOLUMN]))
-
-        thisgal = Table(fullsample[igal])
-
-        # An object can be missing an ellipsefit file for two reasons:
-        if not os.path.isfile(ellipsefile):
-             # If the galaxy does not appear in the Tractor catalog, it was
-             # dropped during fitting, which means that it's either spurious (or
-             # there's a fitting bug) (or we're missing grz coverage, e.g.,
-             # PGC1062274)!
-            if len(match) == 0:
-                # check for grz coverage
-                grzmissing = _check_grz(galaxydir, galaxy, radec=(thisgal['RA'], thisgal['DEC']))
-                if grzmissing:
-                    print('Missing grz coverage for galaxy {} in the field of {} (VF_ID={})'.format(
-                        fullsample['GALAXY'][igal], galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-                    thisgal['DROPBIT'] |= DROPBITS['nogrz']
-                    parent.append(thisgal)
-                else:
-                    if verbose:
-                        print('Dropped by Tractor and not ellipse-fit: {} (ID={})'.format(fullsample['GALAXY'][igal], sga_id), flush=True)
-                    thisgal['DROPBIT'] |= DROPBITS['dropped']
-                    parent.append(thisgal)
-            else:
-                # Objects here were fit by Tractor but *not* ellipse-fit (for
-                # whatever reason).
-                if verbose:
-                    print('Not ellipse-fit: {} (ID={}, type={}, r50={:.2f} arcsec, fluxr={:.3f} nanomaggies)'.format(
-                        fullsample['GALAXY'][igal], sga_id, tractor['TYPE'][match[0]], tractor['SHAPE_R'][match[0]],
-                        tractor['FLUX_R'][match[0]]), flush=True)
-
-                typ = tractor['TYPE'][match]
-                r50 = tractor['SHAPE_R'][match]
-                rflux = tractor['FLUX_R'][match]
-
-                # Bug in fit_on_coadds: nobs_[g,r,z] is 1 even when missing the
-                # band, so use S/N==0 in grz.
-                #ng, nr, nz = tractor['NOBS_G'][match], tractor['NOBS_R'][match], tractor['NOBS_Z'][match]
-                ng = tractor['FLUX_G'][match] * np.sqrt(tractor['FLUX_IVAR_G'][match]) == 0
-                nr = tractor['FLUX_R'][match] * np.sqrt(tractor['FLUX_IVAR_R'][match]) == 0
-                nz = tractor['FLUX_Z'][match] * np.sqrt(tractor['FLUX_IVAR_Z'][match]) == 0
-
-                #if ng == 0 or nr == 0 or nz == 0:
-                if ng or nr or nz:
-                    thisgal['DROPBIT'] |= DROPBITS['masked']
-                    parent.append(thisgal)
-                elif typ == 'PSF' or rflux < 0:
-                    # In some corner cases we can end up as PSF or with negative
-                    # r-band flux because of missing grz coverage right at the
-                    # center of the galaxy, e.g., PGC046314.
-                    grzmissing = _check_grz(galaxydir, galaxy, radec=(thisgal['RA'], thisgal['DEC']))
-                    if grzmissing:
-                        print('Missing grz coverage in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-                        thisgal['DROPBIT'] |= DROPBITS['nogrz']
-                        parent.append(thisgal)
-                    else:
-                        # check for fully mask (e.g. bleed trail)--
-                        if _check_grz(galaxydir, galaxy, radec=(thisgal['RA'], thisgal['DEC']), just_ivar=True):
-                            print('Masked galaxy in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-                            thisgal['DROPBIT'] |= DROPBITS['masked']
-                            parent.append(thisgal)
-                        elif typ == 'PSF':
-                            thisgal['DROPBIT'] |= DROPBITS['isPSF']
-                            parent.append(thisgal)
-                        elif rflux < 0:
-                            #print('Negative r-band flux in the field of {} (VF_ID={})'.format(galaxy, onegal[REFIDCOLUMN][0]), flush=True)
-                            thisgal['DROPBIT'] |= DROPBITS['negflux']
-                            parent.append(thisgal)
-                        else:
-                            pass
-                else:
-                    # If either of these files exist (but there's not
-                    # ellipse.fits catalog) then something has gone wrong. If
-                    # *neither* file exists, then this galaxy was never fit!
-                    if os.path.isfile(isfailfile):
-                        thisgal['DROPBIT'] |= DROPBITS['failed']
-                    elif os.path.isfile(isdonefile):
-                        if typ == 'REX' and r50 < 5.0:
-                            thisgal['DROPBIT'] |= DROPBITS['rex_toosmall']
-                        elif typ != 'REX' and typ != 'PSF' and r50 < 2.0:
-                            thisgal['DROPBIT'] |= DROPBITS['notrex_toosmall']
-                        else:
-                            # corner case (e.g., IC1613) where I think I made the done files by fiat
-                            thisgal['DROPBIT'] |= DROPBITS['notfit']
-                    else:
-                        thisgal['DROPBIT'] |= DROPBITS['notfit']
-        else:
-            # Objects here were ellipse-fit.
-            def _datarelease_table(ellipse):
-                """Convert the ellipse table into a data release catalog."""
-
-                from copy import deepcopy
-
-                out = deepcopy(ellipse)
-                for col in out.colnames:
-                    if out[col].ndim > 1:
-                        out.remove_column(col)
-                    if 'REFBAND' in col or 'PSFSIZE' in col or 'PSFDEPTH' in col:
-                        out.remove_column(col)
-                remcols = ('REFPIXSCALE', 'SUCCESS', 'FITGEOMETRY', 'LARGESHIFT',
-                           'MAXSMA', 'MAJORAXIS', 'EPS_MOMENT', 'INTEGRMODE', 'INPUT_ELLIPSE', 'SCLIP', 'NCLIP')
-                for col in remcols:
-                    out.remove_column(col)
-
-                out['ELLIPSEBIT'] = np.zeros(1, dtype=np.int32) # we don't want -1 here                
-
-                return out
-
-            ellipse = read_ellipsefit(galaxy, galaxydir, galaxy_id=str(sga_id),
-                                      filesuffix='custom', verbose=True, asTable=True)
-            out = _datarelease_table(ellipse)
-
-            # Objects with "largeshift" shifted positions significantly during
-            # ellipse-fitting, which *may* point to a problem. Add a bit--
-            if ellipse['LARGESHIFT']:
-                out['ELLIPSEBIT'] |= ELLIPSEBITS['largeshift']
-
-            ellipsecat.append(out)
-            
-        parent.append(thisgal)
-        tractorcat.append(tractor[match])
-
-    if len(ellipsecat) > 0:
-        ellipsecat = vstack(ellipsecat, metadata_conflicts='silent')
-    if len(parent) > 0:
-        parent = vstack(parent, metadata_conflicts='silent')
-    if len(tractorcat) > 0:
-        tractorcat = vstack(tractorcat, metadata_conflicts='silent')
-
-    return tractorcat, ellipsecat, parent
+    print('Wrote {} galaxies to {}'.format(len(parent), outfile))
 
 def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4'],
               kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):

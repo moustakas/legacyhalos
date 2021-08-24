@@ -751,7 +751,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     import multiprocessing
 
     bands, refband, refpixscale = data['bands'], data['refband'], data['refpixscale']
-    filesuffix = data['filesuffix']
 
     if galaxyinfo is not None:
         galaxyinfo = np.atleast_1d(galaxyinfo)
@@ -988,7 +987,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                                         apertures=apertures,
                                         bands=ellipsefit['bands'],
                                         verbose=True,
-                                        filesuffix=filesuffix)
+                                        filesuffix=data['filesuffix'])
 
     return ellipsefit
 
@@ -999,7 +998,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                         apertures=REF_APERTURES,
                         delta_sma=1.0, delta_logsma=5, maxsma=None, logsma=True,
                         input_ellipse=None, fitgeometry=False,
-                        verbose=False, debug=False):
+                        verbose=False, debug=False, clobber=False):
                         
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
@@ -1007,6 +1006,8 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
       from MGE).
 
     """
+    from legacyhalos.io import get_ellipsefit_filename
+    
     if bool(data):
         if data['missingdata']:
             if os.path.isfile(os.path.join(galaxydir, '{}-{}-coadds.isdone'.format(galaxy, data['filesuffix']))):
@@ -1023,16 +1024,21 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
             galaxy_id = ['']
             
         for igal, galid in enumerate(galaxy_id):
-            ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
-                                              galaxyinfo=galaxyinfo,
-                                              igal=igal, galaxy_id=str(galid),
-                                              delta_logsma=delta_logsma, maxsma=maxsma,
-                                              delta_sma=delta_sma, logsma=logsma,
-                                              refband=refband, nproc=nproc, sbthresh=sbthresh,
-                                              apertures=apertures,
-                                              integrmode=integrmode, nclip=nclip, sclip=sclip,
-                                              input_ellipse=input_ellipse,
-                                              verbose=verbose, fitgeometry=False)
+            ellipsefitfile = get_ellipsefit_filename(galaxy, galaxydir, galaxy_id=str(galid),
+                                                     filesuffix=data['filesuffix'])
+            if os.path.isfile(ellipsefitfile) and not clobber:
+                print('Skipping existing catalog {}'.format(ellipsefitfile))
+            else:
+                ellipsefit = ellipsefit_multiband(galaxy, galaxydir, data,
+                                                  galaxyinfo=galaxyinfo,
+                                                  igal=igal, galaxy_id=str(galid),
+                                                  delta_logsma=delta_logsma, maxsma=maxsma,
+                                                  delta_sma=delta_sma, logsma=logsma,
+                                                  refband=refband, nproc=nproc, sbthresh=sbthresh,
+                                                  apertures=apertures,
+                                                  integrmode=integrmode, nclip=nclip, sclip=sclip,
+                                                  input_ellipse=input_ellipse,
+                                                  verbose=verbose, fitgeometry=False)
         return 1
     else:
         # An object can get here if it's a "known" failure, e.g., if the object

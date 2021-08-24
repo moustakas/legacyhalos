@@ -16,7 +16,7 @@ def main():
     import legacyhalos.manga
 
     from legacypipe.runs import get_survey
-    from legacyhalos.manga import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, RADIUSFACTOR, MANGA_RADIUS
+    from legacyhalos.manga import ZCOLUMN, RACOLUMN, DECCOLUMN, GALAXYCOLUMN, RADIUSFACTOR, MANGA_RADIUS, REFIDCOLUMN
     from legacyhalos.manga import get_galaxy_galaxydir
     
     basedir = legacyhalos.io.legacyhalos_dir()
@@ -42,6 +42,7 @@ def main():
         sample = legacyhalos.manga.read_sample(first=args.first, last=args.last,
                                                galaxylist=args.galaxylist,
                                                verbose=args.verbose)
+
         if len(sample) == 0:
             return
 
@@ -51,8 +52,7 @@ def main():
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
     if rank == 0:
-        refcat = 'R1'
-        
+        refcat = 'R1'       
         if args.build_refcat:
             # Build a reference catalog for use with the pipeline.
             import fitsio
@@ -62,7 +62,7 @@ def main():
             ref = Table()
             ref['ra'] = sample[RACOLUMN]
             ref['dec'] = sample[DECCOLUMN]
-            ref['sga_id'] = sample['MANGAID_INT']
+            ref['sga_id'] = sample[REFIDCOLUMN]
 
             ref['mag_leda'] = np.repeat(15.0, len(sample)).astype('f4')
             ref['ba'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a (circular)
@@ -91,6 +91,7 @@ def main():
 
             cmd = 'modhead {} SGAVER {}'.format(kdreffile, hdrver)
             _ = os.system(cmd)
+            return
 
         if args.htmlindex:
             legacyhalos.manga.make_html(sample, survey=None, pixscale=args.pixscale,
@@ -98,6 +99,7 @@ def main():
                                         zcolumn=ZCOLUMN, nproc=args.nproc, clobber=args.clobber,
                                         makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
                                         ccdqa=args.ccdqa, args=args)
+            return
 
         if args.build_catalog:
             from legacyhalos.manga import build_catalog
@@ -106,9 +108,9 @@ def main():
             if len(groups) == 0:
                 print('No complete galaxies!')
                 return
-            build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose, refcat=refcat)
-            
-        return
+            build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose, refcat=refcat,
+                          clobber=args.clobber)
+            return
 
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
@@ -217,6 +219,7 @@ def main():
                          bands=['g', 'r', 'z'], refband='r',                         
                          pixscale=args.pixscale, nproc=args.nproc,
                          verbose=args.verbose, debug=args.debug,
+                         clobber=args.clobber,
                          unwise=True, galex=True,
                          logfile=logfile)
                              
