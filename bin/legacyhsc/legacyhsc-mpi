@@ -225,7 +225,7 @@ def main():
                          pixscale=args.pixscale, nproc=args.nproc,
                          verbose=args.verbose, debug=args.debug,
                          sky_tests=args.sky_tests, unwise=False,
-                         logfile=logfile)
+                         logfile=logfile, clobber=args.clobber)
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
