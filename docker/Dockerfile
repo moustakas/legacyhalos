@@ -1,4 +1,4 @@
-FROM legacysurvey/legacypipe:DR9.8.3
+FROM legacysurvey/legacypipe:DR9.9.6
 
 RUN for x in \
     ipython \
@@ -26,6 +26,6 @@ ENV PYTHONPATH=/src/legacyhalos/py:$PYTHONPATH
 ENV PATH=/src/legacyhalos/bin:$PATH
 
 # update legacyhalos
-RUN cd /src/legacyhalos && git pull && git describe && echo 1.1
+RUN cd /src/legacyhalos && git pull && git describe && echo 2
 
 LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
