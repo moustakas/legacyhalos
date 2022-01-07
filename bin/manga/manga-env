@@ -5,8 +5,8 @@ project=manga
 
 #############################
 # For a power-user / testing.
-export LEGACYPIPE_CODE_DIR=/global/homes/i/ioannis/repos/git/legacypipe
-export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/repos/git/legacyhalos
+export LEGACYPIPE_CODE_DIR=/global/homes/i/ioannis/code/git/legacypipe
+export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/code/git/legacyhalos
 export PYTHONPATH=$LEGACYHALOS_CODE_DIR/py:$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
 export PATH=$LEGACYHALOS_CODE_DIR/bin/$project:$PATH
 #############################
@@ -59,7 +59,7 @@ export MPLCONFIGDIR=$TMPCACHE/matplotlib
 mkdir $MPLCONFIGDIR
 cp -r $HOME/.config/matplotlib $MPLCONFIGDIR
 ## ipython
-#export IPYTHONDIR=$TMPCACHE/ipython
-#mkdir $IPYTHONDIR
-#cp -r $HOME/.ipython $IPYTHONDIR  
-#
+export IPYTHONDIR=$TMPCACHE/ipython
+mkdir $IPYTHONDIR
+cp -r $HOME/.ipython $IPYTHONDIR  
+

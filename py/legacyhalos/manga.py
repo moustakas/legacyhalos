@@ -221,13 +221,14 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
 
-    use_testbed = True
+    use_testbed = False
 
     if use_testbed:
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed100.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
     else:
-        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-dr17-v0.1.fits')
+        #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
 
     if first and last:
         if first > last:
@@ -238,7 +239,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     nrows = info[ext].get_nrows()
     rows = np.arange(nrows)
 
-    if not use_testbed:
+    if not use_testbed and False: # the drpall-dr17-v0.1.fits file already has the selection we want
         # See here to select unique Manga galaxies--
         # https://www.sdss.org/dr16/manga/manga-tutorials/drpall/#py-uniq-gals
         tbdata = fitsio.read(samplefile, lower=True, columns=['mngtarg1', 'mngtarg3', 'mangaid'])
