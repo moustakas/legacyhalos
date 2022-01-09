@@ -69,7 +69,7 @@ def main():
             ref['pa'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
             ref['diam'] = np.repeat(2 * MANGA_RADIUS / 60.0, ngal).astype('f4') # fixed diameter [arcmin]
             
-            igood = np.where(sample['NSA_NSAID'] != -9999)[0]
+            igood = np.where((sample['NSA_NSAID'] != -9999) * (sample['NSA_NSAID'] > 0))[0]
             ref['ba'][igood] = sample['NSA_SERSIC_BA'][igood]
             ref['pa'][igood] = sample['NSA_SERSIC_PHI'][igood]
             ref['diam'][igood] = 2 * 2 * sample['NSA_SERSIC_TH50'][igood] / 60 # [2*half-light radius, arcmin]
