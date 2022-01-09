@@ -430,7 +430,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         from legacypipe.galex import galex_psf
 
         cat = fitsio.read(os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
-                          columns=['ref_cat', 'ref_id', 'wise_coadd_id', 'brickname'])
+                          columns=['brick_primary', 'ref_cat', 'ref_id', 'wise_coadd_id', 'brickname'])
+        cat = cat[cat['brick_primary']]
         psffile = os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                                'legacysurvey-{}-copsf-r.fits.fz'.format(brickname))
         if not os.path.isfile(psffile):
@@ -461,8 +462,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
             if (band == 1) or (band == 2):
                 # we only have updated PSFs for W1 and W2
-                psfimg = unwise_psf.get_unwise_psf(band, coadd_id,
-                                                   modelname='neo6_unwisecat')
+                psfimg = unwise_psf.get_unwise_psf(band, coadd_id, modelname='neo6_unwisecat')
+                #try:
+                #    psfimg = unwise_psf.get_unwise_psf(band, coadd_id, modelname='neo7_unwisecat')
+                #except:
+                #    pdb.set_trace()
             else:
                 psfimg = unwise_psf.get_unwise_psf(band, coadd_id)
 
