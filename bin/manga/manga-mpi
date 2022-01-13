@@ -153,7 +153,7 @@ def main():
                     for ii, dd in zip(todo, np.atleast_1d(galaxydir)):
                         print('  {} {}'.format(ii, dd))
             return
-        
+
     # Loop on the remaining objects.
     print('Starting {} {} on rank {} with {} cores on {}'.format(
         len(groups[rank]), suffix.upper(), rank, args.nproc, time.asctime()),

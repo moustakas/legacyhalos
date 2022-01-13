@@ -294,9 +294,29 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(sample), samplefile))
 
-    # 9673-3703 is off the footprint!
-    if use_testbed:
-        rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], '9673-3703'))
+    # a little bit of clean-up
+    # 12767-1902 is the globular cluster NGC6341=M92
+    # https://www.legacysurvey.org/viewer?ra=259.28079&dec=43.135944&layer=ls-dr9&zoom=13&sga&manga
+    
+    # * 12187-12705 is the globular cluster NGC7078=M15
+    # https://www.legacysurvey.org/viewer?ra=322.49304&dec=12.167&layer=ls-dr9&zoom=13&sga&manga
+
+    # * 11843-12705 is the globular cluster NGC6229
+    # https://www.legacysurvey.org/viewer?ra=251.74496&dec=47.52775&layer=ls-dr9&zoom=13&sga&manga
+    
+    # * 11842-12705 is the globular cluster NGC5634
+    # https://www.legacysurvey.org/viewer?ra=217.40512&dec=-5.9764167&layer=ls-dr9&zoom=13&sga&manga
+
+    # * 11841-12705 is the globular cluster NGC4147
+    # https://www.legacysurvey.org/viewer?ra=182.52625&dec=18.542639&layer=ls-dr9&zoom=13&sga&manga
+
+    # * 9673-3703 is off the footprint
+    # https://www.legacysurvey.org/viewer?ra=56.232562&dec=67.787128&layer=ls-dr9&zoom=13&sga&manga
+    if True:
+        remgals = np.array(['11843-12705', '11842-12705', '11841-12705', '9673-3703', '12187-12705', '12767-1902',
+                            '8485-1901' # temporarily remove!
+                            ])
+        rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals))
         if np.sum(rem) > 0:
             sample = sample[rem]
 
