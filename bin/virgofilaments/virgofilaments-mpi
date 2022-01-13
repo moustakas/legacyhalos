@@ -78,6 +78,7 @@ def main():
             
             import fitsio
             from astropy.table import Table
+            version = legacyhalos.virgofilaments.get_version()
 
             ngal = len(fullsample)
 
@@ -90,7 +91,7 @@ def main():
             ref['ba'] = fullsample['BA_INIT']
             ref['diam'] = fullsample['DIAM_INIT'] # [arcmin]
 
-            reffile = os.path.join(basedir, 'virgofilaments-refcat.fits')
+            reffile = os.path.join(basedir, 'virgofilaments-{}-refcat.fits'.format(version))
             kdreffile = reffile.replace('.fits', '.kd.fits')
             print('Writing {} galaxies to {}'.format(ngal, reffile))
             

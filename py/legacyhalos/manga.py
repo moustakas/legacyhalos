@@ -974,7 +974,9 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     clobber=clobber, verbose=verbose, debug=True)#debug, logfile=logfile)
+                     clobber=clobber, verbose=verbose,
+                     #debug=True,
+                     debug=debug, logfile=logfile)
 
 def resampled_phot(onegal, galaxy, galaxydir, resampled_pixscale=0.75, nproc=1,
                    filesuffix='custom', bands=['g', 'r', 'z'], refband='r',

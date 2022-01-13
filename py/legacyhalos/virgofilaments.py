@@ -232,14 +232,20 @@ def mpi_args():
 
     return args
 
+def get_version():
+    return 'v2'
+
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsample=False,
-                d25min=0.1, d25max=100.0, version='v1'):
+                d25min=0.1, d25max=100.0, version=None):
     """Read/generate the parent catalog.
 
     d25min,d25max in arcmin
 
     """
     import fitsio
+
+    if version is None:
+        version = get_version()
     
     if first and last:
         if first > last:
@@ -264,7 +270,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
                                             'vf_north_v1_main_groups_testsample2.fits'),
                                             columns=REFIDCOLUMN)
         samplecut = np.where(
-            np.isin(sample[REFIDCOLUMN], testvfid) *
+            #np.isin(sample[REFIDCOLUMN], testvfid) *
             sample['GROUP_PRIMARY'] *
             (sample['GROUP_DIAMETER'] > d25min) *
             (sample['GROUP_DIAMETER'] < d25max)
@@ -871,7 +877,9 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, clobber=clobber, debug=True)#debug, logfile=logfile)
+                     verbose=verbose, clobber=clobber,
+                     #debug=True,
+                     debug=debug, logfile=logfile)
 
 def _datarelease_table(ellipse):
     """Convert the ellipse table into a data release catalog."""
@@ -946,8 +954,10 @@ def build_catalog(sample, fullsample, nproc=1, refcat='R1', verbose=False, clobb
     import multiprocessing
     from astropy.io import fits
     from astropy.table import vstack
+
+    version = get_version()
     
-    outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'virgofilaments-legacyphot.fits')
+    outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'virgofilaments-{}-legacyphot.fits'.format(version))
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
         return
