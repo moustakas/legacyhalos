@@ -428,8 +428,7 @@ def build_catalog(sample, nproc=1, refcat='R1', verbose=False, clobber=False):
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.05, maxshift=10,
-                          sigmamask=3.0,
-                          neighborfactor=3.0, verbose=False):
+                          sigmamask=3.0, neighborfactor=3.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -497,7 +496,13 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             ba = (1 - ee) / (1 + ee)
             pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
             pa = pa % 180
-            majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+            #majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+
+            # can be zero (or very small) if fit as a PSF or REX
+            if tractor.shape_r[indx] > 1:
+                majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+            else:
+                majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
         mgegalaxy.xmed = tractor.by[indx]

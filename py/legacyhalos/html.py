@@ -429,7 +429,7 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, refpixscale=0.
                     os.remove(thumbfile)                
                 print('Writing {}'.format(thumbfile))
                 subprocess.call(cmd.split())
-
+        
 def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=False):
     """Visualize the maskbits image.
 
@@ -512,7 +512,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                 if not os.path.isfile(sedfile) or clobber:
                     _tractor = None
                     if tractor is not None:
-                        _tractor = tractor[np.isin(tractor['ref_id'], data['galaxy_id'][igal])] # fragile...
+                        _tractor = tractor[(tractor['ref_cat'] != '  ')*np.isin(tractor['ref_id'], data['galaxy_id'][igal])] # fragile...
                     qa_multiwavelength_sed(ellipsefit, tractor=_tractor, png=sedfile, verbose=verbose)
                     
             sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}sbprofile.png'.format(galaxy, data['filesuffix'], galid))

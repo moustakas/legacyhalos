@@ -90,11 +90,12 @@ def main():
             ref['pa'] = fullsample['PA_INIT']
             ref['ba'] = fullsample['BA_INIT']
             ref['diam'] = fullsample['DIAM_INIT'] # [arcmin]
+            assert(np.all(np.isfinite(ref['mag_leda'])))
 
             reffile = os.path.join(basedir, 'virgofilaments-{}-refcat.fits'.format(version))
             kdreffile = reffile.replace('.fits', '.kd.fits')
             print('Writing {} galaxies to {}'.format(ngal, reffile))
-            
+
             hdr = fitsio.FITSHDR()
             hdrver = refcat
             hdr['SGAVER'] = hdrver

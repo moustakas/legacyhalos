@@ -532,6 +532,7 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
         flux = ellipsefit['flux_sb25_{}'.format(filt.lower())]
         ivar = ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
         #print(filt, mag)
+
         if flux > 0 and ivar > 0:
             mag = 22.5 - 2.5 * np.log10(flux)
             ferr = 1.0 / np.sqrt(ivar)
@@ -1115,7 +1116,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     else:
         fig, ax = plt.subplots(1, nband+1, figsize=(inchperband*(nband+1), inchperband))
 
-    # First display the color mosaic...
+     # First display the color mosaic...
     if ellipsefit and ellipsefit['success']:
         sz = colorimg.size
         if False:
@@ -1206,13 +1207,15 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             ax1.imshow(mask, origin='lower', cmap=mpl.colors.ListedColormap(['white']),
                        interpolation='none')
         else:
-            try:
-                norm = ImageNormalize(dat, interval=interval, stretch=stretch)
-            except:
-                norm = ImageNormalize(dat, interval=interval)
-                
-        ax1.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
-                   interpolation='nearest')
+            if np.sum(dat) == 0:
+                ax1.imshow(np.zeros(shape=dat.shape), origin='lower', interpolation='nearest')
+            else:
+                try:
+                    norm = ImageNormalize(dat, interval=interval, stretch=stretch)
+                except:
+                    norm = ImageNormalize(dat, interval=interval)
+                ax1.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
+                           interpolation='nearest')
         plt.text(0.09, 0.9, filt, transform=ax1.transAxes, fontweight='bold',
                  ha='left', va='center', color='k', fontsize=34)
 
@@ -1333,7 +1336,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         fig.subplots_adjust(hspace=0.01, top=0.99, bottom=0.01, left=0.01, right=0.99)
     else:
         fig.subplots_adjust(wspace=0.01, top=0.99, bottom=0.01, left=0.01, right=0.99)
-        
+
     if png:
         #if verbose:
         print('Writing {}'.format(png))
