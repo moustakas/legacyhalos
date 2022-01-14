@@ -313,8 +313,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     # * 9673-3703 is off the footprint
     # https://www.legacysurvey.org/viewer?ra=56.232562&dec=67.787128&layer=ls-dr9&zoom=13&sga&manga
     if True:
-        remgals = np.array(['11843-12705', '11842-12705', '11841-12705', '9673-3703', '12187-12705', '12767-1902',
-                            '8485-1901' # temporarily remove!
+        remgals = np.array(['11843-12705', '11842-12705', '11841-12705', '12187-12705', '12767-1902',
+                            #'9673-3703', 
                             ])
         rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals))
         if np.sum(rem) > 0:
