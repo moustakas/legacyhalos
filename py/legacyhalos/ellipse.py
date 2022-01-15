@@ -180,14 +180,14 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         else:
             results['sma_ap{:02d}'.format(iap+1)] = np.float32(0.0)
 
-    chi2fail = 1e6
+    chi2fail = 1e8
     nparams = 4
 
     if eps == 0.0:
         iscircle = True
     else:
         iscircle = False
-    
+
     for filt in bands:
         img = ma.getdata(data['{}_masked'.format(filt.lower())][igal]) # [nanomaggies/arcsec2]
         mask = ma.getmask(data['{}_masked'.format(filt.lower())][igal])
@@ -376,6 +376,9 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                         #if filt == 'W4':
                         #    pdb.set_trace()
                     results['cog_sma50_{}'.format(filt.lower())] = np.float32(half_light_sma)
+
+            #if filt == 'g':
+            #    pdb.set_trace()
 
             # This code is not needed anymore because we do proper aperture photometry above.
 
