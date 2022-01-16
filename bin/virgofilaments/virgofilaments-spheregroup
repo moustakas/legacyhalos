@@ -218,9 +218,9 @@ def main(version='v2'):
     cat.add_column(Column(name='MAG_INIT', data=np.zeros(ng, dtype='f4')))
 
     # fix crummy radii
-    fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] == 0))[0]
+    fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] < 30.0))[0] # arcsec
     if len(fix) > 0:
-        cat['RADIUS'][fix] = 100.0
+        cat['RADIUS'][fix] = 90.0
     cat['DIAM_INIT'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
     cat['MAG_INIT'][:] = 17.0 # initialize [arcmin]
 
@@ -239,6 +239,11 @@ def main(version='v2'):
     cat['BA_INIT'][m1] = sga['BA'][m2]
     cat['DIAM_INIT'][m1] = sga['D26'][m2]
     cat['MAG_INIT'][m1] = sga['MAG_LEDA'][m2]
+
+    ## Assign a minimum diameter of 20 arcsec.
+    #fix = cat['DIAM_INIT'] < 20/60.
+    #if np.sum(fix) > 0:
+    #    cat['DIAM_INIT'][fix] = 20/60.
 
     print('Removing special characters from galaxy names.')
     fix = np.where(['[' in gg or ':' in gg or '(' in gg for gg in cat['GALAXY']])[0]

@@ -59,7 +59,7 @@ def main():
     if comm:
         sample = comm.bcast(sample, root=0)
         fullsample = comm.bcast(fullsample, root=0)
-
+    
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
     if rank == 0:    
