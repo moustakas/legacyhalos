@@ -346,7 +346,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     sample['PA_INIT'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
     sample['DIAM_INIT'] = np.repeat(2 * MANGA_RADIUS / 60.0, ngal).astype('f4') # fixed diameter [arcmin]
     
-    igood = np.where(sample['NSA_NSAID'] != -9999)[0]
+    igood = np.where((sample['NSA_NSAID'] != -9999) * (sample['NSA_NSAID'] > 0))[0]
     if len(igood) > 0:
         sample['BA_INIT'][igood] = sample['NSA_SERSIC_BA'][igood]
         sample['PA_INIT'][igood] = sample['NSA_SERSIC_PHI'][igood]
@@ -527,6 +527,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         print('Determing the geometry for galaxy {}/{}.'.format(
                 ii+1, len(galaxy_indx)))
 
+        #if tractor.ref_cat[galaxy_indx] == 'R1' and tractor.ref_id[galaxy_indx] == 8587006103:
+        #    neighborfactor = 1.0
+
         # [1] Determine the non-parametricc geometry of the galaxy of interest
         # in the reference band. First, subtract all models except the galaxy
         # and galaxies "near" it. Also restore the original pixels of the
@@ -554,13 +557,12 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         img = ma.masked_array(img, mask)
         ma.set_fill_value(img, fill_value)
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('debug.png')
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('desi-users/ioannis/tmp/debug.png')
         #if True:
         #    import matplotlib.pyplot as plt
-        #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('debug.png')
+        #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/debug.png')
         #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #    pdb.set_trace()
-        #pdb.set_trace()
 
         # Did the galaxy position move? If so, revert back to the Tractor geometry.
         if np.abs(mgegalaxy.xmed-mge.xmed) > maxshift or np.abs(mgegalaxy.ymed-mge.ymed) > maxshift:
@@ -710,10 +712,10 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
             # Fill with zeros, for fun--
             ma.set_fill_value(img, fill_value)
-            #if filt == 'W1':# or filt == 'r':
-            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt.lower()))
-            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask-{}.png'.format(filt.lower()))
-            ##    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('junk-thismask-{}.png'.format(filt.lower()))
+            #if filt == 'r':# or filt == 'r':
+            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-img-{}.png'.format(filt.lower()))
+            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask-{}.png'.format(filt.lower()))
+            ##    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-thismask-{}.png'.format(filt.lower()))
             #    pdb.set_trace()
                 
             data[imagekey].append(img)
@@ -902,7 +904,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         tractor.diam_init[galaxy_indx] = sample['DIAM_INIT']
         tractor.pa_init[galaxy_indx] = sample['PA_INIT']
         tractor.ba_init[galaxy_indx] = sample['BA_INIT']
-
+ 
     # Do we need to take into account the elliptical mask of each source??
     srt = np.argsort(tractor.flux_r[galaxy_indx])[::-1]
     galaxy_indx = galaxy_indx[srt]

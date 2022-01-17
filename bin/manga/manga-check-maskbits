@@ -16,25 +16,41 @@ ss = read_sample()
 galaxy, galaxydir = get_galaxy_galaxydir(ss)
 ngal = len(galaxy)
 
-nmask = np.zeros(ngal, int)
-npix = np.zeros(ngal, int)
-for ii, (gal, gdir) in enumerate(zip(galaxy, galaxydir)):
-    if (ii % 1000) == 0:
-        print(ii)
-    maskfile = os.path.join(gdir, '{}-custom-maskbits.fits.fz'.format(gal))
-    if os.path.isfile(maskfile):
-        mask = fitsio.read(maskfile)
-        nmask[ii] = np.sum(mask & MASKBITS['BRIGHT'] != 0)
-        npix[ii] = np.product(mask.shape)
+check_bainit = True
+check_maskbits = False
 
-fix = (npix > 0) * (nmask / npix > 0.05)
-clean(fix)
+if check_bainit:
+    ba = np.zeros(ngal)
+    pa = np.zeros(ngal)
+    diam = np.zeros(ngal)
+    for ii, (gal, gdir) in enumerate(zip(galaxy, galaxydir)):
+        if (ii % 1000) == 0:
+            print(ii)
+        samplefile = os.path.join(gdir, '{}-sample.fits'.format(gal))
+        if os.path.isfile(samplefile):
+            sample = fitsio.read(samplefile)
+            ba[ii] = sample['BA_INIT']
+            pa[ii] = sample['PA_INIT']
+            diam[ii] = sample['DIAM_INIT']
+
+    fix = np.logical_or((ba < 0), (pa < 0))
+    clean(fix)
 
 pdb.set_trace()
 
-
+if check_maskbits:
+    nmask = np.zeros(ngal, int)
+    npix = np.zeros(ngal, int)
+    for ii, (gal, gdir) in enumerate(zip(galaxy, galaxydir)):
+        if (ii % 1000) == 0:
+            print(ii)
+        maskfile = os.path.join(gdir, '{}-custom-maskbits.fits.fz'.format(gal))
+        if os.path.isfile(maskfile):
+            mask = fitsio.read(maskfile)
+            nmask[ii] = np.sum(mask & MASKBITS['BRIGHT'] != 0)
+            npix[ii] = np.product(mask.shape)
     
+    fix = (npix > 0) * (nmask / npix > 0.05)
+    clean(fix)
     
-
-
-
+    pdb.set_trace()
