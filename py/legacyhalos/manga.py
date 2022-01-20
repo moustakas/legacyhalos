@@ -102,7 +102,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         if args.just_coadds:
             filesuffix = '-custom-montage-grz.png'
         else:
-            filesuffix = '-ccdpos.png'
+            filesuffix = '-custom-montage-grz.png'
+            #filesuffix = '-ccdpos.png'
             #filesuffix = '-custom-maskbits.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
@@ -1224,7 +1225,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                     wt.append(ww)
                     ws.append(ii)
             if len(wt) == 0:
-                print('All galaxy(ies) in {} field dropped from Tractor!'.format(galaxy1))
+                print('All galaxy(ies) in {} field dropped from Tractor!'.format(galaxydir1))
                 tractor = None
             else:
                 wt = np.hstack(wt)

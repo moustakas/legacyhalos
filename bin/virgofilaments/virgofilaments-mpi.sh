@@ -20,11 +20,11 @@ source $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-env
 if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --help
 elif [ $stage = "coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --coadds --nproc $ncores --mpi
+    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --coadds --nproc $ncores --mpi --d25min 4 --d25max 10
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --pipeline-coadds --nproc $ncores --mpi
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --ellipse --nproc $ncores --mpi
+    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --ellipse --nproc $ncores --mpi --d25min 4 --d25max 7.5
 elif [ $stage = "htmlplots" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --htmlplots --nproc $ncores --mpi
 else

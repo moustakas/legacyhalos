@@ -1,0 +1,28 @@
+#!/usr/bin/env python
+
+import os, pdb
+from glob import glob
+import numpy as np
+import fitsio
+from legacyhalos.virgofilaments import read_sample, get_galaxy_galaxydir
+
+def clean(fix):
+    with open('junk.txt', 'w') as F:
+        for gdir in galaxydir[fix]:
+            F.write('rm -rf {}\n'.format(gdir))
+
+ss = read_sample(d25min=4)
+#ss = ss[:50]
+galaxy, galaxydir = get_galaxy_galaxydir(ss)
+ngal = len(galaxy)
+
+if True:
+    for ii, (gal, gdir) in enumerate(zip(galaxy, galaxydir)):
+        if (ii % 1000) == 0:
+            print(ii)
+        ellipsefiles = glob(os.path.join(gdir, '*ellipse*'))
+        if len(ellipsefiles) > 0:
+            for ellipsefile in ellipsefiles:
+                print(ellipsefile)
+                os.remove(ellipsefile)
+                #pdb.set_trace()

@@ -218,9 +218,9 @@ def main(version='v2'):
     cat.add_column(Column(name='MAG_INIT', data=np.zeros(ng, dtype='f4')))
 
     # fix crummy radii
-    fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] < 30.0))[0] # arcsec
+    fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] < 40.0))[0] # arcsec
     if len(fix) > 0:
-        cat['RADIUS'][fix] = 90.0
+        cat['RADIUS'][fix] = 40.0
     cat['DIAM_INIT'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
     cat['MAG_INIT'][:] = 17.0 # initialize [arcmin]
 
