@@ -304,7 +304,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   nsigma=None, 
                   log=None, apodize=False, custom=True, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True, missing_ok=False,
-                  write_all_pickles=False,
+                  write_all_pickles=False, no_galex_ceres=False, 
                   #no_subsky=False,
                   subsky_radii=None, #ubercal_sky=False,
                   just_coadds=False, require_grz=True, no_gaia=False,
@@ -380,6 +380,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-gaia '
     if no_tycho:
         cmd += '--no-tycho '
+    if no_galex_ceres:
+        cmd += '--no-galex-ceres '
     if force:
         cmd += '--force-all '
         checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(

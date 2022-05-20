@@ -220,6 +220,7 @@ def main():
                                force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
+                               no_galex_ceres=args.no_galex_ceres,
                                require_grz=True, debug=args.debug, logfile=logfile,
                                write_wise_psf=True)
 
