@@ -162,9 +162,12 @@ def main():
     tall = time.time()
     for count, ii in enumerate(groups[rank]):
         onegal = sample[ii]
-        galaxy, galaxydir = get_galaxy_galaxydir(onegal)
+        galaxy, galaxydir = get_galaxy_galaxydir(onegal, resampled=args.resampled_phot)
         if not os.path.isdir(galaxydir):
-            os.makedirs(galaxydir, exist_ok=True)
+            if args.resampled_phot:
+                print('No resampled photometry found for {}; skipping'.format(galaxy))
+            else:
+                os.makedirs(galaxydir, exist_ok=True)
 
         #if (count+1) % 10 == 0:
         print('Rank {:03d} ({} / {}): {} (index {})'.format(
@@ -224,13 +227,24 @@ def main():
                          logfile=logfile)
                              
         if args.resampled_phot:
-            from legacyhalos.manga import resampled_phot
-            resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                           bands=['g', 'r', 'z'], refband='r',                         
-                           resampled_pixscale=args.resampled_pixscale,
-                           nproc=args.nproc, verbose=args.verbose, debug=args.debug,
-                           unwise=True, galex=True,
-                           logfile=logfile)
+            _, orig_galaxydir, htmlgalaxydir = get_galaxy_galaxydir(onegal, html=True)
+            if args.htmlplots:
+                from legacyhalos.manga import qa_resampled_phot
+                barlabel = '30 arcsec'
+                barlen = np.ceil(30 / args.resampled_pixscale).astype(int) # [pixels]
+                qa_resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                  orig_galaxydir=orig_galaxydir,
+                                  htmlgalaxydir=htmlgalaxydir,
+                                  barlabel=barlabel, barlen=barlen, 
+                                  resampled_pixscale=args.resampled_pixscale,
+                                  verbose=args.verbose, debug=args.debug, clobber=args.clobber)
+                args.htmlplots = False
+            else:
+                from legacyhalos.manga import resampled_phot
+                resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir, orig_galaxydir=orig_galaxydir,
+                               resampled_pixscale=args.resampled_pixscale,
+                               nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                               clobber=args.clobber, logfile=logfile)
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
@@ -251,6 +265,7 @@ def main():
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
+                           resampled_phot=args.resampled_phot,
                            #galaxy_id=onegal['VF_ID'],                           
                            galex=True, unwise=True,
                            get_galaxy_galaxydir=get_galaxy_galaxydir,
