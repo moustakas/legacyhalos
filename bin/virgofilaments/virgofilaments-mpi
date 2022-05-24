@@ -59,7 +59,7 @@ def main():
     if comm:
         sample = comm.bcast(sample, root=0)
         fullsample = comm.bcast(fullsample, root=0)
-
+    
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
     if rank == 0:    
@@ -78,6 +78,7 @@ def main():
             
             import fitsio
             from astropy.table import Table
+            version = legacyhalos.virgofilaments.get_version()
 
             ngal = len(fullsample)
 
@@ -89,11 +90,12 @@ def main():
             ref['pa'] = fullsample['PA_INIT']
             ref['ba'] = fullsample['BA_INIT']
             ref['diam'] = fullsample['DIAM_INIT'] # [arcmin]
+            assert(np.all(np.isfinite(ref['mag_leda'])))
 
-            reffile = os.path.join(basedir, 'virgofilaments-refcat.fits')
+            reffile = os.path.join(basedir, 'virgofilaments-{}-refcat.fits'.format(version))
             kdreffile = reffile.replace('.fits', '.kd.fits')
             print('Writing {} galaxies to {}'.format(ngal, reffile))
-            
+
             hdr = fitsio.FITSHDR()
             hdrver = refcat
             hdr['SGAVER'] = hdrver
@@ -218,6 +220,7 @@ def main():
                                force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
+                               no_galex_ceres=args.no_galex_ceres,
                                require_grz=True, debug=args.debug, logfile=logfile,
                                write_wise_psf=True)
 

@@ -9,7 +9,7 @@ import os, time, pdb
 import numpy as np
 from astropy.table import Table, Column
     
-def build_group_catalog(cat, mfac=2.0, dmax=10.0/60.0):
+def build_group_catalog(cat, mfac=2.0, dmax=5.0/60.0):
     """dmax in degrees
 
     Group SGA galaxies together where their circular radii would overlap.  Use
@@ -172,7 +172,7 @@ def qa(version='v1'):
     fig.subplots_adjust(left=0.1, bottom=0.15, right=0.98, hspace=0.25, wspace=0.2)
     fig.savefig(os.path.join(homedir, 'qa-virgofilaments-{}-SGA.png'.format(version)))
 
-def main(version='v1'):
+def main(version='v2'):
 
     import fitsio
     from astrometry.libkd.spherematch import match_radec
@@ -185,8 +185,9 @@ def main(version='v1'):
     cat = Table(fitsio.read(samplefile, upper=True, columns=['OBJNAME', 'VFID', 'RA', 'DEC', 'RADIUS']))
 
     # hack! remove VFID1241 which is a shred of UGC04499
-    keep = np.where(cat['VFID'] != 'VFID1241')[0]
-    cat = cat[keep]
+    if version == 'v1':
+        keep = np.where(cat['VFID'] != 'VFID1241')[0]
+        cat = cat[keep]
 
     sga = Table(fitsio.read(sgafile, 'ELLIPSE'))
     ng = len(cat)
@@ -217,9 +218,9 @@ def main(version='v1'):
     cat.add_column(Column(name='MAG_INIT', data=np.zeros(ng, dtype='f4')))
 
     # fix crummy radii
-    fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] == 0))[0]
+    fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] < 40.0))[0] # arcsec
     if len(fix) > 0:
-        cat['RADIUS'][fix] = 100.0
+        cat['RADIUS'][fix] = 40.0
     cat['DIAM_INIT'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
     cat['MAG_INIT'][:] = 17.0 # initialize [arcmin]
 
@@ -238,6 +239,11 @@ def main(version='v1'):
     cat['BA_INIT'][m1] = sga['BA'][m2]
     cat['DIAM_INIT'][m1] = sga['D26'][m2]
     cat['MAG_INIT'][m1] = sga['MAG_LEDA'][m2]
+
+    ## Assign a minimum diameter of 20 arcsec.
+    #fix = cat['DIAM_INIT'] < 20/60.
+    #if np.sum(fix) > 0:
+    #    cat['DIAM_INIT'][fix] = 20/60.
 
     print('Removing special characters from galaxy names.')
     fix = np.where(['[' in gg or ':' in gg or '(' in gg for gg in cat['GALAXY']])[0]
@@ -262,5 +268,5 @@ def main(version='v1'):
     out.write(groupfile, overwrite=True)
 
 if __name__ == '__main__':
-    main(version='v1')
+    main(version='v2')
 

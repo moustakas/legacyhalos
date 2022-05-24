@@ -304,7 +304,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   nsigma=None, 
                   log=None, apodize=False, custom=True, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True, missing_ok=False,
-                  write_all_pickles=False,
+                  write_all_pickles=False, no_galex_ceres=False, 
                   #no_subsky=False,
                   subsky_radii=None, #ubercal_sky=False,
                   just_coadds=False, require_grz=True, no_gaia=False,
@@ -380,6 +380,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-gaia '
     if no_tycho:
         cmd += '--no-tycho '
+    if no_galex_ceres:
+        cmd += '--no-galex-ceres '
     if force:
         cmd += '--force-all '
         checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(
@@ -430,7 +432,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         from legacypipe.galex import galex_psf
 
         cat = fitsio.read(os.path.join(survey.output_dir, 'tractor', 'cus', 'tractor-{}.fits'.format(brickname)),
-                          columns=['ref_cat', 'ref_id', 'wise_coadd_id', 'brickname'])
+                          columns=['brick_primary', 'ref_cat', 'ref_id', 'wise_coadd_id', 'brickname'])
+        cat = cat[cat['brick_primary']]
         psffile = os.path.join(survey.output_dir, 'coadd', 'cus', brickname,
                                'legacysurvey-{}-copsf-r.fits.fz'.format(brickname))
         if not os.path.isfile(psffile):
@@ -461,8 +464,11 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
 
             if (band == 1) or (band == 2):
                 # we only have updated PSFs for W1 and W2
-                psfimg = unwise_psf.get_unwise_psf(band, coadd_id,
-                                                   modelname='neo6_unwisecat')
+                psfimg = unwise_psf.get_unwise_psf(band, coadd_id, modelname='neo6_unwisecat')
+                #try:
+                #    psfimg = unwise_psf.get_unwise_psf(band, coadd_id, modelname='neo7_unwisecat')
+                #except:
+                #    pdb.set_trace()
             else:
                 psfimg = unwise_psf.get_unwise_psf(band, coadd_id)
 

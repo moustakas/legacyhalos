@@ -635,7 +635,8 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
         mask[:, :edge] = True
         mask[:, sz[0]-edge:] = True
         mask[sz[0]-edge:, :] = True
-
+        #if filt == 'r':
+        #    pdb.set_trace()
         data[filt] = ma.masked_array(image, mask) # [nanomaggies]
         ma.set_fill_value(data[filt], fill_value)
 

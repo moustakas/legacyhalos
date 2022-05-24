@@ -102,7 +102,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         if args.just_coadds:
             filesuffix = '-custom-montage-grz.png'
         else:
-            filesuffix = '-ccdpos.png'
+            filesuffix = '-custom-montage-grz.png'
+            #filesuffix = '-ccdpos.png'
             #filesuffix = '-custom-maskbits.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
@@ -181,7 +182,7 @@ def get_raslice(ra):
 def get_plate(plate):
     return '{:05d}'.format(plate)
 
-def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
+def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False, resampled=False):
     """Retrieve the galaxy name and the (nested) directory.
 
     """
@@ -199,9 +200,17 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False):
         galaxy = cat[GALAXYCOLUMN]
         plate = cat['PLATE']
 
-    galaxydir = np.array([os.path.join(datadir, get_plate(plt), gal) for gal, plt in zip(galaxy, plate)])
+    if resampled:
+        # need to fix the plate!
+        galaxydir = np.array([os.path.join(datadir, 'resampled', str(plt), gal) for gal, plt in zip(galaxy, plate)])
+        #galaxydir = np.array([os.path.join(datadir, 'resampled', get_plate(plt), gal) for gal, plt in zip(galaxy, plate)])
+    else:
+        galaxydir = np.array([os.path.join(datadir, str(plt), gal) for gal, plt in zip(galaxy, plate)])
+        #galaxydir = np.array([os.path.join(datadir, get_plate(plt), gal) for gal, plt in zip(galaxy, plate)])
+        
     if html:
-        htmlgalaxydir = np.array([os.path.join(htmldir, get_plate(plt), gal) for gal, plt in zip(galaxy, plate)])
+        htmlgalaxydir = np.array([os.path.join(htmldir, str(plt), gal) for gal, plt in zip(galaxy, plate)])
+        #htmlgalaxydir = np.array([os.path.join(htmldir, get_plate(plt), gal) for gal, plt in zip(galaxy, plate)])
 
     if ngal == 1:
         galaxy = galaxy[0]
@@ -294,9 +303,29 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
             print('Read galaxy indices {} through {} (N={}) from {}'.format(
                 first, last, len(sample), samplefile))
 
-    # 9673-3703 is off the footprint!
-    if use_testbed:
-        rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], '9673-3703'))
+    # a little bit of clean-up
+    # 12767-1902 is the globular cluster NGC6341=M92
+    # https://www.legacysurvey.org/viewer?ra=259.28079&dec=43.135944&layer=ls-dr9&zoom=13&sga&manga
+    
+    # * 12187-12705 is the globular cluster NGC7078=M15
+    # https://www.legacysurvey.org/viewer?ra=322.49304&dec=12.167&layer=ls-dr9&zoom=13&sga&manga
+
+    # * 11843-12705 is the globular cluster NGC6229
+    # https://www.legacysurvey.org/viewer?ra=251.74496&dec=47.52775&layer=ls-dr9&zoom=13&sga&manga
+    
+    # * 11842-12705 is the globular cluster NGC5634
+    # https://www.legacysurvey.org/viewer?ra=217.40512&dec=-5.9764167&layer=ls-dr9&zoom=13&sga&manga
+
+    # * 11841-12705 is the globular cluster NGC4147
+    # https://www.legacysurvey.org/viewer?ra=182.52625&dec=18.542639&layer=ls-dr9&zoom=13&sga&manga
+
+    # * 9673-3703 is off the footprint
+    # https://www.legacysurvey.org/viewer?ra=56.232562&dec=67.787128&layer=ls-dr9&zoom=13&sga&manga
+    if True:
+        remgals = np.array(['11843-12705', '11842-12705', '11841-12705', '12187-12705', '12767-1902',
+                            #'9673-3703', 
+                            ])
+        rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals))
         if np.sum(rem) > 0:
             sample = sample[rem]
 
@@ -326,7 +355,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     sample['PA_INIT'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
     sample['DIAM_INIT'] = np.repeat(2 * MANGA_RADIUS / 60.0, ngal).astype('f4') # fixed diameter [arcmin]
     
-    igood = np.where(sample['NSA_NSAID'] != -9999)[0]
+    igood = np.where((sample['NSA_NSAID'] != -9999) * (sample['NSA_NSAID'] > 0))[0]
     if len(igood) > 0:
         sample['BA_INIT'][igood] = sample['NSA_SERSIC_BA'][igood]
         sample['PA_INIT'][igood] = sample['NSA_SERSIC_PHI'][igood]
@@ -408,8 +437,7 @@ def build_catalog(sample, nproc=1, refcat='R1', verbose=False, clobber=False):
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.05, maxshift=10,
-                          sigmamask=3.0,
-                          neighborfactor=3.0, verbose=False):
+                          sigmamask=3.0, neighborfactor=3.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -477,7 +505,13 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             ba = (1 - ee) / (1 + ee)
             pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
             pa = pa % 180
-            majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+            #majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+
+            # can be zero (or very small) if fit as a PSF or REX
+            if tractor.shape_r[indx] > 1:
+                majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+            else:
+                majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
         mgegalaxy.xmed = tractor.by[indx]
@@ -501,6 +535,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     for ii, central in enumerate(galaxy_indx):
         print('Determing the geometry for galaxy {}/{}.'.format(
                 ii+1, len(galaxy_indx)))
+
+        #if tractor.ref_cat[galaxy_indx] == 'R1' and tractor.ref_id[galaxy_indx] == 8587006103:
+        #    neighborfactor = 1.0
 
         # [1] Determine the non-parametricc geometry of the galaxy of interest
         # in the reference band. First, subtract all models except the galaxy
@@ -529,13 +566,12 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         img = ma.masked_array(img, mask)
         ma.set_fill_value(img, fill_value)
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('debug.png')
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('desi-users/ioannis/tmp/debug.png')
         #if True:
         #    import matplotlib.pyplot as plt
-        #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('debug.png')
+        #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/debug.png')
         #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #    pdb.set_trace()
-        #pdb.set_trace()
 
         # Did the galaxy position move? If so, revert back to the Tractor geometry.
         if np.abs(mgegalaxy.xmed-mge.xmed) > maxshift or np.abs(mgegalaxy.ymed-mge.ymed) > maxshift:
@@ -583,7 +619,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             cenflux = getattr(tractor, 'flux_{}'.format(filt.lower()))[central]
             satflux = getattr(srcs, 'flux_{}'.format(filt.lower()))
             if cenflux <= 0.0:
-                raise ValueError('Central galaxy flux is negative!')
+                print('Central galaxy flux is negative! Proceed with caution...')
+                #pdb.set_trace()
+                #raise ValueError('Central galaxy flux is negative!')
             
             satindx = np.where(np.logical_or(
                 (srcs.type != 'PSF') * (srcs.shape_r > r50mask) *
@@ -683,10 +721,10 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
             # Fill with zeros, for fun--
             ma.set_fill_value(img, fill_value)
-            #if filt == 'W1':# or filt == 'r':
-            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt.lower()))
-            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask-{}.png'.format(filt.lower()))
-            ##    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('junk-thismask-{}.png'.format(filt.lower()))
+            #if filt == 'r':# or filt == 'r':
+            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-img-{}.png'.format(filt.lower()))
+            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask-{}.png'.format(filt.lower()))
+            ##    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-thismask-{}.png'.format(filt.lower()))
             #    pdb.set_trace()
                 
             data[imagekey].append(img)
@@ -875,7 +913,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         tractor.diam_init[galaxy_indx] = sample['DIAM_INIT']
         tractor.pa_init[galaxy_indx] = sample['PA_INIT']
         tractor.ba_init[galaxy_indx] = sample['BA_INIT']
-
+ 
     # Do we need to take into account the elliptical mask of each source??
     srt = np.argsort(tractor.flux_r[galaxy_indx])[::-1]
     galaxy_indx = galaxy_indx[srt]
@@ -954,50 +992,455 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     clobber=clobber, verbose=verbose, debug=True)#debug, logfile=logfile)
+                     clobber=clobber, verbose=verbose,
+                     #debug=True,
+                     debug=debug, logfile=logfile)
 
-def resampled_phot(onegal, galaxy, galaxydir, resampled_pixscale=0.75, nproc=1,
-                   filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
-                   unwise=False, galex=False, verbose=False,
-                   debug=False, logfile=None):
-    """Do photometry on the resampled images.
+def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
+                           png=None, verbose=True):
+    """Plot up the multiwavelength SED.
 
     """
+    import matplotlib.pyplot as plt
+    from copy import deepcopy
+    import matplotlib.ticker as ticker
+    from legacyhalos.qa import _sbprofile_colors
+    
+    bands, refband = ellipsefit['bands'], ellipsefit['refband']
+
+    galex = 'FUV' in bands
+    unwise = 'W1' in bands
+    colors = _sbprofile_colors(galex=galex, unwise=unwise)
+        
+    if 'redshift' in ellipsefit.keys():
+        redshift = ellipsefit['redshift']
+        smascale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
+    else:
+        redshift, smascale = None, None
+
+    # see also Morrisey+05
+    effwave_north = {
+        'fuv': 1528.0, 'nuv': 2271.0,
+        'w1': 34002.54044482, 'w2': 46520.07577119, 'w3': 128103.3789599, 'w4': 223752.7751558,
+        'g': 4815.95363513, 'r': 6437.79282937, 'z': 9229.65786449}
+    effwave_south = {
+        'fuv': 1528.0, 'nuv': 2271.0,
+        'w1': 34002.54044482, 'w2': 46520.07577119, 'w3': 128103.3789599, 'w4': 223752.7751558,
+        'g': 4890.03670428, 'r': 6469.62203811, 'z': 9196.46396394}
+
+    run = 'north' # hack
+    if run == 'north':
+        effwave = effwave_north
+    else:
+        effwave = effwave_south
+
+    # build the arrays
+    nband = len(bands)
+    bandwave = np.array([effwave[filt.lower()] for filt in bands])
+
+    _phot = {'abmag': np.zeros(nband, 'f4')-1,
+             'abmagerr': np.zeros(nband, 'f4')+0.5,
+             'lower': np.zeros(nband, bool)}
+    phot = {'tractor': deepcopy(_phot), 'mag_tot': deepcopy(_phot), 'mag_sb25': deepcopy(_phot),
+            'resamp_mag_tot': deepcopy(_phot), 'resamp_mag_sb25': deepcopy(_phot)}
+
+    for ifilt, filt in enumerate(bands):
+        # original photometry
+        mtot = ellipsefit['cog_mtot_{}'.format(filt.lower())]
+        if mtot > 0:
+            phot['mag_tot']['abmag'][ifilt] = mtot
+            phot['mag_tot']['abmagerr'][ifilt] = 0.1 # hack!!
+            phot['mag_tot']['lower'][ifilt] = False
+
+        flux = ellipsefit['flux_sb25_{}'.format(filt.lower())]
+        ivar = ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
+        if flux > 0 and ivar > 0:
+            mag = 22.5 - 2.5 * np.log10(flux)
+            ferr = 1.0 / np.sqrt(ivar)
+            magerr = 2.5 * ferr / flux / np.log(10)
+            phot['mag_sb25']['abmag'][ifilt] = mag
+            phot['mag_sb25']['abmagerr'][ifilt] = magerr
+            phot['mag_sb25']['lower'][ifilt] = False
+        if flux <=0 and ivar > 0:
+            ferr = 1.0 / np.sqrt(ivar)
+            mag = 22.5 - 2.5 * np.log10(ferr)
+            phot['mag_sb25']['abmag'][ifilt] = mag
+            phot['mag_sb25']['abmagerr'][ifilt] = 0.75
+            phot['mag_sb25']['lower'][ifilt] = True
+
+        # resampled photometry
+        if resamp_ellipsefit:
+            mtot = resamp_ellipsefit['cog_mtot_{}'.format(filt.lower())]
+            if mtot > 0:
+                phot['resamp_mag_tot']['abmag'][ifilt] = mtot
+                phot['resamp_mag_tot']['abmagerr'][ifilt] = 0.1 # hack!!
+                phot['resamp_mag_tot']['lower'][ifilt] = False
+    
+            flux = resamp_ellipsefit['flux_sb25_{}'.format(filt.lower())]
+            ivar = resamp_ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
+            if flux > 0 and ivar > 0:
+                mag = 22.5 - 2.5 * np.log10(flux)
+                ferr = 1.0 / np.sqrt(ivar)
+                magerr = 2.5 * ferr / flux / np.log(10)
+                phot['resamp_mag_sb25']['abmag'][ifilt] = mag
+                phot['resamp_mag_sb25']['abmagerr'][ifilt] = magerr
+                phot['resamp_mag_sb25']['lower'][ifilt] = False
+            if flux <=0 and ivar > 0:
+                ferr = 1.0 / np.sqrt(ivar)
+                mag = 22.5 - 2.5 * np.log10(ferr)
+                phot['resamp_mag_sb25']['abmag'][ifilt] = mag
+                phot['resamp_mag_sb25']['abmagerr'][ifilt] = 0.75
+                phot['resamp_mag_sb25']['lower'][ifilt] = True
+
+        if tractor is not None:
+            flux = tractor['flux_{}'.format(filt.lower())]
+            ivar = tractor['flux_ivar_{}'.format(filt.lower())]
+            if flux > 0 and ivar > 0:
+                phot['tractor']['abmag'][ifilt] = 22.5 - 2.5 * np.log10(flux)
+                phot['tractor']['abmagerr'][ifilt] = 0.1
+            if flux <= 0 and ivar > 0:
+                phot['tractor']['abmag'][ifilt] = 22.5 - 2.5 * np.log10(1/np.sqrt(ivar))
+                phot['tractor']['abmagerr'][ifilt] = 0.75
+                phot['tractor']['lower'][ifilt] = True
+
+    def _addphot(thisphot, color, marker, alpha, label):
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == True))[0]
+        if len(good) > 0:
+            ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
+                        marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+                        markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+                        uplims=True, linestyle='none', alpha=alpha)#, lolims=True)
+                        
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == False))[0]
+        if len(good) > 0:
+            ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
+                        marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+                        markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+                        label=label, linestyle='none', alpha=alpha)
+    
+    # make the plot
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    # get the plot limits
+    good = np.where(phot['mag_tot']['abmag'] > 0)[0]
+    ymax = np.min(phot['mag_tot']['abmag'][good])
+    ymin = np.max(phot['mag_tot']['abmag'][good])
+
+    good = np.where(phot['tractor']['abmag'] > 0)[0]
+    if np.min(phot['tractor']['abmag'][good]) < ymax:
+        ymax = np.min(phot['tractor']['abmag'][good])
+    if np.max(phot['tractor']['abmag']) > ymin:
+        ymin = np.max(phot['tractor']['abmag'][good])
+    #print(ymin, ymax)
+
+    ymin += 1.5
+    ymax -= 1.5
+
+    wavemin, wavemax = 0.1, 30
+
+    # have to set the limits before plotting since the axes are reversed
+    if np.abs(ymax-ymin) > 15:
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
+    ax.set_ylim(ymin, ymax)
+    
+    _addphot(phot['mag_tot'], color='red', marker='s', alpha=1.0, label=r'$m_{\mathrm{tot}}$')
+    if resamp_ellipsefit:    
+        _addphot(phot['resamp_mag_tot'], color='green', marker='o', alpha=0.5, label=r'$m_{\mathrm{tot}}^{\prime}$')        
+    _addphot(phot['mag_sb25'], color='orange', marker='^', alpha=0.9, label=r'$m(r<R_{25})$')
+    if resamp_ellipsefit:    
+        _addphot(phot['resamp_mag_sb25'], color='purple', marker='s', alpha=0.5, label=r'$m^{\prime}(r<R_{25})$')
+    _addphot(phot['tractor'], color='blue', marker='o', alpha=0.75, label='Tractor')
+
+    ax.set_xlabel(r'Observed-frame Wavelength ($\mu$m)') 
+    ax.set_ylabel(r'Apparent Brightness (AB mag)') 
+    ax.set_xlim(wavemin, wavemax)
+    ax.set_xscale('log')
+    ax.legend(loc='lower right')
+
+    def _frmt(value, _):
+        if value < 1:
+            return '{:.1f}'.format(value)
+        else:
+            return '{:.0f}'.format(value)
+
+    ax.set_xticks([0.1, 0.2, 0.4, 1.0, 3.0, 5.0, 10, 20])
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(_frmt))
+
+    if smascale:
+        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.85, right=0.95)
+    else:
+        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.95, right=0.95)
+
+    if png:
+        print('Writing {}'.format(png))
+        fig.savefig(png)
+        plt.close(fig)
+    else:
+        plt.show()
+
+def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, refpixscale=0.262,
+                                filesuffix='resampled', 
+                                barlen=None, barlabel=None, just_coadds=False,
+                                clobber=False, verbose=False):
+    """Montage the GALEX and WISE coadds into a nice QAplot.
+
+    barlen - pixels
+
+    """
+    import subprocess
+    from legacyhalos.qa import addbar_to_png, fonttype
+    from PIL import Image, ImageDraw, ImageFont
+
+    Image.MAX_IMAGE_PIXELS = None
+
+    bandsuffix = 'multiwavelength'
+    
+    montagefile = os.path.join(htmlgalaxydir, '{}-{}-montage-{}.png'.format(galaxy, filesuffix, bandsuffix))
+    thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-montage-{}.png'.format(galaxy, filesuffix, bandsuffix))
+    if not os.path.isfile(montagefile) or clobber:
+        pngfiles = [os.path.join(galaxydir, 'resampled-{}-{}.png'.format(galaxy, suffix)) for suffix in ('galex', 'dlis', 'wise')]
+
+        with Image.open(pngfiles[0]) as im:
+            sz = im.size
+        thumbsz = sz[0] // 3
+
+        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
+        if barlen:
+            barpngfile = pngfiles[0]
+            addbar_to_png(pngfiles[0], barlen, barlabel, None, barpngfile,
+                          scaledfont=True, pixscalefactor=1.0)
+            cmd = cmd+' '+barpngfile+' '
+            cmd = cmd+' '.join(ff for ff in pngfiles[1:])
+        else:
+            cmd = cmd+' '.join(ff for ff in pngfiles)
+            
+        cmd = cmd+' {}'.format(montagefile)
+        print(cmd)
+
+        print('Writing {}'.format(montagefile))
+        subprocess.call(cmd.split())
+        if not os.path.isfile(montagefile):
+            raise IOError('There was a problem writing {}'.format(montagefile))
+
+        # Create a couple smaller thumbnail images
+        cmd = 'convert -thumbnail {0} {1} {2}'.format(thumbsz, montagefile, thumbfile)
+        #print(cmd)
+        if os.path.isfile(thumbfile):
+            os.remove(thumbfile)                
+        print('Writing {}'.format(thumbfile))
+        subprocess.call(cmd.split())
+
+def qa_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
+                      htmlgalaxydir, resampled_pixscale=0.75,
+                      barlen=None, barlabel=None,
+                      filesuffix='custom',
+                      verbose=False, debug=False, clobber=False):
+    """Build QA from the resampled images. This script is very roughly based on
+    legacyhalos.html.make_plots, html.make_ellipse_qa, 
+
+    """
+    import fitsio
     import astropy.table
+    from astropy.table import Table    
+    from PIL import Image
     from legacyhalos.io import read_ellipsefit
+    from legacyhalos.qa import (display_multiband, display_ellipsefit,
+                                display_ellipse_sbprofile, qa_curveofgrowth)
+
+    Image.MAX_IMAGE_PIXELS = None
 
     if type(onegal) == astropy.table.Table:
         onegal = onegal[0] # create a Row object
 
-    # push this to its own function
-    data = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix)
-    
-    data = {}
-    bands = ['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4']
+    if not os.path.isdir(htmlgalaxydir):
+        os.makedirs(htmlgalaxydir, exist_ok=True, mode=0o775)
+
+    galaxy_id = onegal['MANGANUM']
+    galid = str(galaxy_id)
+
+    # Read the original and resampled ellipse-fitting results.
+    ellipsefit = read_ellipsefit(galaxy, orig_galaxydir, filesuffix=filesuffix, galaxy_id=galid)
+    resamp_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, galaxy_id=galid)
+
+    # optionally read the Tractor catalog
+    tractorfile = os.path.join(orig_galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)) 
+    if os.path.isfile(tractorfile):
+        tractor = Table(fitsio.read(tractorfile, lower=True))
+    else:
+        tractor = None
+
+    qasuffix = 'resampled'
+
+    # multiwavelength montage
+    make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
+                                filesuffix=qasuffix,
+                                barlen=barlen, barlabel=barlabel,
+                                clobber=clobber, verbose=verbose)
 
     pdb.set_trace()
+    
+    # SED
+    sedfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}-sed.png'.format(galaxy, qasuffix, galid))
+    _tractor = tractor[(tractor['ref_cat'] != '  ')*np.isin(tractor['ref_id'], galaxy_id)] # fragile...
+    if not os.path.isfile(sedfile) or clobber:
+        qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=resamp_ellipsefit, tractor=_tractor,
+                               png=sedfile, verbose=verbose)
 
-    if logfile:
-        from contextlib import redirect_stdout, redirect_stderr
-        with open(logfile, 'a') as log:
-            with redirect_stdout(log), redirect_stderr(log):
-                data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
-                                                  filesuffix=filesuffix, refband=refband,
-                                                  pixscale=pixscale,
-                                                  galex_pixscale=galex_pixscale, unwise_pixscale=unwise_pixscale,
-                                                  unwise=unwise, galex=galex,
-                                                  verbose=verbose)
-    else:
-        data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
-                                          filesuffix=filesuffix, refband=refband,
-                                          pixscale=pixscale,
-                                          galex_pixscale=galex_pixscale, unwise_pixscale=unwise_pixscale,
-                                          unwise=unwise, galex=galex,
-                                          verbose=verbose)
+    sbprofilefile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}-sbprofile.png'.format(galaxy, qasuffix, galid))
+    if not os.path.isfile(sbprofilefile) or clobber:
+        display_ellipse_sbprofile(resamp_ellipsefit, plot_radius=False, plot_sbradii=False,
+                                  png=sbprofilefile, verbose=verbose, minerr=0.0)
+
+    cogfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}-cog.png'.format(galaxy, qasuffix, galid))
+    if not os.path.isfile(cogfile) or clobber:
+        qa_curveofgrowth(resamp_ellipsefit, plot_sbradii=False, png=cogfile, verbose=verbose)
+
+    #multibandfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}-multiband.png'.format(galaxy, qasuffix, galid))
+    #thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-ellipse-{}-multiband.png'.format(galaxy, qasuffix, galid))
+    #if not os.path.isfile(multibandfile) or clobber:
+    #    with Image.open(os.path.join(galaxydir, '{}-{}-image-FUVNUVgrzW1W4.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
+    #        display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+    #                          igal=igal, barlen=barlen, barlabel=barlabel,
+    #                          png=multibandfile, verbose=verbose, scaledfont=scaledfont)
+    #
+    #    # Create a thumbnail.
+    #    cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
+    #    if os.path.isfile(thumbfile):
+    #        os.remove(thumbfile)
+    #    print('Writing {}'.format(thumbfile))
+    #    subprocess.call(cmd.split())
+
+def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
+                   resampled_pixscale=0.75, refband='r', filesuffix='custom', nproc=1,
+                   fill_value=0.0, verbose=False, debug=False, clobber=False,
+                   logfile=None):
+    """Do photometry on the resampled images.
+
+    """
+    import fitsio
+    import astropy.units as u
+    import astropy.table
+    import numpy.ma as ma
+    from astropy.coordinates import SkyCoord
+    from astropy.wcs import WCS
+    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.ellipse import legacyhalos_ellipse
+
+    if type(onegal) == astropy.table.Table:
+        onegal = onegal[0] # create a Row object
+
+    galaxy_id = str(onegal['MANGANUM'])
+    galaxyinfo = {'mangaid': (str(galaxy_id), '')}
+
+    bands = ['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4']
+
+    # https://www.legacysurvey.org/dr9/description/#photometry
+    vega2ab = {'W1': 2.699, 'W2': 3.339, 'W3': 5.174, 'W4': 6.620}
+
+    # Read the original ellipse-fitting results and pull out the parameters we
+    # need to run ellipse-fitting on the resampled images.
+    odata = read_ellipsefit(galaxy, orig_galaxydir, filesuffix=filesuffix, galaxy_id=galaxy_id)
+
+    integrmode, sclip, nclip, fitgeometry = odata['integrmode'], odata['sclip'], odata['nclip'], odata['fitgeometry']
+
+    data = {'bands': bands, 'refband': refband, 'refpixscale': resampled_pixscale,
+            'missingdata': False, 'failed': False,
+            'galaxy_id': galaxy_id, 'filesuffix': filesuffix,
+            }
+    for key in ['psfsize_g', 'psfdepth_g', 'psfsize_r', 'psfdepth_r', 'psfsize_z', 'psfdepth_z']:
+        data[key] = odata[key]
+
+    # Unfortunately, we need to create an MGE dictionary, which then gets
+    # unpacked in ellipse.legacyhalos_ellipse.
+    mge = {}
+    for key, newkey in zip(['largeshift', 'ra_moment', 'dec_moment', 'majoraxis', 'pa', 'eps'], #'xmed', 'ymed'],
+                           ['largeshift', 'ra_moment', 'dec_moment', 'majoraxis', 'pa_moment', 'eps_moment']):#, 'y0_moment', 'x0_moment']):
+        if key == 'majoraxis':
+            mge['majoraxis'] = odata['sma_moment'] / odata['refpixscale'] # [pixels]
+        mge[key] = odata[newkey]
+
+    for filt in bands:
+        fitsfile = os.path.join(galaxydir, 'resampled-{}-{}.fits'.format(galaxy, filt))
+        if not os.path.isfile(fitsfile):
+            print('Missing {}'.format(fitsfile))
+            continue
+
+        F = fitsio.FITS(fitsfile)
+        if 'IVAR' in F:
+            image = F['IMAGE'].read()
+            hdr = F['IMAGE'].read_header()
+            invvar = F['IVAR'].read()
+            #psfimg = F['PSF'].read()
+        else:
+            image = F[0].read()
+            hdr = F[0].read_header()
+            invvar = F[1].read()
+
+        if np.any(invvar < 0):
+            raise ValueError('Warning! Negative pixels in the {}-band inverse variance map!'.format(filt))
+
+        # convert WISE images from Vega nanomaggies to AB nanomaggies
+        # https://www.legacysurvey.org/dr9/description/#photometry
+        if filt.lower() == 'w1' or filt.lower() == 'w2' or filt.lower() == 'w3' or filt.lower() == 'w4':
+            image *= 10**(-0.4*vega2ab[filt])
+            invvar /= (10**(-0.4*vega2ab[filt]))**2
+            
+        mask = invvar <= 0 # True-->bad, False-->good
+        var = np.zeros_like(invvar)
+        ok = invvar > 0
+        var[ok] = 1 / invvar[ok]
+
+        data['{}_masked'.format(filt.lower())] = [ma.masked_array(image / resampled_pixscale**2, mask)] # [nanomaggies/arcsec**2]
+        data['{}_var'.format(filt.lower())] = [var / resampled_pixscale**4]                           # [nanomaggies**2/arcsec**4]
+
+        ma.set_fill_value(data['{}_masked'.format(filt.lower())], fill_value)
+
+        if filt == refband:
+            WW, HH = image.shape
+            data['refband_width'] = WW
+            data['refband_height'] = HH
+
+            wcshdr = fitsio.FITSHDR()
+            wcshdr['NAXIS'] = 2
+            wcshdr['NAXIS1'] = WW
+            wcshdr['NAXIS2'] = HH
+            wcshdr['CTYPE1'] = 'RA---TAN'
+            wcshdr['CTYPE2'] = 'DEC--TAN'
+            wcshdr['CRVAL1'] = hdr['CRVAL1']
+            wcshdr['CRVAL2'] = hdr['CRVAL2']
+            wcshdr['CRPIX1'] = hdr['CRPIX1']
+            wcshdr['CRPIX2'] = hdr['CRPIX2']
+            wcshdr['CD1_2'] = 0.0
+            wcshdr['CD2_1'] = 0.0
+            wcshdr['CD1_1'] = -resampled_pixscale / 3600.0
+            wcshdr['CD2_2'] =  resampled_pixscale / 3600.0
+            wcs = WCS(wcshdr)
+
+            # convert the central coordinates using the new WCS
+            ymed, xmed = wcs.world_to_pixel(SkyCoord(odata['ra_moment']*u.degree, odata['dec_moment']*u.degree))
+            mge['xmed'] = xmed
+            mge['ymed'] = ymed
+            
+    data['mge'] = [mge]
+
+    input_ellipse = {'eps': odata['eps_moment'], 'pa': odata['pa_moment']}
 
     maxsma = None
-    #maxsma = 5 * MANGA_RADIUS # None
-    delta_logsma = 4 # 3.0
+    logsma = True
+    delta_logsma = 1.0
+
+    err = legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
+                              bands=bands, refband=refband,
+                              pixscale=resampled_pixscale, nproc=nproc,
+                              input_ellipse=input_ellipse,
+                              sbthresh=SBTHRESH, apertures=APERTURES, 
+                              delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
+                              integrmode=integrmode, sclip=sclip, nclip=nclip, fitgeometry=fitgeometry,
+                              verbose=verbose, clobber=clobber)
+
+    #pdb.set_trace()
+    #rr = read_ellipsefit(galaxydir='/global/cscratch1/sd/ioannis/manga-data/resampled/9028/9028-12704', filesuffix='custom', galaxy='9028-12704', galaxy_id='9028012704')
+
 
 def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4'],
               kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
@@ -1193,7 +1636,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                     wt.append(ww)
                     ws.append(ii)
             if len(wt) == 0:
-                print('All galaxy(ies) in {} field dropped from Tractor!'.format(galaxy1))
+                print('All galaxy(ies) in {} field dropped from Tractor!'.format(galaxydir1))
                 tractor = None
             else:
                 wt = np.hstack(wt)

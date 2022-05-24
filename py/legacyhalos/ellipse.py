@@ -180,14 +180,14 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         else:
             results['sma_ap{:02d}'.format(iap+1)] = np.float32(0.0)
 
-    chi2fail = 1e6
+    chi2fail = 1e8
     nparams = 4
 
     if eps == 0.0:
         iscircle = True
     else:
         iscircle = False
-    
+
     for filt in bands:
         img = ma.getdata(data['{}_masked'.format(filt.lower())][igal]) # [nanomaggies/arcsec2]
         mask = ma.getmask(data['{}_masked'.format(filt.lower())][igal])
@@ -294,9 +294,9 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         if len(keep) > 0:
             sma = sma[keep]
         else:
-            print('Too few good semi-major axis pixels!')
-            #pdb.set_trace()
-            raise ValueError
+            continue
+            #print('Too few good semi-major axis pixels!')
+            #raise ValueError
         
         smb = sma * eps
 
@@ -377,6 +377,9 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                         #    pdb.set_trace()
                     results['cog_sma50_{}'.format(filt.lower())] = np.float32(half_light_sma)
 
+            #if filt == 'g':
+            #    pdb.set_trace()
+
             # This code is not needed anymore because we do proper aperture photometry above.
 
             ##print('Measuring integrated magnitudes to different radii.')
@@ -444,7 +447,7 @@ def _unpack_isofit(ellipsefit, filt, isofit, failed=False):
     https://photutils.readthedocs.io/en/stable/api/photutils.isophote.IsophoteList.html#photutils.isophote.IsophoteList
 
     """
-    if failed:
+    def _fill_failed(ellipsefit):
         ellipsefit.update({
             'sma_{}'.format(filt.lower()): np.array([-1]).astype(np.int16),
             'intens_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
@@ -467,29 +470,37 @@ def _unpack_isofit(ellipsefit, filt, isofit, failed=False):
             'ndata_{}'.format(filt.lower()): np.array([-1]).astype(np.int16), 
             'nflag_{}'.format(filt.lower()): np.array([-1]).astype(np.int16), 
             'niter_{}'.format(filt.lower()): np.array([-1]).astype(np.int16)})
+        return ellipsefit
+    
+    if failed:
+        ellipsefit = _fill_failed(ellipsefit)
     else:
-        ellipsefit.update({
-            'sma_{}'.format(filt.lower()): isofit.sma.astype(np.int16),
-            'intens_{}'.format(filt.lower()): isofit.intens.astype('f4'),
-            'intens_err_{}'.format(filt.lower()): isofit.int_err.astype('f4'),
-            'eps_{}'.format(filt.lower()): isofit.eps.astype('f4'),
-            'eps_err_{}'.format(filt.lower()): isofit.ellip_err.astype('f4'),
-            'pa_{}'.format(filt.lower()): isofit.pa.astype('f4'),
-            'pa_err_{}'.format(filt.lower()): isofit.pa_err.astype('f4'),
-            'x0_{}'.format(filt.lower()): isofit.x0.astype('f4'),
-            'x0_err_{}'.format(filt.lower()): isofit.x0_err.astype('f4'),
-            'y0_{}'.format(filt.lower()): isofit.y0.astype('f4'),
-            'y0_err_{}'.format(filt.lower()): isofit.y0_err.astype('f4'),
-            'a3_{}'.format(filt.lower()): isofit.a3.astype('f4'),
-            'a3_err_{}'.format(filt.lower()): isofit.a3_err.astype('f4'),
-            'a4_{}'.format(filt.lower()): isofit.a4.astype('f4'),
-            'a4_err_{}'.format(filt.lower()): isofit.a4_err.astype('f4'),
-            'rms_{}'.format(filt.lower()): isofit.rms.astype('f4'),
-            'pix_stddev_{}'.format(filt.lower()): isofit.pix_stddev.astype('f4'),
-            'stop_code_{}'.format(filt.lower()): isofit.stop_code.astype(np.int16),
-            'ndata_{}'.format(filt.lower()): isofit.ndata.astype(np.int16),
-            'nflag_{}'.format(filt.lower()): isofit.nflag.astype(np.int16),
-            'niter_{}'.format(filt.lower()): isofit.niter.astype(np.int16)})
+        I = np.isfinite(isofit.intens) * np.isfinite(isofit.int_err)
+        if np.sum(I) == 0:
+            ellipsefit = _fill_failed(ellipsefit)
+        else:
+            ellipsefit.update({
+                'sma_{}'.format(filt.lower()): isofit.sma[I].astype(np.int16),
+                'intens_{}'.format(filt.lower()): isofit.intens[I].astype('f4'),
+                'intens_err_{}'.format(filt.lower()): isofit.int_err[I].astype('f4'),
+                'eps_{}'.format(filt.lower()): isofit.eps[I].astype('f4'),
+                'eps_err_{}'.format(filt.lower()): isofit.ellip_err[I].astype('f4'),
+                'pa_{}'.format(filt.lower()): isofit.pa[I].astype('f4'),
+                'pa_err_{}'.format(filt.lower()): isofit.pa_err[I].astype('f4'),
+                'x0_{}'.format(filt.lower()): isofit.x0[I].astype('f4'),
+                'x0_err_{}'.format(filt.lower()): isofit.x0_err[I].astype('f4'),
+                'y0_{}'.format(filt.lower()): isofit.y0[I].astype('f4'),
+                'y0_err_{}'.format(filt.lower()): isofit.y0_err[I].astype('f4'),
+                'a3_{}'.format(filt.lower()): isofit.a3[I].astype('f4'),
+                'a3_err_{}'.format(filt.lower()): isofit.a3_err[I].astype('f4'),
+                'a4_{}'.format(filt.lower()): isofit.a4[I].astype('f4'),
+                'a4_err_{}'.format(filt.lower()): isofit.a4_err[I].astype('f4'),
+                'rms_{}'.format(filt.lower()): isofit.rms[I].astype('f4'),
+                'pix_stddev_{}'.format(filt.lower()): isofit.pix_stddev[I].astype('f4'),
+                'stop_code_{}'.format(filt.lower()): isofit.stop_code[I].astype(np.int16),
+                'ndata_{}'.format(filt.lower()): isofit.ndata[I].astype(np.int16),
+                'nflag_{}'.format(filt.lower()): isofit.nflag[I].astype(np.int16),
+                'niter_{}'.format(filt.lower()): isofit.niter[I].astype(np.int16)})
     return ellipsefit
 
 def _integrate_isophot_one(args):
@@ -940,20 +951,25 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         if np.any(val):
             imasked = True
 
-        if imasked:
-        #if img.mask[np.int(ellipsefit['x0']), np.int(ellipsefit['y0'])]:
-            print(' Central pixel is masked; resorting to extreme measures!')
-            pdb.set_trace()
-            ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
-        else:
-            isobandfit = pool.map(_integrate_isophot_one, [(
-                img, _sma, ellipsefit['pa_moment'], ellipsefit['eps_moment'], x0,
-                y0, integrmode, sclip, nclip) for _sma in filtsma])
-            ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
-
         #if filt == 'FUV':
         #    pdb.set_trace()
         
+        # corner case: no data in the image at all
+        if np.sum(img) == 0:
+            ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
+        else:
+            if imasked:
+            #if img.mask[np.int(ellipsefit['x0']), np.int(ellipsefit['y0'])]:
+                print(' Central pixel is masked; resorting to extreme measures!')
+                #pdb.set_trace()
+                raise ValueError
+                ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
+            else:
+                isobandfit = pool.map(_integrate_isophot_one, [(
+                    img, _sma, ellipsefit['pa_moment'], ellipsefit['eps_moment'], x0,
+                    y0, integrmode, sclip, nclip) for _sma in filtsma])
+                ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
+    
         print('...{:.3f} sec'.format(time.time() - t0))
         
     print('Time for all images = {:.3f} min'.format((time.time()-tall)/60))
