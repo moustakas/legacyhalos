@@ -543,7 +543,7 @@ def integrate_isophot_one(img, sma, theta, eps, x0, y0,
 
             # Create an Isophote instance with the sample.
             out = Isophote(sample, 0, True, 0)
-        
+
     return out
 
 def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
@@ -882,6 +882,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                     result.append(result[-1]+1)
                     # recalculate the ratio so that the remaining values will scale correctly
                     ratio = (float(limit)/result[-1]) ** (1.0/(n-len(result)))
+                    #print(ratio, len(result), n)
             # round, re-adjust to 0 indexing (i.e. minus 1) and return np.uint64 array
             return np.array(list(map(lambda x: round(x)-1, result)), dtype=np.int)
 
@@ -954,15 +955,17 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         #if filt == 'FUV':
         #    pdb.set_trace()
         
-        # corner case: no data in the image at all
-        if np.sum(img) == 0:
+        # corner case: no data in the image or fully masked
+        if np.sum(img.data) == 0 or np.sum(img.mask) == np.product(img.shape):
             ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
         else:
             if imasked:
             #if img.mask[np.int(ellipsefit['x0']), np.int(ellipsefit['y0'])]:
                 print(' Central pixel is masked; resorting to extreme measures!')
-                #pdb.set_trace()
-                raise ValueError
+                try:
+                    raise ValueError
+                except:
+                    pdb.set_trace()
                 ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
             else:
                 isobandfit = pool.map(_integrate_isophot_one, [(

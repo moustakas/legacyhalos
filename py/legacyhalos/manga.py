@@ -75,7 +75,7 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
     from legacyhalos.io import _missing_files_one
 
     dependson = None
-    galaxy, galaxydir = get_galaxy_galaxydir(sample)        
+    galaxy, galaxydir = get_galaxy_galaxydir(sample, resampled=args.resampled_phot)        
     if args.coadds:
         suffix = 'coadds'
         filesuffix = '-custom-coadds.isdone'
@@ -90,9 +90,15 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         filesuffix = '-custom-ellipse.isdone'
         dependson = '-custom-coadds.isdone'
     elif args.resampled_phot:
-        suffix = 'resampled-phot'
-        filesuffix = '-resampled-phot.isdone'        
-        dependson = '-custom-ellipse.isdone'
+        if args.htmlplots:
+            suffix = 'resampled-phot-htmlplots'
+            filesuffix = '-resampled-phot-htmlplots.isdone'
+        elif args.build_catalog:
+            suffix = 'resampled-phot-build-catalog'
+            filesuffix = '-resampled-phot.isdone'        
+        else:
+            suffix = 'resampled-phot'
+            filesuffix = '-resampled-phot.isdone'        
     elif args.build_catalog:
         suffix = 'build-catalog'
         filesuffix = '-custom-ellipse.isdone'        
@@ -230,11 +236,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
 
-    use_testbed = False
+    use_testbed = True
 
     if use_testbed:
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed100.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'mn-dr17-v0.1sub-summary.fits')
     else:
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-dr17-v0.1.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
@@ -368,23 +375,33 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     return sample
 
-def build_catalog(sample, nproc=1, refcat='R1', verbose=False, clobber=False):
+def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, clobber=False):
     import time
     import fitsio
     from astropy.io import fits
     from astropy.table import Table, vstack
     from legacyhalos.io import read_ellipsefit
-    
-    outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot.fits')
+
+    version = 'v1'
+
+    if resampled:
+        outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-all-{}.fits'.format(version))
+    else:
+        outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-{}.fits'.format(version))
+        
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
         return None
 
     galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    if resampled:
+        _, resamp_galaxydir = get_galaxy_galaxydir(sample, resampled=resampled)
+    else:
+        resamp_galaxydir = [None] * len(galaxy)
 
     t0 = time.time()
-    tractor, parent, ellipse = [], [], []
-    for gal, gdir, onegal in zip(galaxy, galaxydir, sample):
+    tractor, parent, ellipse, phot = [], [], [], []
+    for gal, gdir, rdir, onegal in zip(galaxy, galaxydir, resamp_galaxydir, sample):
         refid = onegal[REFIDCOLUMN]
         tractorfile = os.path.join(gdir, '{}-custom-tractor.fits'.format(gal))
         ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
@@ -395,7 +412,7 @@ def build_catalog(sample, nproc=1, refcat='R1', verbose=False, clobber=False):
         
         if os.path.isfile(tractorfile) and os.path.isfile(ellipsefile):
             _ellipse = read_ellipsefit(gal, gdir, galaxy_id=str(refid), asTable=True,
-                                      filesuffix='custom', verbose=True)
+                                       filesuffix='custom', verbose=True)
             for col in _ellipse.colnames:
                 if _ellipse[col].ndim > 1:
                     _ellipse.remove_column(col)
@@ -405,13 +422,31 @@ def build_catalog(sample, nproc=1, refcat='R1', verbose=False, clobber=False):
             if len(match) != 1:
                 raise ValueError('Problem here!')
 
-            ellipse.append(_ellipse)
-            tractor.append(_tractor[match])
-            parent.append(onegal)
+            if rdir is None:
+                ellipse.append(_ellipse)
+                tractor.append(_tractor[match])
+                parent.append(onegal)
+            else:
+                resampfile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
+                if os.path.isfile(resampfile):
+                    _phot = read_ellipsefit(gal, rdir, galaxy_id=str(refid), asTable=True,
+                                            filesuffix='custom', verbose=True)
+                    for col in _phot.colnames:
+                        if _phot[col].ndim > 1:
+                            _phot.remove_column(col)
+        
+                    ellipse.append(_ellipse)
+                    tractor.append(_tractor[match])
+                    parent.append(onegal)
+                    phot.append(_phot)
+                else:
+                    print('Missing resampled photometry {}'.format(resampfile))
 
     ellipse = vstack(ellipse, metadata_conflicts='silent')
     tractor = vstack(tractor, metadata_conflicts='silent')
     parent = vstack(parent, metadata_conflicts='silent')
+    if resampled:
+        phot = vstack(phot, metadata_conflicts='silent')
     print('Merging {} galaxies took {:.2f} min.'.format(len(tractor), (time.time()-t0)/60.0))
 
     if len(tractor) == 0:
@@ -430,7 +465,13 @@ def build_catalog(sample, nproc=1, refcat='R1', verbose=False, clobber=False):
     hdu_tractor = fits.convenience.table_to_hdu(tractor)
     hdu_tractor.header['EXTNAME'] = 'TRACTOR'
         
-    hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_tractor])
+    if resampled:
+        hdu_phot = fits.convenience.table_to_hdu(phot)
+        hdu_phot.header['EXTNAME'] = 'RESAMPLED'
+        hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_phot, hdu_tractor])
+    else:
+        hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_tractor])
+        
     hx.writeto(outfile, overwrite=True, checksum=True)
 
     print('Wrote {} galaxies to {}'.format(len(parent), outfile))
@@ -1188,6 +1229,7 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, refpixscale=0.
 
     """
     import subprocess
+    import shutil
     from legacyhalos.qa import addbar_to_png, fonttype
     from PIL import Image, ImageDraw, ImageFont
 
@@ -1198,17 +1240,21 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, refpixscale=0.
     montagefile = os.path.join(htmlgalaxydir, '{}-{}-montage-{}.png'.format(galaxy, filesuffix, bandsuffix))
     thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-montage-{}.png'.format(galaxy, filesuffix, bandsuffix))
     if not os.path.isfile(montagefile) or clobber:
-        pngfiles = [os.path.join(galaxydir, 'resampled-{}-{}.png'.format(galaxy, suffix)) for suffix in ('galex', 'dlis', 'wise')]
-
-        with Image.open(pngfiles[0]) as im:
-            sz = im.size
-        thumbsz = sz[0] // 3
+        # make a copy of the QA so we can add a scale bar
+        pngfiles = []
+        for suffix in ('galex', 'dlis', 'wise'):
+            _pngfile = os.path.join(galaxydir, 'resampled-{}-{}.png'.format(galaxy, suffix))
+            pngfile = os.path.join(htmlgalaxydir, 'resampled-{}-{}.png'.format(galaxy, suffix))
+            tmpfile = pngfile+'.tmp'
+            shutil.copyfile(_pngfile, tmpfile)
+            os.rename(tmpfile, pngfile)
+            pngfiles.append(pngfile)
 
         cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
         if barlen:
             barpngfile = pngfiles[0]
             addbar_to_png(pngfiles[0], barlen, barlabel, None, barpngfile,
-                          scaledfont=True, pixscalefactor=1.0)
+                          scaledfont=False, pixscalefactor=1.0, fntsize=8)
             cmd = cmd+' '+barpngfile+' '
             cmd = cmd+' '.join(ff for ff in pngfiles[1:])
         else:
@@ -1222,19 +1268,23 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, refpixscale=0.
         if not os.path.isfile(montagefile):
             raise IOError('There was a problem writing {}'.format(montagefile))
 
-        # Create a couple smaller thumbnail images
-        cmd = 'convert -thumbnail {0} {1} {2}'.format(thumbsz, montagefile, thumbfile)
-        #print(cmd)
-        if os.path.isfile(thumbfile):
-            os.remove(thumbfile)                
-        print('Writing {}'.format(thumbfile))
-        subprocess.call(cmd.split())
+        ## Create a couple smaller thumbnail images
+        #with Image.open(pngfiles[0]) as im:
+        #    sz = im.size
+        #thumbsz = sz[0] // 3
+        #
+        #cmd = 'convert -thumbnail {0} {1} {2}'.format(thumbsz, montagefile, thumbfile)
+        ##print(cmd)
+        #if os.path.isfile(thumbfile):
+        #    os.remove(thumbfile)                
+        #print('Writing {}'.format(thumbfile))
+        #subprocess.call(cmd.split())
 
-def qa_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
-                      htmlgalaxydir, resampled_pixscale=0.75,
-                      barlen=None, barlabel=None,
-                      filesuffix='custom',
-                      verbose=False, debug=False, clobber=False):
+def htmlplots_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
+                             htmlgalaxydir, resampled_pixscale=0.75,
+                             barlen=None, barlabel=None,
+                             filesuffix='custom',
+                             verbose=False, debug=False, clobber=False):
     """Build QA from the resampled images. This script is very roughly based on
     legacyhalos.html.make_plots, html.make_ellipse_qa, 
 
@@ -1277,7 +1327,6 @@ def qa_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                                 barlen=barlen, barlabel=barlabel,
                                 clobber=clobber, verbose=verbose)
 
-    pdb.set_trace()
     
     # SED
     sedfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}-sed.png'.format(galaxy, qasuffix, galid))
@@ -1310,10 +1359,84 @@ def qa_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
     #    print('Writing {}'.format(thumbfile))
     #    subprocess.call(cmd.split())
 
+    return 1
+
+def call_htmlplots_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
+                                  htmlgalaxydir, resampled_pixscale=0.75, filesuffix='custom',
+                                  barlen=None, barlabel=None, verbose=False, debug=False,
+                                  clobber=False, write_donefile=True, logfile=None):
+    """Wrapper script to do photometry on the resampled images.
+
+    """
+    import time
+    from contextlib import redirect_stdout, redirect_stderr
+    from legacyhalos.mpi import _done, _start
+
+    t0 = time.time()
+    if debug:
+        _start(galaxy)
+        err = htmlplots_resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                       orig_galaxydir=orig_galaxydir,
+                                       htmlgalaxydir=htmlgalaxydir,
+                                       barlabel=barlabel, barlen=barlen, 
+                                       resampled_pixscale=resampled_pixscale,
+                                       verbose=verbose, debug=debug, clobber=clobber)
+        if write_donefile:
+            _done(galaxy, galaxydir, err, t0, 'resampled-phot-htmlplots', filesuffix=None)
+    else:
+        with open(logfile, 'a') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                _start(galaxy, log=log)
+                err = htmlplots_resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                               orig_galaxydir=orig_galaxydir,
+                                               htmlgalaxydir=htmlgalaxydir,
+                                               barlabel=barlabel, barlen=barlen, 
+                                               resampled_pixscale=resampled_pixscale,
+                                               verbose=verbose, debug=debug, clobber=clobber)
+                if write_donefile:
+                    _done(galaxy, galaxydir, err, t0, 'resampled-phot-htmlplots', None, log=log)
+
+    return 1
+
+def call_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
+                        resampled_pixscale=0.75, refband='r', filesuffix='custom',
+                        nproc=1, fill_value=0.0, verbose=False, debug=False,
+                        clobber=False, write_donefile=True, logfile=None):
+    """Wrapper script to do photometry on the resampled images.
+
+    """
+    import time
+    from contextlib import redirect_stdout, redirect_stderr
+    from legacyhalos.mpi import _done, _start
+
+    t0 = time.time()
+    if debug:
+        _start(galaxy)
+        err = resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                             orig_galaxydir=orig_galaxydir, filesuffix=filesuffix,
+                             resampled_pixscale=resampled_pixscale,
+                             nproc=nproc, verbose=verbose, debug=debug,
+                             clobber=clobber)
+        if write_donefile:
+            _done(galaxy, galaxydir, err, t0, 'resampled-phot', None)
+    else:
+        with open(logfile, 'a') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                _start(galaxy, log=log)
+                err = resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                     orig_galaxydir=orig_galaxydir, filesuffix=filesuffix,
+                                     resampled_pixscale=resampled_pixscale,
+                                     nproc=nproc, verbose=verbose, debug=debug,
+                                     clobber=clobber)
+                if write_donefile:
+                    _done(galaxy, galaxydir, err, t0, 'resampled-phot', None, log=log)
+
+    return err
+
 def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
-                   resampled_pixscale=0.75, refband='r', filesuffix='custom', nproc=1,
-                   fill_value=0.0, verbose=False, debug=False, clobber=False,
-                   logfile=None):
+                   resampled_pixscale=0.75, refband='r',
+                   filesuffix='custom', nproc=1,
+                   fill_value=0.0, verbose=False, debug=False, clobber=False):
     """Do photometry on the resampled images.
 
     """
@@ -1340,6 +1463,9 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
     # Read the original ellipse-fitting results and pull out the parameters we
     # need to run ellipse-fitting on the resampled images.
     odata = read_ellipsefit(galaxy, orig_galaxydir, filesuffix=filesuffix, galaxy_id=galaxy_id)
+    if not bool(odata):
+        print('No imaging or native-resolution photometry.')
+        return 1
 
     integrmode, sclip, nclip, fitgeometry = odata['integrmode'], odata['sclip'], odata['nclip'], odata['fitgeometry']
 
@@ -1427,7 +1553,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
 
     maxsma = None
     logsma = True
-    delta_logsma = 1.0
+    delta_logsma = 1.5
 
     err = legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                               bands=bands, refband=refband,
@@ -1441,6 +1567,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
     #pdb.set_trace()
     #rr = read_ellipsefit(galaxydir='/global/cscratch1/sd/ioannis/manga-data/resampled/9028/9028-12704', filesuffix='custom', galaxy='9028-12704', galaxy_id='9028012704')
 
+    return err
 
 def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4'],
               kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
@@ -1574,7 +1701,7 @@ def _build_htmlpage_one(args):
     """Wrapper function for the multiprocessing."""
     return build_htmlpage_one(*args)
 
-def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, htmldir,
+def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, resampled_galaxydir1, htmlgalaxydir1, htmlhome, htmldir,
                        racolumn, deccolumn, pixscale, nextgalaxy, prevgalaxy,
                        nexthtmlgalaxydir, prevhtmlgalaxydir, verbose, clobber, fix_permissions):
     """Build the web page for a single galaxy.
@@ -1890,6 +2017,53 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('</table>\n')
             #html.write('<br />\n')
 
+    def _html_resampled_photometry(html, tractor, sample):
+        html.write('<h2>Resampled Mosaics & Photometry</h2>\n')
+        if tractor is None:
+            html.write('<p>Tractor catalog not available.</p>\n')
+            html.write('<h3>Geometry</h3>\n')
+            html.write('<h3>Photometry</h3>\n')
+            return
+            
+        # Galaxy-specific mosaics--
+        for igal in np.arange(len(tractor['ref_id'])):
+            galaxyid = str(tractor['ref_id'][igal])
+            #html.write('<h4>{}</h4>\n'.format(galaxyid))
+            html.write('<h4>{}</h4>\n'.format(sample[GALAXYCOLUMN][igal]))
+
+            ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='custom',
+                                                     galaxy_id=galaxyid, verbose=verbose)
+            resampled_ellipse = legacyhalos.io.read_ellipsefit(galaxy1, resampled_galaxydir1, filesuffix='custom',
+                                                               galaxy_id=galaxyid, verbose=verbose)
+            if not bool(ellipse):
+                html.write('<p>Ellipse-fitting not done or failed.</p>\n')
+                continue
+
+            html.write('<table width="90%">\n')
+
+            html.write('<tr>\n')
+            pngfile = '{}-resampled-montage-multiwavelength.png'.format(galaxy1)
+            html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" align="left" width="100%"></a></td>\n'.format(pngfile))
+            html.write('</tr>\n')
+            html.write('</table>\n')
+            html.write('<br />\n')
+
+            html.write('<table width="90%">\n')
+            html.write('<tr>\n')
+            pngfile = '{}-resampled-ellipse-{}-sbprofile.png'.format(galaxy1, galaxyid)
+            html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+            pngfile = '{}-resampled-ellipse-{}-cog.png'.format(galaxy1, galaxyid)
+            html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+            html.write('</tr>\n')
+
+            html.write('<tr>\n')
+            pngfile = '{}-resampled-ellipse-{}-sed.png'.format(galaxy1, galaxyid)
+            html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+            html.write('</tr>\n')
+            
+            html.write('</table>\n')
+            #html.write('<br />\n')
+
     def _html_maskbits(html):
         html.write('<h2>Masking Geometry</h2>\n')
         pngfile = '{}-custom-maskbits.png'.format(galaxy1)
@@ -1931,6 +2105,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         _html_galaxy_properties(html, gal)
         _html_image_mosaics(html)
         _html_ellipsefit_and_photometry(html, tractor, sample)
+        _html_resampled_photometry(html, tractor, sample)
         #_html_maskbits(html)
         #_html_ccd_diagnostics(html)
 
@@ -2004,7 +2179,8 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
     else:
         plateifusorted = np.arange(len(sample))
         galaxy, galaxydir, htmlgalaxydir = get_galaxy_galaxydir(sample, html=True)
-        
+        _, resampled_galaxydir = get_galaxy_galaxydir(sample, resampled=True)
+    
     nextgalaxy = np.roll(np.atleast_1d(galaxy), -1)
     prevgalaxy = np.roll(np.atleast_1d(galaxy), 1)
     nexthtmlgalaxydir = np.roll(np.atleast_1d(htmlgalaxydir), -1)
@@ -2012,9 +2188,10 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
 
     mp = multiproc(nthreads=nproc)
     args = []
-    for ii, (gal, galaxy1, galaxydir1, htmlgalaxydir1) in enumerate(zip(
-        sample[plateifusorted], np.atleast_1d(galaxy), np.atleast_1d(galaxydir), np.atleast_1d(htmlgalaxydir))):
-        args.append([ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, htmldir,
+    for ii, (gal, galaxy1, galaxydir1, resampled_galaxydir1, htmlgalaxydir1) in enumerate(zip(
+        sample[plateifusorted], np.atleast_1d(galaxy), np.atleast_1d(galaxydir),
+        np.atleast_1d(resampled_galaxydir), np.atleast_1d(htmlgalaxydir))):
+        args.append([ii, gal, galaxy1, galaxydir1, resampled_galaxydir1, htmlgalaxydir1, htmlhome, htmldir,
                      racolumn, deccolumn, pixscale, nextgalaxy,
                      prevgalaxy, nexthtmlgalaxydir, prevhtmlgalaxydir, verbose,
                      clobber, fix_permissions])

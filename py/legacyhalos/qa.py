@@ -89,9 +89,10 @@ def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
     im.paste(rotated, (paste_shift_x, paste_shift_y), rotated)
 
 def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
-                  pixscalefactor=1.0):
+                  pixscalefactor=1.0, fntsize=20):
     """Support routine for routines in html.
 
+    fntsize - only used if scaledfont=False
     """
     from PIL import Image, ImageDraw, ImageFont
 
@@ -107,8 +108,6 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
                 fntsize = np.round(pixscalefactor*sz[0]/50).astype('int')                
                 #fntsize = np.round(0.05*sz[0]).astype('int')
                 #fntsize = np.round(sz[0]/50).astype('int')
-            else:
-                fntsize = 20 # np.round(sz[0]/20).astype('int')
             #if fntsize < 56:
             #    fntsize = 56
             font = ImageFont.truetype(fonttype, size=fntsize)

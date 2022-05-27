@@ -29,5 +29,5 @@ else
     echo '  source '$LEGACYHALOS_CODE_DIR'/bin/'$project'/'$project'-env'
     
     shifterimg pull $SHIFTER
-    shifter --image $SHIFTER bash
+    shifter --module=mpich-cle6 --image $SHIFTER bash
 fi

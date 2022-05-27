@@ -110,7 +110,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         if args.just_coadds:
             filesuffix = '-custom-montage-grz.png'
         else:
-            filesuffix = '-ccdpos.png'
+            filesuffix = '-custom-montage-grz.png'
+            #filesuffix = '-ccdpos.png'
             #filesuffix = '-custom-maskbits.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:

@@ -11,4 +11,4 @@ echo 'Load the environment with: '
 echo '  source '$LEGACYHALOS_CODE_DIR'/bin/manga/manga-env'
 
 shifterimg pull $SHIFTER
-shifter --image $SHIFTER bash
+shifter --module=mpich-cle6 --image $SHIFTER bash
