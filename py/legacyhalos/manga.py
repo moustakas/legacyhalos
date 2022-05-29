@@ -91,14 +91,14 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         dependson = '-custom-coadds.isdone'
     elif args.resampled_phot:
         if args.htmlplots:
-            suffix = 'resampled-phot-htmlplots'
-            filesuffix = '-resampled-phot-htmlplots.isdone'
+            suffix = 'resampled-htmlplots'
+            filesuffix = '-resampled-htmlplots.isdone'
         elif args.build_catalog:
-            suffix = 'resampled-phot-build-catalog'
-            filesuffix = '-resampled-phot.isdone'        
+            suffix = 'resampled-build-catalog'
+            filesuffix = '-resampled-ellipse.isdone'        
         else:
-            suffix = 'resampled-phot'
-            filesuffix = '-resampled-phot.isdone'        
+            suffix = 'resampled-ellipse'
+            filesuffix = '-resampled-ellipse.isdone'        
     elif args.build_catalog:
         suffix = 'build-catalog'
         filesuffix = '-custom-ellipse.isdone'        
@@ -427,10 +427,10 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
                 tractor.append(_tractor[match])
                 parent.append(onegal)
             else:
-                resampfile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
+                resampfile = os.path.join(rdir, '{}-resampled-ellipse-{}.fits'.format(gal, refid))
                 if os.path.isfile(resampfile):
                     _phot = read_ellipsefit(gal, rdir, galaxy_id=str(refid), asTable=True,
-                                            filesuffix='custom', verbose=True)
+                                            filesuffix='resampled', verbose=True)
                     for col in _phot.colnames:
                         if _phot[col].ndim > 1:
                             _phot.remove_column(col)
@@ -1283,7 +1283,7 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, refpixscale=0.
 def htmlplots_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                              htmlgalaxydir, resampled_pixscale=0.75,
                              barlen=None, barlabel=None,
-                             filesuffix='custom',
+                             filesuffix='resampled',
                              verbose=False, debug=False, clobber=False):
     """Build QA from the resampled images. This script is very roughly based on
     legacyhalos.html.make_plots, html.make_ellipse_qa, 
@@ -1309,11 +1309,14 @@ def htmlplots_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
     galid = str(galaxy_id)
 
     # Read the original and resampled ellipse-fitting results.
-    ellipsefit = read_ellipsefit(galaxy, orig_galaxydir, filesuffix=filesuffix, galaxy_id=galid)
+    ellipsefit = read_ellipsefit(galaxy, orig_galaxydir, filesuffix='custom', galaxy_id=galid)
+    if not bool(ellipsefit):
+        return 1 # missing
+        
     resamp_ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, galaxy_id=galid)
 
     # optionally read the Tractor catalog
-    tractorfile = os.path.join(orig_galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)) 
+    tractorfile = os.path.join(orig_galaxydir, '{}-custom-tractor.fits'.format(galaxy)) 
     if os.path.isfile(tractorfile):
         tractor = Table(fitsio.read(tractorfile, lower=True))
     else:
@@ -1362,7 +1365,7 @@ def htmlplots_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
     return 1
 
 def call_htmlplots_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
-                                  htmlgalaxydir, resampled_pixscale=0.75, filesuffix='custom',
+                                  htmlgalaxydir, resampled_pixscale=0.75, filesuffix='resampled',
                                   barlen=None, barlabel=None, verbose=False, debug=False,
                                   clobber=False, write_donefile=True, logfile=None):
     """Wrapper script to do photometry on the resampled images.
@@ -1382,7 +1385,7 @@ def call_htmlplots_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                                        resampled_pixscale=resampled_pixscale,
                                        verbose=verbose, debug=debug, clobber=clobber)
         if write_donefile:
-            _done(galaxy, galaxydir, err, t0, 'resampled-phot-htmlplots', filesuffix=None)
+            _done(galaxy, galaxydir, err, t0, 'resampled-htmlplots', filesuffix=None)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
@@ -1394,12 +1397,12 @@ def call_htmlplots_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                                                resampled_pixscale=resampled_pixscale,
                                                verbose=verbose, debug=debug, clobber=clobber)
                 if write_donefile:
-                    _done(galaxy, galaxydir, err, t0, 'resampled-phot-htmlplots', None, log=log)
+                    _done(galaxy, galaxydir, err, t0, 'resampled-htmlplots', None, log=log)
 
     return 1
 
 def call_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
-                        resampled_pixscale=0.75, refband='r', filesuffix='custom',
+                        resampled_pixscale=0.75, refband='r', filesuffix='resampled',
                         nproc=1, fill_value=0.0, verbose=False, debug=False,
                         clobber=False, write_donefile=True, logfile=None):
     """Wrapper script to do photometry on the resampled images.
@@ -1418,7 +1421,7 @@ def call_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                              nproc=nproc, verbose=verbose, debug=debug,
                              clobber=clobber)
         if write_donefile:
-            _done(galaxy, galaxydir, err, t0, 'resampled-phot', None)
+            _done(galaxy, galaxydir, err, t0, 'resampled-ellipse', None)
     else:
         with open(logfile, 'a') as log:
             with redirect_stdout(log), redirect_stderr(log):
@@ -1429,13 +1432,13 @@ def call_resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                                      nproc=nproc, verbose=verbose, debug=debug,
                                      clobber=clobber)
                 if write_donefile:
-                    _done(galaxy, galaxydir, err, t0, 'resampled-phot', None, log=log)
+                    _done(galaxy, galaxydir, err, t0, 'resampled-ellipse', None, log=log)
 
     return err
 
 def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                    resampled_pixscale=0.75, refband='r',
-                   filesuffix='custom', nproc=1,
+                   filesuffix='resampled', nproc=1,
                    fill_value=0.0, verbose=False, debug=False, clobber=False):
     """Do photometry on the resampled images.
 
@@ -1462,7 +1465,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
 
     # Read the original ellipse-fitting results and pull out the parameters we
     # need to run ellipse-fitting on the resampled images.
-    odata = read_ellipsefit(galaxy, orig_galaxydir, filesuffix=filesuffix, galaxy_id=galaxy_id)
+    odata = read_ellipsefit(galaxy, orig_galaxydir, filesuffix='custom', galaxy_id=galaxy_id)
     if not bool(odata):
         print('No imaging or native-resolution photometry.')
         return 1
@@ -1482,8 +1485,10 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
     for key, newkey in zip(['largeshift', 'ra_moment', 'dec_moment', 'majoraxis', 'pa', 'eps'], #'xmed', 'ymed'],
                            ['largeshift', 'ra_moment', 'dec_moment', 'majoraxis', 'pa_moment', 'eps_moment']):#, 'y0_moment', 'x0_moment']):
         if key == 'majoraxis':
-            mge['majoraxis'] = odata['sma_moment'] / odata['refpixscale'] # [pixels]
-        mge[key] = odata[newkey]
+            #mge['majoraxis'] = odata['sma_moment'] / odata['refpixscale'] # [pixels]
+            mge['majoraxis'] = odata['sma_moment'] / resampled_pixscale # [resampled pixels!]
+        else:
+            mge[key] = odata[newkey]
 
     for filt in bands:
         fitsfile = os.path.join(galaxydir, 'resampled-{}-{}.fits'.format(galaxy, filt))
@@ -1565,7 +1570,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                               verbose=verbose, clobber=clobber)
 
     #pdb.set_trace()
-    #rr = read_ellipsefit(galaxydir='/global/cscratch1/sd/ioannis/manga-data/resampled/9028/9028-12704', filesuffix='custom', galaxy='9028-12704', galaxy_id='9028012704')
+    #rr = read_ellipsefit(galaxydir='/global/cscratch1/sd/ioannis/manga-data/resampled/9028/9028-12704', filesuffix='resampled', galaxy='9028-12704', galaxy_id='9028012704')
 
     return err
 

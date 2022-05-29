@@ -238,7 +238,6 @@ def main():
                                               verbose=args.verbose, debug=args.debug,
                                               barlen=barlen, barlabel=barlabel, 
                                               clobber=args.clobber, logfile=logfile)
-                args.htmlplots = False
             else:
                 from legacyhalos.manga import call_resampled_phot
                 call_resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir, orig_galaxydir=orig_galaxydir,
@@ -246,7 +245,7 @@ def main():
                                     nproc=args.nproc, verbose=args.verbose, debug=args.debug,
                                     clobber=args.clobber, logfile=logfile)
                              
-        if args.htmlplots:
+        if args.htmlplots and args.resampled_phot is False:
             from legacyhalos.mpi import call_htmlplots
             from legacyhalos.manga import read_multiband
             
