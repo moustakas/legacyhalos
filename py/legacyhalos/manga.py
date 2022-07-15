@@ -1219,7 +1219,7 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
     else:
         plt.show()
 
-def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, refpixscale=0.262,
+def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir, 
                                 filesuffix='resampled', 
                                 barlen=None, barlabel=None, just_coadds=False,
                                 clobber=False, verbose=False):

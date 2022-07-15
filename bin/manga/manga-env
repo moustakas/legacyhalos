@@ -14,7 +14,8 @@ export PATH=$LEGACYHALOS_CODE_DIR/bin/$project:$PATH
 # Specify the location of the input and output data.
 export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/$project
 #export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/$project
-export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data
+#export LEGACYHALOS_DATA_DIR=/global/cscratch1/sd/ioannis/$project-data
+export LEGACYHALOS_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/$project-data
 export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html
 
 # Pipeline variables---only change these if you know what you're doing!
