@@ -149,7 +149,7 @@ def get_run(onegal, racolumn='RA', deccolumn='DEC'):
     return run
 
 # ellipsefit data model
-def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z']):
+def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'], add_datamodel_cols=None):
     cols = [
         ('bands', None),
         ('refband', None),
@@ -260,6 +260,9 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z']):
         cols.append(('cog_chi2_{}'.format(band.lower()), None))
         cols.append(('cog_sma50_{}'.format(band.lower()), u.arcsec))
 
+    if add_datamodel_cols is not None:
+        cols = cols + add_datamodel_cols
+
     return cols
 
 def get_ellipsefit_filename(galaxy, galaxydir, filesuffix='', galaxy_id=''):
@@ -283,7 +286,8 @@ def get_ellipsefit_filename(galaxy, galaxydir, filesuffix='', galaxy_id=''):
 
 def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
                      galaxyinfo=None, refband='r', bands=['g', 'r', 'z'],
-                     sbthresh=None, apertures=None, verbose=False):
+                     add_datamodel_cols=None, sbthresh=None, apertures=None,
+                     verbose=False):
     """Write out a FITS file based on the output of
     legacyhalos.ellipse.ellipse_multiband..
 
@@ -333,7 +337,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
 
     # Add to the data table
     datakeys = datadict.keys()
-    for key, unit in _get_ellipse_datamodel(sbthresh, apertures, bands=bands):
+    for key, unit in _get_ellipse_datamodel(sbthresh, apertures, bands=bands, add_datamodel_cols=add_datamodel_cols):
         if key not in datakeys:
             raise ValueError('Data model change -- no column {} for galaxy {}!'.format(key, galaxy))
         data = datadict[key]
@@ -351,7 +355,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
         #    print(key)
         #    pdb.set_trace()
         out.add_column(col)
-        
+
     if np.logical_not(np.all(np.isin([*datakeys], out.colnames))):
         raise ValueError('Data model change -- non-documented columns have been added to ellipsefit dictionary!')
 
@@ -363,6 +367,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
 
     #for col in out.colnames:
     #    print(col, out[col])
+
     hdu = fits.convenience.table_to_hdu(out)
     hdu.header['EXTNAME'] = 'ELLIPSE'
     hdu.header.update(hdr)
@@ -400,17 +405,19 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True
     ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
         
     if os.path.isfile(ellipsefitfile):
-        data = Table.read(ellipsefitfile)
+        data = Table(fitsio.read(ellipsefitfile))
 
         # Optionally convert (back!) into a dictionary.
         if asTable:
             return data
         ellipsefit = {}
         for key in data.colnames:
-            val = data[key].tolist()[0]
-            if np.logical_not(np.isscalar(val)) and len(val) > 0:
-                val = np.array(val)
+            val = data[key][0]
+            #val = data[key].tolist()[0]
+            #if np.logical_not(np.isscalar(val)) and len(val) > 0:
+            #    val = np.array(val, dtype=data[key].dtype)
             ellipsefit[key.lower()] = val # lowercase!
+            #ellipsefit[key.lower()] = np.array(val, dtype=data[key].dtype)
     else:
         if verbose:
             print('File {} not found!'.format(ellipsefitfile))

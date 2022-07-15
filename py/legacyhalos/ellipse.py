@@ -273,9 +273,14 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
 
         # initialize
         results['cog_mtot_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_mtot_ivar_{}'.format(filt.lower())] = np.float32(-1)
         results['cog_m0_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_m0_ivar_{}'.format(filt.lower())] = np.float32(-1)
         results['cog_alpha1_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_alpha1_ivar_{}'.format(filt.lower())] = np.float32(-1)
         results['cog_alpha2_{}'.format(filt.lower())] = np.float32(-1)
+        results['cog_alpha2_ivar_{}'.format(filt.lower())] = np.float32(-1)
+
         results['cog_chi2_{}'.format(filt.lower())] = np.float32(-1)
         results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1)
         results['cog_sma_{}'.format(filt.lower())] = np.float32(-1) # np.array([])
@@ -1017,7 +1022,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                         apertures=REF_APERTURES,
                         delta_sma=1.0, delta_logsma=5, maxsma=None, logsma=True,
                         input_ellipse=None, fitgeometry=False,
-                        verbose=False, debug=False, clobber=False):
+                        verbose=False, debug=False, nowrite=False, clobber=False):
                         
     """Top-level wrapper script to do ellipse-fitting on a single galaxy.
 
@@ -1057,7 +1062,8 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                                                   apertures=apertures,
                                                   integrmode=integrmode, nclip=nclip, sclip=sclip,
                                                   input_ellipse=input_ellipse,
-                                                  verbose=verbose, fitgeometry=False)
+                                                  verbose=verbose, fitgeometry=False,
+                                                  nowrite=False)
         return 1
     else:
         # An object can get here if it's a "known" failure, e.g., if the object

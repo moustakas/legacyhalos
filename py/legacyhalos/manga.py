@@ -1085,7 +1085,8 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
              'abmagerr': np.zeros(nband, 'f4')+0.5,
              'upper': np.zeros(nband, bool)}
     phot = {'tractor': deepcopy(_phot), 'mag_tot': deepcopy(_phot), 'mag_sb25': deepcopy(_phot),
-            'resamp_mag_tot': deepcopy(_phot), 'resamp_mag_sb25': deepcopy(_phot)}
+            'resamp_mag_tot': deepcopy(_phot), 'resamp_mag_sb25': deepcopy(_phot),
+            'manga': deepcopy(_phot)}
 
     for ifilt, filt in enumerate(bands):
         # original photometry
@@ -1134,6 +1135,22 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
                 phot['resamp_mag_sb25']['abmag'][ifilt] = mag
                 phot['resamp_mag_sb25']['abmagerr'][ifilt] = 0.75
                 phot['resamp_mag_sb25']['upper'][ifilt] = True
+
+            flux = resamp_ellipsefit['flux_apmanga_{}'.format(filt.lower())]
+            ivar = resamp_ellipsefit['flux_ivar_apmanga_{}'.format(filt.lower())]
+            if flux > 0 and ivar > 0:
+                mag = 22.5 - 2.5 * np.log10(flux)
+                ferr = 1.0 / np.sqrt(ivar)
+                magerr = 2.5 * ferr / flux / np.log(10)
+                phot['manga']['abmag'][ifilt] = mag
+                phot['manga']['abmagerr'][ifilt] = magerr
+                phot['manga']['upper'][ifilt] = False
+            if flux <=0 and ivar > 0:
+                ferr = 1.0 / np.sqrt(ivar)
+                mag = 22.5 - 2.5 * np.log10(ferr)
+                phot['manga']['abmag'][ifilt] = mag
+                phot['manga']['abmagerr'][ifilt] = 0.75
+                phot['manga']['upper'][ifilt] = True
 
         if tractor is not None:
             flux = tractor['flux_{}'.format(filt.lower())]
@@ -1192,6 +1209,7 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
     _addphot(phot['mag_sb25'], color='orange', marker='^', alpha=0.9, label=r'$m(r<R_{25})$')
     if resamp_ellipsefit:    
         _addphot(phot['resamp_mag_sb25'], color='purple', marker='s', alpha=0.5, label=r'$m^{\prime}(r<R_{25})$')
+    _addphot(phot['manga'], color='k', marker='*', alpha=0.75, label='MaNGA Hex')
     _addphot(phot['tractor'], color='blue', marker='o', alpha=0.75, label='Tractor')
 
     ax.set_xlabel(r'Observed-frame Wavelength ($\mu$m)') 
@@ -1451,7 +1469,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
     import numpy.ma as ma
     from astropy.coordinates import SkyCoord
     from astropy.wcs import WCS
-    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.io import read_ellipsefit, write_ellipsefit
     from legacyhalos.ellipse import legacyhalos_ellipse
 
     if type(onegal) == astropy.table.Table:
@@ -1474,7 +1492,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
 
     integrmode, sclip, nclip, fitgeometry = odata['integrmode'], odata['sclip'], odata['nclip'], odata['fitgeometry']
 
-    data = {'bands': bands, 'refband': refband, 'refpixscale': resampled_pixscale,
+    data = {'bands': bands, 'refband': refband, 'refpixscale': np.float32(resampled_pixscale),
             'missingdata': False, 'failed': False,
             'galaxy_id': galaxy_id, 'filesuffix': filesuffix,
             }
@@ -1492,6 +1510,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
         else:
             mge[key] = odata[newkey]
 
+    mangaphot = {}
     for filt in bands:
         fitsfile = os.path.join(galaxydir, 'resampled-{}-{}.fits'.format(galaxy, filt))
         if not os.path.isfile(fitsfile):
@@ -1499,15 +1518,22 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
             continue
 
         F = fitsio.FITS(fitsfile)
-        if 'IVAR' in F:
-            image = F['IMAGE'].read()
-            hdr = F['IMAGE'].read_header()
-            invvar = F['IVAR'].read()
-            #psfimg = F['PSF'].read()
-        else:
-            image = F[0].read()
-            hdr = F[0].read_header()
-            invvar = F[1].read()
+
+        image = F['IMAGE'].read()
+        hdr = F['IMAGE'].read_header()
+        invvar = F['IVAR'].read()
+        mangamask = F['MASK'].read() # manga mask
+        #psfimg = F['PSF'].read()
+        
+        #if 'IVAR' in F:
+        #    image = F['IMAGE'].read()
+        #    hdr = F['IMAGE'].read_header()
+        #    invvar = F['IVAR'].read()
+        #    #psfimg = F['PSF'].read()
+        #else:
+        #    image = F[0].read()
+        #    hdr = F[0].read_header()
+        #    invvar = F[1].read()
 
         if np.any(invvar < 0):
             raise ValueError('Warning! Negative pixels in the {}-band inverse variance map!'.format(filt))
@@ -1522,6 +1548,18 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
         var = np.zeros_like(invvar)
         ok = invvar > 0
         var[ok] = 1 / invvar[ok]
+
+        # compute the total flux and variance in the manga footprint
+        mangaflux = np.sum(image * mangamask) # nanomaggies
+        mangavar = np.sum(var * mangamask)
+        if mangavar <= 0:
+            print('Warning: MaNGA variance is zero or negative in band {}!'.format(filt))
+            mangaivar = 0.0
+        else:
+            mangaivar = 1 / mangavar
+
+        mangaphot['flux_apmanga_{}'.format(filt.lower())] = mangaflux # nanomaggies
+        mangaphot['flux_ivar_apmanga_{}'.format(filt.lower())] = mangaivar
 
         data['{}_masked'.format(filt.lower())] = [ma.masked_array(image / resampled_pixscale**2, mask)] # [nanomaggies/arcsec**2]
         data['{}_var'.format(filt.lower())] = [var / resampled_pixscale**4]                           # [nanomaggies**2/arcsec**4]
@@ -1571,8 +1609,35 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                               integrmode=integrmode, sclip=sclip, nclip=nclip, fitgeometry=fitgeometry,
                               verbose=verbose, clobber=clobber)
 
-    #pdb.set_trace()
-    #rr = read_ellipsefit(galaxydir='/global/cscratch1/sd/ioannis/manga-data/resampled/9028/9028-12704', filesuffix='resampled', galaxy='9028-12704', galaxy_id='9028012704')
+    # read the ellipse file back in, add more data, and write back out
+    resampled_ellipse = legacyhalos.io.read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
+                                                       galaxy_id=galaxy_id, verbose=verbose)
+        
+
+    try:
+        add_datamodel_cols = []
+        for key in mangaphot:
+            resampled_ellipse[key] = np.float32(mangaphot[key])
+            if 'ivar' in key:
+                unit = 'nanomaggies-2'
+            else:
+                unit = 'nanomaggies'
+            add_datamodel_cols.append((key, unit))
+              
+        write_ellipsefit(galaxy, galaxydir, resampled_ellipse,
+                         galaxy_id=galaxy_id,
+                         galaxyinfo=galaxyinfo,
+                         refband=refband,
+                         sbthresh=SBTHRESH, apertures=APERTURES, 
+                         bands=bands, verbose=False,
+                         filesuffix=filesuffix,
+                         add_datamodel_cols=add_datamodel_cols)
+    except:
+        print('Problem adding MaNGA aperture photometry to resampled ellipse file!')
+        err = 0
+
+    #phot = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix,
+    #                       galaxy_id=galaxy_id, verbose=verbose, asTable=True)
 
     return err
 
