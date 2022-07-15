@@ -239,11 +239,13 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     use_testbed = True
 
     if use_testbed:
-        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed100.fits')
+        #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed100.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed.fits')
-        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'mn-dr17-v0.1sub-summary.fits')
+        #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'mn-dr17-v0.1sub-summary.fits')
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-0.2.0.testbed.fits')
     else:
-        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-dr17-v0.1.fits')
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'mn-0.2.0.testbed-summary.fits')
+        #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-dr17-v0.1.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
 
     if first and last:
@@ -980,7 +982,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     allgalaxyinfo = []
     for igal, (galaxy_id, galaxy_indx) in enumerate(zip(data['galaxy_id'], data['galaxy_indx'])):
         samp = sample[sample[REFIDCOLUMN] == galaxy_id]
-        galaxyinfo = {'mangaid': (str(galaxy_id), '')}
+        galaxyinfo = {'mangaid': (str(galaxy_id), None)}
         #              'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
         #for key, unit in zip(['ra', 'dec'], [u.deg, u.deg]):
         #    galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
@@ -1456,7 +1458,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
         onegal = onegal[0] # create a Row object
 
     galaxy_id = str(onegal['MANGANUM'])
-    galaxyinfo = {'mangaid': (str(galaxy_id), '')}
+    galaxyinfo = {'mangaid': (str(galaxy_id), None)}
 
     bands = ['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4']
 

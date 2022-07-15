@@ -151,13 +151,13 @@ def get_run(onegal, racolumn='RA', deccolumn='DEC'):
 # ellipsefit data model
 def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z']):
     cols = [
-        ('bands', ''),
-        ('refband', ''),
+        ('bands', None),
+        ('refband', None),
         ('refpixscale', u.arcsec / u.pixel),
-        ('success', ''),
-        ('fitgeometry', ''),
-        ('input_ellipse', ''),
-        ('largeshift', ''),
+        ('success', None),
+        ('fitgeometry', None),
+        ('input_ellipse', None),
+        ('largeshift', None),
 
         ('x0_moment', u.pixel),
         ('y0_moment', u.pixel),
@@ -166,14 +166,14 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z']):
         ('sma_moment', u.arcsec),
         ('majoraxis', u.pixel), # in the reference band
         ('pa_moment', u.degree),
-        ('ba_moment', ''),
-        ('eps_moment', ''),
+        ('ba_moment', None),
+        ('eps_moment', None),
         #('theta_moment', u.degree),
         ('maxsma', u.pixel),
 
-        ('integrmode', ''),
-        ('sclip', ''),
-        ('nclip', ''),
+        ('integrmode', None),
+        ('sclip', None),
+        ('nclip', None),
 
         #('psfsigma_g', u.pixel),
         #('psfsigma_r', u.pixel),
@@ -199,35 +199,35 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z']):
         #('psfdepth_min_z', u.mag),
         #('psfdepth_max_z', u.mag),
 
-        #('mw_transmission_g', ''),
-        #('mw_transmission_r', ''),
-        #('mw_transmission_z', ''),
+        #('mw_transmission_g', None),
+        #('mw_transmission_r', None),
+        #('mw_transmission_z', None),
 
         ('refband_width', u.pixel),
         ('refband_height', u.pixel)]
 
     for band in bands:
         cols.append(('sma_{}'.format(band.lower()), u.pixel))
-        cols.append(('intens_{}'.format(band.lower()), 1e-9*u.maggy/u.arcsec**2))
-        cols.append(('intens_err_{}'.format(band.lower()), 1e-9*u.maggy/u.arcsec**2))
-        cols.append(('eps_{}'.format(band.lower()), ''))
-        cols.append(('eps_err_{}'.format(band.lower()), ''))
+        cols.append(('intens_{}'.format(band.lower()), 'nanomaggies arcsec-2'))#1e-9*u.maggy/u.arcsec**2))
+        cols.append(('intens_err_{}'.format(band.lower()), 'nanomaggies arcsec-2'))#1e-9*u.maggy/u.arcsec**2))
+        cols.append(('eps_{}'.format(band.lower()), None))
+        cols.append(('eps_err_{}'.format(band.lower()), None))
         cols.append(('pa_{}'.format(band.lower()), u.degree))
         cols.append(('pa_err_{}'.format(band.lower()), u.degree))
         cols.append(('x0_{}'.format(band.lower()), u.pixel))
         cols.append(('x0_err_{}'.format(band.lower()), u.pixel))
         cols.append(('y0_{}'.format(band.lower()), u.pixel))
         cols.append(('y0_err_{}'.format(band.lower()), u.pixel))
-        cols.append(('a3_{}'.format(band.lower()), '')) # units?
-        cols.append(('a3_err_{}'.format(band.lower()), ''))
-        cols.append(('a4_{}'.format(band.lower()), ''))
-        cols.append(('a4_err_{}'.format(band.lower()), ''))
-        cols.append(('rms_{}'.format(band.lower()), 1e-9*u.maggy/u.arcsec**2))
-        cols.append(('pix_stddev_{}'.format(band.lower()), 1e-9*u.maggy/u.arcsec**2))
-        cols.append(('stop_code_{}'.format(band.lower()), ''))
-        cols.append(('ndata_{}'.format(band.lower()), ''))
-        cols.append(('nflag_{}'.format(band.lower()), ''))
-        cols.append(('niter_{}'.format(band.lower()), ''))
+        cols.append(('a3_{}'.format(band.lower()), None)) # units?
+        cols.append(('a3_err_{}'.format(band.lower()), None))
+        cols.append(('a4_{}'.format(band.lower()), None))
+        cols.append(('a4_err_{}'.format(band.lower()), None))
+        cols.append(('rms_{}'.format(band.lower()), 'nanomaggies arcsec-2'))#1e-9*u.maggy/u.arcsec**2))
+        cols.append(('pix_stddev_{}'.format(band.lower()), 'nanomaggies arcsec-2'))#1e-9*u.maggy/u.arcsec**2))
+        cols.append(('stop_code_{}'.format(band.lower()), None))
+        cols.append(('ndata_{}'.format(band.lower()), None))
+        cols.append(('nflag_{}'.format(band.lower()), None))
+        cols.append(('niter_{}'.format(band.lower()), None))
 
     for thresh in sbthresh:
         cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
@@ -235,29 +235,29 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z']):
         cols.append(('sma_ivar_sb{:0g}'.format(thresh), 1/u.arcsec**2))
     for band in bands:
         for thresh in sbthresh:
-            cols.append(('flux_sb{:0g}_{}'.format(thresh, band.lower()), 1e-9*u.maggy))
+            cols.append(('flux_sb{:0g}_{}'.format(thresh, band.lower()), 'nanomaggies'))#1e-9*u.maggy))
         for thresh in sbthresh:
-            cols.append(('flux_ivar_sb{:0g}_{}'.format(thresh, band.lower()), 1e18/u.maggy**2))
+            cols.append(('flux_ivar_sb{:0g}_{}'.format(thresh, band.lower()), 'nanomaggies-2'))#1e18/u.maggy**2))
 
     for iap, ap in enumerate(apertures):
         cols.append(('sma_ap{:02d}'.format(iap+1), u.arcsec))
     for band in bands:
         for iap, ap in enumerate(apertures):
-            cols.append(('flux_ap{:02d}_{}'.format(iap+1, band.lower()), 1e-9*u.maggy))
+            cols.append(('flux_ap{:02d}_{}'.format(iap+1, band.lower()), 'nanomaggies'))#1e-9*u.maggy))
         for iap, ap in enumerate(apertures):
-            cols.append(('flux_ivar_ap{:02d}_{}'.format(iap+1, band.lower()), 1e18/u.maggy**2))
+            cols.append(('flux_ivar_ap{:02d}_{}'.format(iap+1, band.lower()), 'nanomaggies-2'))#1e18/u.maggy**2))
 
     for band in bands:
         cols.append(('cog_sma_{}'.format(band.lower()), u.arcsec))
-        cols.append(('cog_flux_{}'.format(band.lower()), 1e-9*u.maggy))
-        cols.append(('cog_flux_ivar_{}'.format(band.lower()), 1e18/u.maggy**2))
+        cols.append(('cog_flux_{}'.format(band.lower()), 'nanomaggies'))#1e-9*u.maggy))
+        cols.append(('cog_flux_ivar_{}'.format(band.lower()), 'nanomaggies-2'))#1e18/u.maggy**2))
 
     for band in bands:
         cols.append(('cog_mtot_{}'.format(band.lower()), u.mag))
         cols.append(('cog_m0_{}'.format(band.lower()), u.mag))
-        cols.append(('cog_alpha1_{}'.format(band.lower()), ''))
-        cols.append(('cog_alpha2_{}'.format(band.lower()), ''))
-        cols.append(('cog_chi2_{}'.format(band.lower()), ''))
+        cols.append(('cog_alpha1_{}'.format(band.lower()), None))
+        cols.append(('cog_alpha2_{}'.format(band.lower()), None))
+        cols.append(('cog_chi2_{}'.format(band.lower()), None))
         cols.append(('cog_sma50_{}'.format(band.lower()), u.arcsec))
 
     return cols
@@ -291,7 +291,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
 
     """
     from astropy.io import fits
-    from astropy.table import QTable
+    from astropy.table import Table
 
     ellipsefitfile = get_ellipsefit_filename(galaxy, galaxydir, filesuffix=filesuffix, galaxy_id=galaxy_id)
 
@@ -303,7 +303,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     
     # Turn the ellipsefit dictionary into a FITS table, starting with the
     # galaxyinfo dictionary (if provided).
-    out = QTable()
+    out = Table()
     if galaxyinfo:
         for key in galaxyinfo.keys():
             data = galaxyinfo[key][0]
@@ -312,10 +312,12 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
             else:
                 data = np.atleast_2d(data)
             unit = galaxyinfo[key][1] # add units
-            if type(unit) is not str:
-                #data *= unit
-                data = u.Quantity(value=data, unit=unit, dtype=data.dtype)
-            col = Column(name=key, data=data)
+            col = Column(name=key, data=data, dtype=data.dtype, unit=unit)
+            #if type(unit) is str:
+            #else:
+            #    #data *= unit
+            #    #data = u.Quantity(value=data, unit=unit, dtype=data.dtype)
+            #    col = Column(name=key, data=data, dtype=data.dtype)
             out.add_column(col)
 
     # First, unpack the nested dictionaries.
@@ -341,9 +343,10 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
         #    data = np.atleast_1d(data)
         else:
             data = np.atleast_2d(data)
-        if type(unit) is not str:
-            data = u.Quantity(value=data, unit=unit, dtype=data.dtype)
-        col = Column(name=key, data=data)
+        #if type(unit) is not str:
+        #    data = u.Quantity(value=data, unit=unit, dtype=data.dtype)
+        #col = Column(name=key, data=data)
+        col = Column(name=key, data=data, dtype=data.dtype, unit=unit)
         #if 'z_cog' in key:
         #    print(key)
         #    pdb.set_trace()
