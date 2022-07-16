@@ -39,9 +39,16 @@ def main():
         print('$LEGACYHALOS_DIR={}'.format(basedir))
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
+
+        if args.build_refcat:
+            use_testbed = False
+        else:
+            use_testbed = True
+            
         sample = legacyhalos.manga.read_sample(first=args.first, last=args.last,
                                                galaxylist=args.galaxylist,
-                                               verbose=args.verbose)
+                                               verbose=args.verbose,
+                                               use_testbed=use_testbed)
 
         if len(sample) == 0:
             return

@@ -229,14 +229,13 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False, resampled=
     else:
         return galaxy, galaxydir
 
-def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None):
+def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
+                use_testbed=True):
     """Read/generate the parent SGA catalog.
 
     """
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
-
-    use_testbed = True
 
     if use_testbed:
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-testbed100.fits')
@@ -384,7 +383,8 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
     from astropy.table import Table, vstack
     from legacyhalos.io import read_ellipsefit
 
-    version = 'v1'
+    #version = 'v1.0'
+    version = '0.2.0.testbed'
 
     if resampled:
         outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-all-{}.fits'.format(version))
@@ -1264,6 +1264,10 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
         pngfiles = []
         for suffix in ('galex', 'dlis', 'wise'):
             _pngfile = os.path.join(galaxydir, 'resampled-{}-{}.png'.format(galaxy, suffix))
+            if not os.path.isfile(_pngfile):
+                print('Missing {}'.format(_pngfile))
+                continue
+            
             pngfile = os.path.join(htmlgalaxydir, 'resampled-{}-{}.png'.format(galaxy, suffix))
             tmpfile = pngfile+'.tmp'
             shutil.copyfile(_pngfile, tmpfile)
@@ -1571,21 +1575,22 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
             data['refband_width'] = WW
             data['refband_height'] = HH
 
-            wcshdr = fitsio.FITSHDR()
-            wcshdr['NAXIS'] = 2
-            wcshdr['NAXIS1'] = WW
-            wcshdr['NAXIS2'] = HH
-            wcshdr['CTYPE1'] = 'RA---TAN'
-            wcshdr['CTYPE2'] = 'DEC--TAN'
-            wcshdr['CRVAL1'] = hdr['CRVAL1']
-            wcshdr['CRVAL2'] = hdr['CRVAL2']
-            wcshdr['CRPIX1'] = hdr['CRPIX1']
-            wcshdr['CRPIX2'] = hdr['CRPIX2']
-            wcshdr['CD1_2'] = 0.0
-            wcshdr['CD2_1'] = 0.0
-            wcshdr['CD1_1'] = -resampled_pixscale / 3600.0
-            wcshdr['CD2_2'] =  resampled_pixscale / 3600.0
-            wcs = WCS(wcshdr)
+            #wcshdr = fitsio.FITSHDR()
+            #wcshdr['NAXIS'] = 2
+            #wcshdr['NAXIS1'] = WW
+            #wcshdr['NAXIS2'] = HH
+            #wcshdr['CTYPE1'] = 'RA---TAN'
+            #wcshdr['CTYPE2'] = 'DEC--TAN'
+            #wcshdr['CRVAL1'] = hdr['CRVAL1']
+            #wcshdr['CRVAL2'] = hdr['CRVAL2']
+            #wcshdr['CRPIX1'] = hdr['CRPIX1']
+            #wcshdr['CRPIX2'] = hdr['CRPIX2']
+            #wcshdr['CD1_2'] = 0.0
+            #wcshdr['CD2_1'] = 0.0
+            #wcshdr['CD1_1'] = -resampled_pixscale / 3600.0
+            #wcshdr['CD2_2'] =  resampled_pixscale / 3600.0
+            #wcs = WCS(wcshdr)
+            wcs = WCS(hdr)
 
             # convert the central coordinates using the new WCS
             ymed, xmed = wcs.world_to_pixel(SkyCoord(odata['ra_moment']*u.degree, odata['dec_moment']*u.degree))
@@ -1662,8 +1667,11 @@ def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3
             mag = cat['cog_mtot_{}'.format(band.lower())]
         else:
             print('Thar be rocks ahead!')
-        if mag:
-            res.append('{:.3f}'.format(mag))
+        if mag is not None:
+            if mag > 0:
+                res.append('{:.3f}'.format(mag))
+            else:
+                res.append('...')
         else:
             if ff > 0:
                 mag = 22.5-2.5*np.log10(ff)
@@ -2027,7 +2035,11 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, resampled_galaxydir1, htmlg
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                 #g, r, z = _get_mags(ellipse, R26=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
-                fuv, nuv, g, r, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)                
+                fuv, nuv, g, r, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
+                #try:
+                #    fuv, nuv, g, r, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
+                #except:
+                #    pdb.set_trace()
                 html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(
                     fuv, nuv, g, r, z, w1, w2, w3, w4))
                 #g, r, z = _get_mags(ellipse, cog=True)

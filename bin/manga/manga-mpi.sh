@@ -10,7 +10,9 @@
 #salloc -N 16 -C haswell -A desi -L cfs,SCRATCH -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v1.1
 #srun -n 32 -c 16 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh coadds 16 > manga-coadds.log.1 2>&1 &
 #srun -n 32 -c 16 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh ellipse 16 > ellipse.log.1 2>&1 &
-#srun -n 32 -c 1 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh htmlplots 1 > htmlplots.log.1 2>&1 &
+#srun -n 32 -c 16 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh resampled 16 > resampled.log.1 2>&1 &
+#srun -n 16 -c 1 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh htmlplots 1 > htmlplots.log.1 2>&1 &
+#srun -n 16 -c 1 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh resampled_htmlplots 1 > resampled-htmlplots.log.1 2>&1 &
 
 # Grab the input arguments--
 stage=$1
@@ -26,12 +28,14 @@ if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --help
 elif [ $stage = "coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --coadds --nproc $ncores --mpi --verbose
-elif [ $stage = "pipeline-coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --pipeline-coadds --nproc $ncores --mpi --verbose
 elif [ $stage = "ellipse" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --ellipse --nproc $ncores --mpi --verbose
+elif [ $stage = "resampled" ]; then
+    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --resampled-phot --nproc $ncores --mpi --verbose
 elif [ $stage = "htmlplots" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --htmlplots --nproc $ncores --mpi --verbose
+    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --htmlplots --nproc $ncores --mpi --verbose --clobber
+elif [ $stage = "resampled_htmlplots" ]; then
+    time python $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi --htmlplots --resampled-phot --nproc $ncores --mpi --verbose --clobber
 else
     echo "Unrecognized stage "$stage
 fi

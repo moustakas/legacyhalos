@@ -526,7 +526,7 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
         if mtot > 0:
             phot['mag_tot']['abmag'][ifilt] = mtot
             phot['mag_tot']['abmagerr'][ifilt] = 0.1
-            phot['mag_tot']['lower'][ifilt] = False
+            phot['mag_tot']['upper'][ifilt] = False
 
         flux = ellipsefit['flux_sb25_{}'.format(filt.lower())]
         ivar = ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]

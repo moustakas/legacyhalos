@@ -1046,7 +1046,7 @@ def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3
             mag = cat['cog_mtot_{}'.format(band.lower())]
         else:
             print('Thar be rocks ahead!')
-        if mag:
+        if mag is not None:
             if mag > 0:
                 res.append('{:.3f}'.format(mag))
             else:
