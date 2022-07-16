@@ -387,9 +387,9 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
     version = '0.2.0.testbed'
 
     if resampled:
-        outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-all-{}.fits'.format(version))
-    else:
         outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-{}.fits'.format(version))
+    else:
+        outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-native-{}.fits'.format(version))
         
     if os.path.isfile(outfile) and not clobber:
         print('Use --clobber to overwrite existing catalog {}'.format(outfile))
@@ -480,7 +480,7 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.001, r50mask=0.05, maxshift=10,
-                          sigmamask=3.0, neighborfactor=3.0, verbose=False):
+                          sigmamask=3.0, neighborfactor=10.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
