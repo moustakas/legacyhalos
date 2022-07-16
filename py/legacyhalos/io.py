@@ -254,9 +254,13 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'], add_datam
 
     for band in bands:
         cols.append(('cog_mtot_{}'.format(band.lower()), u.mag))
+        cols.append(('cog_mtot_ivar_{}'.format(band.lower()), 1/u.mag**2))
         cols.append(('cog_m0_{}'.format(band.lower()), u.mag))
+        cols.append(('cog_m0_ivar_{}'.format(band.lower()), 1/u.mag**2))
         cols.append(('cog_alpha1_{}'.format(band.lower()), None))
+        cols.append(('cog_alpha1_ivar_{}'.format(band.lower()), None))
         cols.append(('cog_alpha2_{}'.format(band.lower()), None))
+        cols.append(('cog_alpha2_ivar_{}'.format(band.lower()), None))
         cols.append(('cog_chi2_{}'.format(band.lower()), None))
         cols.append(('cog_sma50_{}'.format(band.lower()), u.arcsec))
 
