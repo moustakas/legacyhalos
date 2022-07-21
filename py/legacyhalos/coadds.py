@@ -446,6 +446,16 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         thisgal = 0 # fix me
         coadd_id = cat['wise_coadd_id'][thisgal]
 
+        # coadd_id can be blank in regions around, e.g., Globular Clusters,
+        # where we turn off forced photometry.
+        if coadd_id == '':
+            from legacypipe.unwise import unwise_tiles_touching_wcs
+            from legacypipe.survey import wcs_for_brick, BrickDuck
+            brick = BrickDuck(onegal[racolumn], onegal[deccolumn], brickname)
+            targetwcs = wcs_for_brick(brick, W=np.float(width), H=np.float(width), pixscale=pixscale)            
+            tiles = unwise_tiles_touching_wcs(targetwcs)
+            coadd_id = tiles.coadd_id[0] # grab the first one
+
         #hdr['PIXSCAL'] = 2.75
         hdr.delete('PIXSCAL')
         hdr.add_record(dict(name='PIXSCAL', value=2.75, comment='pixel scale (arcsec)'))
@@ -465,10 +475,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             if (band == 1) or (band == 2):
                 # we only have updated PSFs for W1 and W2
                 psfimg = unwise_psf.get_unwise_psf(band, coadd_id, modelname='neo6_unwisecat')
-                #try:
-                #    psfimg = unwise_psf.get_unwise_psf(band, coadd_id, modelname='neo7_unwisecat')
-                #except:
-                #    pdb.set_trace()
+                #psfimg = unwise_psf.get_unwise_psf(band, coadd_id, modelname='neo7_unwisecat')
             else:
                 psfimg = unwise_psf.get_unwise_psf(band, coadd_id)
 
