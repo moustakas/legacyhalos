@@ -43,12 +43,15 @@ def main():
         if args.build_refcat:
             use_testbed = False
         else:
-            use_testbed = True
+            use_testbed = False
             
         sample = legacyhalos.manga.read_sample(first=args.first, last=args.last,
                                                galaxylist=args.galaxylist,
                                                verbose=args.verbose,
-                                               use_testbed=use_testbed)
+                                               use_testbed=use_testbed,
+                                               ellipse=args.ellipse,
+                                               resampled_phot=args.resampled_phot,
+                                               htmlplots=args.htmlplots)
 
         if len(sample) == 0:
             return

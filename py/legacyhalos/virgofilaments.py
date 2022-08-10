@@ -323,7 +323,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
     return sample
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=0.001, r50mask=0.05, maxshift=10,
+                          threshmask=1.0, r50mask=5.0, maxshift=20, relmaxshift=0.1,
                           sigmamask=3.0, neighborfactor=3.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
@@ -452,7 +452,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #if ii == 1:
         #    pdb.set_trace()
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('junk-mge.png')
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False, plot=True) ; plt.savefig('cosmo-www/tmp/junk-mge.png')
         #plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask.png')
         ##plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #pdb.set_trace()

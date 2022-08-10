@@ -230,7 +230,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False, resampled=
         return galaxy, galaxydir
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                use_testbed=True):
+                use_testbed=True, ellipse=False, resampled_phot=False, htmlplots=False):
     """Read/generate the parent SGA catalog.
 
     """
@@ -243,7 +243,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'mn-dr17-v0.1sub-summary.fits')
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-0.2.0.testbed.fits')
     else:
-        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'mn-0.2.0.testbed-summary.fits')
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-0.3.0.fits')
+        #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'mn-0.2.0.testbed-summary.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-dr17-v0.1.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
 
@@ -329,13 +330,34 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     # * 9673-3703 is off the footprint
     # https://www.legacysurvey.org/viewer?ra=56.232562&dec=67.787128&layer=ls-dr9&zoom=13&sga&manga
+    
+    #if True:
+    #    remgals = np.array(['11843-12705', '11842-12705', '11841-12705', '12187-12705', '12767-1902',
+    #                        #'9673-3703', 
+    #                        ])
+    #    rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals))
+    #    if np.sum(rem) > 0:
+    #        sample = sample[rem]
+
     if True:
-        remgals = np.array(['11843-12705', '11842-12705', '11841-12705', '12187-12705', '12767-1902',
-                            #'9673-3703', 
-                            ])
-        rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals))
+        if ellipse or resampled_phot:
+            if htmlplots:
+                DOCOLUMN = 'DO_MANGA'
+            else:
+                DOCOLUMN = 'DO_ELLIPSE'
+        else:
+            DOCOLUMN = 'DO_MANGA'
+        
+        print('Cleaning up the sample; keeping objects with {}==True.'.format(DOCOLUMN))
+        #print('Cleaning up the sample; removing objects with {}==True and 8075-3703.'.format(DOCOLUMN))
+        #remgals = np.array(['8075-3703', # https://github.com/legacysurvey/legacypipe/issues/705
+        #                    #'9673-3703', 
+        #                    ])
+        #rem = np.logical_and(sample[DOCOLUMN], np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals)))
+        rem = sample[DOCOLUMN]
         if np.sum(rem) > 0:
             sample = sample[rem]
+    #print(DOCOLUMN, len(sample))
 
     # Add an (internal) index number:
     #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
