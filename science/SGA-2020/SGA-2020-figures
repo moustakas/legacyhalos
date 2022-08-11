@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-"""Generate the figures for the SGA AAS poster.
+"""Generate the figures for the SGA 2020 paper.
 
-/mnt/code/talks-and-plots/2021/20210115-aas-sga/build-figures --surface-brightness
-/global/homes/i/ioannis/repos/git/talks-and-plots/2021/20210115-aas-sga/build-figures --sbmontage-gallery
+Load the legacyhalos code product, then, e.g.:
+SGA-2020-figures --surface-brightness --sbmontage-gallery
+etc.
 
 """
 import os, sys, time, pdb
@@ -22,7 +23,7 @@ from legacyhalos.SGA import DIAMCOLUMN, RACOLUMN, DECCOLUMN
 
 from astropy.table import Table
 
-figdir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'science', 'paper1', 'figures')
+figdir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'science', 'SGA-2020-paper', 'figures')
 #figdir = os.path.join('/mnt', 'SGA', 'science', 'paper1', 'figures')
 #figdir = os.path.join('/mnt', '20210115-aas-sga')
 #figdir = os.path.join(os.getenv('HOME'), 'research', 'talks', '2021', '20210115-aas-sga')
