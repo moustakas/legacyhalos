@@ -1048,7 +1048,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
 
     maxsma = None
     #maxsma = 5 * MANGA_RADIUS # None
-    delta_logsma = 4 # 3.0
+    delta_logsma = 3 # 3.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!
@@ -1625,7 +1625,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
 
     maxsma = None
     logsma = True
-    delta_logsma = 1.5
+    delta_logsma = 1.2
 
     err = legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                               bands=bands, refband=refband,
