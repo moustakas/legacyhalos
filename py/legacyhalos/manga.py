@@ -501,8 +501,8 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
     print('Wrote {} galaxies to {}'.format(len(parent), outfile))
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=0.001, r50mask=0.05, maxshift=10,
-                          sigmamask=3.0, neighborfactor=10.0, verbose=False):
+                          threshmask=0.03, r50mask=1.0, maxshift=10,
+                          sigmamask=3.0, neighborfactor=5.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -716,9 +716,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 satmask = np.logical_or(satmask, thissatmask)
                 #if True:
                 #    import matplotlib.pyplot as plt
-                #    plt.clf() ; plt.imshow(np.log10(satimg), origin='lower') ; plt.savefig('debug.png')
-                #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('debug.png')
-                ##    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+                ##    plt.clf() ; plt.imshow(np.log10(satimg), origin='lower') ; plt.savefig('debug.png')
+                #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/debug.png')
+                ###    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
                 #    pdb.set_trace()
 
             #print(filt, np.sum(satmask), np.sum(thissatmask))
@@ -1105,7 +1105,7 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
 
     _phot = {'abmag': np.zeros(nband, 'f4')-1,
              'abmagerr': np.zeros(nband, 'f4')+0.5,
-             'upper': np.zeros(nband, bool)}
+             'lower': np.zeros(nband, bool)}
     phot = {'tractor': deepcopy(_phot), 'mag_tot': deepcopy(_phot), 'mag_sb25': deepcopy(_phot),
             'resamp_mag_tot': deepcopy(_phot), 'resamp_mag_sb25': deepcopy(_phot),
             'manga': deepcopy(_phot)}
@@ -1116,7 +1116,7 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
         if mtot > 0:
             phot['mag_tot']['abmag'][ifilt] = mtot
             phot['mag_tot']['abmagerr'][ifilt] = 0.1 # hack!!
-            phot['mag_tot']['upper'][ifilt] = False
+            phot['mag_tot']['lower'][ifilt] = False
 
         flux = ellipsefit['flux_sb25_{}'.format(filt.lower())]
         ivar = ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
@@ -1126,13 +1126,13 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
             magerr = 2.5 * ferr / flux / np.log(10)
             phot['mag_sb25']['abmag'][ifilt] = mag
             phot['mag_sb25']['abmagerr'][ifilt] = magerr
-            phot['mag_sb25']['upper'][ifilt] = False
+            phot['mag_sb25']['lower'][ifilt] = False
         if flux <=0 and ivar > 0:
             ferr = 1.0 / np.sqrt(ivar)
             mag = 22.5 - 2.5 * np.log10(ferr)
             phot['mag_sb25']['abmag'][ifilt] = mag
             phot['mag_sb25']['abmagerr'][ifilt] = 0.75
-            phot['mag_sb25']['upper'][ifilt] = True
+            phot['mag_sb25']['lower'][ifilt] = True
 
         # resampled photometry
         if resamp_ellipsefit:
@@ -1140,7 +1140,7 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
             if mtot > 0:
                 phot['resamp_mag_tot']['abmag'][ifilt] = mtot
                 phot['resamp_mag_tot']['abmagerr'][ifilt] = 0.1 # hack!!
-                phot['resamp_mag_tot']['upper'][ifilt] = False
+                phot['resamp_mag_tot']['lower'][ifilt] = False
     
             flux = resamp_ellipsefit['flux_sb25_{}'.format(filt.lower())]
             ivar = resamp_ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
@@ -1150,13 +1150,13 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
                 magerr = 2.5 * ferr / flux / np.log(10)
                 phot['resamp_mag_sb25']['abmag'][ifilt] = mag
                 phot['resamp_mag_sb25']['abmagerr'][ifilt] = magerr
-                phot['resamp_mag_sb25']['upper'][ifilt] = False
+                phot['resamp_mag_sb25']['lower'][ifilt] = False
             if flux <=0 and ivar > 0:
                 ferr = 1.0 / np.sqrt(ivar)
                 mag = 22.5 - 2.5 * np.log10(ferr)
                 phot['resamp_mag_sb25']['abmag'][ifilt] = mag
                 phot['resamp_mag_sb25']['abmagerr'][ifilt] = 0.75
-                phot['resamp_mag_sb25']['upper'][ifilt] = True
+                phot['resamp_mag_sb25']['lower'][ifilt] = True
 
             flux = resamp_ellipsefit['flux_apmanga_{}'.format(filt.lower())]
             ivar = resamp_ellipsefit['flux_ivar_apmanga_{}'.format(filt.lower())]
@@ -1166,13 +1166,13 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
                 magerr = 2.5 * ferr / flux / np.log(10)
                 phot['manga']['abmag'][ifilt] = mag
                 phot['manga']['abmagerr'][ifilt] = magerr
-                phot['manga']['upper'][ifilt] = False
+                phot['manga']['lower'][ifilt] = False
             if flux <=0 and ivar > 0:
                 ferr = 1.0 / np.sqrt(ivar)
                 mag = 22.5 - 2.5 * np.log10(ferr)
                 phot['manga']['abmag'][ifilt] = mag
                 phot['manga']['abmagerr'][ifilt] = 0.75
-                phot['manga']['upper'][ifilt] = True
+                phot['manga']['lower'][ifilt] = True
 
         if tractor is not None:
             flux = tractor['flux_{}'.format(filt.lower())]
@@ -1183,17 +1183,17 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
             if flux <= 0 and ivar > 0:
                 phot['tractor']['abmag'][ifilt] = 22.5 - 2.5 * np.log10(1/np.sqrt(ivar))
                 phot['tractor']['abmagerr'][ifilt] = 0.75
-                phot['tractor']['upper'][ifilt] = True
+                phot['tractor']['lower'][ifilt] = True
 
     def _addphot(thisphot, color, marker, alpha, label):
-        good = np.where((thisphot['abmag'] > 0) * (thisphot['upper'] == True))[0]
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == True))[0]
         if len(good) > 0:
             ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
                         marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
                         markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
                         lolims=True, linestyle='none', alpha=alpha)#, lolims=True)
                         
-        good = np.where((thisphot['abmag'] > 0) * (thisphot['upper'] == False))[0]
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == False))[0]
         if len(good) > 0:
             ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
                         marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
@@ -1297,7 +1297,7 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
             pngfiles.append(pngfile)
 
         cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-        if barlen:
+        if barlen and len(pngfiles) > 0:
             barpngfile = pngfiles[0]
             addbar_to_png(pngfiles[0], barlen, barlabel, None, barpngfile,
                           scaledfont=False, pixscalefactor=1.0, fntsize=8)

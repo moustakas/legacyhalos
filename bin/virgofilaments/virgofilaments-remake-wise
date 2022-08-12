@@ -1,0 +1,99 @@
+#!/usr/bin/env python
+
+"""Remake the WISE mosaics without the unWISE model sky. See
+https://github.com/moustakas/SGA/issues/57
+
+virgofilaments-shifter
+source repos/git/legacyhalos/bin/virgofilaments/virgofilaments-env
+
+"""
+import os, fitsio, time, pdb
+import numpy as np
+from glob import glob
+from astropy.table import Table, Column
+
+def main(version='v1'):
+
+
+
+    python legacyanalysis/rerun-wise-phot.py --catalog /global/cfs/cdirs/desi/users/ioannis/virgofilaments-data/208/NGC5371/NGC5371-custom-tractor.fits --outdir . --unwise-dir $UNWISE_COADDS_DIR --radec 208.915939249686 40.4617295917348 --width 2011 --height 2011
+
+
+
+    version = 'v1'
+    cat = Table(fitsio.read(os.getenv('LEGACYHALOS_DIR'), 'vf_north_{}_main.fits'.format(version), upper=True))
+    ng = len(cat)
+
+    
+    
+
+    cat['SGA_MATCH'] = np.zeros(ng, bool)
+    fix = np.where(cat['OBJNAME'] == '')[0]
+    if len(fix) > 0:
+        cat['OBJNAME'][fix] = cat['VFID'][fix]
+
+    cat.rename_column('OBJNAME', 'GALAXY')
+    cat.add_column(Column(name='SGA_ID', data=np.arange(ng)))
+    cat.add_column(Column(name='PGC', data=np.zeros(ng, dtype=np.int32)))
+    cat.add_column(Column(name='PA', data=np.zeros(ng, dtype='f4')))
+    cat.add_column(Column(name='BA', data=np.zeros(ng, dtype='f4')))
+    cat.add_column(Column(name='DIAM', data=np.zeros(ng, dtype='f4')))
+
+    cat.rename_column('RA', 'RA_ORIG')
+    cat.rename_column('DEC', 'DEC_ORIG')
+    cat.add_column(Column(name='RA', data=np.zeros(ng, dtype='f8')))
+    cat.add_column(Column(name='DEC', data=np.zeros(ng, dtype='f8')))
+    cat['RA'][:] = cat['RA_ORIG']
+    cat['DEC'][:] = cat['DEC_ORIG']
+
+    #dr8 = Table(fitsio.read(homedir+'/vf_north_v0_legacysurvey_match.fits', upper=True, ext=1))
+    #for cols in 'FLUX_G', 'FLUX_R', 'FLUX_W1', 'FLUX_W2', 'FLUX_W3', 'FLUX_W4', 'FLUX_Z':
+    #    cat[cols] = dr8[cols]
+
+    # fix crummy radii
+    fix = np.where(np.logical_or(np.isnan(cat['RADIUS']), cat['RADIUS'] == 0))[0]
+    if len(fix) > 0:
+        cat['RADIUS'][fix] = 100.0
+    cat['DIAM'][:] = cat['RADIUS'] * 2 / 60 # initialize [arcmin]
+
+    m1, m2, _ = match_radec(cat['RA'], cat['DEC'], sga['RA'], sga['DEC'], 3/3600)
+    miss = np.delete(np.arange(ng), m1)
+    print('N={}/{} matches'.format(len(m1), ng))
+
+    # update data model;
+    cat['SGA_MATCH'][m1] = True
+    cat['SGA_ID'][m1] = sga['SGA_ID'][m2]
+    cat['PGC'][m1] = sga['PGC'][m2]
+    cat['PA'][m1] = sga['PA'][m2]
+    cat['BA'][m1] = sga['BA'][m2]
+    cat['DIAM'][m1] = sga['DIAM'][m2]
+    cat['RA'][m1] = sga['RA'][m2]
+    cat['DEC'][m1] = sga['DEC'][m2]
+
+    print('Removing special characters from galaxy names.')
+    fix = np.where(['[' in gg or ':' in gg or '(' in gg for gg in cat['GALAXY']])[0]
+    if len(fix) > 0:
+        for ii in fix:
+            cat['GALAXY'][ii] = cat['GALAXY'][ii].replace('[', '').replace(']', '_').replace(':', '_').replace('(', '_').replace(')', '_')
+
+    if False:
+        check = cat[miss]
+        check = check[np.logical_or(check['FLUX_R'] == 0, np.isnan(check['FLUX_R']))]
+        print(len(check))
+
+        check = check[np.argsort(check['RADIUS'])[::-1]]
+
+        print(check)
+        viewer_inspect(check[:20], galaxycolname='GALAXY')
+        qa()
+
+    out = build_group_catalog(cat)
+    out.write(os.path.join(homedir, 'vf_north_{}_main_groups.fits'.format(version)), overwrite=True)
+
+    pdb.set_trace()
+
+if __name__ == '__main__':
+
+    version = 'v1'
+    main(version)
+
