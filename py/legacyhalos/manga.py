@@ -405,8 +405,7 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
     from astropy.table import Table, vstack
     from legacyhalos.io import read_ellipsefit
 
-    #version = 'v1.0'
-    version = '0.2.0.testbed'
+    version = '0.3.0' # '0.2.0.testbed' # 'v1.0'
 
     if resampled:
         outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-{}.fits'.format(version))
@@ -643,8 +642,18 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             print('Large centroid shift! (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
                 mgegalaxy.xmed, mgegalaxy.ymed, mge.xmed, mge.ymed))
             largeshift = True
-            mgegalaxy = copy(mge)
 
+            # For the MaNGA project only, check to make sure the Tractor
+            # position isn't far from the center of the mosaic, which can happen
+            # near bright stars, e.g., 8133-12705
+            mgegalaxy = copy(mge)
+            sz = img.shape
+            if np.abs(mgegalaxy.xmed-sz[1]/2) > maxshift or np.abs(mgegalaxy.ymed-sz[0]/2) > maxshift:
+                print('Large centroid shift in Tractor coordinates! (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
+                    mgegalaxy.xmed, mgegalaxy.ymed, sz[1]/2, sz[0]/2))
+                mgegalaxy.xmed = sz[1]/2
+                mgegalaxy.ymed = sz[0]/2
+            
         radec_med = data['{}_wcs'.format(refband.lower())].pixelToPosition(
             mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
         radec_peak = data['{}_wcs'.format(refband.lower())].pixelToPosition(
@@ -1296,23 +1305,26 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
             os.rename(tmpfile, pngfile)
             pngfiles.append(pngfile)
 
-        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-        if barlen and len(pngfiles) > 0:
-            barpngfile = pngfiles[0]
-            addbar_to_png(pngfiles[0], barlen, barlabel, None, barpngfile,
-                          scaledfont=False, pixscalefactor=1.0, fntsize=8)
-            cmd = cmd+' '+barpngfile+' '
-            cmd = cmd+' '.join(ff for ff in pngfiles[1:])
+        if len(pngfiles) == 0:
+            print('There was a problem writing {}'.format(montagefile))
         else:
-            cmd = cmd+' '.join(ff for ff in pngfiles)
-            
-        cmd = cmd+' {}'.format(montagefile)
-        print(cmd)
-
-        print('Writing {}'.format(montagefile))
-        subprocess.call(cmd.split())
-        if not os.path.isfile(montagefile):
-            raise IOError('There was a problem writing {}'.format(montagefile))
+            cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
+            if barlen and len(pngfiles) > 0:
+                barpngfile = pngfiles[0]
+                addbar_to_png(pngfiles[0], barlen, barlabel, None, barpngfile,
+                              scaledfont=False, pixscalefactor=1.0, fntsize=8)
+                cmd = cmd+' '+barpngfile+' '
+                cmd = cmd+' '.join(ff for ff in pngfiles[1:])
+            else:
+                cmd = cmd+' '.join(ff for ff in pngfiles)
+                
+            cmd = cmd+' {}'.format(montagefile)
+            print(cmd)
+    
+            print('Writing {}'.format(montagefile))
+            subprocess.call(cmd.split())
+            if not os.path.isfile(montagefile):
+                raise IOError('There was a problem writing {}'.format(montagefile))
 
         ## Create a couple smaller thumbnail images
         #with Image.open(pngfiles[0]) as im:
