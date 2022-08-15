@@ -248,6 +248,14 @@ def main():
                          unwise=True, galex=True,
                          logfile=logfile)
                              
+        if args.rebuild_unwise:
+            from legacyhalos.virgofilaments import call_rebuild_unwise
+            call_rebuild_unwise(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
+                                radius_mosaic=radius_mosaic_arcsec,
+                                nproc=args.nproc, verbose=args.verbose, debug=args.debug,
+                                clobber=args.clobber, logfile=logfile)
+                             
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
             from legacyhalos.virgofilaments import read_multiband

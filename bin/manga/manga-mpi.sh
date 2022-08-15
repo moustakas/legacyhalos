@@ -9,11 +9,11 @@
 
 # perlmutter
 #salloc -N 4 -C cpu -A desi -L cfs -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v1.1
-#srun -n 32 -c 16 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh coadds 16 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/manga-coadds.log.1 2>&1 &
-#srun -n 32 -c 16 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh ellipse 16 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/manga-ellipse.log.1 2>&1 &
-#srun -n 32 -c 16 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh resampled 16 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/manga-resampled.log.1 2>&1 &
-#srun -n 16 -c 1 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh htmlplots 1 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/manga-htmlplots.log.1 2>&1 &
-#srun -n 16 -c 1 shifter --module=mpich-cle6 $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh resampled_htmlplots 1 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/resampled-htmlplots.log.1 2>&1 &
+#srun -n 32 -c 16 shifter --module=mpich $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh coadds 16 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/manga-coadds.log.1 2>&1 &
+#srun -n 32 -c 16 shifter --module=mpich $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh ellipse 16 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/manga-ellipse.log.1 2>&1 &
+#srun -n 32 -c 16 shifter --module=mpich $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh resampled 16 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/manga-resampled.log.1 2>&1 &
+#srun -n 16 -c 1 shifter --module=mpich $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh htmlplots 1 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/manga-htmlplots.log.1 2>&1 &
+#srun -n 16 -c 1 shifter --module=mpich $LEGACYHALOS_CODE_DIR/bin/manga/manga-mpi.sh resampled_htmlplots 1 > /global/cfs/cdirs/desi/users/ioannis/manga-data/logs/resampled-htmlplots.log.1 2>&1 &
 
 # cori
 #salloc -N 16 -C haswell -A desi -L cfs -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v1.1
