@@ -98,6 +98,10 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             filesuffix = '-pipeline-image-grz.jpg'
         else:
             filesuffix = '-pipeline-coadds.isdone'
+    elif args.rebuild_unwise:
+        suffix = 'rebuild-unwise'
+        filesuffix = '-rebuild-unwise.isdone'
+        dependson = '-custom-coadds.isdone'
     elif args.ellipse:
         suffix = 'ellipse'
         filesuffix = '-custom-ellipse.isdone'
@@ -207,6 +211,7 @@ def mpi_args():
     parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
+    parser.add_argument('--rebuild-unwise', action='store_true', help='Rebuild the unWISE mosaics.')
     parser.add_argument('--htmlplots', action='store_true', help='Build the pipeline figures.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
 
@@ -891,6 +896,180 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      verbose=verbose, clobber=clobber,
                      #debug=True,
                      debug=debug, logfile=logfile)
+
+def call_rebuild_unwise(onegal, galaxy, galaxydir, filesuffix='custom',
+                        pixscale=0.262, radius_mosaic=None,
+                        racolumn='RA', deccolumn='DEC', 
+                        nproc=1, verbose=False, debug=False,
+                        clobber=False, write_donefile=True, logfile=None):
+    """Wrapper script to rebuild the unWISE mosaics and forced photometry.
+
+    """
+    import time
+    from contextlib import redirect_stdout, redirect_stderr
+    from legacyhalos.mpi import _done, _start
+
+    t0 = time.time()
+    if debug:
+        _start(galaxy)
+        err = rebuild_unwise(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                             pixscale=pixscale, radius_mosaic=radius_mosaic,
+                             racolumn=racolumn, deccolumn=deccolumn, 
+                             filesuffix=filesuffix, nproc=nproc, verbose=verbose,
+                             debug=debug, clobber=clobber)
+        if write_donefile:
+            _done(galaxy, galaxydir, err, t0, 'rebuild-unwise', None)
+    else:
+        with open(logfile, 'a') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                _start(galaxy, log=log)
+                err = rebuild_unwise(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                     pixscale=pixscale, radius_mosaic=radius_mosaic,
+                                     racolumn=racolumn, deccolumn=deccolumn, 
+                                     filesuffix=filesuffix, nproc=nproc, verbose=verbose,
+                                     debug=debug, clobber=clobber, log=log)
+                if write_donefile:
+                    _done(galaxy, galaxydir, err, t0, 'rebuild-unwise', None, log=log)
+
+    return err
+
+def rebuild_unwise(onegal, galaxy, galaxydir, filesuffix='custom',
+                   pixscale=0.262, radius_mosaic=None, racolumn='RA', deccolumn='DEC',
+                   nproc=1, verbose=False, debug=False, clobber=False, log=None):
+    """Rebuild the unWISE mosaics.
+
+    """
+    import shutil
+    import subprocess
+    from legacyhalos.coadds import _mosaic_width
+
+    stagesuffix = 'rebuild-unwise'
+
+    def _copyfile(infile, outfile, clobber=False, update_header=False):
+        if os.path.isfile(outfile) and not clobber:
+            return 1
+        if os.path.isfile(infile):
+            tmpfile = outfile+'.tmp'
+            shutil.copy2(infile, tmpfile)
+            #shutil.copyfile(infile, tmpfile)
+            os.rename(tmpfile, outfile)
+            if update_header:
+                pass
+            return 1
+        else:
+            print('Missing file {}; please check the logfile.'.format(infile))
+            return 0
+
+    # if coadds aren't done, skip this galaxy
+    if not os.path.isfile(os.path.join(galaxydir, '{}-custom-coadds.isdone'.format(galaxy))):
+        print('Custom coadds not done; skipping rebuilding WISE coadds.', flush=True, file=log)
+        return 1, stagesuffix
+
+    # A small fraction of the sample doesn't have grz coverage. These will have
+    # .isdone files but no montages.
+    if (os.path.isfile(os.path.join(galaxydir, '{}-custom-coadds.isdone'.format(galaxy))) and
+        not os.path.isfile(os.path.join(galaxydir, '{}-custom-resid-W1W2.jpg'.format(galaxy)))):
+        print('No WISE data to process; skipping rebuilding WISE coadds.', flush=True, file=log)
+        return 1, stagesuffix
+
+    # backup the existing files *once* so we can rerun this stage if necessary
+    backupdir = os.path.join(galaxydir, 'rebuild-unwise-backup')
+    if not os.path.isdir(backupdir):
+        os.makedirs(backupdir)
+        ok = _copyfile(os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)),
+                       os.path.join(backupdir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)), clobber=True)
+        if not ok:
+            raise ValueError('Problem backing up Tractor catalog!')
+        
+        for band in ('W1', 'W2', 'W3', 'W4'):
+            for imtype in ('image', 'invvar'):
+                ok = _copyfile(
+                    os.path.join(galaxydir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)),
+                    os.path.join(backupdir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)), clobber=True)
+                if not ok:
+                    raise ValueError('Problem backing up {} {}!'.format(imtype, band))
+            ok = _copyfile(
+                os.path.join(galaxydir, '{}-{}-model-{}.fits.fz'.format(galaxy, filesuffix, band)),
+                os.path.join(backupdir, '{}-{}-model-{}.fits.fz'.format(galaxy, filesuffix, band)), clobber=True)
+            if not ok:
+                raise ValueError('Problem backing up {} {}!'.format(imtype, band))
+        for imtype in ('image', 'model', 'resid'):
+            ok = _copyfile(
+                os.path.join(galaxydir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, imtype)),
+                os.path.join(backupdir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, imtype)), clobber=True)
+            if not ok:
+                raise ValueError('Problem backing up {}!'.format(imtype))
+
+    # now copy from the backup directory
+    ok = _copyfile(os.path.join(backupdir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)),
+                   os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)), clobber=True)
+    if not ok:
+        raise ValueError('Problem backing up Tractor catalog!')
+    
+    for band in ('W1', 'W2', 'W3', 'W4'):
+        for imtype in ('image', 'invvar', 'model'):
+            ok = _copyfile(
+                os.path.join(backupdir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)),
+                os.path.join(galaxydir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)), clobber=True)
+            if not ok:
+                raise ValueError('Problem backing up {} {}!'.format(imtype, band))
+    for imtype in ('image', 'model', 'resid'):
+        ok = _copyfile(
+            os.path.join(backupdir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, imtype)),
+            os.path.join(galaxydir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, imtype)), clobber=True)
+        if not ok:
+            raise ValueError('Problem backing up {}!'.format(imtype))
+
+    width = _mosaic_width(radius_mosaic, pixscale)    
+
+    cmd = 'python {legacypipe_dir}/py/legacyanalysis/rerun-wise-phot.py '
+    cmd += '--catalog {galaxydir}/{galaxy}-custom-tractor.fits '
+    cmd += '--unwise-dir {unwise_dir} '
+    cmd += '--radec {ra} {dec} --width {width} --height {width} '
+    cmd += '--pixscale {pixscale} --threads {threads} --outdir {outdir} '
+
+    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_CODE_DIR'), galaxy=galaxy,
+                     galaxydir=galaxydir, unwise_dir=os.environ.get('UNWISE_COADDS_DIR'),
+                     ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
+                     pixscale=pixscale, threads=nproc, outdir=galaxydir)
+    print(cmd, flush=True, file=log)
+
+    err = subprocess.call(cmd.split(), stdout=log, stderr=log)
+
+    if err != 0:
+        print('Something went wrong; please check the logfile.')
+        return 0, stagesuffix
+    else:
+        # Move (rename) files into the desired output directory and clean up.
+        # tractor catalog
+        brickname = 'custom_%.4f_%.4f' % (onegal[RACOLUMN], onegal[DECCOLUMN])
+        ok = _copyfile(
+            os.path.join(galaxydir, 'tractor.fits'),
+            os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)), clobber=True)
+        if not ok:
+            raise ValueError('Problem copying Tractor catalog!')
+        for band in ('W1', 'W2', 'W3', 'W4'):
+            for imtype in ('image', 'invvar', 'model'):
+                ok = _copyfile(
+                    os.path.join(galaxydir, 'coadd', 'cus', brickname,
+                                 'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                    os.path.join(galaxydir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)),
+                    clobber=True)
+                if not ok:
+                    raise ValueError('Problem copying {} {}!'.format(imtype, band))
+        for imtype, suffix in zip(('wise', 'wisemodel', 'wiseresid'), ('image', 'model', 'resid')):
+            ok = _copyfile(
+                os.path.join(galaxydir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
+                os.path.join(galaxydir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, suffix)),
+                clobber=True)
+            if not ok:
+                raise ValueError('Problem backing up {}!'.format(imtype))                
+
+        shutil.rmtree(os.path.join(galaxydir, 'coadd'), ignore_errors=True)
+        os.remove(os.path.join(galaxydir, 'tractor.fits'))
+
+        return ok, stagesuffix
 
 def _datarelease_table(ellipse):
     """Convert the ellipse table into a data release catalog."""
