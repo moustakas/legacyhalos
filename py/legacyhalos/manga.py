@@ -396,6 +396,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #sample[REFIDCOLUMN] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
     sample[REFIDCOLUMN] = sample['PLATE'] * 1000000 + np.int32(sample['IFUDSGN'])
 
+    pdb.set_trace()
+
+    # add the dust
+    from legacyhalos.dust import SFDMap
+    ebv = SFDMap(mapdir=dustdir).ebv(ras, decs, scaling=0.86)    
+
     return sample
 
 def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, clobber=False):
@@ -500,8 +506,8 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
     print('Wrote {} galaxies to {}'.format(len(parent), outfile))
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=0.03, r50mask=1.0, maxshift=10,
-                          sigmamask=3.0, neighborfactor=5.0, verbose=False):
+                          threshmask=0.01, r50mask=0.05, maxshift=0.0,
+                          sigmamask=3.0, neighborfactor=1.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -527,6 +533,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #box = np.meshgrid(np.arange(nbox), np.arange(nbox))[0]-nbox//2
 
     xobj, yobj = np.ogrid[0:data['refband_height'], 0:data['refband_width']]
+    dims = data[refband].shape
+    assert(dims[0] == dims[1])
 
     # If the row-index of the central galaxy is not provided, use the source
     # nearest to the center of the field.
@@ -560,7 +568,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             pa = tractor.pa_init[indx]
             ba = tractor.ba_init[indx]
             # take away the extra factor of 2 we put in in read_sample()
-            r50 = tractor.diam_init[indx] * 60 / 2 / 2
+            r50 = tractor.diam_init[indx] * 60 / 2 / 2 # [arcsec]
             if r50 < 5:
                 r50 = 5.0 # minimum size, arcsec
             majoraxis = factor * r50 / filt2pixscale[refband] # [pixels]
@@ -578,20 +586,33 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
-        mgegalaxy.xmed = tractor.by[indx]
-        mgegalaxy.ymed = tractor.bx[indx]
-        mgegalaxy.xpeak = tractor.by[indx]
-        mgegalaxy.ypeak = tractor.bx[indx]
+
+        # force the central pixels to be at the center of the mosaic because all
+        # MaNGA sources were visually inspected and we want to have consistency
+        # between the center used for the IFU and the center used for photometry.
+        mgegalaxy.xmed = dims[0] / 2
+        mgegalaxy.ymed = dims[0] / 2
+        mgegalaxy.xpeak = dims[0] / 2
+        mgegalaxy.ypeak = dims[0] / 2
+        #mgegalaxy.xmed = tractor.by[indx]
+        #mgegalaxy.ymed = tractor.bx[indx]
+        #mgegalaxy.xpeak = tractor.by[indx]
+        #mgegalaxy.ypeak = tractor.bx[indx]
         mgegalaxy.eps = 1-ba
         mgegalaxy.pa = pa
         mgegalaxy.theta = (270 - pa) % 180
         mgegalaxy.majoraxis = majoraxis
 
+        # by default, restore all the pixels within 10% of the nominal IFU
+        # footprint, assuming a circular geometry.
+        default_majoraxis = 1.1 * MANGA_RADIUS / 2 / filt2pixscale[refband] # [pixels]
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
-                               mgegalaxy.majoraxis,
-                               mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
-                               np.radians(mgegalaxy.theta-90), xobj, yobj)
-
+                               default_majoraxis, default_majoraxis, 0.0, xobj, yobj)
+        #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+        #                       mgegalaxy.majoraxis,
+        #                       mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
+        #                       np.radians(mgegalaxy.theta-90), xobj, yobj)
+    
         return mgegalaxy, objmask
 
     # Now, loop through each 'galaxy_indx' from bright to faint.
@@ -608,7 +629,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # and galaxies "near" it. Also restore the original pixels of the
         # central in case there was a poor deblend.
         largeshift = False
-        mge, centralmask = tractor2mge(central, factor=neighborfactor)
+        mge, centralmask = tractor2mge(central, factor=1.0)
         #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
@@ -623,6 +644,11 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         img = data[refband].data - model
         img[centralmask] = data[refband].data[centralmask]
 
+        # the "residual mask" is initialized in legacyhalos.io._read_image_data
+        # and it includes pixels which are significant residuals (data minus
+        # model), pixels with invvar==0, and pixels belonging to maskbits
+        # BRIGHT, MEDIUM, CLUSTER, or ALLMASK_[GRZ]
+        
         mask = np.logical_or(ma.getmask(data[refband]), data['residual_mask'])
         #mask = np.logical_or(data[refband].mask, data['residual_mask'])
         mask[centralmask] = False
@@ -631,10 +657,19 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         ma.set_fill_value(img, fill_value)
 
         mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('desi-users/ioannis/tmp/debug.png')
+
+        # force the center
+        mgegalaxy.xmed = dims[0] / 2
+        mgegalaxy.ymed = dims[0] / 2
+        mgegalaxy.xpeak = dims[0] / 2
+        mgegalaxy.ypeak = dims[0] / 2
+        print('Enforcing galaxy centroid to the center of the mosaic: (x,y)=({:.3f},{:.3f})'.format(
+            mgegalaxy.xmed, mgegalaxy.ymed))
+        
         #if True:
         #    import matplotlib.pyplot as plt
         #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/debug.png')
-        #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+        ##    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #    pdb.set_trace()
 
         # Did the galaxy position move? If so, revert back to the Tractor geometry.
@@ -976,6 +1011,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     # keep all objects
     galaxy_indx = []
     galaxy_indx = np.hstack([np.where(sid == tractor.ref_id)[0] for sid in sample[REFIDCOLUMN]])
+    #if len(galaxy_indx
 
     #sample = sample[np.searchsorted(sample['VF_ID'], tractor.ref_id[galaxy_indx])]
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
@@ -1014,6 +1050,8 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     for igal, (galaxy_id, galaxy_indx) in enumerate(zip(data['galaxy_id'], data['galaxy_indx'])):
         samp = sample[sample[REFIDCOLUMN] == galaxy_id]
         galaxyinfo = {'mangaid': (str(galaxy_id), None)}
+        for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
+            galaxyinfo['mw_transmission_{}'.format(band)] = (sample['MW_TRANSMISSION_{}'.format(band)], None)
         #              'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
         #for key, unit in zip(['ra', 'dec'], [u.deg, u.deg]):
         #    galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
