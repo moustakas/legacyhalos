@@ -149,7 +149,8 @@ def get_run(onegal, racolumn='RA', deccolumn='DEC'):
     return run
 
 # ellipsefit data model
-def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'], add_datamodel_cols=None):
+def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'], add_datamodel_cols=None,
+                           copy_mw_transmission=False):
     cols = [
         ('bands', None),
         ('refband', None),
@@ -199,14 +200,15 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'], add_datam
         #('psfdepth_min_z', u.mag),
         #('psfdepth_max_z', u.mag),
 
-        #('mw_transmission_g', None),
-        #('mw_transmission_r', None),
-        #('mw_transmission_z', None),
-
         ('refband_width', u.pixel),
         ('refband_height', u.pixel)]
 
+    if copy_mw_transmission:
+        cols.append(('ebv', u.mag))
+
     for band in bands:
+        if copy_mw_transmission:
+            cols.append(('mw_transmission_{}'.format(band.lower()), None))
         cols.append(('sma_{}'.format(band.lower()), u.pixel))
         cols.append(('intens_{}'.format(band.lower()), 'nanomaggies arcsec-2'))#1e-9*u.maggy/u.arcsec**2))
         cols.append(('intens_err_{}'.format(band.lower()), 'nanomaggies arcsec-2'))#1e-9*u.maggy/u.arcsec**2))
@@ -227,7 +229,7 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'], add_datam
         cols.append(('stop_code_{}'.format(band.lower()), None))
         cols.append(('ndata_{}'.format(band.lower()), None))
         cols.append(('nflag_{}'.format(band.lower()), None))
-        cols.append(('niter_{}'.format(band.lower()), None))
+        cols.append(('niter_{}'.format(band.lower()), None))        
 
     for thresh in sbthresh:
         cols.append(('sma_sb{:0g}'.format(thresh), u.arcsec))
@@ -291,7 +293,7 @@ def get_ellipsefit_filename(galaxy, galaxydir, filesuffix='', galaxy_id=''):
 def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
                      galaxyinfo=None, refband='r', bands=['g', 'r', 'z'],
                      add_datamodel_cols=None, sbthresh=None, apertures=None,
-                     verbose=False):
+                     copy_mw_transmission=False, verbose=False):
     """Write out a FITS file based on the output of
     legacyhalos.ellipse.ellipse_multiband..
 
@@ -341,7 +343,8 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
 
     # Add to the data table
     datakeys = datadict.keys()
-    for key, unit in _get_ellipse_datamodel(sbthresh, apertures, bands=bands, add_datamodel_cols=add_datamodel_cols):
+    for key, unit in _get_ellipse_datamodel(sbthresh, apertures, bands=bands, add_datamodel_cols=add_datamodel_cols,
+                                            copy_mw_transmission=copy_mw_transmission):
         if key not in datakeys:
             raise ValueError('Data model change -- no column {} for galaxy {}!'.format(key, galaxy))
         data = datadict[key]

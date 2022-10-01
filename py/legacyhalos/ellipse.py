@@ -779,6 +779,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                          integrmode='median', nclip=3, sclip=3,
                          maxsma=None, logsma=True, delta_logsma=5.0, delta_sma=1.0,
                          sbthresh=REF_SBTHRESH, apertures=REF_APERTURES,
+                         copy_mw_transmission=False,
                          galaxyinfo=None, input_ellipse=None,
                          fitgeometry=False, nowrite=False, verbose=False):
     """Multi-band ellipse-fitting, broadly based on--
@@ -846,7 +847,13 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         if key == 'majoraxis':
             ellipsefit['sma_moment'] = mge['majoraxis'] * refpixscale # [arcsec]
         ellipsefit[newkey] = mge[key]
-            
+
+    if copy_mw_transmission:
+        ellipsefit['ebv'] = mge['ebv']
+        for band in bands:
+            if 'mw_transmission_{}'.format(band.lower()) in mge.keys():
+                ellipsefit['mw_transmission_{}'.format(band.lower())] = mge['mw_transmission_{}'.format(band.lower())]
+        
     ellipsefit['ba_moment'] = np.float32(1 - mge['eps']) # note!
     
     for mgekey, ellkey in zip(['ymed', 'xmed'], ['x0_moment', 'y0_moment']):
@@ -1039,6 +1046,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                                         apertures=apertures,
                                         bands=ellipsefit['bands'],
                                         verbose=True,
+                                        copy_mw_transmission=copy_mw_transmission,
                                         filesuffix=data['filesuffix'])
 
     return ellipsefit
@@ -1049,6 +1057,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                         nclip=3, sclip=3, sbthresh=REF_SBTHRESH,
                         apertures=REF_APERTURES,
                         delta_sma=1.0, delta_logsma=5, maxsma=None, logsma=True,
+                        copy_mw_transmission=False,
                         input_ellipse=None, fitgeometry=False,
                         verbose=False, debug=False, nowrite=False, clobber=False):
                         
@@ -1090,6 +1099,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                                                   apertures=apertures,
                                                   integrmode=integrmode, nclip=nclip, sclip=sclip,
                                                   input_ellipse=input_ellipse,
+                                                  copy_mw_transmission=copy_mw_transmission,
                                                   verbose=verbose, fitgeometry=False,
                                                   nowrite=False)
         return 1

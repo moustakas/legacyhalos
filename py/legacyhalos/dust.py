@@ -15,8 +15,8 @@ import itertools
 from astropy.io.fits import getdata
 from astropy.coordinates import SkyCoord
 from astropy import units as u
-from desiutil.log import get_logger
-log = get_logger()
+#from desiutil.log import get_logger
+#log = get_logger()
 
 def extinction_total_to_selective_ratio(band, photsys, match_legacy_surveys=False) :
     """Return the linear coefficient R_X = A(X)/E(B-V) where
@@ -39,6 +39,7 @@ def extinction_total_to_selective_ratio(band, photsys, match_legacy_surveys=Fals
         # for the DR8 target catalogs and propagated in fibermaps
         # R_X = -2.5*log10(MW_TRANSMISSION_X) / EBV
         # It is the same value for the N and S surveys in DR8 and DR9 catalogs.
+        # see also https://github.com/dstndstn/tractor/issues/99
         R={"G_N":3.2140,
            "R_N":2.1650,
            "Z_N":1.2110,
@@ -73,6 +74,13 @@ def extinction_total_to_selective_ratio(band, photsys, match_legacy_surveys=Fals
            "RP_G":1.622,
         }
 
+    # Add GALEX - see https://github.com/dstndstn/tractor/issues/99
+    R.update({
+        'FUV_N': 6.793,
+        'NUV_N': 6.620,
+        'FUV_S': 6.793,
+        'NUV_S': 6.620})
+
     # Add WISE from
     # https://github.com/dstndstn/tractor/blob/main/tractor/sfd.py#L23-L35
     R.update({
@@ -86,7 +94,7 @@ def extinction_total_to_selective_ratio(band, photsys, match_legacy_surveys=Fals
         'W4_S': 0.00910
         })
 
-    assert(band.upper() in ["G","R","Z","BP","RP",'W1','W2','W3','W4'])
+    assert(band.upper() in ['FUV', 'NUV', "G","R","Z","BP","RP",'W1','W2','W3','W4'])
     assert(photsys.upper() in ["N","S","G"])
     return R["{}_{}".format(band.upper(),photsys.upper())]
 
@@ -573,13 +581,13 @@ class SFDMap(object):
         if mapdir is None:
             dustdir = os.environ.get('DUST_DIR')
             if dustdir is None:
-                log.critical('Pass mapdir or set $DUST_DIR')
+                print('Pass mapdir or set $DUST_DIR')
                 raise ValueError('Pass mapdir or set $DUST_DIR')
             else:
                 mapdir = os.path.join(dustdir, 'maps')
 
         if not os.path.exists(mapdir):
-            log.critical('Dust maps not found in directory {}'.format(mapdir))
+            print('Dust maps not found in directory {}'.format(mapdir))
             raise ValueError('Dust maps not found in directory {}'.format(mapdir))
 
         self.mapdir = mapdir
