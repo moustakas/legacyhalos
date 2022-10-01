@@ -204,7 +204,6 @@ def main():
                 tmpfile = samplefile+'.tmp'
                 Table(onegal).write(tmpfile, overwrite=True, format='fits')
                 os.rename(tmpfile, samplefile)
-            pdb.set_trace()
 
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,

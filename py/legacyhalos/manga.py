@@ -357,6 +357,45 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         rem = sample[DOCOLUMN]
         if np.sum(rem) > 0:
             sample = sample[rem]
+
+        if True:
+            print('Removing sources outside the DR9 footprint or with missing grz coverage.')
+            remgals = np.array([
+                '11986-6102', # No CCDs touching
+                '11986-9102', # No CCDs touching
+                '11987-3701', # No CCDs touching
+                '11987-3703', # No CCDs touching
+                '8086-12703', # missing z-band
+                '8086-1902',  # No CCDs touching
+                '8086-3702',  # No CCDs touching
+                '8086-3703',  # No CCDs touching
+                '8086-3704',  # No CCDs touching
+                '8086-6101',  # No CCDs touching
+                '8086-6103',  # No CCDs touching
+                '8086-9101',  # No CCDs touching
+                '8086-9102',  # No CCDs touching
+                '8156-12703', # missing z-band
+                '8156-1901',  # missing z-band
+                '8156-1902',  # missing z-band
+                '9677-1901',  # No CCDs touching
+                '9677-1902',  # No CCDs touching
+                '9677-3701',  # No CCDs touching
+                '9677-3702',  # No CCDs touching
+                '9677-3703',  # No CCDs touching
+                '9677-3704',  # No CCDs touching
+                '9677-6101',  # No CCDs touching
+                '9677-6104',  # No CCDs touching
+                '9678-1901',  # No CCDs touching
+                '9678-1902',  # No CCDs touching
+                '9678-3701',  # No CCDs touching
+                '9678-3702',  # No CCDs touching
+                '9678-3703',  # No CCDs touching
+                '9678-3704',  # No CCDs touching
+                '9678-6101',  # No CCDs touching
+                '9678-6104']  # No CCDs touching
+            rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals))
+            if np.sum(rem) > 0:
+                sample = sample[rem]
     #print(DOCOLUMN, len(sample))
 
     # Add an (internal) index number:
@@ -396,11 +435,11 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     #sample[REFIDCOLUMN] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
     sample[REFIDCOLUMN] = sample['PLATE'] * 1000000 + np.int32(sample['IFUDSGN'])
 
-    pdb.set_trace()
-
-    # add the dust
-    from legacyhalos.dust import SFDMap
-    ebv = SFDMap(mapdir=dustdir).ebv(ras, decs, scaling=0.86)    
+    ## add the dust
+    #from legacyhalos.dust import SFDMap, mwdust_transmission
+    #ebv = SFDMap().ebv(sample[RACOLUMN], sample[DECCOLUMN])
+    #for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
+    #    sample['MW_TRANSMISSION_{}'.format(band.upper())] = mwdust_transmission(ebv, band, 'N', match_legacy_surveys=True).astype('f4')
 
     return sample
 
@@ -697,12 +736,20 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             'largeshift': largeshift,
             'ra': tractor.ra[central], 'dec': tractor.dec[central],
             'bx': tractor.bx[central], 'by': tractor.by[central],
-            'mw_transmission_g': tractor.mw_transmission_g[central],
-            'mw_transmission_r': tractor.mw_transmission_r[central],
-            'mw_transmission_z': tractor.mw_transmission_z[central],
+            #'mw_transmission_g': tractor.mw_transmission_g[central],
+            #'mw_transmission_r': tractor.mw_transmission_r[central],
+            #'mw_transmission_z': tractor.mw_transmission_z[central],
             'ra_moment': radec_med[0], 'dec_moment': radec_med[1],
             #'ra_peak': radec_med[0], 'dec_peak': radec_med[1]
             }
+
+        # add the dust
+        from legacyhalos.dust import SFDMap, mwdust_transmission
+        ebv = SFDMap().ebv(radec_peak[0], radec_peak[1])
+        mge['ebv'] = np.float32(ebv)
+        for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
+            mge['mw_transmission_{}'.format(band.lower())] = mwdust_transmission(ebv, band, 'N', match_legacy_surveys=True).astype('f4')
+            
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
             mge[key] = np.float32(getattr(mgegalaxy, key))
             if key == 'pa': # put into range [0-180]
@@ -1050,8 +1097,9 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     for igal, (galaxy_id, galaxy_indx) in enumerate(zip(data['galaxy_id'], data['galaxy_indx'])):
         samp = sample[sample[REFIDCOLUMN] == galaxy_id]
         galaxyinfo = {'mangaid': (str(galaxy_id), None)}
-        for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
-            galaxyinfo['mw_transmission_{}'.format(band)] = (sample['MW_TRANSMISSION_{}'.format(band)], None)
+        #for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
+        #    galaxyinfo['mw_transmission_{}'.format(band)] = (samp['MW_TRANSMISSION_{}'.format(band.upper())][0], None)
+        
         #              'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
         #for key, unit in zip(['ra', 'dec'], [u.deg, u.deg]):
         #    galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
@@ -1105,6 +1153,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
                      clobber=clobber, verbose=verbose,
+                     copy_mw_transmission=True,
                      #debug=True,
                      debug=debug, logfile=logfile)
 
@@ -1551,10 +1600,10 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
     if type(onegal) == astropy.table.Table:
         onegal = onegal[0] # create a Row object
 
+    bands = ['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4']
+
     galaxy_id = str(onegal['MANGANUM'])
     galaxyinfo = {'mangaid': (str(galaxy_id), None)}
-
-    bands = ['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4']
 
     # https://www.legacysurvey.org/dr9/description/#photometry
     vega2ab = {'W1': 2.699, 'W2': 3.339, 'W3': 5.174, 'W4': 6.620}
@@ -1585,6 +1634,10 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
             mge['majoraxis'] = odata['sma_moment'] / resampled_pixscale # [resampled pixels!]
         else:
             mge[key] = odata[newkey]
+
+    mge['ebv'] = odata['ebv']
+    for band in bands:
+        mge['mw_transmission_{}'.format(band.lower())] = odata['mw_transmission_{}'.format(band.lower())]
 
     mangaphot = {}
     for filt in bands:
@@ -1683,6 +1736,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                               input_ellipse=input_ellipse,
                               sbthresh=SBTHRESH, apertures=APERTURES, 
                               delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
+                              copy_mw_transmission=True,
                               integrmode=integrmode, sclip=sclip, nclip=nclip, fitgeometry=fitgeometry,
                               verbose=verbose, clobber=clobber)
 
