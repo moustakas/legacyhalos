@@ -44,6 +44,11 @@ def main():
             use_testbed = False
         else:
             use_testbed = False
+
+        if args.build_catalog:
+            fullsample = True
+        else:
+            fullsample = False
             
         sample = legacyhalos.manga.read_sample(first=args.first, last=args.last,
                                                galaxylist=args.galaxylist,
@@ -51,7 +56,8 @@ def main():
                                                use_testbed=use_testbed,
                                                ellipse=args.ellipse,
                                                resampled_phot=args.resampled_phot,
-                                               htmlplots=args.htmlplots)
+                                               htmlplots=args.htmlplots,
+                                               fullsample=fullsample)
 
         if len(sample) == 0:
             return
@@ -115,6 +121,7 @@ def main():
             from legacyhalos.manga import build_catalog
             args.custom_coadds = True
             _, _, groups, _ = legacyhalos.manga.missing_files(args, sample, args.nproc)
+
             if len(groups) == 0:
                 print('No complete galaxies!')
                 return

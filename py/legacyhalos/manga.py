@@ -95,13 +95,13 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             filesuffix = '-resampled-htmlplots.isdone'
         elif args.build_catalog:
             suffix = 'resampled-build-catalog'
-            filesuffix = '-resampled-ellipse.isdone'        
+            filesuffix = None # '-resampled-ellipse.isdone'        
         else:
             suffix = 'resampled-ellipse'
             filesuffix = '-resampled-ellipse.isdone'        
     elif args.build_catalog:
         suffix = 'build-catalog'
-        filesuffix = '-custom-ellipse.isdone'        
+        filesuffix = None # '-custom-ellipse.isdone'        
         #dependson = '-custom-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
@@ -137,17 +137,20 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         ngal = len(sample)
     indices = np.arange(ngal)
 
-    mp = multiproc(nthreads=args.nproc)
-    missargs = []
-    for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
-        #missargs.append([gal, gdir, filesuffix, dependson, clobber])
-        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
-        if dependson:
-            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
-        else:
-            missargs.append([checkfile, None, clobber])
-        
-    todo = np.array(mp.map(_missing_files_one, missargs))
+    if filesuffix is None:
+        todo = np.repeat('done', ngal)
+    else:
+        mp = multiproc(nthreads=args.nproc)
+        missargs = []
+        for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
+            #missargs.append([gal, gdir, filesuffix, dependson, clobber])
+            checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+            if dependson:
+                missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+            else:
+                missargs.append([checkfile, None, clobber])
+            
+        todo = np.array(mp.map(_missing_files_one, missargs))
 
     itodo = np.where(todo == 'todo')[0]
     idone = np.where(todo == 'done')[0]
@@ -230,7 +233,8 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False, resampled=
         return galaxy, galaxydir
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                use_testbed=True, ellipse=False, resampled_phot=False, htmlplots=False):
+                use_testbed=True, ellipse=False, resampled_phot=False, htmlplots=False,
+                fullsample=False):
     """Read/generate the parent SGA catalog.
 
     """
@@ -330,83 +334,76 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     # * 9673-3703 is off the footprint
     # https://www.legacysurvey.org/viewer?ra=56.232562&dec=67.787128&layer=ls-dr9&zoom=13&sga&manga
-    
-    #if True:
-    #    remgals = np.array(['11843-12705', '11842-12705', '11841-12705', '12187-12705', '12767-1902',
-    #                        #'9673-3703', 
-    #                        ])
-    #    rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals))
-    #    if np.sum(rem) > 0:
-    #        sample = sample[rem]
-
-    if True:
-        if ellipse or resampled_phot:
-            if htmlplots:
-                DOCOLUMN = 'DO_MANGA'
-            else:
-                DOCOLUMN = 'DO_ELLIPSE'
-        else:
+    if ellipse or resampled_phot:
+        if htmlplots:
             DOCOLUMN = 'DO_MANGA'
-        
-        print('Cleaning up the sample; keeping objects with {}==True.'.format(DOCOLUMN))
-        #print('Cleaning up the sample; removing objects with {}==True and 8075-3703.'.format(DOCOLUMN))
-        #remgals = np.array(['8075-3703', # https://github.com/legacysurvey/legacypipe/issues/705
-        #                    #'9673-3703', 
-        #                    ])
-        #rem = np.logical_and(sample[DOCOLUMN], np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals)))
-        rem = sample[DOCOLUMN]
+        else:
+            DOCOLUMN = 'DO_ELLIPSE'
+    else:
+        DOCOLUMN = 'DO_MANGA'
+    
+    print('Flagging sources outside the DR9 footprint or with missing grz coverage.')
+    remgals = np.array([
+        # missing z-band
+        '8086-12703', 
+        '8156-12703',
+        '8156-1901', 
+        '8156-1902',
+        # no CCDs touching footprint
+        '10480-12701', '10480-12702', '10480-12703', '10480-12704', '10480-12705', '10481-12701', 
+        '10481-12702', '10481-12703', '10481-12704', '10481-12705', '10482-12701', '10482-12702', 
+        '10482-12703', '10482-12704', '10482-12705', '10483-12701', '10483-12702', '10483-12703', 
+        '10483-12704', '10483-12705', '10484-12701', '10484-12702', '10484-12703', '10484-12704', 
+        '10484-12705', '10485-12701', '10485-12702', '10485-12703', '10480-1901',
+        '10480-1902', '10480-3701', '10480-3702', '10480-3703', '10480-3704', '10480-6101', 
+        '10480-6102', '10480-6103', '10480-6104', '10480-9101', '10480-9102', '10481-1902', 
+        '10481-3701', '10481-3703', '10481-3704', '10481-6101', '10481-6102', '10481-6104', 
+        '10481-9101', '10481-9102', '10482-1902', '10482-3701', '10482-3703', '10482-3704', 
+        '10482-6101', '10482-6102', '10482-6104', '10482-9101', '10482-9102', '10483-1902', 
+        '10483-3701', '10483-3703', '10483-3704', '10483-6101', '10483-6102', '10483-6104', 
+        '10483-9101', '10483-9102', '10484-1902', '10484-3701', '10484-3703', '10484-3704',
+        '10484-6101', '10484-6102', '10484-6104', '10484-9101', '10484-9102', 
+        '10141-12702', '10141-12703', '10141-12704', '10141-12705', '10142-12701', '10142-12702',
+        '10142-12703', '10142-12704', '10142-12705', '10143-12701', '10143-12702', '10143-12703',
+        '10143-12704', '10143-12705', '10144-12701', '10144-12702', '10144-12703', '10144-12704',
+        '10144-12705', '10145-12701', '10145-12702', '10145-12703', '10145-12704', '10145-12705',
+        '10146-12701', '10146-12702', '10146-12703', '10146-12704', '10146-12705', '10147-12701',
+        '10147-12702', '10147-12703', '10147-12704', '10147-12705', '10148-12701', '10148-12702',
+        '10148-12703', '10148-12704', '10148-12705', '10149-12701', '10149-12702', '10149-12703',
+        '10149-12704', '10149-12705', '10150-12701', '10150-12702', '10150-12703', '10150-12704',
+        '10150-12705', '10141-1901', '10141-1902', '10141-3701', '10141-3702', '10141-3703',
+        '10141-3704', '10141-6101', '10141-6102', '10141-6103', '10141-6104', '10141-9101',
+        '10141-9102', '10142-1901', '10142-1902', '10142-3701', '10142-3702', '10142-3703',
+        '10142-3704', '10142-6101', '10142-6102', '10142-6103', '10142-6104', '10142-9101',
+        '10142-9102', '10143-1901', '10143-1902', '10143-3701', '10143-3702', '10143-3703',
+        '10143-3704', '10143-6101', '10143-6102', '10143-6103', '10143-6104', '10143-9101',
+        '10143-9102', '10144-1901', '10144-1902', '10144-3701', '10144-3702', '10144-3703',
+        '10144-3704', '10144-6101', '10144-6102', '10144-6103', '10144-6104', '10144-9101',
+        '10144-9102', '10145-1901', '10145-1902', '10145-3701', '10145-3702', '10145-3703',
+        '10145-3704', '10145-6101', '10145-6102', '10145-6103', '10145-6104', '10145-9101',
+        '10145-9102', '10146-1901', '10146-1902', '10146-3701', '10146-3702', '10146-3703',
+        '10146-3704', '10146-6101', '10146-6102', '10146-6103', '10146-6104', '10146-9101',
+        '10146-9102', '10147-1901', '10147-1902', '10147-3701', '10147-3702', '10147-3703',
+        '10147-3704', '10147-6101', '10147-6102', '10147-6103', '10147-6104', '10147-9101',
+        '10147-9102', '10148-1901', '10148-1902', '10148-3701', '10148-3702', '10148-3703',
+        '10148-3704', '10148-6101', '10148-6102', '10148-6103', '10148-6104', '10148-9101',
+        '10148-9102', '10149-1901', '10149-1902', '10149-3701', '10149-3702', '10149-3703',
+        '10149-3704', '10149-6101', '10149-6102', '10149-6103', '10149-6104', '10149-9101',
+        '10149-9102', '10150-1901', '10150-1902', '10150-3701', '10150-3702', '10150-3703',
+        '10150-3704', '10150-6101', '10150-6102', '10150-6103', '10150-6104', '10150-9101',
+        '10150-9102', '11986-6102', '11986-9102', '11987-3701', '11987-3703', '10141-12701', 
+        '8086-1902', '8086-3702', '8086-3703', '8086-3704', '8086-6101', '8086-6103', 
+        '8086-9101', '8086-9102', '9677-1901', '9677-1902', '9677-3701', '9677-3702', 
+        '9677-3703', '9677-3704', '9677-6101', '9677-6104', '9678-1901', '9678-1902', 
+        '9678-3701', '9678-3702', '9678-3703', '9678-3704', '9678-6101', '9678-6104'])  
+    sample['DO_IMAGING'] = np.ones(len(sample), bool)
+    sample['DO_IMAGING'][np.isin(sample[GALAXYCOLUMN], remgals)] = False
+
+    if not fullsample:
+        print('Cleaning up the sample; keeping objects with {}==True and DO_IMAGING==True.'.format(DOCOLUMN))
+        rem = sample[DOCOLUMN] * sample['DO_IMAGING']
         if np.sum(rem) > 0:
             sample = sample[rem]
-
-        if True:
-            print('Removing sources outside the DR9 footprint or with missing grz coverage.')
-            remgals = np.array([
-                '11986-6102', # No CCDs touching
-                '11986-9102', # No CCDs touching
-                '11987-3701', # No CCDs touching
-                '11987-3703', # No CCDs touching
-                '8086-12703', # missing z-band
-                '8086-1902',  # No CCDs touching
-                '8086-3702',  # No CCDs touching
-                '8086-3703',  # No CCDs touching
-                '8086-3704',  # No CCDs touching
-                '8086-6101',  # No CCDs touching
-                '8086-6103',  # No CCDs touching
-                '8086-9101',  # No CCDs touching
-                '8086-9102',  # No CCDs touching
-                '8156-12703', # missing z-band
-                '8156-1901',  # missing z-band
-                '8156-1902',  # missing z-band
-                '9677-1901',  # No CCDs touching
-                '9677-1902',  # No CCDs touching
-                '9677-3701',  # No CCDs touching
-                '9677-3702',  # No CCDs touching
-                '9677-3703',  # No CCDs touching
-                '9677-3704',  # No CCDs touching
-                '9677-6101',  # No CCDs touching
-                '9677-6104',  # No CCDs touching
-                '9678-1901',  # No CCDs touching
-                '9678-1902',  # No CCDs touching
-                '9678-3701',  # No CCDs touching
-                '9678-3702',  # No CCDs touching
-                '9678-3703',  # No CCDs touching
-                '9678-3704',  # No CCDs touching
-                '9678-6101',  # No CCDs touching
-                '9678-6104']  # No CCDs touching
-            rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals))
-            if np.sum(rem) > 0:
-                sample = sample[rem]
-    #print(DOCOLUMN, len(sample))
-
-    # Add an (internal) index number:
-    #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
-    
-    ## strip whitespace
-    #if 'GALAXY' in sample.colnames:
-    #    sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
-    #if 'GROUP_NAME' in sample.colnames:
-    #    galcolumn = 'GROUP_NAME'
-    #    sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
 
     if galaxylist is not None:
         if verbose:
@@ -430,9 +427,6 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         sample['PA_INIT'][igood] = sample['NSA_SERSIC_PHI'][igood]
         sample['DIAM_INIT'][igood] = 2 * 2 * sample['NSA_SERSIC_TH50'][igood] / 60 # [2*half-light radius, arcmin]
 
-    #sample.rename_column('OBJRA', 'RA')
-    #sample.rename_column('OBJDEC', 'DEC')
-    #sample[REFIDCOLUMN] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
     sample[REFIDCOLUMN] = sample['PLATE'] * 1000000 + np.int32(sample['IFUDSGN'])
 
     ## add the dust
@@ -451,6 +445,8 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
     from legacyhalos.io import read_ellipsefit
 
     version = '0.3.0' # '0.2.0.testbed' # 'v1.0'
+
+    ngal = len(sample)
 
     if resampled:
         outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-{}.fits'.format(version))
@@ -473,9 +469,9 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
         refid = onegal[REFIDCOLUMN]
         tractorfile = os.path.join(gdir, '{}-custom-tractor.fits'.format(gal))
         ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
-        if not os.path.isfile(tractorfile):
+        if not os.path.isfile(tractorfile) and onegal['DO_MANGA'] and onegal['DO_IMAGING']:
             print('Missing Tractor catalog {}'.format(tractorfile))
-        if not os.path.isfile(ellipsefile):
+        if not os.path.isfile(ellipsefile) and onegal['DO_ELLIPSE'] and onegal['DO_IMAGING']:
             print('Missing ellipse file {}'.format(ellipsefile))
         
         if os.path.isfile(tractorfile) and os.path.isfile(ellipsefile):
@@ -510,31 +506,59 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
                 else:
                     print('Missing resampled photometry {}'.format(resampfile))
 
+    if len(tractor) == 0:
+        print('Need at least one fitted object to create a merged catalog.')
+        return
+
+    assert(len(ellipse) == len(parent))
+    assert(len(tractor) == len(parent))
     ellipse = vstack(ellipse, metadata_conflicts='silent')
     tractor = vstack(tractor, metadata_conflicts='silent')
     parent = vstack(parent, metadata_conflicts='silent')
     if resampled:
+        assert(len(phot) == len(parent))
         phot = vstack(phot, metadata_conflicts='silent')
     print('Merging {} galaxies took {:.2f} min.'.format(len(tractor), (time.time()-t0)/60.0))
-
-    if len(tractor) == 0:
-        print('Something went wrong and no galaxies were fitted.')
-        return
     assert(len(tractor) == len(parent))
+
+    # row-match the merged catalogs to the input sample catalog
+    I = np.isin(sample[REFIDCOLUMN], parent[REFIDCOLUMN])
+    assert(np.all(sample[I] == parent))
+    
+    out_ellipse = Table()
+    for col in ellipse.colnames:
+        out_ellipse[col] = np.zeros(ngal, dtype=ellipse[col].dtype)
+    out_ellipse[I] = ellipse
+
+    out_tractor = Table()
+    for col in tractor.colnames:
+        if len(tractor[col].shape) > 1:
+            out_tractor[col] = np.zeros((ngal, tractor[col].shape[1]), dtype=tractor[col].dtype)
+        else:
+            out_tractor[col] = np.zeros(ngal, dtype=tractor[col].dtype)
+    out_tractor[I] = tractor
+
+    if resampled:
+        out_phot = Table()
+        for col in phot.colnames:
+            out_phot[col] = np.zeros(ngal, dtype=phot[col].dtype)
+        out_phot[I] = phot
+
+    del phot, tractor, ellipse
 
     # write out
     hdu_primary = fits.PrimaryHDU()
-    hdu_parent = fits.convenience.table_to_hdu(parent)
+    hdu_parent = fits.convenience.table_to_hdu(sample) # parent)
     hdu_parent.header['EXTNAME'] = 'PARENT'
         
-    hdu_ellipse = fits.convenience.table_to_hdu(ellipse)
+    hdu_ellipse = fits.convenience.table_to_hdu(out_ellipse)
     hdu_ellipse.header['EXTNAME'] = 'ELLIPSE'
 
-    hdu_tractor = fits.convenience.table_to_hdu(tractor)
+    hdu_tractor = fits.convenience.table_to_hdu(out_tractor)
     hdu_tractor.header['EXTNAME'] = 'TRACTOR'
         
     if resampled:
-        hdu_phot = fits.convenience.table_to_hdu(phot)
+        hdu_phot = fits.convenience.table_to_hdu(out_phot)
         hdu_phot.header['EXTNAME'] = 'RESAMPLED'
         hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_phot, hdu_tractor])
     else:
@@ -542,7 +566,7 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
         
     hx.writeto(outfile, overwrite=True, checksum=True)
 
-    print('Wrote {} galaxies to {}'.format(len(parent), outfile))
+    print('Wrote {} galaxies to {}'.format(len(sample), outfile))
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                           threshmask=0.01, r50mask=0.05, maxshift=0.0,
