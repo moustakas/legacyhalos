@@ -381,8 +381,11 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 if nmonte > 0:
                     monte_mtot, monte_m0, monte_alpha1, monte_alpha2 = [], [], [], []
                     for _ in np.arange(nmonte):
-                        monte_popt, monte_minchi2 = cog_dofit(sma_arcsec, rand.normal(loc=cogmag, scale=cogmagerr),
-                                                              cogmagerr, bounds=bounds)
+                        try:
+                            monte_popt, monte_minchi2 = cog_dofit(sma_arcsec, rand.normal(loc=cogmag, scale=cogmagerr),
+                                                                  cogmagerr, bounds=bounds)
+                        except:
+                            monte_popt = None
                         if monte_minchi2 < chi2fail and monte_popt is not None:
                             monte_mtot.append(monte_popt[0])
                             monte_m0.append(monte_popt[1])

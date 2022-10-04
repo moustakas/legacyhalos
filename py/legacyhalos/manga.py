@@ -1924,6 +1924,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                          refband=refband,
                          sbthresh=SBTHRESH, apertures=APERTURES, 
                          bands=bands, verbose=False,
+                         copy_mw_transmission=True,
                          filesuffix=filesuffix,
                          add_datamodel_cols=add_datamodel_cols)
     except:
