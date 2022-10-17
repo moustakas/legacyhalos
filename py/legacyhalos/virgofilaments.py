@@ -909,7 +909,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           sky_tests=sky_tests, verbose=verbose)
 
     maxsma = None
-    delta_logsma = 8 # 4 # 10
+    delta_logsma = 4 # 10
 
     #igal = 0
     #maxis = data['mge'][igal]['majoraxis'] # [pixels]
