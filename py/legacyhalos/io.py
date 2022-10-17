@@ -240,6 +240,8 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'], add_datam
             cols.append(('flux_sb{:0g}_{}'.format(thresh, band.lower()), 'nanomaggies'))#1e-9*u.maggy))
         for thresh in sbthresh:
             cols.append(('flux_ivar_sb{:0g}_{}'.format(thresh, band.lower()), 'nanomaggies-2'))#1e18/u.maggy**2))
+        for thresh in sbthresh:
+            cols.append(('fracmasked_sb{:0g}_{}'.format(thresh, band.lower()), None))
 
     for iap, ap in enumerate(apertures):
         cols.append(('sma_ap{:02d}'.format(iap+1), u.arcsec))
@@ -248,6 +250,8 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'], add_datam
             cols.append(('flux_ap{:02d}_{}'.format(iap+1, band.lower()), 'nanomaggies'))#1e-9*u.maggy))
         for iap, ap in enumerate(apertures):
             cols.append(('flux_ivar_ap{:02d}_{}'.format(iap+1, band.lower()), 'nanomaggies-2'))#1e18/u.maggy**2))
+        for iap, ap in enumerate(apertures):
+            cols.append(('fracmasked_ap{:02d}_{}'.format(iap+1, band.lower()), None))
 
     for band in bands:
         cols.append(('cog_sma_{}'.format(band.lower()), u.arcsec))

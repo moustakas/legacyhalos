@@ -86,7 +86,7 @@ def apphot_one(img, mask, theta, x0, y0, aa, bb, pixscale, variance=False, iscir
     # nanomaggies/arcsec2) and the mask to get the fractional area.
     
     #area = (aperture_photometry(~mask*1, aperture, mask=mask, method='exact'))['aperture_sum'].data * pixscale**2 # [arcsec**2]
-    mu_flux = (aperture_photometry(img, aperture, mask=mask, method='exact'))['aperture_sum'].data # [nanomaggies/arcsec2]        
+    mu_flux = (aperture_photometry(img, aperture, mask=mask, method='exact'))['aperture_sum'].data # [nanomaggies/arcsec2]
     #print(x0, y0, aa, bb, theta, mu_flux, pixscale, img.shape, mask.shape, aperture)
     if variance:
         apphot = np.sqrt(mu_flux) * pixscale**2 # [nanomaggies]
@@ -220,6 +220,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             # initialize with zeros
             results['flux_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
             results['flux_ivar_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
+            results['fracmasked_sb{:0g}_{}'.format(sbcut, filt.lower())] = np.float32(0.0)
             _smapixels = results['sma_sb{:0g}'.format(sbcut)] / pixscale # [pixels]
             if _smapixels > 0:
                 smapixels.append(_smapixels)
@@ -229,6 +230,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             # initialize with zeros
             results['flux_ap{:02d}_{}'.format(iap+1, filt.lower())] = np.float32(0.0)
             results['flux_ivar_ap{:02d}_{}'.format(iap+1, filt.lower())] = np.float32(0.0)
+            results['fracmasked_ap{:02d}_{}'.format(iap+1, filt.lower())] = np.float32(0.0)
             _smapixels = results['sma_ap{:02d}'.format(iap+1)] / pixscale # [pixels]
             if _smapixels > 0:
                 smapixels.append(_smapixels)
@@ -243,10 +245,24 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                     warnings.simplefilter('ignore', category=AstropyUserWarning)
                     cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle)
                                                     for aa, bb in zip(smapixels, smbpixels)])
+                    # computer the fraction of masked pixels
+                    nmasked = pool.map(_apphot_one, [(np.ones_like(img), np.logical_not(mask), theta, x0, y0, aa, bb, pixscale, False, iscircle)
+                                                       for aa, bb in zip(smapixels, smbpixels)])
+                    npix = pool.map(_apphot_one, [(np.ones_like(img), np.zeros_like(mask), theta, x0, y0, aa, bb, pixscale, False, iscircle)
+                                                  for aa, bb in zip(smapixels, smbpixels)])
+                    
                     if len(cogflux) > 0:
                         cogflux = np.hstack(cogflux)
+                        npix = np.hstack(npix) * pixscale**2
+                        nmasked = np.hstack(nmasked) * pixscale**2
+                        fracmasked = np.zeros_like(cogflux)
+                        I = np.where(npix > 0)[0]
+                        if len(I) > 0:
+                            fracmasked[I] = nmasked[I] / npix[I]
                     else:
                         cogflux = np.array([0.0])
+                        fracmasked = np.array([0.0])
+
                     if '{}_var'.format(filt.lower()) in data.keys():
                         var = data['{}_var'.format(filt.lower())][igal] # [nanomaggies**2/arcsec**4]
                         cogferr = pool.map(_apphot_one, [(var, mask, theta, x0, y0, aa, bb, pixscale, True, iscircle)
@@ -265,9 +281,10 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                     ok = np.where(np.isfinite(cogflux))[0]
     
             if len(ok) > 0:
-                for label, cflux, cferr in zip(sbaplist[ok], cogflux[ok], cogferr[ok]):
+                for label, cflux, cferr, fmask in zip(sbaplist[ok], cogflux[ok], cogferr[ok], fracmasked[ok]):
                     results['flux_{}_{}'.format(label, filt.lower())] = np.float32(cflux)
                     results['flux_ivar_{}_{}'.format(label, filt.lower())] = np.float32(1/cferr**2)
+                    results['fracmasked_{}_{}'.format(label, filt.lower())] = np.float32(fmask)
 
         # now get the curve of growth at a wide range of regularly spaced
         # positions along the semi-major axis.
