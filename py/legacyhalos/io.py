@@ -668,5 +668,6 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
                 #pdb.set_trace()
 
     data['residual_mask'] = residual_mask
+    data['starmask'] = starmask
 
     return data

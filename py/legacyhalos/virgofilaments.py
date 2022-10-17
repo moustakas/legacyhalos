@@ -328,8 +328,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
     return sample
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=1.0, r50mask=5.0, maxshift=20, relmaxshift=0.1,
-                          sigmamask=3.0, neighborfactor=3.0, verbose=False):
+                          threshmask=0.01, r50mask=0.05, maxshift=10,
+                          relmaxshift=0.1,
+                          sigmamask=3.0, neighborfactor=1.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -383,6 +384,12 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         class MGEgalaxy(object):
             pass
 
+        default_majoraxis = tractor.diam_init[indx] * 60 / 2 / filt2pixscale[refband] # [pixels]
+        default_pa = tractor.pa_init[indx]
+        default_ba = tractor.ba_init[indx]
+        #default_theta = (270 - default_pa) % 180
+        #default_eps = 1 - tractor.ba_init[indx]
+
         #if tractor.sga_id[indx] > -1:
         if tractor.type[indx] == 'PSF' or tractor.shape_r[indx] < 5:
             pa = tractor.pa_init[indx]
@@ -406,21 +413,45 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
+        
         mgegalaxy.xmed = tractor.by[indx]
         mgegalaxy.ymed = tractor.bx[indx]
         mgegalaxy.xpeak = tractor.by[indx]
         mgegalaxy.ypeak = tractor.bx[indx]
-        mgegalaxy.eps = 1-ba
-        mgegalaxy.pa = pa
-        mgegalaxy.theta = (270 - pa) % 180
-        mgegalaxy.majoraxis = majoraxis
+
+        # never use the Tractor geometry (only the centroid)
+        # https://portal.nersc.gov/project/cosmo/temp/ioannis/virgofilaments-html/215/NGC5584/NGC5584.html
+        if False:
+            mgegalaxy.eps = 1-ba
+            mgegalaxy.pa = pa
+            mgegalaxy.theta = (270 - pa) % 180
+            mgegalaxy.majoraxis = majoraxis
+        else:
+            mgegalaxy.eps = 1 - default_ba
+            mgegalaxy.pa = default_pa
+            mgegalaxy.theta = (270 - default_pa) % 180
+            mgegalaxy.majoraxis = default_majoraxis
+
+        # always restore all pixels within the nominal / initial size of the galaxy
+        #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+        #                       default_majoraxis,
+        #                       default_majoraxis * (1-default_eps), 
+        #                       np.radians(default_theta-90), xobj, yobj)
+        #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+        #                       default_majoraxis, default_majoraxis, 0.0, xobj, yobj)
 
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                mgegalaxy.majoraxis,
                                mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
                                np.radians(mgegalaxy.theta-90), xobj, yobj)
 
-        return mgegalaxy, objmask
+        # central 10% pixels can override the starmask
+        objmask_center = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+                                      0.1*mgegalaxy.majoraxis,
+                                      0.1*mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
+                                      np.radians(mgegalaxy.theta-90), xobj, yobj)
+
+        return mgegalaxy, objmask, objmask_center
 
     # Now, loop through each 'galaxy_indx' from bright to faint.
     data['mge'] = []
@@ -433,7 +464,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # and galaxies "near" it. Also restore the original pixels of the
         # central in case there was a poor deblend.
         largeshift = False
-        mge, centralmask = tractor2mge(central, factor=neighborfactor)
+        mge, centralmask, centralmask2 = tractor2mge(central, factor=1.0)
         #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
@@ -450,6 +481,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
         mask = np.logical_or(ma.getmask(data[refband]), data['residual_mask'])
         #mask = np.logical_or(data[refband].mask, data['residual_mask'])
+
+        # restore the central pixels but not the masked stellar pixels
+        centralmask[np.logical_and(data['starmask'], np.logical_not(centralmask2))] = False
         mask[centralmask] = False
 
         img = ma.masked_array(img, mask)
@@ -457,15 +491,16 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #if ii == 1:
         #    pdb.set_trace()
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False, plot=True) ; plt.savefig('cosmo-www/tmp/junk-mge.png')
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('cosmo-www/tmp/junk-mge.png')
         #plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask.png')
         ##plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #pdb.set_trace()
 
         # Did the galaxy position move? If so, revert back to the Tractor geometry.
         if np.abs(mgegalaxy.xmed-mge.xmed) > maxshift or np.abs(mgegalaxy.ymed-mge.ymed) > maxshift:
-            print('Large centroid shift! (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
+            print('Large centroid shift (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
                 mgegalaxy.xmed, mgegalaxy.ymed, mge.xmed, mge.ymed))
+            print('  Reverting to the default geometry and the Tractor centroid.')
             largeshift = True
             mgegalaxy = copy(mge)
 
