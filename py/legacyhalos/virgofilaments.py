@@ -98,6 +98,10 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             filesuffix = '-pipeline-image-grz.jpg'
         else:
             filesuffix = '-pipeline-coadds.isdone'
+    elif args.rebuild_unwise:
+        suffix = 'rebuild-unwise'
+        filesuffix = '-rebuild-unwise.isdone'
+        dependson = '-custom-coadds.isdone'
     elif args.ellipse:
         suffix = 'ellipse'
         filesuffix = '-custom-ellipse.isdone'
@@ -207,6 +211,7 @@ def mpi_args():
     parser.add_argument('--just-coadds', action='store_true', help='Just build the coadds and return (using --early-coadds in runbrick.py.')
 
     parser.add_argument('--ellipse', action='store_true', help='Do the ellipse fitting.')
+    parser.add_argument('--rebuild-unwise', action='store_true', help='Rebuild the unWISE mosaics.')
     parser.add_argument('--htmlplots', action='store_true', help='Build the pipeline figures.')
     parser.add_argument('--htmlindex', action='store_true', help='Build HTML index.html page.')
 
@@ -323,8 +328,9 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
     return sample
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=1.0, r50mask=5.0, maxshift=20, relmaxshift=0.1,
-                          sigmamask=3.0, neighborfactor=3.0, verbose=False):
+                          threshmask=0.01, r50mask=0.05, maxshift=10,
+                          relmaxshift=0.1,
+                          sigmamask=3.0, neighborfactor=1.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -378,6 +384,12 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         class MGEgalaxy(object):
             pass
 
+        default_majoraxis = tractor.diam_init[indx] * 60 / 2 / filt2pixscale[refband] # [pixels]
+        default_pa = tractor.pa_init[indx]
+        default_ba = tractor.ba_init[indx]
+        #default_theta = (270 - default_pa) % 180
+        #default_eps = 1 - tractor.ba_init[indx]
+
         #if tractor.sga_id[indx] > -1:
         if tractor.type[indx] == 'PSF' or tractor.shape_r[indx] < 5:
             pa = tractor.pa_init[indx]
@@ -401,21 +413,45 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
+        
         mgegalaxy.xmed = tractor.by[indx]
         mgegalaxy.ymed = tractor.bx[indx]
         mgegalaxy.xpeak = tractor.by[indx]
         mgegalaxy.ypeak = tractor.bx[indx]
-        mgegalaxy.eps = 1-ba
-        mgegalaxy.pa = pa
-        mgegalaxy.theta = (270 - pa) % 180
-        mgegalaxy.majoraxis = majoraxis
+
+        # never use the Tractor geometry (only the centroid)
+        # https://portal.nersc.gov/project/cosmo/temp/ioannis/virgofilaments-html/215/NGC5584/NGC5584.html
+        if False:
+            mgegalaxy.eps = 1-ba
+            mgegalaxy.pa = pa
+            mgegalaxy.theta = (270 - pa) % 180
+            mgegalaxy.majoraxis = majoraxis
+        else:
+            mgegalaxy.eps = 1 - default_ba
+            mgegalaxy.pa = default_pa
+            mgegalaxy.theta = (270 - default_pa) % 180
+            mgegalaxy.majoraxis = default_majoraxis
+
+        # always restore all pixels within the nominal / initial size of the galaxy
+        #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+        #                       default_majoraxis,
+        #                       default_majoraxis * (1-default_eps), 
+        #                       np.radians(default_theta-90), xobj, yobj)
+        #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+        #                       default_majoraxis, default_majoraxis, 0.0, xobj, yobj)
 
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                mgegalaxy.majoraxis,
                                mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
                                np.radians(mgegalaxy.theta-90), xobj, yobj)
 
-        return mgegalaxy, objmask
+        # central 10% pixels can override the starmask
+        objmask_center = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+                                      0.1*mgegalaxy.majoraxis,
+                                      0.1*mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
+                                      np.radians(mgegalaxy.theta-90), xobj, yobj)
+
+        return mgegalaxy, objmask, objmask_center
 
     # Now, loop through each 'galaxy_indx' from bright to faint.
     data['mge'] = []
@@ -428,7 +464,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # and galaxies "near" it. Also restore the original pixels of the
         # central in case there was a poor deblend.
         largeshift = False
-        mge, centralmask = tractor2mge(central, factor=neighborfactor)
+        mge, centralmask, centralmask2 = tractor2mge(central, factor=1.0)
         #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
@@ -445,6 +481,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
         mask = np.logical_or(ma.getmask(data[refband]), data['residual_mask'])
         #mask = np.logical_or(data[refband].mask, data['residual_mask'])
+
+        # restore the central pixels but not the masked stellar pixels
+        centralmask[np.logical_and(data['starmask'], np.logical_not(centralmask2))] = False
         mask[centralmask] = False
 
         img = ma.masked_array(img, mask)
@@ -452,15 +491,16 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #if ii == 1:
         #    pdb.set_trace()
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False, plot=True) ; plt.savefig('cosmo-www/tmp/junk-mge.png')
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('cosmo-www/tmp/junk-mge.png')
         #plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask.png')
         ##plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #pdb.set_trace()
 
         # Did the galaxy position move? If so, revert back to the Tractor geometry.
         if np.abs(mgegalaxy.xmed-mge.xmed) > maxshift or np.abs(mgegalaxy.ymed-mge.ymed) > maxshift:
-            print('Large centroid shift! (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
+            print('Large centroid shift (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
                 mgegalaxy.xmed, mgegalaxy.ymed, mge.xmed, mge.ymed))
+            print('  Reverting to the default geometry and the Tractor centroid.')
             largeshift = True
             mgegalaxy = copy(mge)
 
@@ -869,7 +909,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           sky_tests=sky_tests, verbose=verbose)
 
     maxsma = None
-    delta_logsma = 8 # 4 # 10
+    delta_logsma = 4 # 10
 
     #igal = 0
     #maxis = data['mge'][igal]['majoraxis'] # [pixels]
@@ -891,6 +931,180 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      verbose=verbose, clobber=clobber,
                      #debug=True,
                      debug=debug, logfile=logfile)
+
+def call_rebuild_unwise(onegal, galaxy, galaxydir, filesuffix='custom',
+                        pixscale=0.262, radius_mosaic=None,
+                        racolumn='RA', deccolumn='DEC', 
+                        nproc=1, verbose=False, debug=False,
+                        clobber=False, write_donefile=True, logfile=None):
+    """Wrapper script to rebuild the unWISE mosaics and forced photometry.
+
+    """
+    import time
+    from contextlib import redirect_stdout, redirect_stderr
+    from legacyhalos.mpi import _done, _start
+
+    t0 = time.time()
+    if debug:
+        _start(galaxy)
+        err = rebuild_unwise(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                             pixscale=pixscale, radius_mosaic=radius_mosaic,
+                             racolumn=racolumn, deccolumn=deccolumn, 
+                             filesuffix=filesuffix, nproc=nproc, verbose=verbose,
+                             debug=debug, clobber=clobber)
+        if write_donefile:
+            _done(galaxy, galaxydir, err, t0, 'rebuild-unwise', None)
+    else:
+        with open(logfile, 'a') as log:
+            with redirect_stdout(log), redirect_stderr(log):
+                _start(galaxy, log=log)
+                err = rebuild_unwise(onegal, galaxy=galaxy, galaxydir=galaxydir,
+                                     pixscale=pixscale, radius_mosaic=radius_mosaic,
+                                     racolumn=racolumn, deccolumn=deccolumn, 
+                                     filesuffix=filesuffix, nproc=nproc, verbose=verbose,
+                                     debug=debug, clobber=clobber, log=log)
+                if write_donefile:
+                    _done(galaxy, galaxydir, err, t0, 'rebuild-unwise', None, log=log)
+
+    return err
+
+def rebuild_unwise(onegal, galaxy, galaxydir, filesuffix='custom',
+                   pixscale=0.262, radius_mosaic=None, racolumn='RA', deccolumn='DEC',
+                   nproc=1, verbose=False, debug=False, clobber=False, log=None):
+    """Rebuild the unWISE mosaics.
+
+    """
+    import shutil
+    import subprocess
+    from legacyhalos.coadds import _mosaic_width
+
+    stagesuffix = 'rebuild-unwise'
+
+    def _copyfile(infile, outfile, clobber=False, update_header=False):
+        if os.path.isfile(outfile) and not clobber:
+            return 1
+        if os.path.isfile(infile):
+            tmpfile = outfile+'.tmp'
+            shutil.copy2(infile, tmpfile)
+            #shutil.copyfile(infile, tmpfile)
+            os.rename(tmpfile, outfile)
+            if update_header:
+                pass
+            return 1
+        else:
+            print('Missing file {}; please check the logfile.'.format(infile))
+            return 0
+
+    # if coadds aren't done, skip this galaxy
+    if not os.path.isfile(os.path.join(galaxydir, '{}-custom-coadds.isdone'.format(galaxy))):
+        print('Custom coadds not done; skipping rebuilding WISE coadds.', flush=True, file=log)
+        return 1, stagesuffix
+
+    # A small fraction of the sample doesn't have grz coverage. These will have
+    # .isdone files but no montages.
+    if (os.path.isfile(os.path.join(galaxydir, '{}-custom-coadds.isdone'.format(galaxy))) and
+        not os.path.isfile(os.path.join(galaxydir, '{}-custom-resid-W1W2.jpg'.format(galaxy)))):
+        print('No WISE data to process; skipping rebuilding WISE coadds.', flush=True, file=log)
+        return 1, stagesuffix
+
+    # backup the existing files *once* so we can rerun this stage if necessary
+    backupdir = os.path.join(galaxydir, 'rebuild-unwise-backup')
+    if not os.path.isdir(backupdir):
+        os.makedirs(backupdir)
+        ok = _copyfile(os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)),
+                       os.path.join(backupdir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)), clobber=True)
+        if not ok:
+            raise ValueError('Problem backing up Tractor catalog!')
+        
+        for band in ('W1', 'W2', 'W3', 'W4'):
+            for imtype in ('image', 'invvar'):
+                ok = _copyfile(
+                    os.path.join(galaxydir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)),
+                    os.path.join(backupdir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)), clobber=True)
+                if not ok:
+                    raise ValueError('Problem backing up {} {}!'.format(imtype, band))
+            ok = _copyfile(
+                os.path.join(galaxydir, '{}-{}-model-{}.fits.fz'.format(galaxy, filesuffix, band)),
+                os.path.join(backupdir, '{}-{}-model-{}.fits.fz'.format(galaxy, filesuffix, band)), clobber=True)
+            if not ok:
+                raise ValueError('Problem backing up {} {}!'.format(imtype, band))
+        for imtype in ('image', 'model', 'resid'):
+            ok = _copyfile(
+                os.path.join(galaxydir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, imtype)),
+                os.path.join(backupdir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, imtype)), clobber=True)
+            if not ok:
+                raise ValueError('Problem backing up {}!'.format(imtype))
+
+    # now copy from the backup directory
+    ok = _copyfile(os.path.join(backupdir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)),
+                   os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)), clobber=True)
+    if not ok:
+        raise ValueError('Problem backing up Tractor catalog!')
+    
+    for band in ('W1', 'W2', 'W3', 'W4'):
+        for imtype in ('image', 'invvar', 'model'):
+            ok = _copyfile(
+                os.path.join(backupdir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)),
+                os.path.join(galaxydir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)), clobber=True)
+            if not ok:
+                raise ValueError('Problem backing up {} {}!'.format(imtype, band))
+    for imtype in ('image', 'model', 'resid'):
+        ok = _copyfile(
+            os.path.join(backupdir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, imtype)),
+            os.path.join(galaxydir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, imtype)), clobber=True)
+        if not ok:
+            raise ValueError('Problem backing up {}!'.format(imtype))
+
+    width = _mosaic_width(radius_mosaic, pixscale)    
+
+    cmd = 'python {legacypipe_dir}/py/legacyanalysis/rerun-wise-phot.py '
+    cmd += '--catalog {galaxydir}/{galaxy}-custom-tractor.fits '
+    cmd += '--unwise-dir {unwise_dir} '
+    cmd += '--radec {ra} {dec} --width {width} --height {width} '
+    cmd += '--pixscale {pixscale} --threads {threads} --outdir {outdir} '
+
+    cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_CODE_DIR'), galaxy=galaxy,
+                     galaxydir=galaxydir, unwise_dir=os.environ.get('UNWISE_COADDS_DIR'),
+                     ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
+                     pixscale=pixscale, threads=nproc, outdir=galaxydir)
+    print(cmd, flush=True, file=log)
+
+    err = subprocess.call(cmd.split(), stdout=log, stderr=log)
+
+    if err != 0:
+        print('Something went wrong; please check the logfile.')
+        return 0, stagesuffix
+    else:
+        # Move (rename) files into the desired output directory and clean up.
+        # tractor catalog
+        brickname = 'custom_%.4f_%.4f' % (onegal[RACOLUMN], onegal[DECCOLUMN])
+        ok = _copyfile(
+            os.path.join(galaxydir, 'tractor.fits'),
+            os.path.join(galaxydir, '{}-{}-tractor.fits'.format(galaxy, filesuffix)), clobber=True)
+        if not ok:
+            raise ValueError('Problem copying Tractor catalog!')
+        for band in ('W1', 'W2', 'W3', 'W4'):
+            for imtype in ('image', 'invvar', 'model'):
+                ok = _copyfile(
+                    os.path.join(galaxydir, 'coadd', 'cus', brickname,
+                                 'legacysurvey-{}-{}-{}.fits.fz'.format(brickname, imtype, band)),
+                    os.path.join(galaxydir, '{}-{}-{}-{}.fits.fz'.format(galaxy, filesuffix, imtype, band)),
+                    clobber=True)
+                if not ok:
+                    raise ValueError('Problem copying {} {}!'.format(imtype, band))
+        for imtype, suffix in zip(('wise', 'wisemodel', 'wiseresid'), ('image', 'model', 'resid')):
+            ok = _copyfile(
+                os.path.join(galaxydir, 'coadd', 'cus', brickname,
+                             'legacysurvey-{}-{}.jpg'.format(brickname, imtype)),
+                os.path.join(galaxydir, '{}-{}-{}-W1W2.jpg'.format(galaxy, filesuffix, suffix)),
+                clobber=True)
+            if not ok:
+                raise ValueError('Problem backing up {}!'.format(imtype))                
+
+        shutil.rmtree(os.path.join(galaxydir, 'coadd'), ignore_errors=True)
+        os.remove(os.path.join(galaxydir, 'tractor.fits'))
+
+        return ok, stagesuffix
 
 def _datarelease_table(ellipse):
     """Convert the ellipse table into a data release catalog."""

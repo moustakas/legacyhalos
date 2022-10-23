@@ -10,5 +10,13 @@ echo 'Updating and loading the shifter image '$SHIFTER
 echo 'Load the environment with: '
 echo '  source '$LEGACYHALOS_CODE_DIR'/bin/manga/manga-env'
 
+if [[ $NERSC_HOST == "perlmutter" ]]; then
+    MPILIB=mpich
+elif [[ $NERSC_HOST == "cori" ]]; then
+    MPILIB=mpich-cle6
+else
+    MPILIB=
+fi
+    
 shifterimg pull $SHIFTER
-shifter --module=mpich-cle6 --image $SHIFTER bash
+shifter --module=$MPILIB --image $SHIFTER bash

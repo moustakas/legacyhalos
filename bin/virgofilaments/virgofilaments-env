@@ -39,6 +39,7 @@ else
     #export UNWISE_COADDS_TIMERESOLVED_DIR=/global/cfs/cdirs/cosmo/work/wise/outputs/merge/neo7
     export UNWISE_COADDS_DIR=/global/cfs/cdirs/cosmo/data/unwise/neo7/unwise-coadds/fulldepth:/global/cfs/cdirs/cosmo/data/unwise/allwise/unwise-coadds/fulldepth
     # the sky around medium-sized galaxies is over-subtracted, so do not use this!
+    # https://github.com/moustakas/SGA/issues/57
     #export UNWISE_MODEL_SKY_DIR=/global/cfs/cdirs/cosmo/work/wise/unwise_catalog/dr3/mod
 
     export TYCHO2_KD_DIR=/global/cfs/cdirs/cosmo/staging/tycho2

@@ -518,7 +518,7 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
 
     _phot = {'abmag': np.zeros(nband, 'f4')-1,
              'abmagerr': np.zeros(nband, 'f4')+0.5,
-             'upper': np.zeros(nband, bool)}
+             'lower': np.zeros(nband, bool)}
     phot = {'mag_tot': deepcopy(_phot), 'tractor': deepcopy(_phot), 'mag_sb25': deepcopy(_phot)}
 
     for ifilt, filt in enumerate(bands):
@@ -526,7 +526,7 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
         if mtot > 0:
             phot['mag_tot']['abmag'][ifilt] = mtot
             phot['mag_tot']['abmagerr'][ifilt] = 0.1
-            phot['mag_tot']['upper'][ifilt] = False
+            phot['mag_tot']['lower'][ifilt] = False
 
         flux = ellipsefit['flux_sb25_{}'.format(filt.lower())]
         ivar = ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
@@ -538,13 +538,13 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
             magerr = 2.5 * ferr / flux / np.log(10)
             phot['mag_sb25']['abmag'][ifilt] = mag
             phot['mag_sb25']['abmagerr'][ifilt] = magerr
-            phot['mag_sb25']['upper'][ifilt] = False
+            phot['mag_sb25']['lower'][ifilt] = False
         if flux <=0 and ivar > 0:
             ferr = 1.0 / np.sqrt(ivar)
             mag = 22.5 - 2.5 * np.log10(ferr)
             phot['mag_sb25']['abmag'][ifilt] = mag
             phot['mag_sb25']['abmagerr'][ifilt] = 0.75
-            phot['mag_sb25']['upper'][ifilt] = True
+            phot['mag_sb25']['lower'][ifilt] = True
 
         if tractor is not None:
             flux = tractor['flux_{}'.format(filt.lower())]
@@ -557,20 +557,20 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
             if flux <= 0 and ivar > 0:
                 phot['tractor']['abmag'][ifilt] = 22.5 - 2.5 * np.log10(1/np.sqrt(ivar))
                 phot['tractor']['abmagerr'][ifilt] = 0.75
-                phot['tractor']['upper'][ifilt] = True
+                phot['tractor']['lower'][ifilt] = True
 
     #print(phot['mag_tot']['abmag'])
     #print(phot['mag_sb25']['abmag'])
     #print(phot['tractor']['abmag'])
 
     def _addphot(thisphot, color, marker, alpha, label):
-        good = np.where((thisphot['abmag'] > 0) * (thisphot['upper'] == True))[0]
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == True))[0]
         if len(good) > 0:
             ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
                         marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
                         markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
-                        uplims=True, linestyle='none', alpha=alpha)#, lolims=True)
-        good = np.where((thisphot['abmag'] > 0) * (thisphot['upper'] == False))[0]
+                        lolims=True, linestyle='none', alpha=alpha)#, lolims=True)
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == False))[0]
         if len(good) > 0:
             ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
                         marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',

@@ -8,6 +8,41 @@ import os, time, pdb
 import numpy as np
 from astropy.table import Table
 
+#   PLATEIFU    IFURA     IFUDEC     MANGANUM
+# ----------- --------- ---------- -----------
+# 10506-12702 139.48427   34.50929 10506012702 - missing Tractor/ellipse
+#  10504-9102 139.48431  34.509323 10504009102
+# 10843-12704 149.70772 0.83665769 10843012704 - missing Tractor/ellipse
+#  11866-9101 149.70772 0.83665771 11866009101
+#   7443-1901 231.04261  42.068721  7443001901 - missing Tractor/ellipse
+#   9872-1901 231.04264  42.068723  9872001901
+#   7443-3701 230.57438   42.28702  7443003701 - missing Tractor/ellipse
+#   9872-3702 230.57439  42.287013  9872003702
+#  7495-12704  205.4384  27.004754  7495012704 - missing Tractor/ellipse
+#   8983-3703 205.43841  27.004738  8983003703
+#   7963-3701 313.57074 -1.2491752  7963003701 - missing Tractor/ellipse
+#   8651-3701 313.57074 -1.2491752  8651003701    
+#  8567-12702 118.53567   48.70984  8567012702 - missing Tractor/ellipse
+#   8239-6104  118.5407  48.708898  8239006104
+#   8329-3701 213.43219  43.662481  8329003701 - missing Tractor/ellipse
+#  8333-12701 213.43219  43.662481  8333012701
+#   8588-3701 248.14056  39.131021  8588003701 - missing Tractor/ellipse
+#  8603-12701 248.14056  39.131021  8603012701
+#   9046-6104 246.17117   25.32936  9046006104 - missing Tractor/ellipse
+#   9048-3703 246.17224  25.328235  9048003703
+
+CLOSE_DUPLICATES = np.array([
+    10506012702,
+    10843012704,
+    7443001901,
+    7443003701,
+    7495012704,
+    7963003701,
+    8567012702,
+    8329003701,
+    8588003701,
+    9046006104])
+
 def main():
     """Top-level wrapper.
 
@@ -44,6 +79,11 @@ def main():
             use_testbed = False
         else:
             use_testbed = False
+
+        if args.build_catalog:
+            fullsample = True
+        else:
+            fullsample = False
             
         sample = legacyhalos.manga.read_sample(first=args.first, last=args.last,
                                                galaxylist=args.galaxylist,
@@ -51,7 +91,8 @@ def main():
                                                use_testbed=use_testbed,
                                                ellipse=args.ellipse,
                                                resampled_phot=args.resampled_phot,
-                                               htmlplots=args.htmlplots)
+                                               htmlplots=args.htmlplots,
+                                               fullsample=fullsample)
 
         if len(sample) == 0:
             return
@@ -67,40 +108,62 @@ def main():
             # Build a reference catalog for use with the pipeline.
             import fitsio
 
-            ngal = len(sample)
+            def _write_refcat(sample, reffile):
+                """Simple wrapper to write the reference catalog."""
+                ngal = len(sample)
+    
+                ref = Table()
+                ref['ra'] = sample[RACOLUMN]
+                ref['dec'] = sample[DECCOLUMN]
+                ref['sga_id'] = sample[REFIDCOLUMN]
+    
+                ref['mag_leda'] = np.repeat(15.0, len(sample)).astype('f4')
+                ref['ba'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a (circular)
+                ref['pa'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
+                ref['diam'] = np.repeat(2 * MANGA_RADIUS / 60.0, ngal).astype('f4') # fixed diameter [arcmin]
+                
+                igood = np.where((sample['NSA_NSAID'] != -9999) * (sample['NSA_NSAID'] > 0))[0]
+                ref['ba'][igood] = sample['NSA_SERSIC_BA'][igood]
+                ref['pa'][igood] = sample['NSA_SERSIC_PHI'][igood]
+                ref['diam'][igood] = 2 * 2 * sample['NSA_SERSIC_TH50'][igood] / 60 # [2*half-light radius, arcmin]
+                ref['mag_leda'][igood] = 22.5-2.5*np.log10(sample['NSA_SERSIC_FLUX'][igood, 4]) # r-band
+    
+                # hack! adjust the initial coordinates of 8158-3702, otherwise Tractor drops it
+                # https://www.legacysurvey.org/viewer-dev/?ra=61.119133&dec=-5.165784&zoom=16&layer=ls-dr9&manga&sources-dr9
+                # https://www.legacysurvey.org/viewer-dev/ls-dr9/cat?ralo=61.11790011072988&rahi=61.11990011072987&declo=-5.1662860524869085&dechi=-5.164286052486908&objid=4053
+                fix = np.where(ref['sga_id'] == 8158003702)[0]
+                if len(fix) > 0:
+                    ref['ra'][fix] = 61.118900110729875
+                    ref['dec'][fix] = -5.165286052486908
+    
+                kdreffile = reffile.replace('.fits', '.kd.fits')
+                print('Writing {} galaxies to {}'.format(ngal, reffile))
+                
+                hdr = fitsio.FITSHDR()
+                hdrver = refcat
+                hdr['SGAVER'] = hdrver
+                fitsio.write(reffile, ref.as_array(), header=hdr, clobber=True)
+    
+                print('Writing {}'.format(kdreffile))
+                cmd = 'startree -i {} -o {} -T -P -k -n stars'.format(reffile, kdreffile)
+                print(cmd)
+                _ = os.system(cmd)
+    
+                cmd = 'modhead {} SGAVER {}'.format(kdreffile, hdrver)
+                _ = os.system(cmd)
 
-            ref = Table()
-            ref['ra'] = sample[RACOLUMN]
-            ref['dec'] = sample[DECCOLUMN]
-            ref['sga_id'] = sample[REFIDCOLUMN]
+            # Need to handle duplicates by creating an ad hoc reference catalog
+            # which we will swap in as-needed.
 
-            ref['mag_leda'] = np.repeat(15.0, len(sample)).astype('f4')
-            ref['ba'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a (circular)
-            ref['pa'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
-            ref['diam'] = np.repeat(2 * MANGA_RADIUS / 60.0, ngal).astype('f4') # fixed diameter [arcmin]
+            sample_main = sample[~np.isin(sample[REFIDCOLUMN], CLOSE_DUPLICATES)]
+            sample_supp = sample[np.isin(sample[REFIDCOLUMN], CLOSE_DUPLICATES)]
             
-            igood = np.where((sample['NSA_NSAID'] != -9999) * (sample['NSA_NSAID'] > 0))[0]
-            ref['ba'][igood] = sample['NSA_SERSIC_BA'][igood]
-            ref['pa'][igood] = sample['NSA_SERSIC_PHI'][igood]
-            ref['diam'][igood] = 2 * 2 * sample['NSA_SERSIC_TH50'][igood] / 60 # [2*half-light radius, arcmin]
-            ref['mag_leda'][igood] = 22.5-2.5*np.log10(sample['NSA_SERSIC_FLUX'][igood, 4]) # r-band
+            reffile_main = os.path.join(basedir, 'manga-refcat.fits')
+            _write_refcat(sample_main, reffile_main)
 
-            reffile = os.path.join(basedir, 'manga-refcat.fits')
-            kdreffile = reffile.replace('.fits', '.kd.fits')
-            print('Writing {} galaxies to {}'.format(ngal, reffile))
+            reffile_supp = os.path.join(basedir, 'manga-refcat-supp.fits')
+            _write_refcat(sample_supp, reffile_supp)
             
-            hdr = fitsio.FITSHDR()
-            hdrver = refcat
-            hdr['SGAVER'] = hdrver
-            fitsio.write(reffile, ref.as_array(), header=hdr, clobber=True)
-
-            print('Writing {}'.format(kdreffile))
-            cmd = 'startree -i {} -o {} -T -P -k -n stars'.format(reffile, kdreffile)
-            print(cmd)
-            _ = os.system(cmd)
-
-            cmd = 'modhead {} SGAVER {}'.format(kdreffile, hdrver)
-            _ = os.system(cmd)
             return
 
         if args.htmlindex:
@@ -115,6 +178,7 @@ def main():
             from legacyhalos.manga import build_catalog
             args.custom_coadds = True
             _, _, groups, _ = legacyhalos.manga.missing_files(args, sample, args.nproc)
+
             if len(groups) == 0:
                 print('No complete galaxies!')
                 return
@@ -178,6 +242,12 @@ def main():
                 print('No resampled photometry found for {}; skipping'.format(galaxy))
             else:
                 os.makedirs(galaxydir, exist_ok=True)
+
+        # deal with the "duplicates"
+        if onegal[REFIDCOLUMN] in CLOSE_DUPLICATES:
+            os.environ['LARGEGALAXIES_CAT'] = os.environ.get('LARGEGALAXIES_CAT_SUPP')
+        else:
+            os.environ['LARGEGALAXIES_CAT'] = os.environ.get('LARGEGALAXIES_CAT_DEFAULT')
 
         #if (count+1) % 10 == 0:
         print('Rank {:03d} ({} / {}): {} (index {})'.format(
