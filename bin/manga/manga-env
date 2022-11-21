@@ -24,7 +24,8 @@ export SKY_TEMPLATE_DIR=/global/cfs/cdirs/cosmo/data/legacysurvey/dr9/calib/sky_
 
 #export LARGEGALAXIES_CAT=/global/cfs/cdirs/cosmo/staging/largegalaxies/v3.0/SGA-ellipse-v3.0.kd.fits
 #export LARGEGALAXIES_CAT=/global/cfs/cdirs/cosmo/staging/largegalaxies/v3.0/SGA-parent-v3.0.kd.fits
-export LARGEGALAXIES_CAT=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/$project/$project-refcat.kd.fits
+export LARGEGALAXIES_CAT_DEFAULT=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/$project/$project-refcat.kd.fits
+export LARGEGALAXIES_CAT_SUPP=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/$project/$project-refcat-supp.kd.fits
 
 export GAIA_CAT_DIR=/global/cfs/cdirs/desi/target/gaia_edr3/healpix
 export GAIA_CAT_PREFIX=healpix

@@ -95,13 +95,13 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
             filesuffix = '-resampled-htmlplots.isdone'
         elif args.build_catalog:
             suffix = 'resampled-build-catalog'
-            filesuffix = '-resampled-ellipse.isdone'        
+            filesuffix = None # '-resampled-ellipse.isdone'        
         else:
             suffix = 'resampled-ellipse'
             filesuffix = '-resampled-ellipse.isdone'        
     elif args.build_catalog:
         suffix = 'build-catalog'
-        filesuffix = '-custom-ellipse.isdone'        
+        filesuffix = None # '-custom-ellipse.isdone'        
         #dependson = '-custom-ellipse.isdone'
     elif args.htmlplots:
         suffix = 'html'
@@ -137,17 +137,20 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         ngal = len(sample)
     indices = np.arange(ngal)
 
-    mp = multiproc(nthreads=args.nproc)
-    missargs = []
-    for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
-        #missargs.append([gal, gdir, filesuffix, dependson, clobber])
-        checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
-        if dependson:
-            missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
-        else:
-            missargs.append([checkfile, None, clobber])
-        
-    todo = np.array(mp.map(_missing_files_one, missargs))
+    if filesuffix is None:
+        todo = np.repeat('done', ngal)
+    else:
+        mp = multiproc(nthreads=args.nproc)
+        missargs = []
+        for gal, gdir in zip(np.atleast_1d(galaxy), np.atleast_1d(galaxydir)):
+            #missargs.append([gal, gdir, filesuffix, dependson, clobber])
+            checkfile = os.path.join(gdir, '{}{}'.format(gal, filesuffix))
+            if dependson:
+                missargs.append([checkfile, os.path.join(gdir, '{}{}'.format(gal, dependson)), clobber])
+            else:
+                missargs.append([checkfile, None, clobber])
+            
+        todo = np.array(mp.map(_missing_files_one, missargs))
 
     itodo = np.where(todo == 'todo')[0]
     idone = np.where(todo == 'done')[0]
@@ -230,7 +233,8 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False, resampled=
         return galaxy, galaxydir
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                use_testbed=True, ellipse=False, resampled_phot=False, htmlplots=False):
+                use_testbed=True, ellipse=False, resampled_phot=False, htmlplots=False,
+                fullsample=False):
     """Read/generate the parent SGA catalog.
 
     """
@@ -330,44 +334,215 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     # * 9673-3703 is off the footprint
     # https://www.legacysurvey.org/viewer?ra=56.232562&dec=67.787128&layer=ls-dr9&zoom=13&sga&manga
-    
-    #if True:
-    #    remgals = np.array(['11843-12705', '11842-12705', '11841-12705', '12187-12705', '12767-1902',
-    #                        #'9673-3703', 
-    #                        ])
-    #    rem = np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals))
-    #    if np.sum(rem) > 0:
-    #        sample = sample[rem]
-
-    if True:
-        if ellipse or resampled_phot:
-            if htmlplots:
-                DOCOLUMN = 'DO_MANGA'
-            else:
-                DOCOLUMN = 'DO_ELLIPSE'
-        else:
+    if ellipse or resampled_phot:
+        if htmlplots:
             DOCOLUMN = 'DO_MANGA'
-        
-        print('Cleaning up the sample; keeping objects with {}==True.'.format(DOCOLUMN))
-        #print('Cleaning up the sample; removing objects with {}==True and 8075-3703.'.format(DOCOLUMN))
-        #remgals = np.array(['8075-3703', # https://github.com/legacysurvey/legacypipe/issues/705
-        #                    #'9673-3703', 
-        #                    ])
-        #rem = np.logical_and(sample[DOCOLUMN], np.logical_not(np.isin(sample[GALAXYCOLUMN], remgals)))
-        rem = sample[DOCOLUMN]
+        else:
+            DOCOLUMN = 'DO_ELLIPSE'
+    else:
+        DOCOLUMN = 'DO_MANGA'
+
+    #bb = sample[np.isin(sample[REFIDCOLUMN], np.array([
+    #    10506012702, 10504009102,
+    #    10843012704, 11866009101,
+    #    7443001901, 9872001901,
+    #    9872003702, 7443003701,
+    #    8983003703, 7495012704,
+    #    7963003701, 8651003701,
+    #    8329003701, 8333012701,
+    #    8239006104, 8567012702,
+    #    8588003701, 8603012701,
+    #    9046006104, 9048003703]))]['PLATEIFU', RACOLUMN, DECCOLUMN, REFIDCOLUMN]
+    #bb = bb[np.argsort(bb[RACOLUMN])]
+    #print(bb)
+
+    # duplicates
+    #   PLATEIFU    IFURA     IFUDEC     MANGANUM
+    # ----------- --------- ---------- -----------
+    # 10506-12702 139.48427   34.50929 10506012702 - missing Tractor/ellipse
+    #  10504-9102 139.48431  34.509323 10504009102
+    # 10843-12704 149.70772 0.83665769 10843012704 - missing Tractor/ellipse
+    #  11866-9101 149.70772 0.83665771 11866009101
+    #   7443-1901 231.04261  42.068721  7443001901 - missing Tractor/ellipse
+    #   9872-1901 231.04264  42.068723  9872001901
+    #   7443-3701 230.57438   42.28702  7443003701 - missing Tractor/ellipse
+    #   9872-3702 230.57439  42.287013  9872003702
+    #  7495-12704  205.4384  27.004754  7495012704 - missing Tractor/ellipse
+    #   8983-3703 205.43841  27.004738  8983003703
+    #   7963-3701 313.57074 -1.2491752  7963003701 - missing Tractor/ellipse
+    #   8651-3701 313.57074 -1.2491752  8651003701    
+    #  8567-12702 118.53567   48.70984  8567012702 - missing Tractor/ellipse
+    #   8239-6104  118.5407  48.708898  8239006104
+    #   8329-3701 213.43219  43.662481  8329003701 - missing Tractor/ellipse
+    #  8333-12701 213.43219  43.662481  8333012701
+    #   8588-3701 248.14056  39.131021  8588003701 - missing Tractor/ellipse
+    #  8603-12701 248.14056  39.131021  8603012701
+    #   9046-6104 246.17117   25.32936  9046006104 - missing Tractor/ellipse
+    #   9048-3703 246.17224  25.328235  9048003703
+
+    print('Flagging sources outside the DR9 footprint or with missing grz coverage.')
+    remgals = np.array([
+        # missing z-band
+        '8086-12703', 
+        '8156-12703',
+        '8156-1901', 
+        '8156-1902',
+        # no CCDs touching footprint
+        '8086-6104', # tiny bit of data in the corner, but nothing usable
+        '10480-12701', '10480-12702', '10480-12703', '10480-12704', '10480-12705', '10481-12701', 
+        '10481-12702', '10481-12703', '10481-12704', '10481-12705', '10482-12701', '10482-12702', 
+        '10482-12703', '10482-12704', '10482-12705', '10483-12701', '10483-12702', '10483-12703', 
+        '10483-12704', '10483-12705', '10484-12701', '10484-12702', '10484-12703', '10484-12704', 
+        '10484-12705', '10485-12701', '10485-12702', '10485-12703', '10480-1901',
+        '10480-1902', '10480-3701', '10480-3702', '10480-3703', '10480-3704', '10480-6101', 
+        '10480-6102', '10480-6103', '10480-6104', '10480-9101', '10480-9102', '10481-1902', 
+        '10481-3701', '10481-3703', '10481-3704', '10481-6101', '10481-6102', '10481-6104', 
+        '10481-9101', '10481-9102', '10482-1902', '10482-3701', '10482-3703', '10482-3704', 
+        '10482-6101', '10482-6102', '10482-6104', '10482-9101', '10482-9102', '10483-1902', 
+        '10483-3701', '10483-3703', '10483-3704', '10483-6101', '10483-6102', '10483-6104', 
+        '10483-9101', '10483-9102', '10484-1902', '10484-3701', '10484-3703', '10484-3704',
+        '10484-6101', '10484-6102', '10484-6104', '10484-9101', '10484-9102', 
+        '10141-12702', '10141-12703', '10141-12704', '10141-12705', '10142-12701', '10142-12702',
+        '10142-12703', '10142-12704', '10142-12705', '10143-12701', '10143-12702', '10143-12703',
+        '10143-12704', '10143-12705', '10144-12701', '10144-12702', '10144-12703', '10144-12704',
+        '10144-12705', '10145-12701', '10145-12702', '10145-12703', '10145-12704', '10145-12705',
+        '10146-12701', '10146-12702', '10146-12703', '10146-12704', '10146-12705', '10147-12701',
+        '10147-12702', '10147-12703', '10147-12704', '10147-12705', '10148-12701', '10148-12702',
+        '10148-12703', '10148-12704', '10148-12705', '10149-12701', '10149-12702', '10149-12703',
+        '10149-12704', '10149-12705', '10150-12701', '10150-12702', '10150-12703', '10150-12704',
+        '10150-12705', '10141-1901', '10141-1902', '10141-3701', '10141-3702', '10141-3703',
+        '10141-3704', '10141-6101', '10141-6102', '10141-6103', '10141-6104', '10141-9101',
+        '10141-9102', '10142-1901', '10142-1902', '10142-3701', '10142-3702', '10142-3703',
+        '10142-3704', '10142-6101', '10142-6102', '10142-6103', '10142-6104', '10142-9101',
+        '10142-9102', '10143-1901', '10143-1902', '10143-3701', '10143-3702', '10143-3703',
+        '10143-3704', '10143-6101', '10143-6102', '10143-6103', '10143-6104', '10143-9101',
+        '10143-9102', '10144-1901', '10144-1902', '10144-3701', '10144-3702', '10144-3703',
+        '10144-3704', '10144-6101', '10144-6102', '10144-6103', '10144-6104', '10144-9101',
+        '10144-9102', '10145-1901', '10145-1902', '10145-3701', '10145-3702', '10145-3703',
+        '10145-3704', '10145-6101', '10145-6102', '10145-6103', '10145-6104', '10145-9101',
+        '10145-9102', '10146-1901', '10146-1902', '10146-3701', '10146-3702', '10146-3703',
+        '10146-3704', '10146-6101', '10146-6102', '10146-6103', '10146-6104', '10146-9101',
+        '10146-9102', '10147-1901', '10147-1902', '10147-3701', '10147-3702', '10147-3703',
+        '10147-3704', '10147-6101', '10147-6102', '10147-6103', '10147-6104', '10147-9101',
+        '10147-9102', '10148-1901', '10148-1902', '10148-3701', '10148-3702', '10148-3703',
+        '10148-3704', '10148-6101', '10148-6102', '10148-6103', '10148-6104', '10148-9101',
+        '10148-9102', '10149-1901', '10149-1902', '10149-3701', '10149-3702', '10149-3703',
+        '10149-3704', '10149-6101', '10149-6102', '10149-6103', '10149-6104', '10149-9101',
+        '10149-9102', '10150-1901', '10150-1902', '10150-3701', '10150-3702', '10150-3703',
+        '10150-3704', '10150-6101', '10150-6102', '10150-6103', '10150-6104', '10150-9101',
+        '10150-9102', '11986-6102', '11986-9102', '11987-3701', '11987-3703', '10141-12701', 
+        '8086-1902', '8086-3702', '8086-3703', '8086-3704', '8086-6101', '8086-6103', 
+        '8086-9101', '8086-9102', '9677-1901', '9677-1902', '9677-3701', '9677-3702', 
+        '9677-3703', '9677-3704', '9677-6101', '9677-6104', '9678-1901', '9678-1902', 
+        '9678-3701', '9678-3702', '9678-3703', '9678-3704', '9678-6101', '9678-6104',
+        '10485-12704', '10485-12705', '10485-1901', '10485-1902', '10485-3701', '10485-3702',
+        '10485-3703', '10485-3704', '10485-6101', '10485-6102', '10485-6103', '10485-6104', '10485-9101',
+        '10485-9102', '10486-12701', '10486-12702', '10486-12703', '10486-12704', '10486-12705',
+        '10486-1902', '10486-3701', '10486-3703', '10486-3704', '10486-6101', '10486-6102',
+        '10486-6104', '10486-9101', '10486-9102', '10487-12701', '10487-12702', '10487-12703',
+        '10487-12704', '10487-12705', '10487-1902', '10487-3701', '10487-3703', '10487-3704',
+        '10487-6101', '10487-6102', '10487-6104', '10487-9101', '10487-9102', '10488-12701',
+        '10488-12702', '10488-12703', '10488-12704', '10488-12705', '10488-1902', '10488-3701',
+        '10488-3703', '10488-3704', '10488-6101', '10488-6102', '10488-6104', '10488-9101',
+        '10488-9102', '10489-12701', '10489-12702', '10489-12703', '10489-12704', '10489-12705',
+        '10489-1901', '10489-1902', '10489-3701', '10489-3702', '10489-3703', '10489-3704',
+        '10489-6101', '10489-6102', '10489-6103', '10489-6104', '10489-9101', '10489-9102',
+        '10490-12702', '10490-12703', '10490-12704', '10490-12705', '10490-1901', '10490-1902',
+        '10490-3701', '10490-3702', '10490-3703', '10490-3704', '10490-6101', '10490-6102',
+        '10490-6103', '10490-6104', '10490-9101', '10490-9102', '10491-12701', '10491-12702',
+        '10491-12703', '10491-12704', '10491-12705', '10491-1901', '10491-1902', '10491-3701',
+        '10491-3702', '10491-3703', '10491-3704', '10491-6101', '10491-6102', '10491-6103',
+        '10491-6104', '10491-9101', '10491-9102', '11986-12703', '11986-12704', '11986-12705',
+        '11987-12701', '11987-12702', '11987-12703', '11987-12704', '11987-12705', '12027-12701',
+        '12027-12702', '12027-12703', '12027-12704', '12027-12705', '12028-12701', '12028-12702',
+        '12028-12703', '12028-12704', '12028-12705', '12029-12701', '12029-12702', '12029-12703',
+        '12029-12704', '12029-12705', '12030-12701', '12030-12702', '12030-12703', '12030-12704',
+        '12030-12705', '12031-12701', '12031-12702', '12031-12703', '12031-12704', '12031-12705',
+        '12032-12701', '12032-12702', '12032-12703', '12032-12704', '12032-12705', '12033-12701',
+        '12033-12702', '12033-12703', '12033-12704', '12033-12705', '12034-12701', '12034-12702',
+        '12034-12703', '12034-12704', '12034-12705', '12035-12701', '12035-12702', '12035-12703',
+        '12035-12704', '12035-12705', '12036-12701', '12036-12702', '12036-12703', '12036-12704',
+        '12036-12705', '12037-12701', '12037-12702', '12037-12703', '12037-12704', '12037-12705',
+        '12038-12701', '12038-12702', '12038-12703', '12038-12704', '12038-12705', '12039-12701',
+        '12039-12702', '12039-12703', '12039-12704', '12039-12705', '12040-12701', '12040-12702',
+        '12040-12703', '12040-12704', '12040-12705', '12041-12701', '12041-12702', '12041-12703',
+        '12041-12704', '12041-12705', '12042-12701', '12042-12702', '12042-12703', '12042-12704',
+        '12042-12705', '12043-12701', '12043-12702', '12043-12703', '12043-12704', '12043-12705',
+        '12044-12701', '12044-12702', '12044-12703', '12044-12704', '12044-12705', '12045-12701',
+        '12045-12702', '12045-12703', '12045-12704', '12045-12705', '12046-12701', '12046-12702',
+        '12046-12703', '12046-12704', '12046-12705', '12047-12701', '12047-12702', '12047-12703',
+        '12047-12704', '12047-12705', '12048-12701', '12048-12702', '12048-12703', '12048-12704',
+        '12048-12705', '12049-12701', '12049-12702', '12049-12703', '12049-12704', '12049-12705',
+        '12050-12701', '12050-12702', '12050-12703', '12050-12704', '12050-12705',
+        '11986-1902', '11986-3703', '11986-3704', '11986-6104', '11987-1901', '11987-1902',
+        '11987-3702', '11987-3704', '11987-6101', '11987-6102', '11987-6103', '11987-6104',
+        '11987-9101', '11987-9102', '12027-1901', '12027-1902', '12027-3701', '12027-3702',
+        '12027-3703', '12027-3704', '12027-6101', '12027-6102', '12027-6103', '12027-6104',
+        '12027-9101', '12027-9102', '12028-1902', '12028-3701', '12028-3703', '12028-3704',
+        '12028-6101', '12028-6102', '12028-6104', '12028-9101', '12028-9102', '12029-1901',
+        '12029-1902', '12029-3701', '12029-3702', '12029-3703', '12029-3704', '12029-6101',
+        '12029-6102', '12029-6103', '12029-6104', '12029-9101', '12029-9102', '12030-1901',
+        '12030-1902', '12030-3701', '12030-3702', '12030-3703', '12030-3704', '12030-6101',
+        '12030-6102', '12030-6103', '12030-6104', '12030-9101', '12030-9102', '12031-1901',
+        '12031-1902', '12031-3701', '12031-3702', '12031-3703', '12031-3704', '12031-6101',
+        '12031-6102', '12031-6103', '12031-6104', '12031-9101', '12031-9102', '12032-1901',
+        '12032-1902', '12032-3701', '12032-3702', '12032-3703', '12032-3704', '12032-6101',
+        '12032-6102', '12032-6103', '12032-6104', '12032-9101', '12032-9102', '12033-1901',
+        '12033-1902', '12033-3701', '12033-3702', '12033-3703', '12033-3704', '12033-6101',
+        '12033-6102', '12033-6103', '12033-6104', '12033-9101', '12033-9102', '12034-1901',
+        '12034-1902', '12034-3701', '12034-3702', '12034-3703', '12034-3704', '12034-6101',
+        '12034-6102', '12034-6103', '12034-6104', '12034-9101', '12034-9102', '12035-1901',
+        '12035-1902', '12035-3701', '12035-3702', '12035-3703', '12035-3704', '12035-6101',
+        '12035-6102', '12035-6103', '12035-6104', '12035-9101', '12035-9102', '12036-1901',
+        '12036-1902', '12036-3701', '12036-3702', '12036-3703', '12036-3704', '12036-6101',
+        '12036-6102', '12036-6103', '12036-6104', '12036-9101', '12036-9102', '12037-1901',
+        '12037-1902', '12037-3701', '12037-3702', '12037-3703', '12037-3704', '12037-6101',
+        '12037-6102', '12037-6103', '12037-6104', '12037-9101', '12037-9102', '12038-1901',
+        '12038-1902', '12038-3701', '12038-3702', '12038-3703', '12038-3704', '12038-6101',
+        '12038-6102', '12038-6103', '12038-6104', '12038-9101', '12038-9102', '12039-1901',
+        '12039-1902', '12039-3701', '12039-3702', '12039-3703', '12039-3704', '12039-6101',
+        '12039-6102', '12039-6103', '12039-6104', '12039-9101', '12039-9102', '12040-1901',
+        '12040-1902', '12040-3701', '12040-3702', '12040-3703', '12040-3704', '12040-6101',
+        '12040-6102', '12040-6103', '12040-6104', '12040-9101', '12040-9102', '12041-1901',
+        '12041-1902', '12041-3701', '12041-3702', '12041-3703', '12041-3704', '12041-6101',
+        '12041-6102', '12041-6103', '12041-6104', '12041-9101', '12041-9102', '12042-1901',
+        '12042-1902', '12042-3701', '12042-3702', '12042-3703', '12042-3704', '12042-6101',
+        '12042-6102', '12042-6103', '12042-6104', '12042-9101', '12042-9102', '12043-1901',
+        '12043-1902', '12043-3701', '12043-3702', '12043-3703', '12043-3704', '12043-6101',
+        '12043-6102', '12043-6103', '12043-6104', '12043-9101', '12043-9102', '12044-1901',
+        '12044-1902', '12044-3701', '12044-3702', '12044-3703', '12044-3704', '12044-6101',
+        '12044-6102', '12044-6103', '12044-6104', '12044-9101', '12044-9102', '12045-1901',
+        '12045-1902', '12045-3701', '12045-3702', '12045-3703', '12045-3704', '12045-6101',
+        '12045-6102', '12045-6103', '12045-6104', '12045-9101', '12045-9102', '12046-1901',
+        '12046-1902', '12046-3701', '12046-3702', '12046-3703', '12046-3704', '12046-6101',
+        '12046-6102', '12046-6103', '12046-6104', '12046-9101', '12046-9102', '12047-1901',
+        '12047-1902', '12047-3701', '12047-3702', '12047-3703', '12047-3704', '12047-6101',
+        '12047-6102', '12047-6103', '12047-6104', '12047-9101', '12047-9102', '12048-1901',
+        '12048-1902', '12048-3701', '12048-3702', '12048-3703', '12048-3704', '12048-6101',
+        '12048-6102', '12048-6103', '12048-6104', '12048-9101', '12048-9102', '12049-1901',
+        '12049-1902', '12049-3701', '12049-3702', '12049-3703', '12049-3704', '12049-6101',
+        '12049-6102', '12049-6103', '12049-6104', '12049-9101', '12049-9102', '12050-1901',
+        '12050-1902', '12050-3701', '12050-3702', '12050-3703', '12050-3704', '12050-6101',
+        '12050-6102', '12050-6103', '12050-6104', '12050-9101', '12050-9102', '9673-12701',
+        '9673-12702', '9673-12703', '9673-12704', '9673-12705', '9674-12701', '9674-12702',
+        '9674-12703', '9674-12704', '9674-12705', '9675-12701', '9675-12702', '9675-12703',
+        '9675-12704', '9675-12705', '9677-12701', '9677-12702', '9677-12703', '9677-12704',
+        '9677-12705', '9678-12701', '9678-12702', '9678-12703', '9678-12704', '9678-12705',
+        '9673-1901', '9673-1902', '9673-3701', '9673-3702', '9673-3703', '9673-3704',
+        '9673-6101', '9673-6102', '9673-6103', '9673-6104', '9673-9101', '9673-9102',
+        '9674-1901', '9674-1902', '9674-3701', '9674-3702', '9674-3703', '9674-3704',
+        '9674-6101', '9674-6102', '9674-6104', '9674-9101', '9674-9102', '9675-1901',
+        '9675-1902', '9675-3701', '9675-3702', '9675-3703', '9675-3704', '9675-6101',
+        '9675-6102', '9675-6103', '9675-6104', '9675-9101', '9675-9102', '9677-6102',
+        '9677-6103', '9677-9101', '9677-9102', '9678-6102', '9678-6103', '9678-9101', '9678-9102'])  
+    sample['DO_IMAGING'] = np.ones(len(sample), bool)
+    sample['DO_IMAGING'][np.isin(sample[GALAXYCOLUMN], remgals)] = False
+
+    if not fullsample:
+        print('Cleaning up the sample; keeping objects with {}==True and DO_IMAGING==True.'.format(DOCOLUMN))
+        rem = sample[DOCOLUMN] * sample['DO_IMAGING']
         if np.sum(rem) > 0:
             sample = sample[rem]
-    #print(DOCOLUMN, len(sample))
-
-    # Add an (internal) index number:
-    #sample.add_column(astropy.table.Column(name='INDEX', data=rows), index=0)
-    
-    ## strip whitespace
-    #if 'GALAXY' in sample.colnames:
-    #    sample['GALAXY'] = [gg.strip() for gg in sample['GALAXY']]
-    #if 'GROUP_NAME' in sample.colnames:
-    #    galcolumn = 'GROUP_NAME'
-    #    sample['GROUP_NAME'] = [gg.strip() for gg in sample['GROUP_NAME']]
 
     if galaxylist is not None:
         if verbose:
@@ -391,10 +566,13 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         sample['PA_INIT'][igood] = sample['NSA_SERSIC_PHI'][igood]
         sample['DIAM_INIT'][igood] = 2 * 2 * sample['NSA_SERSIC_TH50'][igood] / 60 # [2*half-light radius, arcmin]
 
-    #sample.rename_column('OBJRA', 'RA')
-    #sample.rename_column('OBJDEC', 'DEC')
-    #sample[REFIDCOLUMN] = [np.int(mid.replace('-', '')) for mid in sample['MANGAID']]
     sample[REFIDCOLUMN] = sample['PLATE'] * 1000000 + np.int32(sample['IFUDSGN'])
+
+    ## add the dust
+    #from legacyhalos.dust import SFDMap, mwdust_transmission
+    #ebv = SFDMap().ebv(sample[RACOLUMN], sample[DECCOLUMN])
+    #for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
+    #    sample['MW_TRANSMISSION_{}'.format(band.upper())] = mwdust_transmission(ebv, band, 'N', match_legacy_surveys=True).astype('f4')
 
     return sample
 
@@ -405,8 +583,9 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
     from astropy.table import Table, vstack
     from legacyhalos.io import read_ellipsefit
 
-    #version = 'v1.0'
-    version = '0.2.0.testbed'
+    version = '0.3.0' # '0.2.0.testbed' # 'v1.0'
+
+    ngal = len(sample)
 
     if resampled:
         outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-{}.fits'.format(version))
@@ -429,9 +608,9 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
         refid = onegal[REFIDCOLUMN]
         tractorfile = os.path.join(gdir, '{}-custom-tractor.fits'.format(gal))
         ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
-        if not os.path.isfile(tractorfile):
+        if not os.path.isfile(tractorfile) and onegal['DO_MANGA'] and onegal['DO_IMAGING']:
             print('Missing Tractor catalog {}'.format(tractorfile))
-        if not os.path.isfile(ellipsefile):
+        if not os.path.isfile(ellipsefile) and onegal['DO_ELLIPSE'] and onegal['DO_IMAGING']:
             print('Missing ellipse file {}'.format(ellipsefile))
         
         if os.path.isfile(tractorfile) and os.path.isfile(ellipsefile):
@@ -466,31 +645,59 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
                 else:
                     print('Missing resampled photometry {}'.format(resampfile))
 
+    if len(tractor) == 0:
+        print('Need at least one fitted object to create a merged catalog.')
+        return
+
+    assert(len(ellipse) == len(parent))
+    assert(len(tractor) == len(parent))
     ellipse = vstack(ellipse, metadata_conflicts='silent')
     tractor = vstack(tractor, metadata_conflicts='silent')
     parent = vstack(parent, metadata_conflicts='silent')
     if resampled:
+        assert(len(phot) == len(parent))
         phot = vstack(phot, metadata_conflicts='silent')
     print('Merging {} galaxies took {:.2f} min.'.format(len(tractor), (time.time()-t0)/60.0))
-
-    if len(tractor) == 0:
-        print('Something went wrong and no galaxies were fitted.')
-        return
     assert(len(tractor) == len(parent))
+
+    # row-match the merged catalogs to the input sample catalog
+    I = np.isin(sample[REFIDCOLUMN], parent[REFIDCOLUMN])
+    assert(np.all(sample[I] == parent))
+    
+    out_ellipse = Table()
+    for col in ellipse.colnames:
+        out_ellipse[col] = np.zeros(ngal, dtype=ellipse[col].dtype)
+    out_ellipse[I] = ellipse
+
+    out_tractor = Table()
+    for col in tractor.colnames:
+        if len(tractor[col].shape) > 1:
+            out_tractor[col] = np.zeros((ngal, tractor[col].shape[1]), dtype=tractor[col].dtype)
+        else:
+            out_tractor[col] = np.zeros(ngal, dtype=tractor[col].dtype)
+    out_tractor[I] = tractor
+
+    if resampled:
+        out_phot = Table()
+        for col in phot.colnames:
+            out_phot[col] = np.zeros(ngal, dtype=phot[col].dtype)
+        out_phot[I] = phot
+
+    del phot, tractor, ellipse
 
     # write out
     hdu_primary = fits.PrimaryHDU()
-    hdu_parent = fits.convenience.table_to_hdu(parent)
+    hdu_parent = fits.convenience.table_to_hdu(sample) # parent)
     hdu_parent.header['EXTNAME'] = 'PARENT'
         
-    hdu_ellipse = fits.convenience.table_to_hdu(ellipse)
+    hdu_ellipse = fits.convenience.table_to_hdu(out_ellipse)
     hdu_ellipse.header['EXTNAME'] = 'ELLIPSE'
 
-    hdu_tractor = fits.convenience.table_to_hdu(tractor)
+    hdu_tractor = fits.convenience.table_to_hdu(out_tractor)
     hdu_tractor.header['EXTNAME'] = 'TRACTOR'
         
     if resampled:
-        hdu_phot = fits.convenience.table_to_hdu(phot)
+        hdu_phot = fits.convenience.table_to_hdu(out_phot)
         hdu_phot.header['EXTNAME'] = 'RESAMPLED'
         hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_phot, hdu_tractor])
     else:
@@ -498,11 +705,11 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
         
     hx.writeto(outfile, overwrite=True, checksum=True)
 
-    print('Wrote {} galaxies to {}'.format(len(parent), outfile))
+    print('Wrote {} galaxies to {}'.format(len(sample), outfile))
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=0.001, r50mask=0.05, maxshift=10,
-                          sigmamask=3.0, neighborfactor=10.0, verbose=False):
+                          threshmask=0.01, r50mask=0.05, maxshift=0.0,
+                          sigmamask=3.0, neighborfactor=1.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -528,6 +735,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #box = np.meshgrid(np.arange(nbox), np.arange(nbox))[0]-nbox//2
 
     xobj, yobj = np.ogrid[0:data['refband_height'], 0:data['refband_width']]
+    dims = data[refband].shape
+    assert(dims[0] == dims[1])
 
     # If the row-index of the central galaxy is not provided, use the source
     # nearest to the center of the field.
@@ -561,7 +770,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             pa = tractor.pa_init[indx]
             ba = tractor.ba_init[indx]
             # take away the extra factor of 2 we put in in read_sample()
-            r50 = tractor.diam_init[indx] * 60 / 2 / 2
+            r50 = tractor.diam_init[indx] * 60 / 2 / 2 # [arcsec]
             if r50 < 5:
                 r50 = 5.0 # minimum size, arcsec
             majoraxis = factor * r50 / filt2pixscale[refband] # [pixels]
@@ -579,20 +788,33 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
-        mgegalaxy.xmed = tractor.by[indx]
-        mgegalaxy.ymed = tractor.bx[indx]
-        mgegalaxy.xpeak = tractor.by[indx]
-        mgegalaxy.ypeak = tractor.bx[indx]
+
+        # force the central pixels to be at the center of the mosaic because all
+        # MaNGA sources were visually inspected and we want to have consistency
+        # between the center used for the IFU and the center used for photometry.
+        mgegalaxy.xmed = dims[0] / 2
+        mgegalaxy.ymed = dims[0] / 2
+        mgegalaxy.xpeak = dims[0] / 2
+        mgegalaxy.ypeak = dims[0] / 2
+        #mgegalaxy.xmed = tractor.by[indx]
+        #mgegalaxy.ymed = tractor.bx[indx]
+        #mgegalaxy.xpeak = tractor.by[indx]
+        #mgegalaxy.ypeak = tractor.bx[indx]
         mgegalaxy.eps = 1-ba
         mgegalaxy.pa = pa
         mgegalaxy.theta = (270 - pa) % 180
         mgegalaxy.majoraxis = majoraxis
 
+        # by default, restore all the pixels within 10% of the nominal IFU
+        # footprint, assuming a circular geometry.
+        default_majoraxis = 1.1 * MANGA_RADIUS / 2 / filt2pixscale[refband] # [pixels]
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
-                               mgegalaxy.majoraxis,
-                               mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
-                               np.radians(mgegalaxy.theta-90), xobj, yobj)
-
+                               default_majoraxis, default_majoraxis, 0.0, xobj, yobj)
+        #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+        #                       mgegalaxy.majoraxis,
+        #                       mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
+        #                       np.radians(mgegalaxy.theta-90), xobj, yobj)
+    
         return mgegalaxy, objmask
 
     # Now, loop through each 'galaxy_indx' from bright to faint.
@@ -609,7 +831,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # and galaxies "near" it. Also restore the original pixels of the
         # central in case there was a poor deblend.
         largeshift = False
-        mge, centralmask = tractor2mge(central, factor=neighborfactor)
+        mge, centralmask = tractor2mge(central, factor=1.0)
         #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
@@ -624,6 +846,11 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         img = data[refband].data - model
         img[centralmask] = data[refband].data[centralmask]
 
+        # the "residual mask" is initialized in legacyhalos.io._read_image_data
+        # and it includes pixels which are significant residuals (data minus
+        # model), pixels with invvar==0, and pixels belonging to maskbits
+        # BRIGHT, MEDIUM, CLUSTER, or ALLMASK_[GRZ]
+        
         mask = np.logical_or(ma.getmask(data[refband]), data['residual_mask'])
         #mask = np.logical_or(data[refband].mask, data['residual_mask'])
         mask[centralmask] = False
@@ -632,10 +859,19 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         ma.set_fill_value(img, fill_value)
 
         mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('desi-users/ioannis/tmp/debug.png')
+
+        # force the center
+        mgegalaxy.xmed = dims[0] / 2
+        mgegalaxy.ymed = dims[0] / 2
+        mgegalaxy.xpeak = dims[0] / 2
+        mgegalaxy.ypeak = dims[0] / 2
+        print('Enforcing galaxy centroid to the center of the mosaic: (x,y)=({:.3f},{:.3f})'.format(
+            mgegalaxy.xmed, mgegalaxy.ymed))
+        
         #if True:
         #    import matplotlib.pyplot as plt
         #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/debug.png')
-        #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+        ##    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #    pdb.set_trace()
 
         # Did the galaxy position move? If so, revert back to the Tractor geometry.
@@ -643,8 +879,18 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             print('Large centroid shift! (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
                 mgegalaxy.xmed, mgegalaxy.ymed, mge.xmed, mge.ymed))
             largeshift = True
-            mgegalaxy = copy(mge)
 
+            # For the MaNGA project only, check to make sure the Tractor
+            # position isn't far from the center of the mosaic, which can happen
+            # near bright stars, e.g., 8133-12705
+            mgegalaxy = copy(mge)
+            sz = img.shape
+            if np.abs(mgegalaxy.xmed-sz[1]/2) > maxshift or np.abs(mgegalaxy.ymed-sz[0]/2) > maxshift:
+                print('Large centroid shift in Tractor coordinates! (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
+                    mgegalaxy.xmed, mgegalaxy.ymed, sz[1]/2, sz[0]/2))
+                mgegalaxy.xmed = sz[1]/2
+                mgegalaxy.ymed = sz[0]/2
+            
         radec_med = data['{}_wcs'.format(refband.lower())].pixelToPosition(
             mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
         radec_peak = data['{}_wcs'.format(refband.lower())].pixelToPosition(
@@ -653,12 +899,20 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             'largeshift': largeshift,
             'ra': tractor.ra[central], 'dec': tractor.dec[central],
             'bx': tractor.bx[central], 'by': tractor.by[central],
-            'mw_transmission_g': tractor.mw_transmission_g[central],
-            'mw_transmission_r': tractor.mw_transmission_r[central],
-            'mw_transmission_z': tractor.mw_transmission_z[central],
+            #'mw_transmission_g': tractor.mw_transmission_g[central],
+            #'mw_transmission_r': tractor.mw_transmission_r[central],
+            #'mw_transmission_z': tractor.mw_transmission_z[central],
             'ra_moment': radec_med[0], 'dec_moment': radec_med[1],
             #'ra_peak': radec_med[0], 'dec_peak': radec_med[1]
             }
+
+        # add the dust
+        from legacyhalos.dust import SFDMap, mwdust_transmission
+        ebv = SFDMap().ebv(radec_peak[0], radec_peak[1])
+        mge['ebv'] = np.float32(ebv)
+        for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
+            mge['mw_transmission_{}'.format(band.lower())] = mwdust_transmission(ebv, band, 'N', match_legacy_surveys=True).astype('f4')
+            
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
             mge[key] = np.float32(getattr(mgegalaxy, key))
             if key == 'pa': # put into range [0-180]
@@ -716,9 +970,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 satmask = np.logical_or(satmask, thissatmask)
                 #if True:
                 #    import matplotlib.pyplot as plt
-                #    plt.clf() ; plt.imshow(np.log10(satimg), origin='lower') ; plt.savefig('debug.png')
-                #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('debug.png')
-                ##    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+                ##    plt.clf() ; plt.imshow(np.log10(satimg), origin='lower') ; plt.savefig('debug.png')
+                #    plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/debug.png')
+                ###    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
                 #    pdb.set_trace()
 
             #print(filt, np.sum(satmask), np.sum(thissatmask))
@@ -967,6 +1221,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     # keep all objects
     galaxy_indx = []
     galaxy_indx = np.hstack([np.where(sid == tractor.ref_id)[0] for sid in sample[REFIDCOLUMN]])
+    #if len(galaxy_indx
 
     #sample = sample[np.searchsorted(sample['VF_ID'], tractor.ref_id[galaxy_indx])]
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
@@ -1005,6 +1260,9 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     for igal, (galaxy_id, galaxy_indx) in enumerate(zip(data['galaxy_id'], data['galaxy_indx'])):
         samp = sample[sample[REFIDCOLUMN] == galaxy_id]
         galaxyinfo = {'mangaid': (str(galaxy_id), None)}
+        #for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
+        #    galaxyinfo['mw_transmission_{}'.format(band)] = (samp['MW_TRANSMISSION_{}'.format(band.upper())][0], None)
+        
         #              'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
         #for key, unit in zip(['ra', 'dec'], [u.deg, u.deg]):
         #    galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
@@ -1048,7 +1306,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
 
     maxsma = None
     #maxsma = 5 * MANGA_RADIUS # None
-    delta_logsma = 4 # 3.0
+    delta_logsma = 3 # 3.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!
@@ -1058,6 +1316,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
                      clobber=clobber, verbose=verbose,
+                     copy_mw_transmission=True,
                      #debug=True,
                      debug=debug, logfile=logfile)
 
@@ -1105,7 +1364,7 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
 
     _phot = {'abmag': np.zeros(nband, 'f4')-1,
              'abmagerr': np.zeros(nband, 'f4')+0.5,
-             'upper': np.zeros(nband, bool)}
+             'lower': np.zeros(nband, bool)}
     phot = {'tractor': deepcopy(_phot), 'mag_tot': deepcopy(_phot), 'mag_sb25': deepcopy(_phot),
             'resamp_mag_tot': deepcopy(_phot), 'resamp_mag_sb25': deepcopy(_phot),
             'manga': deepcopy(_phot)}
@@ -1116,7 +1375,7 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
         if mtot > 0:
             phot['mag_tot']['abmag'][ifilt] = mtot
             phot['mag_tot']['abmagerr'][ifilt] = 0.1 # hack!!
-            phot['mag_tot']['upper'][ifilt] = False
+            phot['mag_tot']['lower'][ifilt] = False
 
         flux = ellipsefit['flux_sb25_{}'.format(filt.lower())]
         ivar = ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
@@ -1126,13 +1385,13 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
             magerr = 2.5 * ferr / flux / np.log(10)
             phot['mag_sb25']['abmag'][ifilt] = mag
             phot['mag_sb25']['abmagerr'][ifilt] = magerr
-            phot['mag_sb25']['upper'][ifilt] = False
+            phot['mag_sb25']['lower'][ifilt] = False
         if flux <=0 and ivar > 0:
             ferr = 1.0 / np.sqrt(ivar)
             mag = 22.5 - 2.5 * np.log10(ferr)
             phot['mag_sb25']['abmag'][ifilt] = mag
             phot['mag_sb25']['abmagerr'][ifilt] = 0.75
-            phot['mag_sb25']['upper'][ifilt] = True
+            phot['mag_sb25']['lower'][ifilt] = True
 
         # resampled photometry
         if resamp_ellipsefit:
@@ -1140,7 +1399,7 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
             if mtot > 0:
                 phot['resamp_mag_tot']['abmag'][ifilt] = mtot
                 phot['resamp_mag_tot']['abmagerr'][ifilt] = 0.1 # hack!!
-                phot['resamp_mag_tot']['upper'][ifilt] = False
+                phot['resamp_mag_tot']['lower'][ifilt] = False
     
             flux = resamp_ellipsefit['flux_sb25_{}'.format(filt.lower())]
             ivar = resamp_ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
@@ -1150,13 +1409,13 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
                 magerr = 2.5 * ferr / flux / np.log(10)
                 phot['resamp_mag_sb25']['abmag'][ifilt] = mag
                 phot['resamp_mag_sb25']['abmagerr'][ifilt] = magerr
-                phot['resamp_mag_sb25']['upper'][ifilt] = False
+                phot['resamp_mag_sb25']['lower'][ifilt] = False
             if flux <=0 and ivar > 0:
                 ferr = 1.0 / np.sqrt(ivar)
                 mag = 22.5 - 2.5 * np.log10(ferr)
                 phot['resamp_mag_sb25']['abmag'][ifilt] = mag
                 phot['resamp_mag_sb25']['abmagerr'][ifilt] = 0.75
-                phot['resamp_mag_sb25']['upper'][ifilt] = True
+                phot['resamp_mag_sb25']['lower'][ifilt] = True
 
             flux = resamp_ellipsefit['flux_apmanga_{}'.format(filt.lower())]
             ivar = resamp_ellipsefit['flux_ivar_apmanga_{}'.format(filt.lower())]
@@ -1166,13 +1425,13 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
                 magerr = 2.5 * ferr / flux / np.log(10)
                 phot['manga']['abmag'][ifilt] = mag
                 phot['manga']['abmagerr'][ifilt] = magerr
-                phot['manga']['upper'][ifilt] = False
+                phot['manga']['lower'][ifilt] = False
             if flux <=0 and ivar > 0:
                 ferr = 1.0 / np.sqrt(ivar)
                 mag = 22.5 - 2.5 * np.log10(ferr)
                 phot['manga']['abmag'][ifilt] = mag
                 phot['manga']['abmagerr'][ifilt] = 0.75
-                phot['manga']['upper'][ifilt] = True
+                phot['manga']['lower'][ifilt] = True
 
         if tractor is not None:
             flux = tractor['flux_{}'.format(filt.lower())]
@@ -1183,17 +1442,17 @@ def qa_multiwavelength_sed(ellipsefit, resamp_ellipsefit=None, tractor=None,
             if flux <= 0 and ivar > 0:
                 phot['tractor']['abmag'][ifilt] = 22.5 - 2.5 * np.log10(1/np.sqrt(ivar))
                 phot['tractor']['abmagerr'][ifilt] = 0.75
-                phot['tractor']['upper'][ifilt] = True
+                phot['tractor']['lower'][ifilt] = True
 
     def _addphot(thisphot, color, marker, alpha, label):
-        good = np.where((thisphot['abmag'] > 0) * (thisphot['upper'] == True))[0]
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == True))[0]
         if len(good) > 0:
             ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
                         marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
                         markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
                         lolims=True, linestyle='none', alpha=alpha)#, lolims=True)
                         
-        good = np.where((thisphot['abmag'] > 0) * (thisphot['upper'] == False))[0]
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == False))[0]
         if len(good) > 0:
             ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
                         marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
@@ -1296,23 +1555,26 @@ def make_multiwavelength_coadds(galaxy, galaxydir, htmlgalaxydir,
             os.rename(tmpfile, pngfile)
             pngfiles.append(pngfile)
 
-        cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
-        if barlen:
-            barpngfile = pngfiles[0]
-            addbar_to_png(pngfiles[0], barlen, barlabel, None, barpngfile,
-                          scaledfont=False, pixscalefactor=1.0, fntsize=8)
-            cmd = cmd+' '+barpngfile+' '
-            cmd = cmd+' '.join(ff for ff in pngfiles[1:])
+        if len(pngfiles) == 0:
+            print('There was a problem writing {}'.format(montagefile))
         else:
-            cmd = cmd+' '.join(ff for ff in pngfiles)
-            
-        cmd = cmd+' {}'.format(montagefile)
-        print(cmd)
-
-        print('Writing {}'.format(montagefile))
-        subprocess.call(cmd.split())
-        if not os.path.isfile(montagefile):
-            raise IOError('There was a problem writing {}'.format(montagefile))
+            cmd = 'montage -bordercolor white -borderwidth 1 -tile 3x1 -geometry +0+0 '
+            if barlen and len(pngfiles) > 0:
+                barpngfile = pngfiles[0]
+                addbar_to_png(pngfiles[0], barlen, barlabel, None, barpngfile,
+                              scaledfont=False, pixscalefactor=1.0, fntsize=8)
+                cmd = cmd+' '+barpngfile+' '
+                cmd = cmd+' '.join(ff for ff in pngfiles[1:])
+            else:
+                cmd = cmd+' '.join(ff for ff in pngfiles)
+                
+            cmd = cmd+' {}'.format(montagefile)
+            print(cmd)
+    
+            print('Writing {}'.format(montagefile))
+            subprocess.call(cmd.split())
+            if not os.path.isfile(montagefile):
+                raise IOError('There was a problem writing {}'.format(montagefile))
 
         ## Create a couple smaller thumbnail images
         #with Image.open(pngfiles[0]) as im:
@@ -1501,10 +1763,10 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
     if type(onegal) == astropy.table.Table:
         onegal = onegal[0] # create a Row object
 
+    bands = ['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4']
+
     galaxy_id = str(onegal['MANGANUM'])
     galaxyinfo = {'mangaid': (str(galaxy_id), None)}
-
-    bands = ['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4']
 
     # https://www.legacysurvey.org/dr9/description/#photometry
     vega2ab = {'W1': 2.699, 'W2': 3.339, 'W3': 5.174, 'W4': 6.620}
@@ -1535,6 +1797,10 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
             mge['majoraxis'] = odata['sma_moment'] / resampled_pixscale # [resampled pixels!]
         else:
             mge[key] = odata[newkey]
+
+    mge['ebv'] = odata['ebv']
+    for band in bands:
+        mge['mw_transmission_{}'.format(band.lower())] = odata['mw_transmission_{}'.format(band.lower())]
 
     mangaphot = {}
     for filt in bands:
@@ -1625,7 +1891,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
 
     maxsma = None
     logsma = True
-    delta_logsma = 1.5
+    delta_logsma = 1.2
 
     err = legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                               bands=bands, refband=refband,
@@ -1633,6 +1899,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                               input_ellipse=input_ellipse,
                               sbthresh=SBTHRESH, apertures=APERTURES, 
                               delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
+                              copy_mw_transmission=True,
                               integrmode=integrmode, sclip=sclip, nclip=nclip, fitgeometry=fitgeometry,
                               verbose=verbose, clobber=clobber)
 
@@ -1657,6 +1924,7 @@ def resampled_phot(onegal, galaxy, galaxydir, orig_galaxydir,
                          refband=refband,
                          sbthresh=SBTHRESH, apertures=APERTURES, 
                          bands=bands, verbose=False,
+                         copy_mw_transmission=True,
                          filesuffix=filesuffix,
                          add_datamodel_cols=add_datamodel_cols)
     except:

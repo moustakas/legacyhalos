@@ -38,6 +38,7 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
 def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                  pixscale=0.262, nproc=1, bands=['g', 'r', 'z'], refband='r',
                  delta_logsma=5, maxsma=None, logsma=True,
+                 copy_mw_transmission=False,
                  verbose=False, debug=False, write_donefile=True,
                  logfile=None, input_ellipse=None, sbthresh=None,
                  apertures=None, clobber=False):
@@ -59,6 +60,7 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
             pixscale=pixscale, nproc=nproc,
             sbthresh=sbthresh, apertures=apertures, input_ellipse=input_ellipse,
             delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
+            copy_mw_transmission=copy_mw_transmission,
             verbose=verbose, debug=debug, clobber=clobber)
         if write_donefile:
             _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'])
@@ -72,6 +74,7 @@ def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                     pixscale=pixscale, nproc=nproc,
                     sbthresh=sbthresh, apertures=apertures, input_ellipse=input_ellipse,
                     delta_logsma=delta_logsma, maxsma=maxsma, logsma=logsma,
+                    copy_mw_transmission=copy_mw_transmission,
                     verbose=verbose, clobber=clobber)
                 if write_donefile:
                     _done(galaxy, galaxydir, err, t0, 'ellipse', data['filesuffix'], log=log)
