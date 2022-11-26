@@ -137,8 +137,6 @@ def fig_d25_hist(sample, png=None):
     """
     
     """
-    import corner
-
     sns, colors = plot_style(talk=True, font_scale=1.2)
 
     good = np.where(sample['D25_LEDA'] > 0)[0]
@@ -1141,6 +1139,12 @@ def fig_sample_montage(sample, tractor, seed=1, png=None):
         print(cmd)
         os.system(cmd)        
 
+def completeness():
+    """Quantify the sample completeness by comparing against HECATE."""
+
+    pdb.set_trace()
+
+
 def main():
 
     parser = argparse.ArgumentParser()
@@ -1167,7 +1171,8 @@ def main():
         #S = fits_table(samplefile, columns='ra dec preburned type diam in_footprint in_footprint_grz sga_id'.split())
         #S.cut((S.sga_id > -1) * (S.preburned))
         
-        sga = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020.fits'), ext='ELLIPSE')
+        sga = fits_table(os.path.join(legacyhalos.io.legacyhalos_dir(), '2020', 'SGA-2020.fits'), ext='ELLIPSE')
+        #sga = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020.fits'), ext='ELLIPSE')
         #sga.ra = sga.ra_leda
         #sga.dec = sga.dec_leda
 
@@ -1176,13 +1181,12 @@ def main():
         #sgaleda = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020-leda.fits'))
         #fig_sky(sgaleda, png='sga-leda-sky.png')
 
-        sga = fits_table(os.path.join('/mnt', 'SGA', 'sample', 'v3.0', 'SGA-parent-v3.0.fits'))
+        sga = fits_table(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'v3.0', 'SGA-parent-v3.0.fits'))
         fig_sky(sga, png='sga-2020-parent-sky.png')
         
     # Fig - histogram of D(25) from Leda
     if args.d25_hist:
-        sample = Table(fitsio.read(os.path.join('/mnt', 'SGA', 'sample', 'v3.0', 'SGA-parent-v3.0.fits')))
-        pdb.set_trace()
+        sample = Table(fitsio.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'v3.0', 'SGA-parent-v3.0.fits')))
         fig_d25_hist(sample, png='d25-hist.png')
 
     # Fig - sample montage
