@@ -399,7 +399,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     #fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
 def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True,
-                    asTable=False):
+                    asTable=False, ellipsefitfile=None):
     """Read the output of write_ellipsefit. Convert the astropy Table into a
     dictionary so we can use a bunch of legacy code.
 
@@ -413,7 +413,8 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True
     else:
         fsuff = '-{}'.format(filesuffix)
 
-    ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
+    if ellipsefitfile is None:
+        ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
         
     if os.path.isfile(ellipsefitfile):
         data = Table(fitsio.read(ellipsefitfile))
