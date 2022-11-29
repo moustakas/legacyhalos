@@ -15,15 +15,14 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-from astrometry.util.fits import fits_table
+from astropy.table import Table, vstack
 
 import legacyhalos.SGA
 from legacyhalos.SGA import get_galaxy_galaxydir
 from legacyhalos.SGA import DIAMCOLUMN, RACOLUMN, DECCOLUMN
 
-from astropy.table import Table
-
-figdir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'science', 'SGA-2020-paper', 'figures')
+paperdir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'science', 'SGA-2020-paper')
+figdir = os.path.join(paperdir, 'figures')
 #figdir = os.path.join('/mnt', 'SGA', 'science', 'paper1', 'figures')
 #figdir = os.path.join('/mnt', '20210115-aas-sga')
 #figdir = os.path.join(os.getenv('HOME'), 'research', 'talks', '2021', '20210115-aas-sga')
@@ -324,7 +323,7 @@ def fig_sky(S, png=None):
     #W,H = 2000,1000
     ra_center = 120. # 275.
     wcs = anwcs_create_hammer_aitoff(ra_center, 0., zoom, W, H, False)
-    ok,S.x,S.y = wcs.radec2pixelxy(S.ra, S.dec)
+    ok,S.x,S.y = wcs.radec2pixelxy(S['RA'], S['DEC'])
 
     sgacount = np.zeros(wcs.shape, np.int16)
     np.add.at(sgacount, (S.y.astype(int), S.x.astype(int)), 1)
@@ -495,7 +494,21 @@ def fig_sbmontage(onegal, png):
     #galaxy_indx = 1
 
     # Read the data and the ellipse-fitting results.
-    ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, galaxy_id=galaxy_id, verbose=True)
+    ellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, filesuffix, galaxy_id))
+    ellipsefit = read_ellipsefit(galaxy, galaxydir, ellipsefitfile=ellipsefile, verbose=True)
+    #ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, galaxy_id=galaxy_id, verbose=True)
+
+    # old data model
+    ellipsefit['eps_moment'] = ellipsefit['eps'] 
+    ellipsefit['sma_g'] = ellipsefit['g_sma'] 
+    ellipsefit['sma_r'] = ellipsefit['r_sma'] 
+    ellipsefit['sma_z'] = ellipsefit['z_sma'] 
+    ellipsefit['intens_g'] = ellipsefit['g_intens'] 
+    ellipsefit['intens_r'] = ellipsefit['r_intens'] 
+    ellipsefit['intens_z'] = ellipsefit['z_intens'] 
+    ellipsefit['intens_err_g'] = ellipsefit['g_intens_err'] 
+    ellipsefit['intens_err_r'] = ellipsefit['r_intens_err'] 
+    ellipsefit['intens_err_z'] = ellipsefit['z_intens_err'] 
 
     scaledfont = True
     barlen_arcsec = 60.0 # [arcsec]
@@ -1074,8 +1087,8 @@ def fig_sample_montage(sample, tractor, seed=1, png=None):
     ngal = ncol * nrow
 
     # Pick XX random galaxies, uniformly selected in surface brightness.
-    r50 = tractor['SHAPE_R']
-    rmag = 22.5-2.5*np.log10(tractor['FLUX_R'])
+    r50 = tractor['SHAPE_R'].data
+    rmag = 22.5-2.5*np.log10(tractor['FLUX_R'].data)
     sb = rmag + 2.5 * np.log10(np.pi * (60/2)**2) + 5*np.log10(r50/60)
     
     keep = np.where((rmag < 19) * (rmag > 14) * (r50 > 5) * (sb < 25))[0]
@@ -1113,12 +1126,15 @@ def fig_sample_montage(sample, tractor, seed=1, png=None):
     prob /= np.sum(prob)
 
     these = rand.choice(len(sample), ngal, p=prob, replace=False)
+    if seed == 5:
+        these[8] = these[8] + 1 # SDSSJ222743.82+070833.3 is Galactic cirrus
 
     srt = np.argsort(sb[these])
     sample = sample[these[srt]]
     tractor = tractor[these[srt]]
     sb = sb[these[srt]]
-    print(sb)
+    #print(sb.data)
+    print(sample)
 
     gal, galdir = get_galaxy_galaxydir(sample)
     infiles = []
@@ -1139,19 +1155,150 @@ def fig_sample_montage(sample, tractor, seed=1, png=None):
         print(cmd)
         os.system(cmd)        
 
-def completeness():
+def fig_completeness(sga, png=None):
     """Quantify the sample completeness by comparing against HECATE."""
+
+    from glob import glob
+    import astropy.units as u
+    from astropy.coordinates import SkyCoord, match_coordinates_sky
+
+    sns, _ = plot_style(talk=True, font_scale=4.2)
+
+    # Find the subset of HECATE targets which have grz imaging from DR9.
+    hecatefile = os.path.join(paperdir, 'HECATE_v1.1-DR9.fits')
+    if not os.path.isfile(hecatefile):
+        allhecatefile = os.path.join(paperdir, 'HECATE_v1.1.fits')
+        hecate = Table(fitsio.read(allhecatefile, ext=1))
+        print('Read {} objects from {}'.format(len(hecate), allhecatefile))
+
+        #randomfiles = glob(os.path.join(os.getenv('LEGACY_SURVEY_DIR'), 'randoms', 'randoms-1-[0-1].fits')
+        randomfiles = list(glob(os.path.join(os.getenv('LEGACY_SURVEY_DIR'), 'randoms', 'randoms-allsky-1-[0-1].fits')))
+        rand = []
+        for randomfile in randomfiles:
+            print('Reading {}'.format(randomfile))
+            rand.append(Table(fitsio.read(randomfile, columns=['RA', 'DEC', 'NOBS_G', 'NOBS_R', 'NOBS_Z'])))
+        rand = vstack(rand)
+        print('Read {} random points from {} randomfiles.'.format(len(rand), len(randomfiles)))
+
+        c_hecate = SkyCoord(hecate['RA']*u.deg, hecate['DEC']*u.deg)
+        c_rand = SkyCoord(rand['RA']*u.deg, rand['DEC']*u.deg)
+        idx, d2d, _ = c_hecate.match_to_catalog_sky(c_rand)
+
+        match_rand = rand[idx]
+        I = np.where((match_rand['NOBS_G'] > 0) * (match_rand['NOBS_R'] > 0) * (match_rand['NOBS_Z'] > 0))[0]
+        grz_hecate = hecate[I]
+        grz_rand = match_rand[I]
+
+        print('Matched {}/{} HECATE objects to a DR9 random point with NOBS_[GRZ]>1'.format(len(grz_hecate), len(hecate)))
+        print('Writing {}'.format(hecatefile))
+        grz_hecate.write(hecatefile, overwrite=True)
+
+        pngfile = os.path.join(paperdir, 'qa-hecate-dr9.png')
+        print('Writing {}'.format(pngfile))
+        fig, ax = plt.subplots(figsize=(10, 7))
+        ax.scatter(hecate['RA'], hecate['DEC'], s=1, color='k')
+        ax.scatter(grz_hecate['RA'], grz_hecate['DEC'], s=1, marker='s', color='red', alpha=0.7)
+        ax.set_xlabel('RA (degree)')
+        ax.set_ylabel('Dec (degree)')
+        fig.savefig(pngfile)#, bbox_inches='tight')
+        plt.close(fig)
+
+    # read the previously created matched catalog
+    hecate = Table(fitsio.read(hecatefile, ext=1))
+    print('Read {} objects from {}'.format(len(hecate), hecatefile))
+
+    c_hecate = SkyCoord(hecate['RA']*u.deg, hecate['DEC']*u.deg)
+    c_sga = SkyCoord(sga['RA']*u.deg, sga['DEC']*u.deg)
+
+    # quick QA to determine the matching radius
+    _, sep2d, _ = c_hecate.match_to_catalog_sky(c_sga)
+    
+    pngfile = os.path.join(paperdir, 'qa-hecate-sga2020-separation.png')
+    print('Writing {}'.format(pngfile))
+    fig, ax = plt.subplots(figsize=(10, 7))
+    _, _, _ = ax.hist(sep2d.arcsec, bins=100, range=(0, 5))
+    #_, _, _ = ax.hist(np.log10(sep2d.arcsec), bins=100, cumulative=True, density=True, histtype='step')#, range=(0, 4), alpha=0.5)
+    ax.set_xlabel('Separation (arcsec)')
+    ax.set_ylabel('Number of Galaxies')
+    #ax.axvline(x=rad.value, ls='-', color='k')
+    fig.savefig(pngfile)#, bbox_inches='tight')
+    plt.close(fig)
+
+    # match the catalogs
+    rad = 10.0 * u.arcsec
+    indx_hecate, indx_sga, d2d, _ = c_sga.search_around_sky(c_hecate, rad)
+    print('Found {}/{} HECATE-SGA matches within {} arcsec'.format(len(indx_hecate), len(hecate), rad))
+
+    I = np.isfinite(hecate['R1'])
+    J = np.isfinite(hecate[indx_hecate]['R1'])
+
+    #I = np.where(np.isfinite(hecate[indx_hecate]['R1']))[0]
+    #print('Removing {} galaxies with no R1 diameters'.format(len(indx_hecate)-len(I)))
+    m_sga = sga[indx_sga][J]
+    m_hecate = hecate[indx_hecate][J]
+
+    K = np.delete(np.arange(len(hecate)), indx_hecate)
+    miss_hecate = hecate[K]
+    miss_hecate[miss_hecate['R1'] > 120/60]['OBJNAME', 'RA', 'DEC', 'R1']
+
+    # quick QA
+    pngfile = os.path.join(paperdir, 'qa-bmag-vs-d25.png')
+    print('Writing {}'.format(pngfile))
+    fig, ax = plt.subplots(figsize=(10, 7))
+    ax.scatter(np.log10(hecate[indx_hecate]['R1']), hecate[indx_hecate]['BT'], s=1, color='red')
+    ax.scatter(np.log10(miss_hecate['R1']), miss_hecate['BT'], s=1, alpha=0.5)
+    ax.axvline(x=np.log10(20/60), color='k', ls='--')
+    ax.set_xlabel(r'$\log\,D_{25}$ (arcmin)')
+    ax.set_ylabel(r'$B_t$ (Vega mag)')
+    fig.savefig(pngfile)#, bbox_inches='tight')
+    plt.close(fig)
+    
+    # make the QA -
+    pngfile = os.path.join(figdir, png)
+    print('Writing {}'.format(pngfile))
+
+    #logd25 = np.log10(hecate['R1'][I])
+    #match_logd25 = np.log10(hecate['R1'][indx_hecate][J])
+    #mind25, maxd25, dd25 = -1, 1, 0.1
+    ##mind25, maxd25 = np.min(logd25), np.max(logd25)
+
+    logd25 = hecate['R1'][I]
+    match_logd25 = hecate['R1'][indx_hecate][J]
+    mind25, maxd25, dd25 = 0.0, 12, 0.5
+
+    bins = np.arange(mind25, maxd25, dd25) # bin left edges
+    numer, _ = np.histogram(match_logd25, bins=len(bins), range=(bins.min(), bins.max()))
+    denom, _ = np.histogram(logd25, bins=len(bins), range=(bins.min(), bins.max()))
+
+    pngfile = os.path.join(figdir, png)
+    print('Writing {}'.format(pngfile))
+    fig, ax = plt.subplots(figsize=(10, 7))
+    good = denom > 0
+    ax.plot(bins[good], numer[good] / denom[good])
+    ax.axvline(x=np.log10(20/60), color='k', ls='--')
+    fig.savefig(pngfile)#, bbox_inches='tight')
+    plt.close(fig)
 
     pdb.set_trace()
 
+    #match_sga = sga[sep_constraint]
+    #match_hecate = match_hecate[idx[sep_constraint]]    
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)#, bbox_inches='tight')
+        plt.close(fig)
+
+    pdb.set_trace()
 
 def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--sky', action='store_true')
     parser.add_argument('--d25-hist', action='store_true')
+    parser.add_argument('--completeness', action='store_true')
     parser.add_argument('--sample-montage', action='store_true')
-
     parser.add_argument('--sbmontage', action='store_true')
     parser.add_argument('--sbmontage-gallery', action='store_true')
     parser.add_argument('--sb-mag', action='store_true')
@@ -1163,51 +1310,41 @@ def main():
         for onegal in sample:
             _galaxy, _ = get_galaxy_galaxydir(onegal)
             print(_galaxy, onegal[RACOLUMN], onegal[DECCOLUMN], onegal[DIAMCOLUMN])
-    
+
+    sga = legacyhalos.SGA.read_sga2020(ext='ELLIPSE')
+            
     # Fig - spatial distribution on the sky
     if args.sky:
-        #sample = legacyhalos.SGA.read_sample(final_sample=False)
-        #samplefile = os.path.join('/mnt/SGA-data-2020/SGA-ellipse-{}.fits'.format(version))
-        #S = fits_table(samplefile, columns='ra dec preburned type diam in_footprint in_footprint_grz sga_id'.split())
-        #S.cut((S.sga_id > -1) * (S.preburned))
-        
-        sga = fits_table(os.path.join(legacyhalos.io.legacyhalos_dir(), '2020', 'SGA-2020.fits'), ext='ELLIPSE')
-        #sga = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020.fits'), ext='ELLIPSE')
-        #sga.ra = sga.ra_leda
-        #sga.dec = sga.dec_leda
-
         fig_sky(sga, png='sga-2020-sky.png')
-
-        #sgaleda = fits_table(os.path.join('/mnt', 'SGA', '2020', 'SGA-2020-leda.fits'))
-        #fig_sky(sgaleda, png='sga-leda-sky.png')
-
-        sga = fits_table(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'v3.0', 'SGA-parent-v3.0.fits'))
-        fig_sky(sga, png='sga-2020-parent-sky.png')
+        parent = legacyhalos.SGA.read_sample(preselect_sample=False)
+        #parent = fits_table(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'v3.0', 'SGA-parent-v3.0.fits'))
+        fig_sky(parent, png='sga-2020-parent-sky.png')
         
     # Fig - histogram of D(25) from Leda
     if args.d25_hist:
-        sample = Table(fitsio.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'v3.0', 'SGA-parent-v3.0.fits')))
-        fig_d25_hist(sample, png='d25-hist.png')
+        parent = legacyhalos.SGA.read_sample(preselect_sample=False)
+        fig_d25_hist(parent, png='d25-hist.png')
+
+    # Fig - completeness against HECATE
+    if args.completeness:
+        fig_completeness(sga, png='completeness.png')
 
     # Fig - sample montage
     if args.sample_montage:
-        sample = legacyhalos.SGA.read_sga2020(ext='ELLIPSE')
         tractor = legacyhalos.SGA.read_sga2020(ext='TRACTOR')
-        fig_sample_montage(sample, tractor, seed=5, png='sample-montage.png')
+        fig_sample_montage(sga, tractor, seed=5, png='sample-montage.png')
         
     # Fig - bivariate scatterplot of surface brightness vs magnitude
     if args.sb_mag:
-        sample = legacyhalos.SGA.read_sga2020()
-        fig_sb_mag(sample, png='sb-vs-mag.png')
+        fig_sb_mag(sga, png='sb-vs-mag.png')
     
     # Fig - bivariate scatterplot of size vs magnitude
     if args.size_mag:
-        sample = legacyhalos.SGA.read_sga2020()
-        fig_size_mag(sample, png='size-vs-mag-leda.png', leda=True)
+        fig_size_mag(sga, png='size-vs-mag-leda.png', leda=True)
     
     # Fig - SB montage
     if args.sbmontage:
-        sample = legacyhalos.SGA.read_sga2020(galaxylist='PGC193192', primary=False)
+        sample = legacyhalos.SGA.read_sga2020(galaxylist='PGC193192')#, primary=False)
         fig_sbmontage(sample, png='PGC193199-sbmontage.png')
         #for gal in galaxy:
         #    fig_surface_brightness(sample, thisgalaxy=gal, png='surface_brightness_{}.png'.format(gal))
