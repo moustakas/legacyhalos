@@ -8,6 +8,7 @@ Code to deal with the HizEA sample and project.
 import os, shutil, pdb
 import numpy as np
 import astropy
+from astropy.table import Table
 
 import legacyhalos.io
 
@@ -15,8 +16,12 @@ ZCOLUMN = 'Z'
 RACOLUMN = 'RA' # 'RA'
 DECCOLUMN = 'DEC' # 'DEC'
 GALAXYCOLUMN = 'GALAXY'
+REFIDCOLUMN = 'REFID'
 
 MOSAICRADIUS = 30.0 # [arcsec]
+
+SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
+APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0] # multiples of MAJORAXIS
 
 def mpi_args():
     import argparse
@@ -86,7 +91,8 @@ def missing_files(args, sample, size=1, clobber_overwrite=None):
         if args.just_coadds:
             filesuffix = '-custom-montage-grz.png'
         else:
-            filesuffix = '-ccdpos.png'
+            filesuffix = '-custom-montage-grz.png'
+            #filesuffix = '-ccdpos.png'
             #filesuffix = '-custom-maskbits.png'
         galaxy, _, galaxydir = get_galaxy_galaxydir(sample, htmldir=args.htmldir, html=True)
     elif args.htmlindex:
@@ -197,52 +203,60 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
 
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'hizea-sample.fits')
-
-    if first and last:
-        if first > last:
-            print('Index first cannot be greater than index last, {} > {}'.format(first, last))
-            raise ValueError()
-    ext = 1
-    info = fitsio.FITS(samplefile)
-    nrows = info[ext].get_nrows()
-    rows = np.arange(nrows)
-    nrows = len(rows)
-    
-    if first is None:
-        first = 0
-    if last is None:
-        last = nrows
-        if rows is None:
-            rows = np.arange(first, last)
-        else:
-            rows = rows[np.arange(first, last)]
+    if True:
+        sample = Table()
+        sample['GALAXY'] = ['orc4']
+        sample['REFID'] = [np.int64(100001)]
+        sample['RA'] = [238.852625]
+        sample['DEC'] = [27.44286111]
+        sample['Z'] = [np.float32(0.4512)]
     else:
-        if last >= nrows:
-            print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
-            raise ValueError()
-        if rows is None:
-            rows = np.arange(first, last+1)
-        else:
-            rows = rows[np.arange(first, last+1)]
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'hizea-sample.fits')
 
-    sample = astropy.table.Table(info[ext].read(rows=rows, upper=True, columns=columns))
-    if verbose:
-        if len(rows) == 1:
-            print('Read galaxy index {} from {}'.format(first, samplefile))
+        if first and last:
+            if first > last:
+                print('Index first cannot be greater than index last, {} > {}'.format(first, last))
+                raise ValueError()
+        ext = 1
+        info = fitsio.FITS(samplefile)
+        nrows = info[ext].get_nrows()
+        rows = np.arange(nrows)
+        nrows = len(rows)
+        
+        if first is None:
+            first = 0
+        if last is None:
+            last = nrows
+            if rows is None:
+                rows = np.arange(first, last)
+            else:
+                rows = rows[np.arange(first, last)]
         else:
-            print('Read galaxy indices {} through {} (N={}) from {}'.format(
-                first, last, len(sample), samplefile))
-
-    if galaxylist is not None:
+            if last >= nrows:
+                print('Index last cannot be greater than the number of rows, {} >= {}'.format(last, nrows))
+                raise ValueError()
+            if rows is None:
+                rows = np.arange(first, last+1)
+            else:
+                rows = rows[np.arange(first, last+1)]
+    
+        sample = astropy.table.Table(info[ext].read(rows=rows, upper=True, columns=columns))
         if verbose:
-            print('Selecting specific galaxies.')
-        these = np.isin(sample[GALAXYCOLUMN], galaxylist)
-        if np.count_nonzero(these) == 0:
-            print('No matching galaxies!')
-            return astropy.table.Table()
-        else:
-            sample = sample[these]
+            if len(rows) == 1:
+                print('Read galaxy index {} from {}'.format(first, samplefile))
+            else:
+                print('Read galaxy indices {} through {} (N={}) from {}'.format(
+                    first, last, len(sample), samplefile))
+    
+        if galaxylist is not None:
+            if verbose:
+                print('Selecting specific galaxies.')
+            these = np.isin(sample[GALAXYCOLUMN], galaxylist)
+            if np.count_nonzero(these) == 0:
+                print('No matching galaxies!')
+                return astropy.table.Table()
+            else:
+                sample = sample[these]
 
     return sample
 
@@ -298,9 +312,9 @@ def build_catalog(sample, nproc=1, verbose=False):
     print('Wrote {} galaxies to {}'.format(len(parent), outfile))
 
 def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
-                          threshmask=0.001, r50mask=0.05, maxshift=10,
-                          sigmamask=3.0,
-                          neighborfactor=3.0, verbose=False):
+                          threshmask=0.01, r50mask=0.05, maxshift=10,
+                          relmaxshift=0.1,
+                          sigmamask=3.0, neighborfactor=1.0, verbose=False):
     """Wrapper to mask out all sources except the galaxy we want to ellipse-fit.
 
     r50mask - mask satellites whose r50 radius (arcsec) is > r50mask 
@@ -350,32 +364,78 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #    psfsrcs = None
 
     def tractor2mge(indx, factor=1.0):
-    #def tractor2mge(indx, majoraxis=None):
         # Convert a Tractor catalog entry to an MGE object.
         class MGEgalaxy(object):
             pass
 
-        ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
-        ba = (1 - ee) / (1 + ee)
-        pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
-        pa = pa % 180
+        default_majoraxis = tractor.diam_init[indx] * 60 / 2 / filt2pixscale[refband] # [pixels]
+        default_pa = tractor.pa_init[indx]
+        default_ba = tractor.ba_init[indx]
+        #default_theta = (270 - default_pa) % 180
+        #default_eps = 1 - tractor.ba_init[indx]
+
+        #if tractor.sga_id[indx] > -1:
+        if tractor.type[indx] == 'PSF' or tractor.shape_r[indx] < 2:
+            pa = tractor.pa_init[indx]
+            ba = tractor.ba_init[indx]
+            # take away the extra factor of 2 we put in in read_sample()
+            r50 = tractor.diam_init[indx] * 60 / 2 / 2
+            if r50 < 5:
+                r50 = 5.0 # minimum size, arcsec
+            majoraxis = factor * r50 / filt2pixscale[refband] # [pixels]
+            #majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
+        else:
+            ee = np.hypot(tractor.shape_e1[indx], tractor.shape_e2[indx])
+            ba = (1 - ee) / (1 + ee)
+            pa = 180 - (-np.rad2deg(np.arctan2(tractor.shape_e2[indx], tractor.shape_e1[indx]) / 2))
+            pa = pa % 180
+
+            # can be zero (or very small) if fit as a PSF or REX
+            if tractor.shape_r[indx] > 1:
+                majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+            else:
+                majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
 
         mgegalaxy = MGEgalaxy()
+        
         mgegalaxy.xmed = tractor.by[indx]
         mgegalaxy.ymed = tractor.bx[indx]
         mgegalaxy.xpeak = tractor.by[indx]
         mgegalaxy.ypeak = tractor.bx[indx]
-        mgegalaxy.eps = 1-ba
-        mgegalaxy.pa = pa
-        mgegalaxy.theta = (270 - pa) % 180
-        mgegalaxy.majoraxis = factor * tractor.shape_r[indx] / filt2pixscale[refband] # [pixels]
+
+        # never use the Tractor geometry (only the centroid)
+        # https://portal.nersc.gov/project/cosmo/temp/ioannis/virgofilaments-html/215/NGC5584/NGC5584.html
+        if True:
+            mgegalaxy.eps = 1-ba
+            mgegalaxy.pa = pa
+            mgegalaxy.theta = (270 - pa) % 180
+            mgegalaxy.majoraxis = majoraxis
+        else:
+            mgegalaxy.eps = 1 - default_ba
+            mgegalaxy.pa = default_pa
+            mgegalaxy.theta = (270 - default_pa) % 180
+            mgegalaxy.majoraxis = default_majoraxis
+
+        # always restore all pixels within the nominal / initial size of the galaxy
+        #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+        #                       default_majoraxis,
+        #                       default_majoraxis * (1-default_eps), 
+        #                       np.radians(default_theta-90), xobj, yobj)
+        #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+        #                       default_majoraxis, default_majoraxis, 0.0, xobj, yobj)
 
         objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                mgegalaxy.majoraxis,
                                mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
                                np.radians(mgegalaxy.theta-90), xobj, yobj)
 
-        return mgegalaxy, objmask
+        # central 10% pixels can override the starmask
+        objmask_center = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
+                                      0.1*mgegalaxy.majoraxis,
+                                      0.1*mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
+                                      np.radians(mgegalaxy.theta-90), xobj, yobj)
+
+        return mgegalaxy, objmask, objmask_center
 
     # Now, loop through each 'galaxy_indx' from bright to faint.
     data['mge'] = []
@@ -383,13 +443,13 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         print('Determing the geometry for galaxy {}/{}.'.format(
                 ii+1, len(galaxy_indx)))
 
-        # [1] Determine the non-parametricc geometry of the galaxy of interest
+        # [1] Determine the non-parametric geometry of the galaxy of interest
         # in the reference band. First, subtract all models except the galaxy
         # and galaxies "near" it. Also restore the original pixels of the
         # central in case there was a poor deblend.
         largeshift = False
-        mge, centralmask = tractor2mge(central, factor=neighborfactor)
-        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('debug.png')
+        mge, centralmask, centralmask2 = tractor2mge(central, factor=1.0)
+        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -405,23 +465,26 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
         mask = np.logical_or(ma.getmask(data[refband]), data['residual_mask'])
         #mask = np.logical_or(data[refband].mask, data['residual_mask'])
+
+        # restore the central pixels but not the masked stellar pixels
+        centralmask[np.logical_and(data['starmask'], np.logical_not(centralmask2))] = False
         mask[centralmask] = False
 
         img = ma.masked_array(img, mask)
         ma.set_fill_value(img, fill_value)
-
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('debug.png')
-        #if True:
-        #    import matplotlib.pyplot as plt
-        #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('debug.png')
-        #    #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
+        #if ii == 1:
         #    pdb.set_trace()
+
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('cosmo-www/tmp/junk-mge.png')
+        #plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask.png')
+        ##plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #pdb.set_trace()
 
         # Did the galaxy position move? If so, revert back to the Tractor geometry.
         if np.abs(mgegalaxy.xmed-mge.xmed) > maxshift or np.abs(mgegalaxy.ymed-mge.ymed) > maxshift:
-            print('Large centroid shift! (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
+            print('Large centroid shift (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
                 mgegalaxy.xmed, mgegalaxy.ymed, mge.xmed, mge.ymed))
+            print('  Reverting to the default geometry and the Tractor centroid.')
             largeshift = True
             mgegalaxy = copy(mge)
 
@@ -433,10 +496,10 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             'largeshift': largeshift,
             'ra': tractor.ra[central], 'dec': tractor.dec[central],
             'bx': tractor.bx[central], 'by': tractor.by[central],
-            'mw_transmission_g': tractor.mw_transmission_g[central],
-            'mw_transmission_r': tractor.mw_transmission_r[central],
-            'mw_transmission_z': tractor.mw_transmission_z[central],
-            'ra_x0y0': radec_med[0], 'dec_x0y0': radec_med[1],
+            #'mw_transmission_g': tractor.mw_transmission_g[central],
+            #'mw_transmission_r': tractor.mw_transmission_r[central],
+            #'mw_transmission_z': tractor.mw_transmission_z[central],
+            'ra_moment': radec_med[0], 'dec_moment': radec_med[1],
             #'ra_peak': radec_med[0], 'dec_peak': radec_med[1]
             }
         for key in ('eps', 'majoraxis', 'pa', 'theta', 'xmed', 'ymed', 'xpeak', 'ypeak'):
@@ -454,7 +517,6 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # which has had the satellites nearest to the central galaxy trimmed
         # out.
         print('Building the satellite mask.')
-        #srcs = tractor.copy()
         satmask = np.zeros(data[refband].shape, bool)
         for filt in bands:
             # do not let GALEX and WISE contribute to the satellite mask
@@ -464,8 +526,10 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             cenflux = getattr(tractor, 'flux_{}'.format(filt.lower()))[central]
             satflux = getattr(srcs, 'flux_{}'.format(filt.lower()))
             if cenflux <= 0.0:
-                raise ValueError('Central galaxy flux is negative!')
-            
+                #raise ValueError('Central galaxy flux is negative!')
+                print('Central galaxy flux is negative! Proceed with caution...')
+                #pdb.set_trace()
+                
             satindx = np.where(np.logical_or(
                 (srcs.type != 'PSF') * (srcs.shape_r > r50mask) *
                 (satflux > 0.0) * ((satflux / cenflux) > threshmask),
@@ -475,7 +539,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             #    satindx = satindx[np.logical_not(np.isin(satindx, central))]
             if len(satindx) == 0:
                 #raise ValueError('All satellites have been dropped!')
-                print('Warning! All satellites have been dropped from band {}!'.format(filt))
+                #print('Warning! All satellites have been dropped from band {}!'.format(filt))
+                print('Note: no satellites to mask in band {}.'.format(filt))
             else:
                 satsrcs = srcs.copy()
                 #satsrcs = tractor.copy()
@@ -501,7 +566,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
             #print(filt, np.sum(satmask), np.sum(thissatmask))
 
-        #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('junk-satmask.png')
+        #plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-satmask.png')
         
         # [3] Build the final image (in each filter) for ellipse-fitting. First,
         # subtract out the PSF sources. Then update the mask (but ignore the
@@ -517,9 +582,10 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             else:
                 mask = np.logical_or(thismask, satmask)
                 mask[centralmask] = False
-            #if filt == 'W1':
-            #    plt.imshow(_satmask, origin='lower') ; plt.savefig('junk-satmask-{}.png'.format(filt))
-            #    plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask-{}.png'.format(filt))
+            #if filt == 'r':
+            #    #plt.imshow(_satmask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-satmask-{}.png'.format(filt))
+            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask-{}.png'.format(filt))
+            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-img-{}.png'.format(filt))
             #    pdb.set_trace()
 
             varkey = '{}_var'.format(filt.lower())
@@ -533,7 +599,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
             
             # Get the PSF sources.
             psfindx = np.where((tractor.type == 'PSF') * (getattr(tractor, 'flux_{}'.format(filt.lower())) / cenflux > threshmask))[0]
-            if len(psfindx) > 0 and filt.upper() != 'W3' and filt.upper() != 'W4':
+            if len(psfindx) > 0 and filt.upper() != 'W3' and filt.upper() != 'W4':            
+            #if len(psfindx) > 0 and filt.upper() != 'NUV' and filt.upper() != 'FUV' and filt.upper() != 'W3' and filt.upper() != 'W4':
                 psfsrcs = tractor.copy()
                 psfsrcs.cut(psfindx)
             else:
@@ -550,24 +617,24 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                     im = ax2.imshow(np.log10(psfimg), origin='lower') ; fig.colorbar(im, ax=ax2)
                     im = ax3.imshow(np.log10(data['{}_psf'.format(filt.lower())].img), origin='lower') ; fig.colorbar(im, ax=ax3)
                     im = ax4.imshow(img-psfimg, origin='lower') ; fig.colorbar(im, ax=ax4)
-                    plt.savefig('qa-psf-{}.png'.format(filt.lower()))
-                    #if filt == 'W4':# or filt == 'r':
-                    #    pdb.set_trace()
+                    plt.savefig('desi-users/ioannis/tmp/qa-psf-{}.png'.format(filt.lower()))
+                    if filt == 'r':# or filt == 'r':
+                        pdb.set_trace()
                 img -= psfimg
             else:
                 psfimg = np.zeros((2, 2), 'f4')
 
             data[psfimgkey].append(psfimg)
-
+            
             img = ma.masked_array((img / thispixscale**2).astype('f4'), mask) # [nanomaggies/arcsec**2]
             var = data['{}_var_'.format(filt.lower())] / thispixscale**4 # [nanomaggies**2/arcsec**4]
 
             # Fill with zeros, for fun--
             ma.set_fill_value(img, fill_value)
-            #if filt == 'W1':# or filt == 'r':
-            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('junk-img-{}.png'.format(filt.lower()))
-            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask-{}.png'.format(filt.lower()))
-            ##    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('junk-thismask-{}.png'.format(filt.lower()))
+            #if ii == 0 and filt == 'r': #filt == 'W1' or 
+            #    plt.clf() ; plt.imshow(img, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-img-{}.png'.format(filt.lower()))
+            #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask-{}.png'.format(filt.lower()))
+            #####    plt.clf() ; plt.imshow(thismask, origin='lower') ; plt.savefig('junk-thismask-{}.png'.format(filt.lower()))
             #    pdb.set_trace()
                 
             data[imagekey].append(img)
@@ -627,8 +694,10 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         #galex_bands = ['fuv', 'nuv'] # ['FUV', 'NUV']
         bands = bands + galex_bands
         for band in galex_bands:
-            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(filesuffix),
-                                       'invvar': 'invvar', 'psf': '{}-psf'.format(filesuffix)}})
+            filt2imfile.update({band: {'image': '{}-image'.format(filesuffix),
+                                       'model': '{}-model'.format(filesuffix),
+                                       'invvar': '{}-invvar'.format(filesuffix),
+                                       'psf': '{}-psf'.format(filesuffix)}})
             filt2pixscale.update({band: galex_pixscale})
         
     if unwise:
@@ -636,8 +705,10 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         #unwise_bands = ['w1', 'w2', 'w3', 'w4'] # ['W1', 'W2', 'W3', 'W4']
         bands = bands + unwise_bands
         for band in unwise_bands:
-            filt2imfile.update({band: {'image': 'image', 'model': '{}-model'.format(filesuffix),
-                                       'invvar': 'invvar', 'psf': '{}-psf'.format(filesuffix)}})
+            filt2imfile.update({band: {'image': '{}-image'.format(filesuffix),
+                                       'model': '{}-model'.format(filesuffix),
+                                       'invvar': '{}-invvar'.format(filesuffix),
+                                       'psf': '{}-psf'.format(filesuffix)}})
             filt2pixscale.update({band: unwise_pixscale})
 
     data.update({'filt2pixscale': filt2pixscale})
@@ -741,6 +812,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     # keep all objects
     galaxy_indx = []
     galaxy_indx = np.hstack([np.where(sid == tractor.ref_id)[0] for sid in sample[REFIDCOLUMN]])
+    #if len(galaxy_indx
 
     #sample = sample[np.searchsorted(sample['VF_ID'], tractor.ref_id[galaxy_indx])]
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
@@ -752,7 +824,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         tractor.diam_init[galaxy_indx] = sample['DIAM_INIT']
         tractor.pa_init[galaxy_indx] = sample['PA_INIT']
         tractor.ba_init[galaxy_indx] = sample['BA_INIT']
-
+ 
     # Do we need to take into account the elliptical mask of each source??
     srt = np.argsort(tractor.flux_r[galaxy_indx])[::-1]
     galaxy_indx = galaxy_indx[srt]
@@ -761,25 +833,6 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
 
     data['galaxy_id'] = galaxy_id
     data['galaxy_indx'] = galaxy_indx
-
-    #data['galaxy_indx'] = []
-    #data['galaxy_id'] = []
-    #for galid in np.atleast_1d(galaxy_id):
-    #    galindx = np.where((tractor.ref_cat == 'R1') * (tractor.ref_id == galid))[0]
-    #    if len(galindx) != 1:
-    #        raise ValueError('Problem finding the central galaxy {} in the tractor catalog!'.format(galid))
-    #    data['galaxy_indx'].append(galindx[0])
-    #    data['galaxy_id'].append(galid)
-    #
-    #    # Is the flux and/or ivar negative (and therefore perhaps off the
-    #    # footprint?) If so, drop it here.
-    #    for filt in bands:
-    #        cenflux = getattr(tractor, 'flux_{}'.format(filt))[galindx[0]]
-    #        cenivar = getattr(tractor, 'flux_ivar_{}'.format(filt))[galindx[0]]
-    #        if cenflux <= 0.0 or cenivar <= 0.0:
-    #            print('Central galaxy flux is negative. Off footprint or gap in coverage?')
-    #            data['failed'] = True
-    #            return data, []
 
     # Now build the multiband mask.
     data = _build_multiband_mask(data, tractor, filt2pixscale,
@@ -797,7 +850,10 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     allgalaxyinfo = []
     for igal, (galaxy_id, galaxy_indx) in enumerate(zip(data['galaxy_id'], data['galaxy_indx'])):
         samp = sample[sample[REFIDCOLUMN] == galaxy_id]
-        galaxyinfo = {'mangaid': (str(galaxy_id), '')}
+        galaxyinfo = {'mangaid': (str(galaxy_id), None)}
+        #for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
+        #    galaxyinfo['mw_transmission_{}'.format(band)] = (samp['MW_TRANSMISSION_{}'.format(band.upper())][0], None)
+        
         #              'galaxy': (str(np.atleast_1d(samp['GALAXY'])[0]), '')}
         #for key, unit in zip(['ra', 'dec'], [u.deg, u.deg]):
         #    galaxyinfo[key] = (np.atleast_1d(samp[key.upper()])[0], unit)
@@ -848,6 +904,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
     mpi_call_ellipse(galaxy, galaxydir, data, galaxyinfo=galaxyinfo,
                      pixscale=pixscale, nproc=nproc, 
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
+                     apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
                      verbose=verbose, debug=True)#debug, logfile=logfile)
 
@@ -872,8 +929,11 @@ def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3
             mag = cat['cog_mtot_{}'.format(band.lower())]
         else:
             print('Thar be rocks ahead!')
-        if mag:
-            res.append('{:.3f}'.format(mag))
+        if mag is not None:
+            if mag > 0:
+                res.append('{:.3f}'.format(mag))
+            else:
+                res.append('...')
         else:
             if ff > 0:
                 mag = 22.5-2.5*np.log10(ff)
@@ -940,9 +1000,7 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
             html.write('<tr>\n')
             html.write('<th> </th>\n')
             #html.write('<th>Index</th>\n')
-            html.write('<th>MaNGA ID</th>\n')
-            html.write('<th>PLATE-IFU</th>\n')
-            #html.write('<th>Galaxy</th>\n')
+            html.write('<th>Galaxy</th>\n')
             html.write('<th>RA</th>\n')
             html.write('<th>Dec</th>\n')
             html.write('<th>Redshift</th>\n')
@@ -953,16 +1011,15 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
             for gal, galaxy1, htmlgalaxydir1 in zip(sample, np.atleast_1d(galaxy), np.atleast_1d(htmlgalaxydir)):
 
                 htmlfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}.html'.format(galaxy1))
-                pngfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}-custom-grz-montage.png'.format(galaxy1))
-                thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-custom-grz-montage.png'.format(galaxy1))
+                pngfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}-custom-montage-grz.png'.format(galaxy1))
+                thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-custom-montage-grz.png'.format(galaxy1))
 
-                ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], 5 * MANGA_RADIUS / pixscale
-                viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1, manga=True)
+                ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], 5 * MOSAICRADIUS / pixscale
+                viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1, dr10=True)
 
                 html.write('<tr>\n')
                 html.write('<td><a href="{0}"><img src="{1}" height="auto" width="100%"></a></td>\n'.format(pngfile1, thumbfile1))
                 #html.write('<td>{}</td>\n'.format(gal['INDEX']))
-                html.write('<td>{}</td>\n'.format(gal['MANGAID']))
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
                 html.write('<td>{:.7f}</td>\n'.format(ra1))
                 html.write('<td>{:.7f}</td>\n'.format(dec1))
@@ -1063,16 +1120,15 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         """Build the table of group properties.
 
         """
-        galaxy1, ra1, dec1, diam1 = gal[GALAXYCOLUMN], gal[racolumn], gal[deccolumn], 5 * MANGA_RADIUS / pixscale
-        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1, manga=True)
+        galaxy1, ra1, dec1, diam1 = gal[GALAXYCOLUMN], gal[racolumn], gal[deccolumn], 5 * MOSAICRADIUS / pixscale
+        viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1, dr10=True)
 
         html.write('<h2>Galaxy Properties</h2>\n')
 
         html.write('<table>\n')
         html.write('<tr>\n')
         #html.write('<th>Index</th>\n')
-        html.write('<th>MaNGA ID</th>\n')
-        html.write('<th>PLATE-IFU</th>\n')
+        html.write('<th>Galaxy</th>\n')
         html.write('<th>RA</th>\n')
         html.write('<th>Dec</th>\n')
         html.write('<th>Redshift</th>\n')
@@ -1084,7 +1140,6 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         #html.write('<td>{:g}</td>\n'.format(ii))
         #print(gal['INDEX'], gal['SGA_ID'], gal['GALAXY'])
         #html.write('<td>{}</td>\n'.format(gal['INDEX']))
-        html.write('<td>{}</td>\n'.format(gal['MANGAID']))
         html.write('<td>{}</td>\n'.format(galaxy1))
         html.write('<td>{:.7f}</td>\n'.format(ra1))
         html.write('<td>{:.7f}</td>\n'.format(dec1))
@@ -1117,8 +1172,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
         html.write('<p>Color mosaics showing (from left to right) the data, Tractor model, and residuals and (from top to bottom), GALEX, <i>grz</i>, and unWISE.</p>\n')
         html.write('<table width="90%">\n')
-        for filesuffix in ('FUVNUV', 'custom-grz', 'W1W2'):
-            pngfile, thumbfile = '{}-{}-montage.png'.format(galaxy1, filesuffix), 'thumb-{}-{}-montage.png'.format(galaxy1, filesuffix)
+        for filesuffix in ('FUVNUV', 'grz', 'W1W2'):
+            pngfile, thumbfile = '{}-custom-montage-{}.png'.format(galaxy1, filesuffix), 'thumb-{}-custom-montage-{}.png'.format(galaxy1, filesuffix)
             html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
                 pngfile, thumbfile))
         html.write('</table>\n')
@@ -1170,7 +1225,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                                                      galaxy_id=galaxyid, verbose=False)
             if bool(ellipse):
                 html.write('<td>{:.3f}</td><td>{:.2f}</td><td>{:.3f}</td>\n'.format(
-                    ellipse['majoraxis']*ellipse['refpixscale'], ellipse['pa'], ellipse['eps']))
+                    ellipse['sma_moment'], ellipse['pa_moment'], ellipse['eps_moment']))
 
                 rr = []
                 if 'sma_sb24' in ellipse.keys():
@@ -1237,7 +1292,11 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                 #g, r, z = _get_mags(ellipse, R26=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
-                fuv, nuv, g, r, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)                
+                fuv, nuv, g, r, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
+                #try:
+                #    fuv, nuv, g, r, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
+                #except:
+                #    pdb.set_trace()
                 html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(
                     fuv, nuv, g, r, z, w1, w2, w3, w4))
                 #g, r, z = _get_mags(ellipse, cog=True)
@@ -1263,20 +1322,20 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('<table width="90%">\n')
 
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
-            thumbfile = 'thumb-{}-custom-{}-ellipse-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
+            thumbfile = 'thumb-{}-custom-ellipse-{}-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="60%"></a></td>\n'.format(pngfile, thumbfile))
             html.write('</tr>\n')
 
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-multiband.png'.format(galaxy1, galaxyid)
-            thumbfile = 'thumb-{}-custom-{}-ellipse-multiband.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-multiband.png'.format(galaxy1, galaxyid)
+            thumbfile = 'thumb-{}-custom-ellipse-{}-multiband.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="80%"></a></td>\n'.format(pngfile, thumbfile))
             html.write('</tr>\n')
 
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-multiband-W1W2.png'.format(galaxy1, galaxyid)
-            thumbfile = 'thumb-{}-custom-{}-ellipse-multiband-W1W2.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-multiband-W1W2.png'.format(galaxy1, galaxyid)
+            thumbfile = 'thumb-{}-custom-ellipse-{}-multiband-W1W2.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="100%"></a></td>\n'.format(pngfile, thumbfile))
             html.write('</tr>\n')
 
@@ -1285,14 +1344,14 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
             html.write('<table width="90%">\n')
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-sbprofile.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-sbprofile.png'.format(galaxy1, galaxyid)
             html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-            pngfile = '{}-custom-{}-ellipse-cog.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-cog.png'.format(galaxy1, galaxyid)
             html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('</tr>\n')
 
             html.write('<tr>\n')
-            pngfile = '{}-custom-{}-ellipse-sed.png'.format(galaxy1, galaxyid)
+            pngfile = '{}-custom-ellipse-{}-sed.png'.format(galaxy1, galaxyid)
             html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('</tr>\n')
             
@@ -1327,7 +1386,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('</style>\n')
 
         # Top navigation menu--
-        html.write('<h1>PLATE-IFU {}</h1>\n'.format(galaxy1))
+        html.write('<h1>{}</h1>\n'.format(galaxy1))
         #raslice = get_raslice(gal[racolumn])
         #html.write('<h4>RA Slice {}</h4>\n'.format(raslice))
 

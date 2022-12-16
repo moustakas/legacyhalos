@@ -14,7 +14,7 @@ def main():
     import legacyhalos.hizea
 
     from legacypipe.runs import get_survey
-    from legacyhalos.hizea import RACOLUMN, DECCOLUMN, GALAXYCOLUMN, MOSAICRADIUS, get_galaxy_galaxydir
+    from legacyhalos.hizea import RACOLUMN, DECCOLUMN, GALAXYCOLUMN, MOSAICRADIUS, REFIDCOLUMN, get_galaxy_galaxydir
     
     basedir = legacyhalos.io.legacyhalos_dir()
     datadir = legacyhalos.io.legacyhalos_data_dir()
@@ -36,9 +36,11 @@ def main():
         print('$LEGACYHALOS_DIR={}'.format(basedir))
         print('$LEGACYHALOS_DATA_DIR={}'.format(datadir))
         print('$LEGACYHALOS_HTML_DIR={}'.format(htmldir))
+
         sample = legacyhalos.hizea.read_sample(first=args.first, last=args.last,
                                                galaxylist=args.galaxylist,
                                                verbose=args.verbose)
+
         if len(sample) == 0:
             return
 
@@ -48,6 +50,43 @@ def main():
     # Building the web-page and integrating the ellipse-fitting results work on
     # the full sample, so do that here and then return.
     if rank == 0:
+        refcat = 'R1'       
+        if args.build_refcat:
+            # Build a reference catalog for use with the pipeline.
+            import fitsio
+
+            def _write_refcat(sample, reffile):
+                """Simple wrapper to write the reference catalog."""
+                ngal = len(sample)
+    
+                ref = Table()
+                ref['ra'] = sample[RACOLUMN]
+                ref['dec'] = sample[DECCOLUMN]
+                ref['sga_id'] = sample[REFIDCOLUMN]
+                ref['mag_leda'] = np.repeat(19.0, len(sample)).astype('f4')
+                ref['ba'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a (circular)
+                ref['pa'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
+                ref['diam'] = np.repeat(10.0/60, ngal).astype('f4') # fixed diameter [arcmin]
+    
+                kdreffile = reffile.replace('.fits', '.kd.fits')
+                print('Writing {} galaxies to {}'.format(ngal, reffile))
+                
+                hdr = fitsio.FITSHDR()
+                hdrver = refcat
+                hdr['SGAVER'] = hdrver
+                fitsio.write(reffile, ref.as_array(), header=hdr, clobber=True)
+    
+                print('Writing {}'.format(kdreffile))
+                cmd = 'startree -i {} -o {} -T -P -k -n stars'.format(reffile, kdreffile)
+                print(cmd)
+                _ = os.system(cmd)
+    
+                cmd = 'modhead {} SGAVER {}'.format(kdreffile, hdrver)
+                _ = os.system(cmd)
+
+            _write_refcat(sample, os.path.join(basedir, 'hizea-orcs-refcat.fits'))
+            return
+                
         if args.htmlindex:
             legacyhalos.hizea.make_html(sample, survey=None, pixscale=args.pixscale,
                                         racolumn=RACOLUMN, deccolumn=DECCOLUMN, 
@@ -62,9 +101,8 @@ def main():
             if len(groups) == 0:
                 print('No complete galaxies!')
                 return
-            build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose)
-            
-        return
+            build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose)            
+            return
     
     # Determine how many more galaxies we need to analyze and divide them across
     # ranks.
@@ -148,8 +186,8 @@ def main():
 
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               #nsigma=10, 
-                               custom=True, apodize=False, unwise=True, galex=True, force=args.force, plots=False,
+                               bands=['g', 'r', 'i', 'z'], 
+                               custom=True, unwise=True, galex=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds, no_gaia=False, no_tycho=False,
                                require_grz=True, debug=args.debug, logfile=logfile,
@@ -161,7 +199,6 @@ def main():
             # model images.
             call_custom_coadds(onegal, galaxy, survey, run, radius_mosaic_arcsec, nproc=args.nproc,
                                pixscale=args.pixscale, racolumn=RACOLUMN, deccolumn=DECCOLUMN,
-                               #nsigma=10, 
                                custom=False, apodize=False, unwise=True, galex=True, force=args.force, plots=False,
                                verbose=args.verbose, cleanup=args.cleanup, write_all_pickles=True,
                                just_coadds=args.just_coadds,
@@ -170,7 +207,7 @@ def main():
         if args.ellipse:
             from legacyhalos.hizea import call_ellipse
             call_ellipse(onegal, galaxy=galaxy, galaxydir=galaxydir,
-                         bands=['g', 'r', 'z'], refband='r',                         
+                         bands=['g', 'r', 'i', 'z'], refband='r',                         
                          pixscale=args.pixscale, nproc=args.nproc,
                          verbose=args.verbose, debug=args.debug,
                          unwise=True, galex=True,
