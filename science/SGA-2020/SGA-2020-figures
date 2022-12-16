@@ -1158,21 +1158,41 @@ def fig_sample_montage(sample, tractor, seed=1, png=None):
 def fig_completeness(sga, png=None):
     """Quantify the sample completeness by comparing against HECATE."""
 
+    import corner
     from glob import glob
     import astropy.units as u
     from astropy.coordinates import SkyCoord, match_coordinates_sky
 
-    sns, _ = plot_style(talk=True, font_scale=4.2)
+    sns, colors = plot_style(talk=True, font_scale=1.3)
 
     # Find the subset of HECATE targets which have grz imaging from DR9.
+    allhecatefile = os.path.join(paperdir, 'HECATE_v1.1.fits')
     hecatefile = os.path.join(paperdir, 'HECATE_v1.1-DR9.fits')
     if not os.path.isfile(hecatefile):
-        allhecatefile = os.path.join(paperdir, 'HECATE_v1.1.fits')
         hecate = Table(fitsio.read(allhecatefile, ext=1))
         print('Read {} objects from {}'.format(len(hecate), allhecatefile))
 
+        ## match to the MW dwarf catalog, which we will handle below
+        #dwarffile = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'sample', 'catalogs', 'SGA-dwarfs.fits')
+        #print('Reading {}'.format(dwarffile))
+        #dwarfs = Table(fitsio.read(dwarffile))
+        #
+        #c_hecate = SkyCoord(hecate['RA']*u.deg, hecate['DEC']*u.deg)
+        #c_dwarfs = SkyCoord(dwarfs['RA']*u.deg, dwarfs['DEC']*u.deg)
+        #
+        #indx_hecate, indx_dwarfs, d2d, _ = c_dwarfs.search_around_sky(c_hecate, 120*u.arcsec)
+        #miss_dwarfs = dwarfs[np.delete(np.arange(len(dwarfs)), indx_dwarfs)]
+        #print('Note: HECATE is missing {}/{} of the MW Dwarfs from McConnachie+2012 within 1 arcmin'.format(len(miss_dwarfs), len(dwarfs)))
+
+        #_, sep2d, _ = c_hecate.match_to_catalog_sky(c_dwarfs)
+        #pngfile = os.path.join(paperdir, 'qa-hecate-mwdwarfs-separation.png')
+        #print('Writing {}'.format(pngfile))
+        #fig, ax = plt.subplots(figsize=(10, 7))    
+        #_ = ax.hist(sep2d.arcmin, bins=100)#, range=(0, 30))
+        #fig.savefig(pngfile)#, bbox_inches='tight')
+
         #randomfiles = glob(os.path.join(os.getenv('LEGACY_SURVEY_DIR'), 'randoms', 'randoms-1-[0-1].fits')
-        randomfiles = list(glob(os.path.join(os.getenv('LEGACY_SURVEY_DIR'), 'randoms', 'randoms-allsky-1-[0-1].fits')))
+        randomfiles = list(glob(os.path.join(os.getenv('LEGACY_SURVEY_DIR'), 'randoms', 'randoms-allsky-1-[0-3].fits')))
         rand = []
         for randomfile in randomfiles:
             print('Reading {}'.format(randomfile))
@@ -1207,7 +1227,11 @@ def fig_completeness(sga, png=None):
     hecate = Table(fitsio.read(hecatefile, ext=1))
     print('Read {} objects from {}'.format(len(hecate), hecatefile))
 
+    print('Multiplying HECATE R1 by a factor of 2!')
+    hecate['R1'] *= 2
+
     c_hecate = SkyCoord(hecate['RA']*u.deg, hecate['DEC']*u.deg)
+    #c_sga = SkyCoord(sga['RA_LEDA']*u.deg, sga['DEC_LEDA']*u.deg)
     c_sga = SkyCoord(sga['RA']*u.deg, sga['DEC']*u.deg)
 
     # quick QA to determine the matching radius
@@ -1216,77 +1240,263 @@ def fig_completeness(sga, png=None):
     pngfile = os.path.join(paperdir, 'qa-hecate-sga2020-separation.png')
     print('Writing {}'.format(pngfile))
     fig, ax = plt.subplots(figsize=(10, 7))
-    _, _, _ = ax.hist(sep2d.arcsec, bins=100, range=(0, 5))
-    #_, _, _ = ax.hist(np.log10(sep2d.arcsec), bins=100, cumulative=True, density=True, histtype='step')#, range=(0, 4), alpha=0.5)
-    ax.set_xlabel('Separation (arcsec)')
-    ax.set_ylabel('Number of Galaxies')
+    #_ = ax.hist(sep2d.arcsec, bins=100, range=(0, 30))
+    sep2d = sep2d.arcsec
+    sep2d[sep2d < 1e-1] = 1e-1
+    _ = ax.hist(np.log10(sep2d), bins=100, cumulative=True, density=True, histtype='step')#, range=(0, 4), alpha=0.5)
+    ax.axvline(x=np.log10(3), ls='--', color='k')
+    ax.set_xlabel(r'$\Delta\theta$ (arcsec)')
+    ax.set_ylabel(r'Fraction$(<\Delta\theta)$')
     #ax.axvline(x=rad.value, ls='-', color='k')
+    fig.subplots_adjust(bottom=0.14)
     fig.savefig(pngfile)#, bbox_inches='tight')
     plt.close(fig)
 
-    # match the catalogs
-    rad = 10.0 * u.arcsec
-    indx_hecate, indx_sga, d2d, _ = c_sga.search_around_sky(c_hecate, rad)
-    print('Found {}/{} HECATE-SGA matches within {} arcsec'.format(len(indx_hecate), len(hecate), rad))
+    # For this comparisons I need R1=D25, so remove the handful of
+    # objects without a diameter. Also remove the Local Group Dwarfs which were
+    # intentionally excluded from the sample, plus Fornax and Sculptor.
+    dwarffile = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'sample', 'catalogs', 'SGA-dwarfs.fits')
+    print('Reading {}'.format(dwarffile))
+    dwarfs = Table(fitsio.read(dwarffile))
+    dwarfs = dwarfs[np.logical_or(dwarfs['RESOLVED'], dwarfs['IGNORE'])]
+
+    #c_hecate = SkyCoord(hecate['RA']*u.deg, hecate['DEC']*u.deg)
+    #c_dwarfs = SkyCoord(dwarfs['RA']*u.deg, dwarfs['DEC']*u.deg)
+
+    #_, sep2d, _ = c_hecate.match_to_catalog_sky(c_dwarfs)
+    #pngfile = os.path.join(paperdir, 'qa-hecate-mwdwarfs-separation.png')
+    #print('Writing {}'.format(pngfile))
+    #fig, ax = plt.subplots(figsize=(10, 7))    
+    #_ = ax.hist(sep2d.arcmin, bins=100)#, range=(0, 30))
+    #fig.savefig(pngfile)#, bbox_inches='tight')
+
+    #indx_hecate, indx_dwarfs, d2d, _ = c_dwarfs.search_around_sky(c_hecate, 120*u.arcsec)
+    dwarfpgc = {
+        'SagittariusdSph': 4689212,
+        'SegueI': 4713559,
+        'UrsaMajorII': 4713555,
+        'BootesII': 4713552,
+        'SegueII': 4713565,
+        'Willman1': 4713556,
+        'BootesI': 4713553,
+        'Draco': 60095,
+        'UrsaMinor': 54074,
+        'SextansI': 88608,
+        'UrsaMajorI': 4713554,
+        'Hercules': 4713560,
+        'LeoIV': 4713561,
+        'LeoV': 4713563,
+        'PiscesII': 5056949,
+        'CanesVenaticiI': 4689223,
+        'AndromedaXIV': 5056922,
+        'AndromedaXIII': 5056925,
+        'AndromedaII': 4601,
+        'AndromedaXXIX': 5060430,
+        'AndromedaXXII': 5057232,
+        'AndromedaXVI': 5056927,
+        'LeoT': 4713564,
+        'ComaBerenices': -1, 
+        'CanesVenaticiII': 4713558,
+        'AndromedaXX': 5056920,
+        'Antlia': 29194,
+        'Carina': 19441,
+        'AndromedaX': 5056921,
+        'AndromedaIX': 4689222,
+        'AndromedaXVII': 4608690,
+        'AndromedaXXVII': 5057230,
+        'AndromedaXXV': 5057228,
+        'AndromedaI': 2666,
+        'AndromedaIII': 2121,
+        'AndromedaXV': 5056926,
+        'AndromedaXII': 5056924,
+        'AndromedaXI': 5056923,
+        'AndromedaXXVI': 5057229,
+        'AndromedaXIX': 5056919,
+        'AndromedaXXI': 5057231,
+        'AndromedaXVIII': 5056918,
+        'AndromedaXXIV': 5057227,
+        'AndromedaXXIII': 5057226,
+        'AndromedaV': 3097824,
+        'AndromedaVII': 2807155,
+        'Aquarius': 65367,
+        'Sculptor': 3589,
+        'Fornax': 10074,
+        }
+
+    #J = np.where(sga['GALAXY'] == thisdwarf)[0]
+    #if len(J) == 1:
+    #    sga['PGC'][J] = dwarfpgc[thisdwarf]
+        
+    for thisdwarf in dwarfpgc.keys():
+        I = np.where(dwarfs['GALAXY'] == thisdwarf)[0]
+        dwarfs['PGC'][I] = dwarfpgc[thisdwarf]
+
+    indx_dwarfs, indx_hecate, miss_dwarfs = [], [], []
+    for I, pgc in enumerate(dwarfs['PGC']):
+        J = np.where(hecate['PGC'] == pgc)[0]
+        if len(J) == 1:
+            indx_dwarfs.append(I)
+            indx_hecate.append(J)
+        else:
+            miss_dwarfs.append(dwarfs[I])
+            
+    indx_dwarfs = np.hstack(indx_dwarfs)
+    indx_hecate = np.hstack(indx_hecate)
+    miss_dwarfs = vstack(miss_dwarfs)
+
+    c_hecate = SkyCoord(hecate[indx_hecate]['RA']*u.deg, hecate[indx_hecate]['DEC']*u.deg)
+    c_dwarfs = SkyCoord(dwarfs[indx_dwarfs]['RA']*u.deg, dwarfs[indx_dwarfs]['DEC']*u.deg)
+    _, sep2d, _ = c_hecate.match_to_catalog_sky(c_dwarfs)
+    print('Mean, min, max delta-theta between McConnachie+12 and HECATE coordinates={:.4f}, {:.4f}, {:.4f} arcsec'.format(
+        np.mean(sep2d.arcsec), np.min(sep2d.arcsec), np.max(sep2d.arcsec)))
+
+    keep_hecate = np.delete(np.arange(len(hecate)), indx_hecate)
+    print('Removing {}/{} HECATE objects which are MW dwarfs intentionally excluded from the SGA.'.format(len(indx_hecate), len(hecate)))
+
+    hecate = hecate[keep_hecate]
 
     I = np.isfinite(hecate['R1'])
-    J = np.isfinite(hecate[indx_hecate]['R1'])
+    print('Removing {}/{} HECATE objects with no D25 diameter.'.format(np.sum(~I), len(hecate)))
+    hecate = hecate[I]
 
-    #I = np.where(np.isfinite(hecate[indx_hecate]['R1']))[0]
-    #print('Removing {} galaxies with no R1 diameters'.format(len(indx_hecate)-len(I)))
-    m_sga = sga[indx_sga][J]
-    m_hecate = hecate[indx_hecate][J]
+    # match the catalogs
+    c_sga = SkyCoord(sga['RA']*u.deg, sga['DEC']*u.deg)    
+    #c_sga = SkyCoord(sga['RA_LEDA']*u.deg, sga['DEC_LEDA']*u.deg)    
+    c_hecate = SkyCoord(hecate['RA']*u.deg, hecate['DEC']*u.deg)
 
-    K = np.delete(np.arange(len(hecate)), indx_hecate)
-    miss_hecate = hecate[K]
-    miss_hecate[miss_hecate['R1'] > 120/60]['OBJNAME', 'RA', 'DEC', 'R1']
+    rad = 1.0 * u.arcsec
+    indx_hecate, indx_sga, d2d, _ = c_sga.search_around_sky(c_hecate, rad)
+    print('Found {}/{} HECATE-SGA matches within {} arcsec.'.format(len(indx_hecate), len(hecate), rad))
+    assert(len(indx_hecate) == len(np.unique(indx_hecate)))
 
-    # quick QA
-    pngfile = os.path.join(paperdir, 'qa-bmag-vs-d25.png')
-    print('Writing {}'.format(pngfile))
-    fig, ax = plt.subplots(figsize=(10, 7))
-    ax.scatter(np.log10(hecate[indx_hecate]['R1']), hecate[indx_hecate]['BT'], s=1, color='red')
-    ax.scatter(np.log10(miss_hecate['R1']), miss_hecate['BT'], s=1, alpha=0.5)
-    ax.axvline(x=np.log10(20/60), color='k', ls='--')
-    ax.set_xlabel(r'$\log\,D_{25}$ (arcmin)')
-    ax.set_ylabel(r'$B_t$ (Vega mag)')
-    fig.savefig(pngfile)#, bbox_inches='tight')
-    plt.close(fig)
+    # match on PGC number
+    sga['PGC'][sga['GALAXY'] == 'AndromedaVI'] = 2807158
+    sga['PGC'][sga['GALAXY'] == 'AndromedaXXVIII'] = 5060429
+    m_sga = sga[indx_sga]
+    m_hecate = hecate[indx_hecate]
+
+    miss_sga = sga[np.delete(np.arange(len(sga)), indx_sga)]
+    miss_hecate = hecate[np.delete(np.arange(len(hecate)), indx_hecate)]
+
+    supp_sga, supp_hecate = [], []
+    for I, pgc in enumerate(miss_hecate['PGC']):
+        J = np.where(pgc == miss_sga['PGC'])[0]
+        if len(J) == 1:
+            supp_hecate.append(I)
+            supp_sga.append(J)
+    supp_hecate = np.hstack(supp_hecate)
+    supp_sga = np.hstack(supp_sga)
+    print('Matching an additional {}/{} SGA sources to HECATE based on PGC number.'.format(len(supp_hecate), len(miss_hecate)))
+
+    c_supp_hecate = SkyCoord(miss_hecate[supp_hecate]['RA']*u.deg, miss_hecate[supp_hecate]['DEC']*u.deg)
+    c_supp_sga = SkyCoord(miss_sga[supp_sga]['RA']*u.deg, miss_sga[supp_sga]['DEC']*u.deg)
+    _, sep2d, _ = c_supp_hecate.match_to_catalog_sky(c_supp_sga)
+    print('Mean, min, max delta-theta between SGA and HECATE coordinates for the PGC matches={:.4f}, {:.4f}, {:.4f} arcsec.'.format(
+        np.mean(sep2d.arcsec), np.min(sep2d.arcsec), np.max(sep2d.arcsec)))
+    print('Galaxies where the SGA-HECATE coordinates differ by >15 arcsec:')
+    print(miss_hecate[supp_hecate][sep2d.arcsec > 15]['OBJNAME', 'ID_NED', 'RA', 'DEC', 'R1', 'PGC'])
+
+    m_sga = vstack((m_sga, miss_sga[supp_sga]))
+    m_hecate = vstack((m_hecate, miss_hecate[supp_hecate]))
+
+    print('Final sample: {}/{} ({:.2f}%) HECATE-SGA matches.'.format(len(m_hecate), len(hecate), 100*len(m_hecate)/len(hecate)))
+
+    fixmag = np.where(np.isnan(hecate['BT']))[0]
+    if len(fixmag) > 0:
+        print('Setting Bt=16 for {} HECATE objects with no magnitude estimate.'.format(len(fixmag)))
+        hecate['BT'][fixmag] = 16
     
-    # make the QA -
-    pngfile = os.path.join(figdir, png)
-    print('Writing {}'.format(pngfile))
+    # HECATE objects with D25>20 arcsec missing from SGA
+    
+    
+    miss_hecate = hecate[np.logical_not(np.isin(hecate['PGC'], m_hecate['PGC'])) * (hecate['R1'] > 20/60)]['OBJNAME', 'ID_NED', 'RA', 'DEC', 'R1', 'BT', 'PGC']
+    #miss_sga = sga[np.logical_not(np.isin(sga['SGA_GALAXY'], m_sga['SGA_GALAXY']))]
+    print('Trimming to {} HECATE sources with D25>20 arcsec missing from the SGA.'.format(len(miss_hecate)))
 
-    #logd25 = np.log10(hecate['R1'][I])
-    #match_logd25 = np.log10(hecate['R1'][indx_hecate][J])
-    #mind25, maxd25, dd25 = -1, 1, 0.1
+    assert(len(m_sga['SGA_GALAXY']) == len(np.unique(m_sga['SGA_GALAXY'])))
+    assert(len(m_hecate['PGC']) == len(np.unique(m_hecate['PGC'])))
+    #assert((len(miss_hecate)+len(m_hecate)) == len(hecate))
+
+    # do some QA
+    #print(miss_hecate[(miss_hecate['R1'] > 30/60)*(miss_hecate['R1'] < 10000)]
+    #print(miss_hecate[(miss_hecate['R1'] > 7)*(miss_hecate['R1'] < 12)]['OBJNAME', 'ID_NED', 'RA', 'DEC', 'R1', 'BT', 'PGC'])
+
+    ## How many of the missing objects were never in the Hyperleda catalog?
+    #parentfile = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'sample', 'hyperleda', 'hyperleda-d25min10-18nov14.fits')
+    #parent = Table(fitsio.read(parentfile))
+    #print(np.sum(np.isin(miss_hecate['OBJNAME'], parent['galaxy'])))
+
+    viewer = miss_hecate[miss_hecate['R1'] > 60/60]['OBJNAME', 'RA', 'DEC', 'R1']
+    viewer.rename_column('OBJNAME', 'NAME')
+    viewer.rename_column('R1', 'RADIUS')
+    viewer['RADIUS'] = viewer['RADIUS'] * 60 / 2 # arcmin diameter-->arcsec radius
+    
+    viewerfile = os.path.join(paperdir, 'viewer-sga-hecate-missing.fits')
+    print('Writing {} objects with D25>1 arcmin to {}'.format(len(viewer), viewerfile))
+    viewer.write(viewerfile, overwrite=True)
+
+    # get the fraction of non-matches as a function of D25
+    logd25 = np.log10(hecate['R1'])
+    match_logd25 = np.log10(m_hecate['R1'])
+    mind25, maxd25, dd25 = -1.5, 1.7, 0.15
     ##mind25, maxd25 = np.min(logd25), np.max(logd25)
 
-    logd25 = hecate['R1'][I]
-    match_logd25 = hecate['R1'][indx_hecate][J]
-    mind25, maxd25, dd25 = 0.0, 12, 0.5
+    #logd25 = hecate['R1']
+    #match_logd25 = m_hecate['R1']
+    #mind25, maxd25, dd25 = 0.0, 30, 0.5
 
     bins = np.arange(mind25, maxd25, dd25) # bin left edges
     numer, _ = np.histogram(match_logd25, bins=len(bins), range=(bins.min(), bins.max()))
     denom, _ = np.histogram(logd25, bins=len(bins), range=(bins.min(), bins.max()))
-
-    pngfile = os.path.join(figdir, png)
-    print('Writing {}'.format(pngfile))
-    fig, ax = plt.subplots(figsize=(10, 7))
     good = denom > 0
-    ax.plot(bins[good], numer[good] / denom[good])
-    ax.axvline(x=np.log10(20/60), color='k', ls='--')
-    fig.savefig(pngfile)#, bbox_inches='tight')
-    plt.close(fig)
+    xfrac = bins[good]
+    yfrac = numer[good] / denom[good] 
 
-    pdb.set_trace()
+    @ticker.FuncFormatter
+    def major_formatter(x, pos):
+        if x >= 0:
+            return '{:.0f}'.format(10**x)
+        elif (x < 0) and (x >= -1):
+            return '{:.1f}'.format(10**x)
+        else:
+            return '{:.2f}'.format(10**x)
 
-    #match_sga = sga[sep_constraint]
-    #match_hecate = match_hecate[idx[sep_constraint]]    
+    # make the QA -
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    xlim = (-1.5, 1.8)
+    ylim = (6.5, 26)
+    corner.hist2d(np.log10(hecate['R1']), hecate['BT'], 
+                  levels=[0.1, 0.25, 0.5, 0.75, 0.95, 0.99],
+                  #levels=[0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99],
+                  bins=100, smooth=True, ax=ax, color='k', #mpl.cm.get_cmap('viridis'),
+                  plot_density=True, fill_contours=True, range=(xlim, ylim),
+                  data_kwargs={'color': 'k', 'alpha': 1.0, 'ms': 3, 'alpha': 0.5},
+                  contour_kwargs={'colors': 'k', 'alpha': 0.5}
+                 )
+    #ax.scatter(np.log10(m_hecate['R1']), m_hecate['BT'], s=1, color='red')
+    #ax.scatter(np.log10(miss_hecate['R1']), miss_hecate['BT'], s=10, color=colors[2], marker='s', alpha=1)
+
+    ax.set_xlabel(r'$\log_{10}\,(D_{25})$ (HECATE, arcmin)')
+    ax.set_ylabel(r'$bt$ (HECATE, Vega mag)')
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(2))
+    ax.xaxis.set_major_formatter(major_formatter)
+    ax.set_xticks(np.log10([0.05, 0.2, 0.5, 1, 2, 5, 10, 30]))
+    
+    ax2 = ax.twinx()
+    ax2.axvline(x=np.log10(20/60), color=colors[2], ls='--', alpha=1)
+    #ax2.axvline(x=np.log10(30/60), color=colors[0], ls='--', alpha=1)
+    ax2.axhline(y=1.0, ls='--', lw=2, color=colors[2], alpha=1)
+    ax2.step(xfrac, yfrac, color=colors[3], ls='-', lw=3)
+    ax2.set_ylim(0, 1.05)
+    ax2.set_ylabel('Fraction of SGA-HECATE Matches')
 
     if png:
         pngfile = os.path.join(figdir, png)
         print('Writing {}'.format(pngfile))
+        fig.subplots_adjust(bottom=0.14, right=0.85)
         fig.savefig(pngfile)#, bbox_inches='tight')
         plt.close(fig)
 
