@@ -760,7 +760,7 @@ def skyserver_link(sdss_objid):
     return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(sdss_objid)
 
 # Get the viewer link
-def viewer_link(ra, dec, width, sga=False, manga=False):
+def viewer_link(ra, dec, width, sga=False, manga=False, dr10=False):
     baseurl = 'http://legacysurvey.org/viewer-dev/'
     if width > 1200:
         zoom = 13
@@ -768,6 +768,11 @@ def viewer_link(ra, dec, width, sga=False, manga=False):
         zoom = 14
     else:
         zoom = 15
+
+    if dr10:
+        drlayer = 'ls-dr10'
+    else:
+        drlayer = 'ls-dr9'
         
     layer1 = ''
     if sga:
@@ -775,8 +780,8 @@ def viewer_link(ra, dec, width, sga=False, manga=False):
     if manga:
         layer1 = layer1+'&manga'
 
-    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=ls-dr9{}'.format(
-        baseurl, ra, dec, zoom, layer1)
+    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer={}{}'.format(
+        baseurl, ra, dec, zoom, drlayer, layer1)
 
     return viewer
 
