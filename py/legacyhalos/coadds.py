@@ -280,7 +280,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
 
     return 1
 
-def get_ccds(survey, ra, dec, pixscale, width):
+def get_ccds(survey, ra, dec, pixscale, width, bands=['g', 'r', 'z']):
     """Quickly get the CCDs touching this custom brick.  This code is mostly taken
     from legacypipe.runbrick.stage_tims.
 
@@ -295,12 +295,13 @@ def get_ccds(survey, ra, dec, pixscale, width):
     if ccds is None or np.sum(ccds.ccd_cuts == 0) == 0:
         return []
     ccds.cut(ccds.ccd_cuts == 0)
-    ccds.cut(np.array([b in ['g', 'r', 'z'] for b in ccds.filter]))
+    ccds.cut(np.array([b in bands for b in ccds.filter]))
 
     return ccds
 
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC',
+                  bands=['g', 'r', 'z'],
                   nsigma=None, 
                   log=None, apodize=False, custom=True, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True, missing_ok=False,
@@ -337,8 +338,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     brickname = 'custom-{}'.format(custom_brickname(onegal[racolumn], onegal[deccolumn]))
 
     # Quickly read the input CCDs and check that we have all the colors we need.
-    bands = ['g', 'r', 'z']
-    ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width)
+    ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width, bands=bands)
     if len(ccds) == 0:
         print('No CCDs touching this brick; nothing to do.')
         return 1, stagesuffix
@@ -346,7 +346,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     usebands = list(sorted(set(ccds.filter)))
     these = [filt in usebands for filt in bands]
     print('Bands touching this brick, {}'.format(' '.join([filt for filt in usebands])))
-    if np.sum(these) != 3 and require_grz:
+    if np.sum(these) < len(bands) and require_grz:
         print('Missing imaging in grz and require_grz=True; nothing to do.')
         ccdsfile = os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run))
         # should we write out the CCDs file?
@@ -357,7 +357,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # Run the pipeline!
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
-    cmd += '--threads {threads} --outdir {outdir} '
+    cmd += '--threads {threads} --outdir {outdir} --bands {bands} '
     cmd += '--survey-dir {survey_dir} --run {run} '
     if write_all_pickles:
         pass
@@ -418,10 +418,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_CODE_DIR'), galaxy=galaxy,
                      ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
+                     bands=','.join(bands),
                      galaxydir=survey.output_dir, survey_dir=survey.survey_dir, run=run,
                      stagesuffix=stagesuffix)
     print(cmd, flush=True, file=log)
-
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
     #err = 0
 
