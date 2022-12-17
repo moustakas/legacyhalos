@@ -130,7 +130,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                    datadir=None, htmldir=None, cosmo=None,
                    galex=False, unwise=False, just_coadds=False, write_donefile=True,
                    barlen=None, barlabel=None, radius_mosaic_arcsec=None,
-                   get_galaxy_galaxydir=None, read_multiband=None):
+                   get_galaxy_galaxydir=None, read_multiband=None,
+                   qa_multiwavelength_sed=None):
     """Wrapper script to build the pipeline coadds."""
     t0 = time.time()
 
@@ -145,7 +146,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
             clobber=clobber, verbose=verbose, 
             cosmo=cosmo, galex=galex, unwise=unwise, just_coadds=just_coadds,
             get_galaxy_galaxydir=get_galaxy_galaxydir,
-            read_multiband=read_multiband)
+            read_multiband=read_multiband,
+            qa_multiwavelength_sed=qa_multiwavelength_sed)
         if write_donefile:
             _done(galaxy, survey.output_dir, err, t0, 'html')
     else:
@@ -161,7 +163,8 @@ def call_htmlplots(onegal, galaxy, survey, pixscale=0.262, nproc=1,
                     clobber=clobber, verbose=verbose,
                     cosmo=cosmo, galex=galex, unwise=unwise, just_coadds=just_coadds,
                     get_galaxy_galaxydir=get_galaxy_galaxydir,
-                    read_multiband=read_multiband)
+                    read_multiband=read_multiband,
+                    qa_multiwavelength_sed=qa_multiwavelength_sed)
                 if write_donefile:
                     _done(galaxy, survey.output_dir, err, t0, 'html')
 
