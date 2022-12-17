@@ -689,6 +689,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
                         'maskbits': '{}-maskbits'.format(filesuffix),
                         })
 
+    optbands = bands
     if galex:
         galex_bands = ['FUV', 'NUV']
         #galex_bands = ['fuv', 'nuv'] # ['FUV', 'NUV']
@@ -748,13 +749,17 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
         print('Reading {}'.format(tractorfile))
         
     cols = ['ra', 'dec', 'bx', 'by', 'type', 'ref_cat', 'ref_id',
-            'sersic', 'shape_r', 'shape_e1', 'shape_e2',
-            'flux_g', 'flux_r', 'flux_z',
-            'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z',
-            'nobs_g', 'nobs_r', 'nobs_z',
-            'mw_transmission_g', 'mw_transmission_r', 'mw_transmission_z', 
-            'psfdepth_g', 'psfdepth_r', 'psfdepth_z',
-            'psfsize_g', 'psfsize_r', 'psfsize_z']
+            'sersic', 'shape_r', 'shape_e1', 'shape_e2']
+    for band in bands:
+        cols = cols + ['flux_{}'.format(band.lower()), 'flux_ivar_{}'.format(band.lower())]
+        # need to address this ticket to get mw_transmission in fuv,nuv bands
+        # https://github.com/legacysurvey/legacypipe/issues/713
+        if band == 'FUV' or band == 'NUV':
+            continue
+        cols = cols + ['mw_transmission_{}'.format(band.lower())]
+    for band in optbands:
+        cols = cols + ['nobs_{}'.format(band.lower()), 'psfdepth_{}'.format(band.lower()),
+                       'psfsize_{}'.format(band.lower())]
     if galex:
         cols = cols+['flux_fuv', 'flux_nuv', 'flux_ivar_fuv', 'flux_ivar_nuv']
     if unwise:
@@ -865,7 +870,7 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                  filesuffix='custom', bands=['g', 'r', 'z'], refband='r',
                  galex_pixscale=1.5, unwise_pixscale=2.75,
                  sky_tests=False, unwise=False, galex=False, verbose=False,
-                 debug=False, logfile=None):
+                 clobber=False, debug=False, logfile=None):
     """Wrapper on legacyhalos.mpi.call_ellipse but with specific preparatory work
     and hooks for the legacyhalos project.
 
@@ -883,21 +888,21 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
             with redirect_stdout(log), redirect_stderr(log):
                 data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
                                                   filesuffix=filesuffix, refband=refband,
-                                                  pixscale=pixscale,
+                                                  pixscale=pixscale, 
                                                   galex_pixscale=galex_pixscale, unwise_pixscale=unwise_pixscale,
                                                   unwise=unwise, galex=galex,
                                                   sky_tests=sky_tests, verbose=verbose)
     else:
         data, galaxyinfo = read_multiband(galaxy, galaxydir, bands=bands,
                                           filesuffix=filesuffix, refband=refband,
-                                          pixscale=pixscale,
+                                          pixscale=pixscale,  
                                           galex_pixscale=galex_pixscale, unwise_pixscale=unwise_pixscale,
                                           unwise=unwise, galex=galex,
                                           sky_tests=sky_tests, verbose=verbose)
 
     maxsma = None
     #maxsma = 5 * MANGA_RADIUS # None
-    delta_logsma = 5 # 3.0
+    delta_logsma = 2 # 3.0
 
     # don't pass logfile and set debug=True because we've already opened the log
     # above!
@@ -906,7 +911,196 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                      bands=bands, refband=refband, sbthresh=SBTHRESH,
                      apertures=APERTURES,
                      logsma=True, delta_logsma=delta_logsma, maxsma=maxsma,
-                     verbose=verbose, debug=True)#debug, logfile=logfile)
+                     verbose=verbose, debug=True, clobber=clobber)#debug, logfile=logfile)
+
+def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
+    """Plot up the multiwavelength SED.
+
+    """
+    import matplotlib.pyplot as plt    
+    from copy import deepcopy
+    import matplotlib.ticker as ticker
+    from astropy.table import Table
+    from legacyhalos.io import get_run
+    from legacyhalos.qa import _sbprofile_colors    
+    
+    if ellipsefit['success'] is False or np.atleast_1d(ellipsefit['sma_r'])[0] == -1:
+        return
+    
+    bands, refband = ellipsefit['bands'], ellipsefit['refband']
+
+    galex = 'FUV' in bands
+    unwise = 'W1' in bands
+    colors = _sbprofile_colors(galex=galex, unwise=unwise)
+        
+    if 'redshift' in ellipsefit.keys():
+        redshift = ellipsefit['redshift']
+        smascale = legacyhalos.misc.arcsec2kpc(redshift, cosmo=cosmo) # [kpc/arcsec]
+    else:
+        redshift, smascale = None, None
+
+    # see also Morrisey+05
+    effwave_north = {'fuv': 1528.0, 'nuv': 2271.0,
+                     'w1': 34002.54044482, 'w2': 46520.07577119, 'w3': 128103.3789599, 'w4': 223752.7751558,
+                     'g': 4815.95363513, 'r': 6437.79282937, 'i': 7847.78249813, 'z': 9229.65786449}
+    effwave_south = {'fuv': 1528.0, 'nuv': 2271.0,
+                     'w1': 34002.54044482, 'w2': 46520.07577119, 'w3': 128103.3789599, 'w4': 223752.7751558,
+                     'g': 4890.03670428, 'r': 6469.62203811, 'i': 7847.78249813, 'z': 9196.46396394}
+
+    _tt = Table()
+    _tt['RA'] = [ellipsefit['ra_moment']]
+    _tt['DEC'] = [ellipsefit['dec_moment']]
+    run = get_run(_tt)
+
+    if run == 'north':
+        effwave = effwave_north
+    else:
+        effwave = effwave_south
+
+    # build the arrays
+    nband = len(bands)
+    bandwave = np.array([effwave[filt.lower()] for filt in bands])
+
+    _phot = {'abmag': np.zeros(nband, 'f4')-1,
+             'abmagerr': np.zeros(nband, 'f4')+0.5,
+             'lower': np.zeros(nband, bool)}
+    phot = {'mag_tot': deepcopy(_phot), 'tractor': deepcopy(_phot), 'mag_sb25': deepcopy(_phot)}
+
+    for ifilt, filt in enumerate(bands):
+        mtot = ellipsefit['cog_mtot_{}'.format(filt.lower())]
+        if mtot > 0:
+            phot['mag_tot']['abmag'][ifilt] = mtot
+            phot['mag_tot']['abmagerr'][ifilt] = 0.1
+            phot['mag_tot']['lower'][ifilt] = False
+
+        flux = ellipsefit['flux_sb25_{}'.format(filt.lower())]
+        ivar = ellipsefit['flux_ivar_sb25_{}'.format(filt.lower())]
+        #print(filt, mag)
+
+        if flux > 0 and ivar > 0:
+            mag = 22.5 - 2.5 * np.log10(flux)
+            ferr = 1.0 / np.sqrt(ivar)
+            magerr = 2.5 * ferr / flux / np.log(10)
+            phot['mag_sb25']['abmag'][ifilt] = mag
+            phot['mag_sb25']['abmagerr'][ifilt] = magerr
+            phot['mag_sb25']['lower'][ifilt] = False
+        if flux <=0 and ivar > 0:
+            ferr = 1.0 / np.sqrt(ivar)
+            mag = 22.5 - 2.5 * np.log10(ferr)
+            phot['mag_sb25']['abmag'][ifilt] = mag
+            phot['mag_sb25']['abmagerr'][ifilt] = 0.75
+            phot['mag_sb25']['lower'][ifilt] = True
+
+        if tractor is not None:
+            flux = tractor['flux_{}'.format(filt.lower())]
+            ivar = tractor['flux_ivar_{}'.format(filt.lower())]
+            #if filt == 'FUV':
+            #    pdb.set_trace()
+            if flux > 0 and ivar > 0:
+                phot['tractor']['abmag'][ifilt] = 22.5 - 2.5 * np.log10(flux)
+                phot['tractor']['abmagerr'][ifilt] = 0.1
+            if flux <= 0 and ivar > 0:
+                phot['tractor']['abmag'][ifilt] = 22.5 - 2.5 * np.log10(1/np.sqrt(ivar))
+                phot['tractor']['abmagerr'][ifilt] = 0.75
+                phot['tractor']['lower'][ifilt] = True
+
+    #print(phot['mag_tot']['abmag'])
+    #print(phot['mag_sb25']['abmag'])
+    #print(phot['tractor']['abmag'])
+
+    def _addphot(thisphot, color, marker, alpha, label):
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == True))[0]
+        if len(good) > 0:
+            ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
+                        marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+                        markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+                        lolims=True, linestyle='none', alpha=alpha)#, lolims=True)
+        good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == False))[0]
+        if len(good) > 0:
+            ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
+                        marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+                        markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+                        label=label, linestyle='none', alpha=alpha)
+    
+    # make the plot
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    # get the plot limits
+    good = np.where(phot['mag_tot']['abmag'] > 0)[0]
+    ymax = np.min(phot['mag_tot']['abmag'][good])
+    ymin = np.max(phot['mag_tot']['abmag'][good])
+
+    good = np.where(phot['tractor']['abmag'] > 0)[0]
+    if np.min(phot['tractor']['abmag'][good]) < ymax:
+        ymax = np.min(phot['tractor']['abmag'][good])
+    if np.max(phot['tractor']['abmag']) > ymin:
+        ymin = np.max(phot['tractor']['abmag'][good])
+    #print(ymin, ymax)
+
+    ymin += 1.5
+    ymax -= 1.5
+
+    wavemin, wavemax = 0.1, 30
+
+    # have to set the limits before plotting since the axes are reversed
+    if np.abs(ymax-ymin) > 15:
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(5))
+    ax.set_ylim(ymin, ymax)
+    _addphot(phot['mag_tot'], color='red', marker='s', alpha=1.0, label=r'$m_{\mathrm{tot}}$')
+    #_addphot(phot['mag_sb25'], color='orange', marker='^', alpha=0.7, label=r'$m(r<R_{25})$')
+    _addphot(phot['tractor'], color='blue', marker='o', alpha=0.5, label='Tractor')
+
+    #thisphot = phot['tractor']
+    #color='blue'
+    #marker='o'
+    #label='Tractor'
+
+    #good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == False))[0]
+    #if len(good) > 0:
+    #    ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=thisphot['abmagerr'][good],
+    #                marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+    #                markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+    #                label=label, linestyle='none')
+    
+    #good = np.where((thisphot['abmag'] > 0) * (thisphot['lower'] == True))[0]
+    ##ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=0.5, #thisphot['abmagerr'][good],
+    ##            marker='o', uplims=thisphot['lower'][good], linestyle='none')
+    #if len(good) > 0:
+    #    ax.errorbar(bandwave[good]/1e4, thisphot['abmag'][good], yerr=0.5, #thisphot['abmagerr'][good][0],
+    #                marker=marker, markersize=11, markeredgewidth=3, markeredgecolor='k',
+    #                markerfacecolor=color, elinewidth=3, ecolor=color, capsize=4,
+    #                uplims=thisphot['lower'][good], linestyle='none')#, lolims=True)
+                    
+    ax.set_xlabel(r'Observed-frame Wavelength ($\mu$m)') 
+    ax.set_ylabel(r'Apparent Brightness (AB mag)') 
+    ax.set_xlim(wavemin, wavemax)
+    ax.set_xscale('log')
+    ax.legend(loc='lower right')
+
+    def _frmt(value, _):
+        if value < 1:
+            return '{:.1f}'.format(value)
+        else:
+            return '{:.0f}'.format(value)
+
+    #ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%.1f'))
+    ax.set_xticks([0.1, 0.2, 0.4, 1.0, 3.0, 5.0, 10, 20])
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(_frmt))
+
+    if smascale:
+        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.85, right=0.95)
+        #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.85, right=0.88)
+    else:
+        fig.subplots_adjust(left=0.14, bottom=0.15, top=0.95, right=0.95)
+        #fig.subplots_adjust(left=0.12, bottom=0.15, top=0.95, right=0.88)
+
+    if png:
+        #if verbose:
+        print('Writing {}'.format(png))
+        fig.savefig(png)
+        plt.close(fig)
+    else:
+        plt.show()
 
 def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4'],
               kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):

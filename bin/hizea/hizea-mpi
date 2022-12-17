@@ -210,12 +210,13 @@ def main():
                          bands=['g', 'r', 'i', 'z'], refband='r',                         
                          pixscale=args.pixscale, nproc=args.nproc,
                          verbose=args.verbose, debug=args.debug,
+                         clobber=args.clobber,
                          unwise=True, galex=True,
                          logfile=logfile)
                              
         if args.htmlplots:
             from legacyhalos.mpi import call_htmlplots
-            from legacyhalos.hizea import read_multiband
+            from legacyhalos.hizea import read_multiband, qa_multiwavelength_sed
             
             barlabel = '10 arcsec'
             barlen = np.ceil(10 / args.pixscale).astype(int) # [pixels]
@@ -225,6 +226,7 @@ def main():
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
                            radius_mosaic_arcsec=radius_mosaic_arcsec,
+                           qa_multiwavelength_sed=qa_multiwavelength_sed,
                            #galaxy_id=onegal['VF_ID'],                           
                            galex=True, unwise=True,
                            get_galaxy_galaxydir=get_galaxy_galaxydir,
