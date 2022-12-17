@@ -21,6 +21,7 @@ def _mosaic_width(radius_mosaic, pixscale):
     return width
 
 def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
+                     bands=['g', 'r', 'z'],
                      unwise=True, galex=False, cleanup=False, just_coadds=False,
                      clobber=False, require_grz=True, missing_ok=False,
                      write_wise_psf=False):
@@ -95,15 +96,15 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     # the files except a 
     if os.path.isfile(ccdsfile): # can be missing during testing if missing_ok=True
         allbands = fitsio.read(ccdsfile, columns='filter')
-        bands = list(sorted(set(allbands)))
+        ubands = list(sorted(set(allbands)))
 
-        if require_grz and ('g' not in bands or 'r' not in bands or 'z' not in bands):
+        if require_grz and ('g' not in ubands or 'r' not in ubands or 'z' not in ubands):
             print('Lost grz coverage and require_grz=True.')
             if cleanup:
                 _do_cleanup()
             return 1
-    else:
-        bands = ('g', 'r', 'z')
+    #else:
+    #    bands = ('g', 'r', 'z')
 
     # image coadds (FITS + JPG)
     for band in bands:
@@ -347,7 +348,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     these = [filt in usebands for filt in bands]
     print('Bands touching this brick, {}'.format(' '.join([filt for filt in usebands])))
     if np.sum(these) < len(bands) and require_grz:
-        print('Missing imaging in grz and require_grz=True; nothing to do.')
+        print('Missing imaging in at least grz and require_grz=True; nothing to do.')
         ccdsfile = os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run))
         # should we write out the CCDs file?
         print('Writing {} CCDs to {}'.format(len(ccds), ccdsfile))
@@ -529,6 +530,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                               run, unwise=unwise, galex=galex, cleanup=cleanup,
                               just_coadds=just_coadds,
                               clobber=True,
+                              bands=bands,
                               write_wise_psf=write_wise_psf,
                               #clobber=force,
                               require_grz=require_grz, missing_ok=missing_ok)
