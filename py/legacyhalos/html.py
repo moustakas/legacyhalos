@@ -459,6 +459,7 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
 
 def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                     refband='r', pixscale=0.262, read_multiband=None,
+                    qa_multiwavelength_sed=None,
                     galaxy_id=None, barlen=None, barlabel=None, clobber=False, verbose=False,
                     cosmo=None, galex=False, unwise=False, scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
@@ -470,7 +471,9 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
     from legacyhalos.io import read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth,
-                                qa_maskbits, qa_multiwavelength_sed)
+                                qa_maskbits)
+    if qa_multiwavelength_sed is None:
+        from legacyhalos.qa import qa_multiwavelength_sed
 
     Image.MAX_IMAGE_PIXELS = None
     
@@ -655,7 +658,8 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                nproc=1, barlen=None, barlabel=None,
                radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
-               read_multiband=None, cosmo=None, galex=False, unwise=False,
+               read_multiband=None, qa_multiwavelength_sed=None,
+               cosmo=None, galex=False, unwise=False,
                just_coadds=False, scaledfont=False):
     """Make QA plots.
 
@@ -711,7 +715,8 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel,
                             galaxy_id=galaxy_id,
                             clobber=clobber, verbose=verbose, galex=galex, unwise=unwise,
-                            cosmo=cosmo, scaledfont=scaledfont, read_multiband=read_multiband)
+                            cosmo=cosmo, scaledfont=scaledfont, read_multiband=read_multiband,
+                            qa_multiwavelength_sed=qa_multiwavelength_sed)
             #continue # here!
             #pdb.set_trace()
 
