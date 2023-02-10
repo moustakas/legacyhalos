@@ -215,10 +215,10 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=False, png=N
                                      maxis, maxis*(1 - ellipsefit['eps_moment']),
                                      np.radians(ellipsefit['pa_moment']-90))
         if igal == 0:
-            ellaper.plot(color=cb_colors['blue'], lw=2, axes=ax2, alpha=0.9, label='R(26)')
+            ellaper.plot(color=cb_colors['blue'], lw=2, ax=ax2, alpha=0.9, label='R(26)')
         else:
-            ellaper.plot(color=cb_colors['blue'], lw=2, axes=ax2, alpha=0.9)
-        ellaper.plot(color=cb_colors['blue'], lw=2, ls='-', axes=ax3, alpha=0.9)
+            ellaper.plot(color=cb_colors['blue'], lw=2, ax=ax2, alpha=0.9)
+        ellaper.plot(color=cb_colors['blue'], lw=2, ls='-', ax=ax3, alpha=0.9)
 
         draw_ellipse_on_png(colorimg, ellipsefit['x0_moment'], imgsz[1]-ellipsefit['y0_moment'],
                             1-ellipsefit['eps_moment'],
@@ -236,10 +236,10 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=False, png=N
                                          maxis, maxis * ellipsefit['ba_leda'],
                                          np.radians(ellipsefit['pa_leda']-90))
         if igal == 0:
-            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax2, alpha=1.0, label='Hyperleda')
+            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', ax=ax2, alpha=1.0, label='Hyperleda')
         else:
-            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax2, alpha=1.0)
-        ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax3, alpha=1.0)
+            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', ax=ax2, alpha=1.0)
+        ellaper.plot(color=cb_colors['red'], lw=2, ls='-', ax=ax3, alpha=1.0)
 
     # color mosaic
     draw = ImageDraw.Draw(colorimg)
@@ -1098,7 +1098,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     cmap = plt.cm.inferno
     #cmap = plt.cm.viridis
     stretch = Stretch(a=0.9)
-    interval = Interval(contrast=0.5, nsamples=10000)
+    interval = Interval(contrast=0.5, n_samples=10000)
 
     #cmap = 'RdBu_r'
     #cmap = {'g': 'winter_r', 'r': 'summer', 'z': 'autumn_r'}
@@ -1269,7 +1269,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                                          maxis, maxis*(1 - ellipsefit['eps_moment']),
                                          np.radians(ellipsefit['pa_moment']-90))
             if False:
-                ellaper.plot(lw=5, axes=ax1, alpha=1.0, label='Moment geometry',
+                ellaper.plot(lw=5, ax=ax1, alpha=1.0, label='Moment geometry',
                              color=cb_colors['green'])
 
             # Visualize the ellipse-fitted geometry
@@ -1278,8 +1278,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper = EllipticalAperture((ellipsefit['x0_moment']*pixscalefactor, ellipsefit['y0_moment']*pixscalefactor),
                                              maxis*pixscalefactor, maxis*(1 - ellipsefit['eps_moment'])*pixscalefactor,
                                              np.radians(ellipsefit['pa_moment']-90))
-                #ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='Ellipse geometry')
-                ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='R(26)')
+                #ellaper.plot(color=cb_colors['blue'], lw=5, ax=ax1, alpha=1.0, label='Ellipse geometry')
+                ellaper.plot(color=cb_colors['blue'], lw=5, ax=ax1, alpha=1.0, label='R(26)')
 
             # Visualize the LSLGA geometry, if present.
             if ('pa_leda' in ellipsefit.keys()) * ('ba_leda' in ellipsefit.keys()) * ('d25_leda' in ellipsefit.keys()):
@@ -1288,7 +1288,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                                              maxis, maxis * ellipsefit['ba_leda'],
                                              np.radians(ellipsefit['pa_leda']-90))
                 if False:
-                    ellaper.plot(color=cb_colors['red'], lw=5, axes=ax1, alpha=1.0, label='Hyperleda geometry')
+                    ellaper.plot(color=cb_colors['red'], lw=5, ax=ax1, alpha=1.0, label='Hyperleda geometry')
             #pdb.set_trace()
             ## Visualize the fitted geometry
             #maxis = mge['majoraxis'] * 1.2
@@ -1303,7 +1303,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                     maxis = geometry.sma * 0.8
                     ellaper = EllipticalAperture((geometry.x0, geometry.y0), maxis,
                                                  maxis*(1 - geometry.eps), geometry.pa)
-                    ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
+                    ellaper.plot(color='navy', lw=2, ax=ax1, alpha=1.0, label='Input geometry')
 
             if ii == nband-1:
                 fntsize = 20
@@ -1321,7 +1321,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #geometry = ellipsefit['geometry']
             #ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
             #                             geometry.sma*(1 - geometry.eps), geometry.pa)
-            #ellaper.plot(color='k', lw=1, axes=ax1, alpha=0.5)
+            #ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.5)
 
         ax1.get_xaxis().set_visible(False)
         ax1.get_yaxis().set_visible(False)
