@@ -222,6 +222,7 @@ def main():
             barlen = np.ceil(10 / args.pixscale).astype(int) # [pixels]
             call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
                            verbose=args.verbose, debug=args.debug, clobber=args.clobber,
+                           bands=['g', 'r', 'i', 'z'], 
                            logfile=logfile, 
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,

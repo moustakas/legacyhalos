@@ -568,7 +568,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
             thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-ellipse-{}multiband.png'.format(galaxy, data['filesuffix'], galid))
             if not os.path.isfile(multibandfile) or clobber:
                 with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
-                    display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+                    display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg, bands=bands,
                                       igal=igal, barlen=barlen, barlabel=barlabel,
                                       png=multibandfile, verbose=verbose, scaledfont=scaledfont)
             
@@ -713,7 +713,7 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel,
-                            galaxy_id=galaxy_id,
+                            galaxy_id=galaxy_id, 
                             clobber=clobber, verbose=verbose, galex=galex, unwise=unwise,
                             cosmo=cosmo, scaledfont=scaledfont, read_multiband=read_multiband,
                             qa_multiwavelength_sed=qa_multiwavelength_sed)

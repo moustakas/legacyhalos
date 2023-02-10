@@ -1046,8 +1046,9 @@ def display_sersic(sersic, png=None, cosmo=None, verbose=False):
         plt.show()
 
 def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
-                      igal=0, inchperband=8, contours=False, barlen=None,
-                      barlabel=None, png=None, verbose=True, vertical=False,
+                      igal=0, inchperband=8, bands=['g', 'r', 'z'],
+                      contours=False, barlen=None, barlabel=None, png=None,
+                      verbose=True, vertical=False,
                       scaledfont=False, galex=False, unwise=False):
     """Display the multi-band images and, optionally, the isophotal fits based on
     either MGE and/or Ellipse.
@@ -1089,8 +1090,6 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         bands = ['FUV', 'NUV']
     elif unwise:
         bands = ['W1', 'W2', 'W3', 'W4']
-    else:
-        bands = ['g', 'r', 'z']
     nband = len(bands)
 
     # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
@@ -1172,7 +1171,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         ax[0].axis('off')
         ax[0].autoscale(False)
 
-    # ...now the individual bandpasses.        
+    # ...now the individual bandpasses.
     for ii, (filt, ax1) in enumerate(zip(bands, ax[1:])):
 
         pixscalefactor = _get_pixscalefactor(filt)

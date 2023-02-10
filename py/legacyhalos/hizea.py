@@ -652,7 +652,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     return data            
 
 def read_multiband(galaxy, galaxydir, filesuffix='custom',
-                   refband='r', bands=['g', 'r', 'z'], pixscale=0.262,
+                   refband='r', bands=['g', 'r', 'i', 'z'], pixscale=0.262,
                    galex_pixscale=1.5, unwise_pixscale=2.75,
                    galaxy_id=None, galex=False, unwise=False,
                    redshift=None, fill_value=0.0, sky_tests=False, verbose=False):
@@ -752,10 +752,6 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
             'sersic', 'shape_r', 'shape_e1', 'shape_e2']
     for band in bands:
         cols = cols + ['flux_{}'.format(band.lower()), 'flux_ivar_{}'.format(band.lower())]
-        # need to address this ticket to get mw_transmission in fuv,nuv bands
-        # https://github.com/legacysurvey/legacypipe/issues/713
-        if band == 'FUV' or band == 'NUV':
-            continue
         cols = cols + ['mw_transmission_{}'.format(band.lower())]
     for band in optbands:
         cols = cols + ['nobs_{}'.format(band.lower()), 'psfdepth_{}'.format(band.lower()),
@@ -855,7 +851,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     allgalaxyinfo = []
     for igal, (galaxy_id, galaxy_indx) in enumerate(zip(data['galaxy_id'], data['galaxy_indx'])):
         samp = sample[sample[REFIDCOLUMN] == galaxy_id]
-        galaxyinfo = {'mangaid': (str(galaxy_id), None)}
+        galaxyinfo = {'refid': (str(galaxy_id), None)}
         #for band in ['fuv', 'nuv', 'g', 'r', 'z', 'w1', 'w2', 'w3', 'w4']:
         #    galaxyinfo['mw_transmission_{}'.format(band)] = (samp['MW_TRANSMISSION_{}'.format(band.upper())][0], None)
         
@@ -1102,7 +1098,7 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
     else:
         plt.show()
 
-def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'z', 'W1', 'W2', 'W3', 'W4'],
+def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'i', 'z', 'W1', 'W2', 'W3', 'W4'],
               kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
     res = []
     for band in bands:
@@ -1281,7 +1277,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         tractorfile = os.path.join(galaxydir1, '{}-{}-tractor.fits'.format(galaxy1, prefix))
         if os.path.isfile(tractorfile):
             cols = ['ref_cat', 'ref_id', 'type', 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
-                    'flux_g', 'flux_r', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_z',
+                    'flux_g', 'flux_r', 'flux_i', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_i', 'flux_ivar_z',
                     'flux_fuv', 'flux_nuv', 'flux_ivar_fuv', 'flux_ivar_nuv', 
                     'flux_w1', 'flux_w2', 'flux_w3', 'flux_w4',
                     'flux_ivar_w1', 'flux_ivar_w2', 'flux_ivar_w3', 'flux_ivar_w4']
@@ -1457,8 +1453,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         #html.write('<th colspan="12">Curve of Growth</th>\n')
         #html.write('</tr>\n')
         html.write('<tr><th></th>\n')
-        html.write('<th colspan="9">Tractor</th>\n')
-        html.write('<th colspan="9">Curve of Growth</th>\n')
+        html.write('<th colspan="10">Tractor</th>\n')
+        html.write('<th colspan="10">Curve of Growth</th>\n')
         #html.write('<th colspan="3">&lt R(24)<br />arcsec</th>\n')
         #html.write('<th colspan="3">&lt R(25)<br />arcsec</th>\n')
         #html.write('<th colspan="3">&lt R(26)<br />arcsec</th>\n')
@@ -1466,15 +1462,15 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('</tr>\n')
 
         html.write('<tr><th>Galaxy</th>\n')
-        html.write('<th>FUV</th><th>NUV</th><th>g</th><th>r</th><th>z</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th>\n')
-        html.write('<th>FUV</th><th>NUV</th><th>g</th><th>r</th><th>z</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th>\n')
+        html.write('<th>FUV</th><th>NUV</th><th>g</th><th>r</th><th>i</th><th>z</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th>\n')
+        html.write('<th>FUV</th><th>NUV</th><th>g</th><th>r</th><th>i</th><th>z</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th>\n')
         html.write('</tr>\n')
 
         for tt, ss in zip(tractor, sample):
-            fuv, nuv, g, r, z, w1, w2, w3, w4 = _get_mags(tt, pipeline=True)
+            fuv, nuv, g, r, i, z, w1, w2, w3, w4 = _get_mags(tt, pipeline=True)
             html.write('<tr><td>{}</td>\n'.format(ss[GALAXYCOLUMN]))
-            html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(
-                fuv, nuv, g, r, z, w1, w2, w3, w4))
+            html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(
+                fuv, nuv, g, r, i, z, w1, w2, w3, w4))
 
             galaxyid = str(tt['ref_id'])
             ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='custom',
@@ -1486,18 +1482,18 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                 #g, r, z = _get_mags(ellipse, R26=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
-                fuv, nuv, g, r, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
+                fuv, nuv, g, r, i, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
                 #try:
-                #    fuv, nuv, g, r, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
+                #    fuv, nuv, g, r, i, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
                 #except:
                 #    pdb.set_trace()
-                html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(
-                    fuv, nuv, g, r, z, w1, w2, w3, w4))
+                html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(
+                    fuv, nuv, g, r, i, z, w1, w2, w3, w4))
                 #g, r, z = _get_mags(ellipse, cog=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
             else:
-                html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
-                html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
+                html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
+                html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...<td>...</td></td><td>...</td><td>...</td><td>...</td>\n')
             html.write('</tr>\n')
         html.write('</table>\n')
 
@@ -1524,7 +1520,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('<tr>\n')
             pngfile = '{}-custom-ellipse-{}-multiband.png'.format(galaxy1, galaxyid)
             thumbfile = 'thumb-{}-custom-ellipse-{}-multiband.png'.format(galaxy1, galaxyid)
-            html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="80%"></a></td>\n'.format(pngfile, thumbfile))
+            html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="100%"></a></td>\n'.format(pngfile, thumbfile))
             html.write('</tr>\n')
 
             html.write('<tr>\n')
@@ -1612,7 +1608,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         #print('Fixing permissions.')
         shutil.chown(htmlfile, group='cosmo')
 
-def make_html(sample=None, datadir=None, htmldir=None, bands=('g', 'r', 'z'),
+def make_html(sample=None, datadir=None, htmldir=None, bands=['g', 'r', 'i', 'z'],
               refband='r', pixscale=0.262, zcolumn=ZCOLUMN, intflux=None,
               racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn='GROUP_DIAMETER',
               first=None, last=None, galaxylist=None,
