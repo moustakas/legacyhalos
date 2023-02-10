@@ -38,7 +38,7 @@ def _done(galaxy, galaxydir, err, t0, stage, filesuffix=None, log=None):
 def call_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                  pixscale=0.262, nproc=1, bands=['g', 'r', 'z'], refband='r',
                  delta_logsma=5, maxsma=None, logsma=True,
-                 copy_mw_transmission=False,
+                 copy_mw_transmission=False, 
                  verbose=False, debug=False, write_donefile=True,
                  logfile=None, input_ellipse=None, sbthresh=None,
                  apertures=None, clobber=False):

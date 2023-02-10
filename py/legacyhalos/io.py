@@ -578,6 +578,9 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
         hdr = fitsio.read_header(filt2imfile[filt]['image'], ext=1)
         model = fitsio.read(filt2imfile[filt]['model'])
 
+        # add the header to the data dictionary
+        data['{}_header'.format(filt.lower())] = hdr
+
         # Initialize the mask based on the inverse variance
         if 'invvar' in filt2imfile[filt].keys():
             if verbose:
@@ -626,7 +629,7 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
 
         # Add in the star mask, resizing if necessary for this image/pixel scale.
         if doresize:
-            _starmask = resize(starmask*1.0, mask.shape, mode='reflect') > 0
+            _starmask = resize(starmask, mask.shape, mode='edge', anti_aliasing=False) > 0
             mask = np.logical_or(mask, _starmask)
         else:
             mask = np.logical_or(mask, starmask)
@@ -649,18 +652,21 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             else:
                 residual_mask = np.logical_or(residual_mask, _residual_mask)
 
-        # Dilate the mask, mask out a 10% border, and pack into a dictionary.
+        ## Dilate the mask, mask out a 10% border, and pack into a dictionary.
         mask = binary_dilation(mask, iterations=2)
         edge = np.int(0.02*sz[0])
         mask[:edge, :] = True
         mask[:, :edge] = True
         mask[:, sz[0]-edge:] = True
         mask[sz[0]-edge:, :] = True
-        #if filt == 'r':
-        #    pdb.set_trace()
         data[filt] = ma.masked_array(image, mask) # [nanomaggies]
         ma.set_fill_value(data[filt], fill_value)
 
+        #if filt == 'W1':
+        #    import matplotlib.pyplot as plt
+        #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask-{}.png'.format(filt))
+        #    pdb.set_trace()
+        
         if invvar is not None:
             var = np.zeros_like(invvar)
             ok = invvar > 0

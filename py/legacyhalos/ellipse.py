@@ -799,7 +799,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                          integrmode='median', nclip=3, sclip=3,
                          maxsma=None, logsma=True, delta_logsma=5.0, delta_sma=1.0,
                          sbthresh=REF_SBTHRESH, apertures=REF_APERTURES,
-                         copy_mw_transmission=False,
+                         copy_mw_transmission=False, 
                          galaxyinfo=None, input_ellipse=None,
                          fitgeometry=False, nowrite=False, verbose=False):
     """Multi-band ellipse-fitting, broadly based on--
@@ -1077,7 +1077,7 @@ def legacyhalos_ellipse(galaxy, galaxydir, data, galaxyinfo=None,
                         nclip=3, sclip=3, sbthresh=REF_SBTHRESH,
                         apertures=REF_APERTURES,
                         delta_sma=1.0, delta_logsma=5, maxsma=None, logsma=True,
-                        copy_mw_transmission=False,
+                        copy_mw_transmission=False, 
                         input_ellipse=None, fitgeometry=False,
                         verbose=False, debug=False, nowrite=False, clobber=False):
                         
