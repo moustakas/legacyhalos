@@ -806,14 +806,13 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     # initialize the mask using the maskbits image
     starmask = ( (maskbits & MASKBITS['BRIGHT'] != 0) |
                  (maskbits & MASKBITS['MEDIUM'] != 0) |
-                 (maskbits & MASKBITS['CLUSTER'] != 0) #|
-                 #(maskbits & MASKBITS['ALLMASK_G'] != 0) |
-                 #(maskbits & MASKBITS['ALLMASK_Z'] != 0) |
-                 #(maskbits & MASKBITS['ALLMASK_R'] != 0)
+                 (maskbits & MASKBITS['CLUSTER'] != 0)
                  )
-    #starmask = ( (maskbits & MASKBITS['BRIGHT'] != 0) | (maskbits & MASKBITS['MEDIUM'] != 0) |
-    #             (maskbits & MASKBITS['CLUSTER'] != 0) | (maskbits & MASKBITS['ALLMASK_G'] != 0) |
-    #             (maskbits & MASKBITS['ALLMASK_R'] != 0) | (maskbits & MASKBITS['ALLMASK_Z'] != 0) )
+    allmask = ( (maskbits & MASKBITS['ALLMASK_G'] != 0) |
+                (maskbits & MASKBITS['ALLMASK_Z'] != 0) |
+                (maskbits & MASKBITS['ALLMASK_R'] != 0)
+                )
+        
     # Are we doing sky tests? If so, build the dictionary of sky values here.
 
     # subsky - dictionary of additional scalar value to subtract from the imaging,
@@ -838,6 +837,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
 
     # Read the basic imaging data and masks.
     data = _read_image_data(data, filt2imfile, starmask=starmask,
+                            allmask=allmask,
                             filt2pixscale=filt2pixscale,
                             fill_value=fill_value, verbose=verbose)
     

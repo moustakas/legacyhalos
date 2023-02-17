@@ -540,8 +540,8 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
         
     return out
 
-def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
-                     filt2pixscale=None, verbose=False):
+def _read_image_data(data, filt2imfile, starmask=None, allmask=None,
+                     fill_value=0.0, filt2pixscale=None, verbose=False):
     """Helper function for the project-specific read_multiband method.
 
     Read the multi-band images and inverse variance images and pack them into a
@@ -601,11 +601,12 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             
         sz = image.shape
 
-        # GALEX, unWISE need to be resized.
-        if starmask.shape == sz:
-            doresize = False
-        else:
-            doresize = True
+        # GALEX, unWISE need to be resized. Never resize allmask, if present.
+        if starmask is not None:
+            if starmask.shape == sz:
+                doresize = False
+            else:
+                doresize = True
 
         # Retrieve the PSF and WCS.
         if filt == refband:
@@ -627,12 +628,16 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
             wcs = ConstantFitsWcs(wcs)
         data['{}_wcs'.format(filt.lower())] = wcs
 
-        # Add in the star mask, resizing if necessary for this image/pixel scale.
-        if doresize:
-            _starmask = resize(starmask, mask.shape, mode='edge', anti_aliasing=False) > 0
-            mask = np.logical_or(mask, _starmask)
-        else:
-            mask = np.logical_or(mask, starmask)
+        # Add in the starmask, resizing if necessary for this image/pixel
+        # scale. Never resize allmask (it's only for the optical).
+        if starmask is not None:
+            if doresize:
+                _starmask = resize(starmask, mask.shape, mode='edge', anti_aliasing=False) > 0
+                mask = np.logical_or(mask, _starmask)
+            else:
+                mask = np.logical_or(mask, starmask)
+                if allmask is not None:
+                    mask = np.logical_or(mask, allmask)
 
         # Flag significant residual pixels after subtracting *all* the models
         # (we will restore the pixels of the galaxies of interest later). Only
@@ -678,6 +683,9 @@ def _read_image_data(data, filt2imfile, starmask=None, fill_value=0.0,
                 #pdb.set_trace()
 
     data['residual_mask'] = residual_mask
-    data['starmask'] = starmask
+    if starmask is not None:
+        data['starmask'] = starmask
+    if allmask is not None:
+        data['almask'] = allmask
 
     return data
