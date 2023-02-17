@@ -379,8 +379,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #else:
     #    psfsrcs = None
 
-    def tractor2mge(indx, factor=1.0):
+    def tractor2mge(indx, factor=1.0, minsize=15.):
         # Convert a Tractor catalog entry to an MGE object.
+        # minsize in arcsec
         class MGEgalaxy(object):
             pass
 
@@ -391,13 +392,13 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #default_eps = 1 - tractor.ba_init[indx]
 
         #if tractor.sga_id[indx] > -1:
-        if tractor.type[indx] == 'PSF' or tractor.shape_r[indx] < 5:
+        if tractor.type[indx] == 'PSF' or tractor.shape_r[indx] < minsize:
             pa = tractor.pa_init[indx]
             ba = tractor.ba_init[indx]
             # take away the extra factor of 2 we put in in read_sample()
             r50 = tractor.diam_init[indx] * 60 / 2 / 2
-            if r50 < 5:
-                r50 = 5.0 # minimum size, arcsec
+            if r50 < minsize:
+                r50 = minsize # minimum size, arcsec
             majoraxis = factor * r50 / filt2pixscale[refband] # [pixels]
             #majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
         else:
@@ -445,10 +446,13 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                                mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
                                np.radians(mgegalaxy.theta-90), xobj, yobj)
 
-        # central 10% pixels can override the starmask
+        # central 20% pixels can override the starmask but no fewer than minsize
+        majoraxis10 = 0.1 * mgegalaxy.majoraxis
+        if majoraxis10 < minsize / filt2pixscale[refband]: # [pixels]
+            majoraxis10 = minsize / filt2pixscale[refband]
+        print(mgegalaxy.majoraxis, majoraxis10)
         objmask_center = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
-                                      0.1*mgegalaxy.majoraxis,
-                                      0.1*mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
+                                      majoraxis10, majoraxis10 * (1-mgegalaxy.eps), 
                                       np.radians(mgegalaxy.theta-90), xobj, yobj)
 
         return mgegalaxy, objmask, objmask_center
@@ -465,7 +469,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # central in case there was a poor deblend.
         largeshift = False
         mge, centralmask, centralmask2 = tractor2mge(central, factor=1.0)
-        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('junk-mask.png') ; pdb.set_trace()
+        #plt.clf() ; plt.imshow(centralmask2, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask.png') ; pdb.set_trace()
 
         iclose = np.where([centralmask[np.int(by), np.int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
@@ -603,7 +607,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 mask = np.logical_or(thismask, _satmask)
                 mask[_centralmask] = False
                 #if filt == 'W1':
-                #    plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask-{}.png'.format(filt))                
+                #    plt.clf() ; plt.imshow(_centralmask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask-{}.png'.format(filt))                
                 #    pdb.set_trace()
             else:
                 mask = np.logical_or(thismask, satmask)
