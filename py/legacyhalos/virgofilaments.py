@@ -851,6 +851,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     galaxy_indx = np.hstack([np.where((tractor.ref_id == sid) * (tractor.ref_cat != '  '))[0] for sid in sample[REFIDCOLUMN]])
 
     #sample = sample[np.searchsorted(sample[REFIDCOLUMN], tractor.ref_id[galaxy_indx])]
+    pdb.set_trace()
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
 
     tractor.sga_id = np.zeros(len(tractor), dtype=np.int64)-1

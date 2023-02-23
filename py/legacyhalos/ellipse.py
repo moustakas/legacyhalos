@@ -1022,10 +1022,10 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
             if imasked:
             #if img.mask[np.int(ellipsefit['x0']), np.int(ellipsefit['y0'])]:
                 print(' Central pixel is masked; resorting to extreme measures!')
-                try:
-                    raise ValueError
-                except:
-                    pdb.set_trace()
+                #try:
+                #    raise ValueError
+                #except:
+                #    pdb.set_trace()
                 ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
             else:
                 isobandfit = pool.map(_integrate_isophot_one, [(
