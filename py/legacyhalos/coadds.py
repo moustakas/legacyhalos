@@ -383,6 +383,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-tycho '
     if no_galex_ceres:
         cmd += '--no-galex-ceres '
+        #cmd += '--no-galex-ceres --no-wise-ceres '
     if force:
         cmd += '--force-all '
         checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(

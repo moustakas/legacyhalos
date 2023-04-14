@@ -240,7 +240,11 @@ def mpi_args():
     return args
 
 def get_version():
-    return 'v2'
+    # v3 -
+    # remove KHL2017_M87UCD-13_GROUP with members
+    #   KHL2017_M87UCD-13, VIRGOUCD2, KHL2017_F6
+    # remove KHL2017_UCD10=VFID4595 from NGC4387_GROUP
+    return 'v3'
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsample=False,
                 d25min=0.1, d25max=100.0, version=None):
@@ -324,6 +328,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, fullsampl
             return astropy.table.Table()
         else:
             sample = sample[these]
+
+    ## update coordinates
+    #I = np.where(sample[GALAXYCOLUMN] == 'KHL2017_UCD10')[0] # VFID4595
+    #if len(I) > 0:
+    #    sample['RA'][I] = 186.40584988
+    #    sample['DEC'][I] = 12.833543
 
     return sample
 
@@ -851,7 +861,7 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     galaxy_indx = np.hstack([np.where((tractor.ref_id == sid) * (tractor.ref_cat != '  '))[0] for sid in sample[REFIDCOLUMN]])
 
     #sample = sample[np.searchsorted(sample[REFIDCOLUMN], tractor.ref_id[galaxy_indx])]
-    pdb.set_trace()
+    #pdb.set_trace()
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
 
     tractor.sga_id = np.zeros(len(tractor), dtype=np.int64)-1
