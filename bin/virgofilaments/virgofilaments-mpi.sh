@@ -30,7 +30,7 @@ source $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-env
 if [ $stage = "test" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --help
 elif [ $stage = "coadds" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --coadds --nproc $ncores --mpi --galaxylist NGC5846_GROUP NGC4406_GROUP NGC4258_GROUP NGC4631_GROUP
+    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --coadds --nproc $ncores --mpi
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --pipeline-coadds --nproc $ncores --mpi
 elif [ $stage = "ellipse" ]; then

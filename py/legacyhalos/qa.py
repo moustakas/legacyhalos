@@ -1230,7 +1230,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         #                                 geometry.sma*(1 - geometry.eps), geometry.pa)
         #    ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.75)
 
-        if ellipsefit and ellipsefit['success'] and np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])[0] != -1:
+        smas = np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])
+        if ellipsefit and ellipsefit['success'] and np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])[0] != -1 and len(smas) > 1:
             #nfit = len(ellipsefit['{}_sma'.format(filt.lower())])
             #nplot = np.rint(0.01*nfit).astype('int')
             nplot = 9
@@ -1241,7 +1242,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #    sma_lw = 3
             #    sma_alpha = 1.0
             #smas = np.linspace(0, ellipsefit['{}_sma'.format(filt.lower())][indx].max(), nplot)
-            if len(ellipsefit['sma_{}'.format(filt.lower())]) > nplot:
+            if len(np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])) > nplot:
                 smas = ellipsefit['sma_{}'.format(filt.lower())][::len(ellipsefit['sma_{}'.format(filt.lower())]) // nplot]
             else:
                 smas = ellipsefit['sma_{}'.format(filt.lower())]
