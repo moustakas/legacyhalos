@@ -110,6 +110,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
     from astropy.utils.exceptions import AstropyUserWarning
     from scipy import integrate
     from scipy.interpolate import interp1d
+    from scipy.stats import sigmaclip
 
     rand = np.random.RandomState(seed)
     
@@ -155,7 +156,9 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             sbfit = rand.normal(sb[keep], sberr[keep])
             coeff = np.polyfit(sbfit, rr[keep], 1)
             rcut.append((np.polyval(coeff, 0))**4)
-        meanrcut, sigrcut = np.mean(rcut), np.std(rcut)
+        rcut_clipped, _, _ = sigmaclip(rcut, low=3, high=3)
+        meanrcut, sigrcut = np.mean(rcut_clipped), np.std(rcut_clipped)
+        #meanrcut, sigrcut = np.mean(rcut), np.std(rcut)
         #print(rcut, meanrcut, sigrcut)
 
         #plt.clf() ; plt.plot((rr[keep])**4, sb[keep]) ; plt.axvline(x=meanrcut) ; plt.savefig('junk.png')
@@ -168,8 +171,14 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         #    print('Warning: extrapolating r({:0g})!'.format(sbcut))
         #    rcut = interp1d(sbprofile['mu_{}'.format(refband)], sbprofile['sma_{}'.format(refband)] * pixscale, fill_value='extrapolate')(sbcut) # [arcsec]
         if meanrcut > 0 and sigrcut > 0:
-            results['sma_sb{:0g}'.format(sbcut)] = np.float32(meanrcut) # [arcsec]
-            results['sma_ivar_sb{:0g}'.format(sbcut)] = np.float32(1.0 / sigrcut**2)
+            # require a minimum S/N
+            if meanrcut / sigrcut > 2:
+                results['sma_sb{:0g}'.format(sbcut)] = np.float32(meanrcut) # [arcsec]
+                results['sma_ivar_sb{:0g}'.format(sbcut)] = np.float32(1.0 / sigrcut**2)
+            else:
+                print('Dropping profile measured at radius {:.1f} mag/arcsec2 due to S/N<2'.format(sbcut))
+                results['sma_sb{:0g}'.format(sbcut)] = np.float32(0.0)
+                results['sma_ivar_sb{:0g}'.format(sbcut)] = np.float32(0.0)
         else:
             results['sma_sb{:0g}'.format(sbcut)] = np.float32(0.0)
             results['sma_ivar_sb{:0g}'.format(sbcut)] = np.float32(0.0)
@@ -244,7 +253,8 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category=AstropyUserWarning)
                     cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle)
-                                                    for aa, bb in zip(smapixels, smbpixels)])
+                                                     for aa, bb in zip(smapixels, smbpixels)])
+
                     # computer the fraction of masked pixels
                     nmasked = pool.map(_apphot_one, [(np.ones_like(img), np.logical_not(mask), theta, x0, y0, aa, bb, pixscale, False, iscircle)
                                                        for aa, bb in zip(smapixels, smbpixels)])
