@@ -200,6 +200,7 @@ def main():
     groupfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main_groups.fits'.format(version))
 
     cat = Table(fitsio.read(samplefile, upper=True, columns=['OBJNAME', 'VFID', 'RA', 'DEC', 'RADIUS']))
+    print('Read {} objects from {}'.format(len(cat), samplefile))
 
     # hack! remove VFID1241 which is a shred of UGC04499
     if version == 'v1':
@@ -215,11 +216,134 @@ def main():
     #   * VFID4554=KHL2017_UCD06 from NGC4374_GROUP
     #   * VFID5928=SDSSJ094218.93+044121.8
     if version == 'v3':
-        keep = np.where((cat['VFID'] != 'VFID4659') * (cat['VFID'] != 'VFID4670') *
-                        (cat['VFID'] != 'VFID4681') * (cat['VFID'] != 'VFID4595') *
-                        (cat['VFID'] != 'VFID4745') * (cat['VFID'] != 'VFID6196') *
-                        (cat['VFID'] != 'VFID6199') * (cat['VFID'] != 'VFID4554') *
-                        (cat['VFID'] != 'VFID5928'))[0]
+        keep = np.where(
+            # Not in LS/DR9 Footprint (84 galaxies)
+            (cat['OBJNAME'] != 'UGC11291') * 
+            (cat['OBJNAME'] != 'PGC062080') * 
+            (cat['OBJNAME'] != 'PGC1930809') * 
+            (cat['OBJNAME'] != 'UGC11307') * 
+            (cat['OBJNAME'] != 'NGC6671') * 
+            (cat['OBJNAME'] != 'UGC03516') * 
+            (cat['OBJNAME'] != 'UGC11229') * 
+            (cat['OBJNAME'] != 'PGC166546') * 
+            (cat['OBJNAME'] != 'PGC061855') * 
+            (cat['OBJNAME'] != 'NGC6587') * 
+            (cat['OBJNAME'] != 'NGC2339') * 
+            (cat['OBJNAME'] != 'PGC143096') * 
+            (cat['OBJNAME'] != 'PGC061689') * 
+            (cat['OBJNAME'] != 'UGC11152') * 
+            (cat['OBJNAME'] != 'UGC03587') * 
+            (cat['OBJNAME'] != 'UGC03658') * 
+            (cat['OBJNAME'] != 'UGC03820') * 
+            (cat['OBJNAME'] != 'UGC03564') * 
+            (cat['OBJNAME'] != 'UGC03602') * 
+            (cat['OBJNAME'] != 'PGC2816547') * 
+            (cat['OBJNAME'] != 'PGC019750') * 
+            (cat['OBJNAME'] != 'PGC061621') * 
+            (cat['OBJNAME'] != 'NGC6574') * 
+            (cat['OBJNAME'] != 'UGC03691') * 
+            (cat['OBJNAME'] != 'PGC095737') * 
+            (cat['OBJNAME'] != 'NGC6570') * 
+            (cat['OBJNAME'] != 'UGC03586') * 
+            (cat['OBJNAME'] != 'PGC061658') * 
+            (cat['OBJNAME'] != 'UGC03621') * 
+            (cat['OBJNAME'] != 'HIPASSJ0704+13') * 
+            (cat['OBJNAME'] != 'UGC11168') * 
+            (cat['OBJNAME'] != 'NGC6615') * 
+            (cat['OBJNAME'] != 'PGC095741') * 
+            (cat['OBJNAME'] != 'PGC097214') * 
+            (cat['OBJNAME'] != 'PGC061685') * 
+            (cat['OBJNAME'] != 'PGC2809279') * 
+            (cat['OBJNAME'] != 'UGC11214') * 
+            (cat['OBJNAME'] != 'UGC11141') * 
+            (cat['OBJNAME'] != 'NGC2350') * 
+            (cat['OBJNAME'] != 'UGC11055') * 
+            (cat['OBJNAME'] != 'UGC11057') * 
+            (cat['OBJNAME'] != 'UGC11059') * 
+            (cat['OBJNAME'] != 'PGC1404402') * 
+            (cat['OBJNAME'] != 'UGC03775') * 
+            (cat['OBJNAME'] != 'PGC1381842') * 
+            (cat['OBJNAME'] != 'PGC2801041') * 
+            (cat['OBJNAME'] != 'AGC174585') * 
+            (cat['OBJNAME'] != 'PGC020981') * 
+            (cat['VFID'] != 'VFID5346') * 
+            (cat['OBJNAME'] != 'AGC171462') * 
+            (cat['OBJNAME'] != 'PGC136560') * 
+            (cat['OBJNAME'] != 'AGC174579') * 
+            (cat['OBJNAME'] != 'UGC10862') * 
+            (cat['OBJNAME'] != 'NGC6384') * 
+            (cat['OBJNAME'] != 'PGC061359') * 
+            (cat['OBJNAME'] != 'PGC061353') * 
+            (cat['OBJNAME'] != 'PGC166899') * 
+            (cat['OBJNAME'] != 'UGC11093') * 
+            (cat['OBJNAME'] != 'NGC6509') * 
+            (cat['OBJNAME'] != 'UGC11074') * 
+            (cat['OBJNAME'] != 'PGC202504') * 
+            (cat['OBJNAME'] != 'PGC166900') * 
+            (cat['OBJNAME'] != 'AGC174656') * 
+            (cat['OBJNAME'] != 'AGC174661') * 
+            (cat['OBJNAME'] != 'HIPASSJ1832+06') * 
+            (cat['OBJNAME'] != 'UGC10901') * 
+            (cat['OBJNAME'] != 'HIPASSJ0727+04') * 
+            (cat['OBJNAME'] != 'UGC03912') * 
+            (cat['OBJNAME'] != 'PGC021383') * 
+            (cat['OBJNAME'] != 'UGC03946') * 
+            (cat['OBJNAME'] != 'AGC174655') * 
+            (cat['OBJNAME'] != 'UGC11030') * 
+            (cat['OBJNAME'] != 'PGC2802325') * 
+            (cat['OBJNAME'] != 'UGC03830') * 
+            (cat['OBJNAME'] != 'PGC020885') * 
+            (cat['OBJNAME'] != 'PGC2801036') * 
+            (cat['OBJNAME'] != 'UGC03630') * 
+            (cat['OBJNAME'] != 'UGC11131') * 
+            (cat['OBJNAME'] != 'PGC090302') * 
+            (cat['OBJNAME'] != 'PGC202376') * 
+            (cat['OBJNAME'] != 'HIZOAJ0649-00') * 
+            (cat['OBJNAME'] != 'HIPASSJ1810-01') * 
+            (cat['OBJNAME'] != 'UGC03895') * 
+            (cat['OBJNAME'] != 'PGC021494') * 
+            # Missing grz imaging (16 galaxies)
+            (cat['OBJNAME'] != 'UGC11231') * 
+            (cat['OBJNAME'] != 'UGC03672') * 
+            (cat['OBJNAME'] != 'UGC11263') * 
+            (cat['OBJNAME'] != 'NGC6602') * 
+            (cat['OBJNAME'] != 'NGC6599') * 
+            (cat['OBJNAME'] != 'UGC03751') * 
+            (cat['OBJNAME'] != 'UGC11105') * 
+            (cat['OBJNAME'] != 'NGC2365') * 
+            (cat['OBJNAME'] != 'NGC6586') * 
+            (cat['OBJNAME'] != 'UGC11120') * 
+            (cat['OBJNAME'] != 'PGC061468') * 
+            (cat['OBJNAME'] != 'UGC04010') * 
+            (cat['OBJNAME'] != 'AGC174672') * 
+            (cat['OBJNAME'] != 'PGC021644') * 
+            (cat['OBJNAME'] != 'UGC10229') * 
+            (cat['OBJNAME'] != 'AGC174605') * 
+            # Ultra-faint, not real, or other (Tractor) problems (22 galaxies)
+            (cat['OBJNAME'] != '[KHL2017]M87UCD-13') * 
+            (cat['OBJNAME'] != 'VIRGOUCD2') *
+            (cat['OBJNAME'] != '[KHL2017]F6') * 
+            (cat['OBJNAME'] != '[KHL2017]UCD10') *
+            (cat['OBJNAME'] != '[KHL2017]UCD42') * 
+            (cat['OBJNAME'] != 'SDSSJ124251.40+024437.0') *
+            (cat['VFID'] != 'VFID6199') * 
+            (cat['OBJNAME'] != '[KHL2017]UCD06') *
+            (cat['OBJNAME'] != 'SDSSJ094218.93+044121.8') *
+            (cat['VFID'] != 'VFID1814') *
+            (cat['OBJNAME'] != '[KHL2017]UCD14') *
+            (cat['OBJNAME'] != '[KHL2017]H30401') *
+            (cat['OBJNAME'] != '[KHL2017]UCD39') *
+            (cat['OBJNAME'] != '[KHL2017]M87UCD-28') *
+            (cat['OBJNAME'] != 'AGC208560') *
+            (cat['VFID'] != 'VFID3520') *
+            (cat['OBJNAME'] != '[KHL2017]UCD01') *
+            (cat['VFID'] != 'VFID4830') *
+            (cat['VFID'] != 'VFID6654') *
+            (cat['OBJNAME'] != 'NGC5846:[CMI2006]F02-1600') *
+            (cat['OBJNAME'] != 'IC3049') * 
+            (cat['OBJNAME'] != 'NGC4861B')
+            )[0]
+        print('Removing {} problematic or off-footprint objects, leaving {} galaxies.'.format(len(cat)-len(keep), len(keep)))
         cat = cat[keep]
 
     sga = Table(fitsio.read(sgafile, 'ELLIPSE'))
