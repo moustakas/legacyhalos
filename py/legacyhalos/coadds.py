@@ -21,6 +21,7 @@ def _mosaic_width(radius_mosaic, pixscale):
     return width
 
 def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
+                     bands=['g', 'r', 'z'],
                      unwise=True, galex=False, cleanup=False, just_coadds=False,
                      clobber=False, require_grz=True, missing_ok=False,
                      write_wise_psf=False):
@@ -95,15 +96,15 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
     # the files except a 
     if os.path.isfile(ccdsfile): # can be missing during testing if missing_ok=True
         allbands = fitsio.read(ccdsfile, columns='filter')
-        bands = list(sorted(set(allbands)))
+        ubands = list(sorted(set(allbands)))
 
-        if require_grz and ('g' not in bands or 'r' not in bands or 'z' not in bands):
+        if require_grz and ('g' not in ubands or 'r' not in ubands or 'z' not in ubands):
             print('Lost grz coverage and require_grz=True.')
             if cleanup:
                 _do_cleanup()
             return 1
-    else:
-        bands = ('g', 'r', 'z')
+    #else:
+    #    bands = ('g', 'r', 'z')
 
     # image coadds (FITS + JPG)
     for band in bands:
@@ -280,7 +281,7 @@ def _rearrange_files(galaxy, output_dir, brickname, stagesuffix, run,
 
     return 1
 
-def get_ccds(survey, ra, dec, pixscale, width):
+def get_ccds(survey, ra, dec, pixscale, width, bands=['g', 'r', 'z']):
     """Quickly get the CCDs touching this custom brick.  This code is mostly taken
     from legacypipe.runbrick.stage_tims.
 
@@ -295,12 +296,13 @@ def get_ccds(survey, ra, dec, pixscale, width):
     if ccds is None or np.sum(ccds.ccd_cuts == 0) == 0:
         return []
     ccds.cut(ccds.ccd_cuts == 0)
-    ccds.cut(np.array([b in ['g', 'r', 'z'] for b in ccds.filter]))
+    ccds.cut(np.array([b in bands for b in ccds.filter]))
 
     return ccds
 
 def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                   nproc=1, pixscale=0.262, run='south', racolumn='RA', deccolumn='DEC',
+                  bands=['g', 'r', 'z'],
                   nsigma=None, 
                   log=None, apodize=False, custom=True, unwise=True, galex=False, force=False,
                   plots=False, verbose=False, cleanup=True, missing_ok=False,
@@ -337,8 +339,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     brickname = 'custom-{}'.format(custom_brickname(onegal[racolumn], onegal[deccolumn]))
 
     # Quickly read the input CCDs and check that we have all the colors we need.
-    bands = ['g', 'r', 'z']
-    ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width)
+    ccds = get_ccds(survey, onegal[racolumn], onegal[deccolumn], pixscale, width, bands=bands)
     if len(ccds) == 0:
         print('No CCDs touching this brick; nothing to do.')
         return 1, stagesuffix
@@ -346,8 +347,8 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     usebands = list(sorted(set(ccds.filter)))
     these = [filt in usebands for filt in bands]
     print('Bands touching this brick, {}'.format(' '.join([filt for filt in usebands])))
-    if np.sum(these) != 3 and require_grz:
-        print('Missing imaging in grz and require_grz=True; nothing to do.')
+    if np.sum(these) < len(bands) and require_grz:
+        print('Missing imaging in at least grz and require_grz=True; nothing to do.')
         ccdsfile = os.path.join(survey.output_dir, '{}-ccds-{}.fits'.format(galaxy, run))
         # should we write out the CCDs file?
         print('Writing {} CCDs to {}'.format(len(ccds), ccdsfile))
@@ -357,7 +358,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     # Run the pipeline!
     cmd = 'python {legacypipe_dir}/py/legacypipe/runbrick.py '
     cmd += '--radec {ra} {dec} --width {width} --height {width} --pixscale {pixscale} '
-    cmd += '--threads {threads} --outdir {outdir} '
+    cmd += '--threads {threads} --outdir {outdir} --bands {bands} '
     cmd += '--survey-dir {survey_dir} --run {run} '
     if write_all_pickles:
         pass
@@ -382,6 +383,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
         cmd += '--no-tycho '
     if no_galex_ceres:
         cmd += '--no-galex-ceres '
+        #cmd += '--no-galex-ceres --no-wise-ceres '
     if force:
         cmd += '--force-all '
         checkpointfile = '{galaxydir}/{galaxy}-{stagesuffix}-checkpoint.p'.format(
@@ -418,10 +420,10 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     cmd = cmd.format(legacypipe_dir=os.getenv('LEGACYPIPE_CODE_DIR'), galaxy=galaxy,
                      ra=onegal[racolumn], dec=onegal[deccolumn], width=width,
                      pixscale=pixscale, threads=nproc, outdir=survey.output_dir,
+                     bands=','.join(bands),
                      galaxydir=survey.output_dir, survey_dir=survey.survey_dir, run=run,
                      stagesuffix=stagesuffix)
     print(cmd, flush=True, file=log)
-
     err = subprocess.call(cmd.split(), stdout=log, stderr=log)
     #err = 0
 
@@ -529,6 +531,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
                               run, unwise=unwise, galex=galex, cleanup=cleanup,
                               just_coadds=just_coadds,
                               clobber=True,
+                              bands=bands,
                               write_wise_psf=write_wise_psf,
                               #clobber=force,
                               require_grz=require_grz, missing_ok=missing_ok)

@@ -459,6 +459,7 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
 
 def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                     refband='r', pixscale=0.262, read_multiband=None,
+                    qa_multiwavelength_sed=None,
                     galaxy_id=None, barlen=None, barlabel=None, clobber=False, verbose=False,
                     cosmo=None, galex=False, unwise=False, scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
@@ -470,7 +471,9 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
     from legacyhalos.io import read_ellipsefit
     from legacyhalos.qa import (display_multiband, display_ellipsefit,
                                 display_ellipse_sbprofile, qa_curveofgrowth,
-                                qa_maskbits, qa_multiwavelength_sed)
+                                qa_maskbits)
+    if qa_multiwavelength_sed is None:
+        from legacyhalos.qa import qa_multiwavelength_sed
 
     Image.MAX_IMAGE_PIXELS = None
     
@@ -565,7 +568,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
             thumbfile = os.path.join(htmlgalaxydir, 'thumb-{}-{}-ellipse-{}multiband.png'.format(galaxy, data['filesuffix'], galid))
             if not os.path.isfile(multibandfile) or clobber:
                 with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
-                    display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
+                    display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg, bands=bands,
                                       igal=igal, barlen=barlen, barlabel=barlabel,
                                       png=multibandfile, verbose=verbose, scaledfont=scaledfont)
             
@@ -655,7 +658,8 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                nproc=1, barlen=None, barlabel=None,
                radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
-               read_multiband=None, cosmo=None, galex=False, unwise=False,
+               read_multiband=None, qa_multiwavelength_sed=None,
+               cosmo=None, galex=False, unwise=False,
                just_coadds=False, scaledfont=False):
     """Make QA plots.
 
@@ -709,9 +713,10 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel,
-                            galaxy_id=galaxy_id,
+                            galaxy_id=galaxy_id, 
                             clobber=clobber, verbose=verbose, galex=galex, unwise=unwise,
-                            cosmo=cosmo, scaledfont=scaledfont, read_multiband=read_multiband)
+                            cosmo=cosmo, scaledfont=scaledfont, read_multiband=read_multiband,
+                            qa_multiwavelength_sed=qa_multiwavelength_sed)
             #continue # here!
             #pdb.set_trace()
 
@@ -760,7 +765,7 @@ def skyserver_link(sdss_objid):
     return 'http://skyserver.sdss.org/dr14/en/tools/explore/summary.aspx?id={:d}'.format(sdss_objid)
 
 # Get the viewer link
-def viewer_link(ra, dec, width, sga=False, manga=False):
+def viewer_link(ra, dec, width, sga=False, manga=False, dr10=False):
     baseurl = 'http://legacysurvey.org/viewer-dev/'
     if width > 1200:
         zoom = 13
@@ -768,6 +773,11 @@ def viewer_link(ra, dec, width, sga=False, manga=False):
         zoom = 14
     else:
         zoom = 15
+
+    if dr10:
+        drlayer = 'ls-dr10'
+    else:
+        drlayer = 'ls-dr9'
         
     layer1 = ''
     if sga:
@@ -775,8 +785,8 @@ def viewer_link(ra, dec, width, sga=False, manga=False):
     if manga:
         layer1 = layer1+'&manga'
 
-    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer=ls-dr9{}'.format(
-        baseurl, ra, dec, zoom, layer1)
+    viewer = '{}?ra={:.6f}&dec={:.6f}&zoom={:g}&layer={}{}'.format(
+        baseurl, ra, dec, zoom, drlayer, layer1)
 
     return viewer
 

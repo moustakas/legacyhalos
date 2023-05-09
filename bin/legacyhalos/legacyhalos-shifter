@@ -4,7 +4,7 @@
 #-c 'PATH=/mnt/code/legacyhalos/bin/legacyhalos:$PATH' 
 
 if [[ -z "$NERSC_HOST" ]]; then
-    DOCKER=legacysurvey/legacyhalos:v1.1
+    DOCKER=legacysurvey/legacyhalos:v1.2
     echo 'Updating and loading the Docker container '$DOCKER
     echo 'Load the environment with: '
     echo '  source /mnt/code/legacyhalos/bin/legacyhalos/legacyhalos-env'
@@ -24,7 +24,7 @@ if [[ -z "$NERSC_HOST" ]]; then
            -e REDMAPPER_DIR=/mnt/redmapper \
            $DOCKER
 else
-    SHIFTER=docker:legacysurvey/legacyhalos:v1.1
+    SHIFTER=docker:legacysurvey/legacyhalos:v1.2
     echo 'Updating and loading the shifter image '$SHIFTER
     echo 'Load the environment with: '
     echo '  source '$LEGACYHALOS_CODE_DIR'/bin/'legacyhalos'/'legacyhalos'-env'

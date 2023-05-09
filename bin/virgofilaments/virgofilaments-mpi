@@ -154,8 +154,9 @@ def main():
             if args.debug:
                 if len(fail[rank]) > 0:
                     print('{} failures: {} / {}'.format(suffix.upper(), len(fail[rank]), len(sample)), flush=True)
-                    galaxy, galaxydir = get_galaxy_galaxydir(sample[fail[rank]])
-                    for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN]):
+                    dsrt = np.argsort(sample[fail[rank]][DIAMCOLUMN])
+                    galaxy, galaxydir = get_galaxy_galaxydir(sample[fail[rank]][dsrt])
+                    for ii, dd, diam in zip(fail[rank], np.atleast_1d(galaxydir), sample[fail[rank]][DIAMCOLUMN][dsrt]):
                         print('  {} {} (d={:.3f} arcmin)'.format(ii, dd, diam))
 
                 todo = np.hstack(groups)
@@ -244,6 +245,7 @@ def main():
                          pixscale=args.pixscale, nproc=args.nproc,
                          verbose=args.verbose, debug=args.debug,
                          #sky_tests=args.sky_tests,
+                         write_mask=True,
                          clobber=args.clobber,
                          unwise=True, galex=True,
                          logfile=logfile)

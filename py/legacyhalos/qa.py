@@ -215,10 +215,10 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=False, png=N
                                      maxis, maxis*(1 - ellipsefit['eps_moment']),
                                      np.radians(ellipsefit['pa_moment']-90))
         if igal == 0:
-            ellaper.plot(color=cb_colors['blue'], lw=2, axes=ax2, alpha=0.9, label='R(26)')
+            ellaper.plot(color=cb_colors['blue'], lw=2, ax=ax2, alpha=0.9, label='R(26)')
         else:
-            ellaper.plot(color=cb_colors['blue'], lw=2, axes=ax2, alpha=0.9)
-        ellaper.plot(color=cb_colors['blue'], lw=2, ls='-', axes=ax3, alpha=0.9)
+            ellaper.plot(color=cb_colors['blue'], lw=2, ax=ax2, alpha=0.9)
+        ellaper.plot(color=cb_colors['blue'], lw=2, ls='-', ax=ax3, alpha=0.9)
 
         draw_ellipse_on_png(colorimg, ellipsefit['x0_moment'], imgsz[1]-ellipsefit['y0_moment'],
                             1-ellipsefit['eps_moment'],
@@ -236,10 +236,10 @@ def qa_maskbits(mask, tractor, ellipsefitall, colorimg, largegalaxy=False, png=N
                                          maxis, maxis * ellipsefit['ba_leda'],
                                          np.radians(ellipsefit['pa_leda']-90))
         if igal == 0:
-            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax2, alpha=1.0, label='Hyperleda')
+            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', ax=ax2, alpha=1.0, label='Hyperleda')
         else:
-            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax2, alpha=1.0)
-        ellaper.plot(color=cb_colors['red'], lw=2, ls='-', axes=ax3, alpha=1.0)
+            ellaper.plot(color=cb_colors['red'], lw=2, ls='-', ax=ax2, alpha=1.0)
+        ellaper.plot(color=cb_colors['red'], lw=2, ls='-', ax=ax3, alpha=1.0)
 
     # color mosaic
     draw = ImageDraw.Draw(colorimg)
@@ -497,10 +497,10 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
     # see also Morrisey+05
     effwave_north = {'fuv': 1528.0, 'nuv': 2271.0,
                      'w1': 34002.54044482, 'w2': 46520.07577119, 'w3': 128103.3789599, 'w4': 223752.7751558,
-                     'g': 4815.95363513, 'r': 6437.79282937, 'z': 9229.65786449}
+                     'g': 4815.95363513, 'r': 6437.79282937, 'i': 7847.78249813, 'z': 9229.65786449}
     effwave_south = {'fuv': 1528.0, 'nuv': 2271.0,
                      'w1': 34002.54044482, 'w2': 46520.07577119, 'w3': 128103.3789599, 'w4': 223752.7751558,
-                     'g': 4890.03670428, 'r': 6469.62203811, 'z': 9196.46396394}
+                     'g': 4890.03670428, 'r': 6469.62203811, 'i': 7847.78249813, 'z': 9196.46396394}
 
     _tt = Table()
     _tt['RA'] = [ellipsefit['ra_moment']]
@@ -1046,8 +1046,9 @@ def display_sersic(sersic, png=None, cosmo=None, verbose=False):
         plt.show()
 
 def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
-                      igal=0, inchperband=8, contours=False, barlen=None,
-                      barlabel=None, png=None, verbose=True, vertical=False,
+                      igal=0, inchperband=8, bands=['g', 'r', 'z'],
+                      contours=False, barlen=None, barlabel=None, png=None,
+                      verbose=True, vertical=False,
                       scaledfont=False, galex=False, unwise=False):
     """Display the multi-band images and, optionally, the isophotal fits based on
     either MGE and/or Ellipse.
@@ -1089,8 +1090,6 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         bands = ['FUV', 'NUV']
     elif unwise:
         bands = ['W1', 'W2', 'W3', 'W4']
-    else:
-        bands = ['g', 'r', 'z']
     nband = len(bands)
 
     # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
@@ -1099,7 +1098,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     cmap = plt.cm.inferno
     #cmap = plt.cm.viridis
     stretch = Stretch(a=0.9)
-    interval = Interval(contrast=0.5, nsamples=10000)
+    interval = Interval(contrast=0.5, n_samples=10000)
 
     #cmap = 'RdBu_r'
     #cmap = {'g': 'winter_r', 'r': 'summer', 'z': 'autumn_r'}
@@ -1172,7 +1171,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         ax[0].axis('off')
         ax[0].autoscale(False)
 
-    # ...now the individual bandpasses.        
+    # ...now the individual bandpasses.
     for ii, (filt, ax1) in enumerate(zip(bands, ax[1:])):
 
         pixscalefactor = _get_pixscalefactor(filt)
@@ -1231,7 +1230,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
         #                                 geometry.sma*(1 - geometry.eps), geometry.pa)
         #    ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.75)
 
-        if ellipsefit and ellipsefit['success'] and np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])[0] != -1:
+        smas = np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])
+        if ellipsefit and ellipsefit['success'] and np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])[0] != -1 and len(smas) > 1:
             #nfit = len(ellipsefit['{}_sma'.format(filt.lower())])
             #nplot = np.rint(0.01*nfit).astype('int')
             nplot = 9
@@ -1242,7 +1242,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #    sma_lw = 3
             #    sma_alpha = 1.0
             #smas = np.linspace(0, ellipsefit['{}_sma'.format(filt.lower())][indx].max(), nplot)
-            if len(ellipsefit['sma_{}'.format(filt.lower())]) > nplot:
+            if len(np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])) > nplot:
                 smas = ellipsefit['sma_{}'.format(filt.lower())][::len(ellipsefit['sma_{}'.format(filt.lower())]) // nplot]
             else:
                 smas = ellipsefit['sma_{}'.format(filt.lower())]
@@ -1270,7 +1270,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                                          maxis, maxis*(1 - ellipsefit['eps_moment']),
                                          np.radians(ellipsefit['pa_moment']-90))
             if False:
-                ellaper.plot(lw=5, axes=ax1, alpha=1.0, label='Moment geometry',
+                ellaper.plot(lw=5, ax=ax1, alpha=1.0, label='Moment geometry',
                              color=cb_colors['green'])
 
             # Visualize the ellipse-fitted geometry
@@ -1279,8 +1279,8 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ellaper = EllipticalAperture((ellipsefit['x0_moment']*pixscalefactor, ellipsefit['y0_moment']*pixscalefactor),
                                              maxis*pixscalefactor, maxis*(1 - ellipsefit['eps_moment'])*pixscalefactor,
                                              np.radians(ellipsefit['pa_moment']-90))
-                #ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='Ellipse geometry')
-                ellaper.plot(color=cb_colors['blue'], lw=5, axes=ax1, alpha=1.0, label='R(26)')
+                #ellaper.plot(color=cb_colors['blue'], lw=5, ax=ax1, alpha=1.0, label='Ellipse geometry')
+                ellaper.plot(color=cb_colors['blue'], lw=5, ax=ax1, alpha=1.0, label='R(26)')
 
             # Visualize the LSLGA geometry, if present.
             if ('pa_leda' in ellipsefit.keys()) * ('ba_leda' in ellipsefit.keys()) * ('d25_leda' in ellipsefit.keys()):
@@ -1289,7 +1289,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                                              maxis, maxis * ellipsefit['ba_leda'],
                                              np.radians(ellipsefit['pa_leda']-90))
                 if False:
-                    ellaper.plot(color=cb_colors['red'], lw=5, axes=ax1, alpha=1.0, label='Hyperleda geometry')
+                    ellaper.plot(color=cb_colors['red'], lw=5, ax=ax1, alpha=1.0, label='Hyperleda geometry')
             #pdb.set_trace()
             ## Visualize the fitted geometry
             #maxis = mge['majoraxis'] * 1.2
@@ -1304,7 +1304,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                     maxis = geometry.sma * 0.8
                     ellaper = EllipticalAperture((geometry.x0, geometry.y0), maxis,
                                                  maxis*(1 - geometry.eps), geometry.pa)
-                    ellaper.plot(color='navy', lw=2, axes=ax1, alpha=1.0, label='Input geometry')
+                    ellaper.plot(color='navy', lw=2, ax=ax1, alpha=1.0, label='Input geometry')
 
             if ii == nband-1:
                 fntsize = 20
@@ -1322,7 +1322,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #geometry = ellipsefit['geometry']
             #ellaper = EllipticalAperture((geometry.x0, geometry.y0), geometry.sma,
             #                             geometry.sma*(1 - geometry.eps), geometry.pa)
-            #ellaper.plot(color='k', lw=1, axes=ax1, alpha=0.5)
+            #ellaper.plot(color='k', lw=1, ax=ax1, alpha=0.5)
 
         ax1.get_xaxis().set_visible(False)
         ax1.get_yaxis().set_visible(False)

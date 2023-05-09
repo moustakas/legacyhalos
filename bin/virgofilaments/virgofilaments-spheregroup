@@ -9,7 +9,7 @@ import os, time, pdb
 import numpy as np
 from astropy.table import Table, Column
     
-def build_group_catalog(cat, mfac=2.0, dmax=5.0/60.0):
+def build_group_catalog(cat, mfac=1.5, dmax=3.0/60.0):
     """dmax in degrees
 
     Group SGA galaxies together where their circular radii would overlap.  Use
@@ -42,7 +42,7 @@ def build_group_catalog(cat, mfac=2.0, dmax=5.0/60.0):
     gnum = np.arange(len(cat)).astype(np.int32)
     mgrp = np.ones(len(cat)).astype(np.int16)
     
-    # First group galaxies within 10 arcmin, setting those to have the same
+    # First group galaxies within dmax arcmin, setting those to have the same
     # group number
     t0 = time.time()
     print('Spheregrouping took...', end='')
@@ -116,7 +116,11 @@ def build_group_catalog(cat, mfac=2.0, dmax=5.0/60.0):
         # in case it's a big one!).
         dd = degrees_between(cat['RA'][I], cat['DEC'][I], cat['GROUP_RA'][I[0]], cat['GROUP_DEC'][I[0]])
         pad = dd + cat['DIAM_INIT'][I] / 60.0
-        cat['GROUP_DIAMETER'][I] = 2 * np.max(pad) * 60 # [arcmin]
+        gdiam = 2 * np.max(pad) * 60 # [arcmin]
+        # cap the maximum size of the group
+        if gdiam > 15.:# and len(I) <= 2:
+            gdiam = 1.1 * np.max(pad) * 60 # [arcmin]
+        cat['GROUP_DIAMETER'][I] = gdiam
         if cat['GROUP_DIAMETER'][I[0]] < np.max(cat['DIAM_INIT'][I]):
             print('Should not happen!')
             raise ValueError
@@ -127,7 +131,7 @@ def build_group_catalog(cat, mfac=2.0, dmax=5.0/60.0):
         cat['GROUP_NAME'][I] = '{}_GROUP'.format(cat['GALAXY'][I][primary])
         cat['GROUP_PRIMARY'][I[primary]] = True
 
-        #if cat['GROUP_ID'][I][0] == 3070:
+        #if cat['GROUP_ID'][I][0] == 2708:
         #    pdb.set_trace()
         
     # Corner case with NGC5665_GROUP: NGC5665 is large (D25>3 arcmin) and
@@ -137,6 +141,16 @@ def build_group_catalog(cat, mfac=2.0, dmax=5.0/60.0):
     #fix = np.where(cat['GROUP_NAME'] == 'NGC5665_GROUP')[0]
     #if len(fix) > 0:
     #    cat['GROUP_DIAMETER'][fix] *= 1.4
+
+    if False:
+        pixscale = 2
+        I = np.where((cat['GROUP_DIAMETER'] > 15) * cat['GROUP_PRIMARY'])[0]
+        I = I[np.argsort(cat['GROUP_DIAMETER'][I])[::-1]]
+        _cat = cat[I]
+        print(_cat['GROUP_NAME', 'GROUP_DIAMETER', 'GROUP_MULT', 'GALAXY', 'DIAM_INIT', 'GROUP_ID'])
+        for ii in I:
+            print(cat['GROUP_NAME'][ii], cat['GROUP_DIAMETER'][ii], 'https://www.legacysurvey.org/viewer/jpeg-cutout?ra={}&dec={}&width={}&height={}&layer=ls-dr9&pixscale={}'.format(
+                cat['GROUP_RA'][ii], cat['GROUP_DEC'][ii], int(cat['GROUP_DIAMETER'][ii]*60/pixscale), int(cat['GROUP_DIAMETER'][ii]*60/pixscale), pixscale))
         
     print('Building a group catalog took {:.3f} min'.format((time.time() - t0)/60))
         
@@ -172,11 +186,14 @@ def qa(version='v1'):
     fig.subplots_adjust(left=0.1, bottom=0.15, right=0.98, hspace=0.25, wspace=0.2)
     fig.savefig(os.path.join(homedir, 'qa-virgofilaments-{}-SGA.png'.format(version)))
 
-def main(version='v2'):
+def main():
 
     import fitsio
     from astrometry.libkd.spherematch import match_radec
     import legacyhalos.io
+    from legacyhalos.virgofilaments import get_version
+
+    version = get_version()
 
     sgafile = '/global/cfs/cdirs/cosmo/data/sga/2020/SGA-2020.fits'
     samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'vf_north_{}_main.fits'.format(version))
@@ -187,6 +204,22 @@ def main(version='v2'):
     # hack! remove VFID1241 which is a shred of UGC04499
     if version == 'v1':
         keep = np.where(cat['VFID'] != 'VFID1241')[0]
+        cat = cat[keep]
+
+    # remove
+    #   * KHL2017_M87UCD-13_GROUP with members KHL2017_M87UCD-13=VFID4659, VIRGOUCD2=VFID4670, KHL2017_F6=VFID4681
+    #   * KHL2017_UCD10=VFID4595 from NGC4387_GROUP
+    #   * KHL2017_UCD42=VFID4745 from NGC4476_GROUP
+    #   * VFID6196=SDSSJ124251.40+024437.0 from NGC4636_GROUP
+    #   * VFID6199 from NGC4636_GROUP
+    #   * VFID4554=KHL2017_UCD06 from NGC4374_GROUP
+    #   * VFID5928=SDSSJ094218.93+044121.8
+    if version == 'v3':
+        keep = np.where((cat['VFID'] != 'VFID4659') * (cat['VFID'] != 'VFID4670') *
+                        (cat['VFID'] != 'VFID4681') * (cat['VFID'] != 'VFID4595') *
+                        (cat['VFID'] != 'VFID4745') * (cat['VFID'] != 'VFID6196') *
+                        (cat['VFID'] != 'VFID6199') * (cat['VFID'] != 'VFID4554') *
+                        (cat['VFID'] != 'VFID5928'))[0]
         cat = cat[keep]
 
     sga = Table(fitsio.read(sgafile, 'ELLIPSE'))
@@ -240,6 +273,11 @@ def main(version='v2'):
     cat['DIAM_INIT'][m1] = sga['D26'][m2]
     cat['MAG_INIT'][m1] = sga['MAG_LEDA'][m2]
 
+    # Fix SGA problem radii.
+    fix = np.where(cat['GALAXY'] == 'NGC3623')[0]
+    if len(fix) > 0:
+        cat['DIAM_INIT'][fix] = 12.0
+
     ## Assign a minimum diameter of 20 arcsec.
     #fix = cat['DIAM_INIT'] < 20/60.
     #if np.sum(fix) > 0:
@@ -268,5 +306,5 @@ def main(version='v2'):
     out.write(groupfile, overwrite=True)
 
 if __name__ == '__main__':
-    main(version='v2')
+    main()
 

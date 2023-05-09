@@ -2,7 +2,7 @@
 # Shell script to set the environment variables for virgo filaments project.
 
 project=virgofilaments
-version=v2
+version=v3
 
 if [[ -z "$NERSC_HOST" ]]; then
     export PYTHONPATH=$LEGACYHALOS_CODE_DIR/py:$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
