@@ -7,7 +7,7 @@ etc.
 
 """
 import os, sys, time, pdb
-import argparse
+import argparse, subprocess
 import numpy as np
 import fitsio
 
@@ -30,6 +30,8 @@ figdir = os.path.join(paperdir, 'figures')
 #    figdir = os.path.join(os.getenv('HOME'), 'SGA', 'science', 'paper1', 'figures')
 #    #figdir = os.path.join(os.getenv('HOME'), 'SGA', 'science', 'paper1', 'figures')
 fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
+
+url = 'https://portal.nersc.gov/project/cosmo/data/sga/2020/data/'
 
 #os.environ['LEGACYHALOS_DIR'] = os.path.join(os.getenv('HOME'), 'research', 'projects', 'SGA')
 #os.environ['LEGACYHALOS_DATA_DIR'] = figdir
@@ -428,7 +430,7 @@ def fig_sky(S, png=None):
 
     # colorbar
     # Make zero values truly white (cmap.Blue(0) = 0.97,0.98,1.0)
-    cmap = copy.copy(mpl.cm.get_cmap('Blues'))
+    cmap = copy.copy(mpl.colormaps.get_cmap('Blues'))
     cmap.set_bad(color='white')
     density = (sgacount/pixelarea)
     density[sgacount==0] = np.nan
@@ -1080,6 +1082,10 @@ def fig_sbmontage_gallery(onegal, png):
 def fig_sample_montage(sample, tractor, seed=1, png=None):
     """Show a random sampling of galaxies."""
 
+    montagedir = os.path.join(figdir, 'montage-galaxies')
+    if not os.path.isdir(montagedir):
+        os.makedirs(montagedir, exist_ok=True)
+
     rand = np.random.RandomState(seed=seed)
 
     ncol = 7
@@ -1139,9 +1145,15 @@ def fig_sample_montage(sample, tractor, seed=1, png=None):
     gal, galdir = get_galaxy_galaxydir(sample)
     infiles = []
     for gal1, galdir1 in zip(gal, galdir):
-        infile1 = os.path.join(galdir1, '{}-largegalaxy-image-grz.jpg'.format(gal1))
-        #if not os.path.isfile(infile1):
-        #    infile1 = os.path.join(adapdir, 'smiley.jpg')
+        infile1 = os.path.join(galdir1, f'{gal1}-largegalaxy-image-grz.jpg')
+        if not os.path.isfile(infile1):
+            urlfile = url+'/'.join(infile1.split('/')[-3:])
+            infile1 = os.path.join(montagedir, f'{gal1}-largegalaxy-image-grz.jpg')
+            
+            cmd = f'wget -q -O {infile1} {urlfile}'
+            print(cmd)
+            subprocess.call(cmd.split())
+
         infiles.append(infile1)
 
     if png:
