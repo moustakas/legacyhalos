@@ -5,7 +5,7 @@ Build a cross-platform docker container as documented [here](https://www.docker.
 
 First, pull the latest 
 ```
-docker pull legacysurvey/legacypipe:DR10.1.0
+docker pull legacysurvey/legacypipe:DR10.1.3
 
 export DOCKER_BUILDKIT=0
 export COMPOSE_DOCKER_CLI_BUILD=0
@@ -21,7 +21,7 @@ docker buildx use mybuild
 and then
 
 ```
-docker buildx build --platform linux/amd64,linux/arm64/v8 --push -t legacysurvey/legacyhalos:v1.2 .
+docker buildx build --platform linux/amd64,linux/arm64/v8 --push -t legacysurvey/legacyhalos:v1.3 .
 docker buildx build --platform linux/amd64,linux/arm64/v8 --push -t legacysurvey/legacyhalos:latest .
 ```
 
@@ -33,7 +33,7 @@ docker run -it legacysurvey/legacyhalos:latest
 
 Or at NERSC:
 ```
-shifterimg pull docker:legacysurvey/legacyhalos:v1.2
+shifterimg pull docker:legacysurvey/legacyhalos:v1.3
 shifterimg pull docker:legacysurvey/legacyhalos:latest
 shifter --image docker:legacysurvey/legacyhalos:latest bash
 ```
