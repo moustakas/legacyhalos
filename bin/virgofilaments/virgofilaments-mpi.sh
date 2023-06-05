@@ -34,7 +34,7 @@ elif [ $stage = "coadds" ]; then
 elif [ $stage = "pipeline-coadds" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --pipeline-coadds --nproc $ncores --mpi
 elif [ $stage = "ellipse" ]; then
-    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --ellipse --nproc $ncores --mpi --galaxylist NGC4258_GROUP NGC4631_GROUP NGC4565_GROUP NGC4438_GROUP NGC4388_GROUP NGC4406_GROUP NGC4486_GROUP NGC4649_GROUP NGC4472_GROUP NGC4261_GROUP NGC3169_GROUP NGC4631_GROUP
+    time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --ellipse --nproc $ncores --mpi
 elif [ $stage = "rebuild-unwise" ]; then
     time python $LEGACYHALOS_CODE_DIR/bin/virgofilaments/virgofilaments-mpi --rebuild-unwise --nproc $ncores --mpi
 elif [ $stage = "htmlplots" ]; then
