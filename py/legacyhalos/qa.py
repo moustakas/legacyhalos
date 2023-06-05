@@ -98,7 +98,6 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
 
     Image.MAX_IMAGE_PIXELS = None
 
-
     with Image.open(jpgfile) as im:
         draw = ImageDraw.Draw(im)
         sz = im.size
@@ -114,7 +113,7 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
             #    fntsize = 56
             font = ImageFont.truetype(fonttype, size=fntsize)
             # Add a scale bar and label--
-            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen*pixscalefactor, sz[1]-fntsize*1.5, sz[1]-fntsize*2#4
+            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen*pixscalefactor, sz[1]-fntsize*1.5, sz[1]-fntsize*4
             #print(sz, fntsize, x0, x1, y0, y1, barlen*pixscalefactor)
             draw.line((x0, y1, x1, y1), fill='white', width=width)
             ww, hh = draw.textsize(barlabel, font=font)
@@ -1264,7 +1263,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ax1.add_patch(mpatches.Ellipse((ellipsefit['x0_{}'.format(filt.lower())][this], ellipsefit['y0_{}'.format(filt.lower())][this]),
                                                2*ellipsefit['sma_{}'.format(filt.lower())][this],
                                                2*ellipsefit['sma_{}'.format(filt.lower())][this]*(1-ellipsefit['eps_{}'.format(filt.lower())][this]),
-                                               ellipsefit['pa_{}'.format(filt.lower())][this]-90,
+                                               angle=ellipsefit['pa_{}'.format(filt.lower())][this]-90,
                                                color='k', lw=sma_lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
 
             # Visualize the mean geometry
