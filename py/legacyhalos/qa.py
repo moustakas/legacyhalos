@@ -64,7 +64,7 @@ def _sbprofile_colors(makeiter=True, galex=False, unwise=False):
     return colors
 
 def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
-                        pixscale, color='#3388ff'):
+                        pixscale, color='#3388ff', linewidth=3):
     """
 
     """
@@ -80,7 +80,7 @@ def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
 
     draw = ImageDraw.ImageDraw(overlay)
     box_corners = (0, 0, overlay_width, overlay_height)
-    draw.ellipse(box_corners, fill=None, outline=color, width=3)
+    draw.ellipse(box_corners, fill=None, outline=color, width=linewidth)
 
     rotated = overlay.rotate(pa, expand=True)
     rotated_width, rotated_height = rotated.size
