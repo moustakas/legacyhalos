@@ -5,6 +5,17 @@ Load the legacyhalos code product, then, e.g.:
 SGA-2020-figures --surface-brightness --sbmontage-gallery
 etc.
 
+Median r-K color:
+
+nsafile = os.path.join(paperdir, 'data', 'nsa', 'nsa_v1_0_1.fits')
+nsa = Table(fitsio.read(nsafile))
+rk = -2.5 * np.log10(nsa['ELPETRO_FLUX'][:, 2]/nsa['ELPETRO_FLUX'][:, 6])
+plt.clf() 
+plt.hist(rk[np.isfinite(rk)], bins=100, range=(0, 5)) 
+plt.xlim(0, 5) 
+plt.axvline(x=3.4, color='k') 
+plt.axvline(x=2.4, color='k') ; plt.savefig('junk.png')
+
 """
 import os, sys, time, pdb
 import argparse, subprocess
@@ -421,13 +432,15 @@ def fig_hyperleda_rejects(sga, png=None):
         print(cmd)
         os.system(cmd)        
 
-def fig_sky(S, png=None):
+def fig_sky(S, clip_hi=50, max_bin_area=10, mloc=10, png=None):
 
     import seaborn as sns
     import healpy as hp
     from astropy.coordinates import SkyCoord
     from astropy import units, constants
     from desiutil.plots import init_sky, prepare_data, plot_sky_binned
+
+    print(len(S))
 
     #sns, _ = plot_style(talk=True, font_scale=0.8)
 
@@ -520,15 +533,19 @@ def fig_sky(S, png=None):
 
     ax = init_sky(galactic_plane_color='gray', ecliptic_plane_color='none', ax=ax)
 
-    ax, data = plot_sky_binned(ras, decs, plot_type='healpix', max_bin_area=10, 
-                               clip_lo=0, clip_hi='99%', verbose=True, ax=ax, 
+    ax, data = plot_sky_binned(ras, decs, plot_type='healpix', max_bin_area=max_bin_area, 
+                               clip_lo=0, clip_hi=clip_hi, 
+                               verbose=True, ax=ax, 
                                cmap=cmap, return_grid_data=True, colorbar=False)
+    import numpy.ma as ma
+    print(ma.median(data), ma.mean(data), ma.std(data))
+
     ax.set_ylabel('Dec (degrees)')
     ax.set_xlabel('RA (degrees)')
 
     sc = ax.collections[2]
     
-    ar_sky_cbar(ax, sc, r'Galaxy Surface Density (deg$^{-2}$)', extend='both', mloc=10)
+    ar_sky_cbar(ax, sc, r'Galaxy Surface Density (deg$^{-2}$)', extend='both', mloc=mloc)
 
     # AR DES, galactic, ecliptic plane
     #desfn = os.path.join(os.getenv("DESI_ROOT"), "survey", "observations", "misc", "des_footprint.txt")
@@ -708,7 +725,7 @@ def fig_sky2(S, png=None):
         fig.savefig(pngfile)
         plt.close(fig)            
 
-def fig_size_mag(sample, leda=False, png=None):
+def fig_size_mag(sample, leda=True, png=None):
     """D(25) vs Bt from the parent sample and D(25) histogram. 
 
     """
@@ -728,7 +745,7 @@ def fig_size_mag(sample, leda=False, png=None):
         mag_notleda = sample['MAG_LEDA'][good][notleda]
         diam_notleda = np.log10(sample['D25_LEDA'][good][notleda]) # [arcmin]
 
-        xlabel = r'$B_t$ (Vega mag)'
+        xlabel = r'$b_{t}$ (Vega mag)'
         ylabel = r'$D_{\mathrm{L}}(25)$ (arcmin)'
         #ylabel = r'$D_{i}(25)$ (arcmin)'
     else:
@@ -738,7 +755,7 @@ def fig_size_mag(sample, leda=False, png=None):
         xlabel = r'$m_{r}(<R_{26})$ (AB mag)'
         ylabel = r'$R_{26}$ (arcmin)'
     
-    xlim, ylim = (7, 20), (-1, 1.6)
+    xlim, ylim = (20, 7), (-1, 1.6)
 
     @ticker.FuncFormatter
     def major_formatter(x, pos):
@@ -800,7 +817,7 @@ def fig_size_mag(sample, leda=False, png=None):
     ax2_twin.set_yticks(np.log10([0.1, 0.2, 0.5, 1, 2, 5, 10, 25, 40]))
     #ax2_twin.set_xscale('log')
     ax2_twin.set_ylim(ylim)
-    ax2_twin.set_ylabel(ylabel)
+    ax2_twin.set_ylabel(ylabel, rotation=270, labelpad=25)
 
     ax2.legend(loc='upper right', fontsize=14) # frameon=False, 
     #hh, ll = ax2.get_legend_handles_labels()
@@ -827,19 +844,19 @@ def fig_sga_properties(sga, png=None):
     I = (sga['R_MAG_SB26'] > 0) * (sga['SMA_SB26'] > 0) #* (sga['D26'] > 0)
     print('Number of galaxies = {}/{}'.format(np.sum(I), len(sga)))
     _sga = sga[I]
-    _sga['SB26'] = _sga['R_MAG_SB26'] + 2.5 * np.log10(2 * np.pi * _sga['SMA_SB26']**2)
+    _sga['SB26'] = _sga['R_MAG_SB26'] + 2.5 * np.log10(np.pi * _sga['SMA_SB26']**2)
+    #_sga['SB26'] = _sga['R_MAG_SB26'] + 2.5 * np.log10(np.pi * _sga['SMA_SB26']**2 * _sga['BA'])
+    #_sga['SB26'] = _sga['R_MAG_SB26'] + 2.5 * np.log10(2 * np.pi * _sga['SMA_SB26']**2)
     #_sga['LOGR50'] = np.log10(_sga['R_SMA50'])
-    _sga['LOGR26'] = np.log10(_sga['SMA_SB26'])
+    _sga['LOGR26'] = np.log10(_sga['SMA_SB26']/60) # [arcmin]
     #_sga['LOGD26'] = np.log10(_sga['D26'])
     _sga['EPS'] = 1-_sga['BA']
     Xdata = _sga['R_MAG_SB26', 'LOGR26', 'SB26', 'PA', 'EPS'].to_pandas().values
-    lims = [(9, 20), (0.6, 2.6), (21, 28), (-10, 190), (-0.1, 1)]
+    lims = [(21, 7), (-1.2, 1.0), (27, 20), (-10, 190), (-0.1, 1)]
     #print(lims)
 
-    #pdb.set_trace()
-
-    labels = (r'$m_{r,R(26)}$'+'\n(mag)', 
-              r'$\log\,R(26)$'+'\n(arcmin)',
+    labels = (r'$r_{R(26)}$'+'\n(mag)', 
+              r'$R(26)$'+'\n(arcmin)',
               r'$\langle\, \mu_{r,R(26)}\,\rangle$'+'\n(mag arcsec'+r'$^{-2}$)',
               #r'$D(\mu_{r}=26)$', 
               r'$\phi$'+'\n(degree)', 
@@ -853,23 +870,39 @@ def fig_sga_properties(sga, png=None):
                     plot_density=True, levels=[0.5, 0.75, 0.95, 0.995],
                     contour_kwargs={'colors': 'k'},
                     #label_kwargs={'fontsize': 14}, 
-                    #show_titles=True, 
+                    show_titles=False,
                     #title_kwargs={'fontsize': 12},
                     hist_kwargs={'color': 'k', 'lw': 2},
                     color=colors[0], quiet=True)#, hist2d_kwargs={'quiet': True},)
-    #fig.axes[2].invert_xaxis()
+
     #fig.axes[0].yaxis.set_major_locator(AutoLocator())
     #fig.axes[0].set_yticklabels([100, 1000, 5000])
     #fig.axes[0].set_ylabel('Number of Galaxies')
+
+    @ticker.FuncFormatter
+    def major_formatter(x, pos):
+        if x >= 0:
+            return '{:.0f}'.format(10**x)
+        else:
+            return '{:.1f}'.format(10**x)
+
     for ii in range(len(labels)):
-        xx = fig.axes[ii+ii*5].twiny()
+        ax = fig.axes[ii+ii*5]
+        xx = ax.twiny()
         xx.set_xlim(lims[ii])
         xx.set_xlabel(labels[ii])
         xx.xaxis.set_major_locator(MaxNLocator(max_n_ticks, prune='lower'))
         [l.set_rotation(45) for l in xx.get_xticklabels()]
         [l.set_rotation(45) for l in xx.get_xticklabels(minor=True)]
+        if ii == 1:
+            xx.xaxis.set_major_formatter(major_formatter)
+            xx.set_xticks(np.log10([0.2, 1, 4]))
 
-    #pdb.set_trace()
+    fig.axes[5].yaxis.set_major_formatter(major_formatter)
+    fig.axes[5].set_yticks(np.log10([0.2, 1, 4]))
+
+    fig.axes[21].xaxis.set_major_formatter(major_formatter)
+    fig.axes[21].set_xticks(np.log10([0.2, 1, 4]))
 
     fig.subplots_adjust(bottom=0.15, top=0.9, right=0.95, left=0.12)
 
@@ -962,7 +995,7 @@ def fig_coordinates(sga, png=None):
         os.makedirs(montagedir, exist_ok=True)
 
     pixscale = 0.262
-    barlen = np.ceil(60 / pixscale) # [pixels]
+    barlen = np.ceil(30 / pixscale) # [pixels]
     barlabel = '' # '30 arcsec'
 
     ncol = 5
@@ -1100,7 +1133,7 @@ def fig_coordinates(sga, png=None):
     pngfiles = []
     for onegal  in samp:
         jpgfile = os.path.join(montagedir, '{}.jpg'.format(onegal['GALAXY']))
-        width = int(1.2 * onegal['D26'] * 60 / pixscale)
+        width = int(1.3 * onegal['D26'] * 60 / pixscale)
         if not os.path.isfile(jpgfile):
             urlfile = jpgurl+'ra={}&dec={}&pixscale={}&width={}&height={}&layer=ls-dr9'.format(
                 onegal['RA'], onegal['DEC'], pixscale, width, width)
@@ -1181,7 +1214,6 @@ def fig_coordinates(sga, png=None):
             label = onegal['GALAXY']
             #label = r'{} ($\Delta\theta={:.1f}"$)'.format(onegal['GALAXY'], onegal['SEP'])
             addbar_to_png(pngfile1, barlen, barlabel, label, pngfile1, scaledfont=True)
-            #pdb.set_trace()
 
         pngfiles.append(pngfile1)
 
@@ -1208,6 +1240,15 @@ def fig_sga_vs_hyperleda(sga, png=None):
     I = (sga['D26_REF'] != 'LEDA') * (sga['SMA_SB25'] > 0)
     sga = sga[I]
 
+    xpos, ypos = 0.06, 0.9
+
+    @ticker.FuncFormatter
+    def major_formatter(x, pos):
+        if x >= 0:
+            return '{:.0f}'.format(10**x)
+        else:
+            return '{:.1f}'.format(10**x)
+
     fig, ax = plt.subplots(2, 2, figsize=(12, 12))
 
     # coordinatess
@@ -1215,59 +1256,94 @@ def fig_sga_vs_hyperleda(sga, png=None):
     dra = (sga['RA'] - sga['RA_LEDA'])*3600
     ddec = (sga['DEC'] - sga['DEC_LEDA'])*3600
 
+    c_leda = SkyCoord(sga['RA_LEDA']*u.deg, sga['DEC_LEDA']*u.deg)
+    c_sga = SkyCoord(sga['RA']*u.deg, sga['DEC']*u.deg)
+    _, sep2d, _ = c_leda.match_to_catalog_sky(c_sga)
+    print('Median, mean+/-sigma, min, max delta-theta [SGA-Leda]={:.4f}, {:.4f}+/-{:.4f}, {:.4f}, {:.4f} arcsec.'.format(
+        np.median(sep2d.arcsec), np.mean(sep2d.arcsec), np.std(sep2d.arcsec), np.min(sep2d.arcsec), 
+        np.max(sep2d.arcsec)))
+
     cn.hist2d(dra, ddec, 
               levels=[0.5, 0.75, 0.95, 0.995], bins=100, color=colors[0],
-              range=[xylim, xylim], ax=ax[0, 0], smooth=True,
+              range=[xylim, xylim], ax=ax[0, 0], smooth=0.8,
               data_kwargs={'color': colors[0], 'alpha': 0.2, 'ms': 4, 'alpha': 0.5},
               contour_kwargs={'colors': 'k'})
-    ax[0, 0].axhline(y=0, color=colors[3], lw=2, alpha=0.7)
-    ax[0, 0].axvline(x=0, color=colors[3], lw=2, alpha=0.7)
+    ax[0, 0].axhline(y=0, color=colors[3], lw=2, alpha=0.9)
+    ax[0, 0].axvline(x=0, color=colors[3], lw=2, alpha=0.9)
     ax[0, 0].xaxis.set_major_locator(ticker.MultipleLocator(10))
     ax[0, 0].yaxis.set_major_locator(ticker.MultipleLocator(10))
     ax[0, 0].set_xlabel(r'$\Delta\,\mathrm{RA}$ (J2000, arcsec)')
     ax[0, 0].set_ylabel(r'$\Delta\,\mathrm{Dec}$ (J2000, arcsec)')
+    ax[0, 0].text(xpos, ypos, '(a)', ha='left', va='bottom', backgroundcolor='white',
+                  transform=ax[0, 0].transAxes, alpha=1.0)
 
     # diameters
-    xylim = [-1.0, 1.5]
-    cn.hist2d(np.log10(2*sga['SMA_SB25']/60), np.log10(sga['D25_LEDA']), 
+    xylim = [-0.9, 1.6]
+    dsga = np.log10(2*sga['SMA_SB25']/60)
+    dleda = np.log10(sga['D25_LEDA'])
+    deltad = dsga - dleda
+    print('Median, mean+/-sigma, min, max delta-D(25) [SGA-Leda]={:.4f}, {:.4f}+/-{:.4f}, {:.4f}, {:.4f} arcmin.'.format(
+        np.median(deltad), np.mean(deltad), np.std(deltad), np.min(deltad), np.max(deltad)))
+
+    cn.hist2d(dsga, dleda, 
               levels=[0.5, 0.75, 0.95, 0.995], bins=100, color=colors[0],
-              range=[xylim, xylim], ax=ax[0, 1], smooth=True,
-              data_kwargs={'color': colors[0], 'alpha': 0.2, 'ms': 4, 'alpha': 0.5},
+              range=[xylim, xylim], ax=ax[0, 1], smooth=0.8,
+              data_kwargs={'color': colors[0], 'alpha': 0.2, 'ms': 4, 'alpha': 0.5},#, 'mec': 'gray'},
               contour_kwargs={'colors': 'k'})
-    #ax[0, 0].scatter(np.log10(2*sga['SMA_SB25']/60), np.log10(sga['D25_LEDA']), s=1)
-    ax[0, 1].plot(xylim, xylim, color=colors[3], lw=2, alpha=0.7)
+    ax[0, 1].plot(xylim, xylim, color=colors[3], lw=2, alpha=0.9)
+    #ax[0, 1].plot(xylim, xylim-np.median(deltad), color=colors[3], lw=2, ls='--', alpha=0.9)
     ax[0, 1].xaxis.set_major_locator(ticker.MultipleLocator(0.5))
     ax[0, 1].yaxis.set_major_locator(ticker.MultipleLocator(0.5))
-    ax[0, 1].set_xlabel(r'$D(25)$ [SGA, arcmin]')
-    ax[0, 1].set_ylabel(r'$D_{\mathrm{L}}(25)$ [HyperLeda, arcmin]')
+    ax[0, 1].set_xlabel(r'$D(25)$ (SGA, arcmin)')
+    ax[0, 1].set_ylabel(r'$D_{\mathrm{L}}(25)$ (HyperLeda, arcmin)')
+    ax[0, 1].xaxis.set_major_formatter(major_formatter)
+    ax[0, 1].yaxis.set_major_formatter(major_formatter)
+    ax[0, 1].set_xticks(np.log10([0.3, 1, 3, 10, 30]))
+    ax[0, 1].set_yticks(np.log10([0.3, 1, 3, 10, 30]))
+    ax[0, 1].text(xpos, ypos, '(b)', ha='left', va='bottom', backgroundcolor='white',
+                  transform=ax[0, 1].transAxes, alpha=1.0)
 
     # PA
+    pasga, paleda = sga['PA'], sga['PA_LEDA']
+    deltapa = pasga - paleda
+    print('Median, mean+/-sigma, min, max delta-PA [SGA-Leda]={:.4f}, {:.4f}+/-{:.4f}, {:.4f}, {:.4f} degree.'.format(
+        np.median(deltapa), np.mean(deltapa), np.std(deltapa), np.min(deltapa), np.max(deltapa)))
+
     xylim = [-10, 190]
-    cn.hist2d(sga['PA'], sga['PA_LEDA'], 
+    cn.hist2d(pasga, paleda, 
               levels=[0.5, 0.75, 0.95, 0.995], bins=100, color=colors[0],
-              range=[xylim, xylim], ax=ax[1, 0], smooth=True,
+              range=[xylim, xylim], ax=ax[1, 0], smooth=0.8,
               data_kwargs={'color': colors[0], 'alpha': 0.2, 'ms': 4, 'alpha': 0.5},
               contour_kwargs={'colors': 'k'})
     #ax[0, 1].scatter(sga['PA'], sga['PA_LEDA'], s=1)
-    ax[1, 0].plot(xylim, xylim, color=colors[3], lw=2, alpha=0.7)
+    ax[1, 0].plot(xylim, xylim, color=colors[3], lw=2, alpha=0.9)
     ax[1, 0].xaxis.set_major_locator(ticker.MultipleLocator(50))
     ax[1, 0].yaxis.set_major_locator(ticker.MultipleLocator(50))
-    ax[1, 0].set_xlabel(r'$\phi$ [SGA, degree]')
-    ax[1, 0].set_ylabel(r'$\phi$ [HyperLeda, degree]')
+    ax[1, 0].set_xlabel(r'$\phi$ (SGA, degree)')
+    ax[1, 0].set_ylabel(r'$\phi$ (HyperLeda, degree)')
+    ax[1, 0].text(xpos, ypos, '(c)', ha='left', va='bottom', backgroundcolor='white',
+                  transform=ax[1, 0].transAxes, alpha=1.0)
 
     # ellipticity
-    xylim = [-0.1, 1.1]
-    cn.hist2d(1-sga['BA'], 1-sga['BA_LEDA'], 
+    esga, eleda = 1-sga['BA'], 1-sga['BA_LEDA']
+    deltae = esga - eleda
+    print('Median, mean+/-sigma, min, max delta-epsilon [SGA-Leda]={:.4f}, {:.4f}+/-{:.4f}, {:.4f}, {:.4f}.'.format(
+        np.median(deltae), np.mean(deltae), np.std(deltae), np.min(deltae), np.max(deltae)))
+
+    xylim = [-0.1, 1.0]
+    cn.hist2d(esga, eleda,
               levels=[0.5, 0.75, 0.95, 0.995], bins=100, color=colors[0],
-              range=[xylim, xylim], ax=ax[1, 1], smooth=True,
+              range=[xylim, xylim], ax=ax[1, 1], smooth=0.8,
               data_kwargs={'color': colors[0], 'alpha': 0.2, 'ms': 4, 'alpha': 0.5},
               contour_kwargs={'colors': 'k'})
     #ax[1, 0].scatter(1-sga['BA'], 1-sga['BA_LEDA'], s=1)
-    ax[1, 1].plot(xylim, xylim, color=colors[3], lw=2, alpha=0.7)
+    ax[1, 1].plot(xylim, xylim, color=colors[3], lw=2, alpha=0.9)
     ax[1, 1].xaxis.set_major_locator(ticker.MultipleLocator(0.2))
     ax[1, 1].yaxis.set_major_locator(ticker.MultipleLocator(0.2))
-    ax[1, 1].set_xlabel(r'$\epsilon$ [SGA]')
-    ax[1, 1].set_ylabel(r'$\epsilon$ [HyperLeda]')
+    ax[1, 1].set_xlabel(r'$\epsilon$ (SGA)')
+    ax[1, 1].set_ylabel(r'$\epsilon$ (HyperLeda)')
+    ax[1, 1].text(xpos, ypos, '(d)', ha='left', va='bottom', backgroundcolor='white',
+                  transform=ax[1, 1].transAxes, alpha=1.0)
 
     fig.subplots_adjust(left=0.11, bottom=0.09, right=0.95, top=0.95, hspace=0.2, wspace=0.3)
 
@@ -1286,6 +1362,7 @@ def fig_sga_vs_wxsc100(sga, png=None):
     import pandas as pd
     import astropy.units as u
     from astropy.coordinates import SkyCoord
+    import matplotlib as mpl
 
     sns, colors = plot_style(talk=True, font_scale=1.1)
 
@@ -1306,74 +1383,238 @@ def fig_sga_vs_wxsc100(sga, png=None):
     wxsc = pd.read_csv(wxscfile, delimiter='|', comment='#', na_values='null', skiprows=0, 
                        names=names, dtype=dtype, skip_blank_lines=True)#,
                        #warn_bad_lines=True, error_bad_lines=False)
-                       
+
+    tab3 = Table.read(os.path.join(paperdir, 'data', 'wxsc100', 'Table_3_nonull.tbl'), format='ipac')
+
     c_sga = SkyCoord(ra=sga['RA']*u.deg, dec=sga['DEC']*u.deg)
     c_wxsc = SkyCoord(ra=wxsc['ra'].values*u.deg, dec=wxsc['dec'].values*u.deg)
 
     rad = 10.0 * u.arcsec
     indx_wxsc, indx_sga, d2d, _ = c_sga.search_around_sky(c_wxsc, rad)
-    print('Found {:,d}/{:,d} SGA-WXSC matches within {} arcsec.'.format(len(indx_sga), len(sga), rad))
+    print('Found {:,d}/{:,d} SGA-WXSC matches within {} arcsec.'.format(len(indx_wxsc), len(wxsc), rad))
     
     mwxsc = wxsc.iloc[indx_wxsc]
     msga = sga[indx_sga]
+    msga['HUBBLE'] = tab3['Morph'][indx_wxsc]
 
-    ms = 40
+    morphkey = {
+        'E': -5,
+        'E1pec': -5,
+        'dE': -5,
+        'E-S0': -3,
+        'S0': -2,
+        'dS0': -2,
+        'S0/a': 0,
+        'S0-a': 0,
+        'Sa': 1,
+        'SABa': 1,
+        'Sab': 2,
+        'Sa-b': 2,
+        'Sb': 3,
+        'SABb': 3,
+        'SBb': 3,
+        'Sbc': 4,
+        'Sb-c': 4,
+        'Sc': 5,
+        'SABc': 5,
+        'Scd': 6,
+        'SBcd': 6,
+        'Sc-d': 6,
+        'Sd': 7,
+        'Sdm': 8,
+        'Sd-m' : 8,
+        'S?' : 8,
+        'Sm': 9,
+        'SBm': 9,
+        'Irr': 9,
+        'Ir' : 9,
+        'IB' : 9,
+        'dsph': -5,
+        'Sph': -5,
+        'dIr': 9,
+        'dIrr': 9,
+        'dS0': -2,
+        'dS0/a': 0,
+        'dS0-a': 0,
+        'dSa': 1,
+        'dSab': 2,
+        'dSa-b': 2,
+        'dSb': 3,
+        'dSbc': 4,
+        'dSb-c': 4,
+        'dSc': 5,
+        'dScd': 6,
+        'dSc-d': 6,
+        'dSd': 7,
+        'Sc-Irr': 8,}
+
+    msga['HUBBLET'] = np.zeros(len(msga), int)
+    for thismorph in set(msga['HUBBLE']):
+        if thismorph == 'ZZZ': # NGC4217
+            thismorph = 'Sb'
+        I = np.where(thismorph == msga['HUBBLE'])[0]
+        if thismorph in morphkey.keys():
+            msga['HUBBLET'][I] = morphkey[thismorph]
+        else:
+            print(f'Missing {thismorph}')
+
+    ms = 80
     col = colors[0]
+    marker = 'o'
+    xpos, ypos = 0.06, 0.88
 
-    fig, ax = plt.subplots(2, 2, figsize=(12, 12))
+    # discrete colorbar
+    # https://stackoverflow.com/questions/14777066/matplotlib-discrete-colorbar
+    cmap = plt.cm.jet  # define the colormap
+    cmaplist = [cmap(i) for i in range(cmap.N)]
+    
+    # create the new map
+    cmap = mpl.colors.LinearSegmentedColormap.from_list(
+        'custom', cmaplist, cmap.N)
+    
+    bounds = np.arange(np.min(msga['HUBBLET']), np.max(msga['HUBBLET'])+1, 1)
+    norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+
+    @ticker.FuncFormatter
+    def major_formatter(x, pos):
+        if x >= 0:
+            return '{:.0f}'.format(10**x)
+        else:
+            return '{:.1f}'.format(10**x)
+
+    fig, ax = plt.subplots(2, 2, figsize=(13, 10))
 
     xylim = 20 * np.array([-1, 1])
     dra = 3600*(msga['RA']-mwxsc['ra'].values)
     ddec = 3600*(msga['DEC']-mwxsc['dec'].values)
 
-    I = dra > 10
-    print(msga[I]['GALAXY'].data, msga[I]['RA'].data, msga[I]['DEC'].data, mwxsc.iloc[I]['ra'].values, mwxsc.iloc[I]['dec'].values)
-    pdb.set_trace()
+    c_wxsc = SkyCoord(mwxsc['ra'].values*u.deg, mwxsc['dec'].values*u.deg)
+    c_sga = SkyCoord(msga['RA']*u.deg, msga['DEC']*u.deg)
+    _, sep2d, _ = c_wxsc.match_to_catalog_sky(c_sga)
+    print('Median, mean+/-sigma, min, max delta-theta [SGA-Wxsc]={:.4f}, {:.4f}+/-{:.4f}, {:.4f}, {:.4f} arcsec.'.format(
+        np.median(sep2d.arcsec), np.mean(sep2d.arcsec), np.std(sep2d.arcsec), np.min(sep2d.arcsec), 
+        np.max(sep2d.arcsec)))
 
-    ax[0, 0].scatter(dra, ddec, s=ms, marker='s', color=col)
+    srt = np.argsort(sep2d.arcsec)[::-1]
+    info = msga['GALAXY', 'RA', 'DEC'][srt]
+    info['RA_WXSC'] = mwxsc['ra'].values[srt]
+    info['DEC_WXSC'] = mwxsc['dec'].values[srt]
+    info['SEP2D'] = sep2d.arcsec[srt]
+    print(info[:10])
+
+    I = np.where(np.logical_or(np.abs(dra) > 8, np.abs(ddec) > 8))[0]
+    for ii in I:
+        pass
+        print(msga[ii]['GALAXY'], msga[ii]['RA'], msga[ii]['DEC'], 
+              mwxsc.iloc[ii]['ra'], mwxsc.iloc[ii]['dec'], dra[ii], ddec[ii])
+    #pdb.set_trace()
+
+    ax[0, 0].scatter(dra, ddec, s=ms, marker=marker, c=msga['HUBBLET'], 
+                     cmap=cmap, norm=norm, alpha=0.9, edgecolor='k')
     ax[0, 0].set_xlim(xylim)
     ax[0, 0].set_ylim(xylim)
-    ax[0, 0].axhline(y=0, color=colors[3], lw=2, alpha=0.7)
-    ax[0, 0].axvline(x=0, color=colors[3], lw=2, alpha=0.7)
+    ax[0, 0].axhline(y=0, color='k', lw=2, alpha=0.7)
+    ax[0, 0].axvline(x=0, color='k', lw=2, alpha=0.7)
     ax[0, 0].set_xlabel(r'$\Delta\,\mathrm{RA}$ (J2000, arcsec)')
     ax[0, 0].set_ylabel(r'$\Delta\,\mathrm{Dec}$ (J2000, arcsec)')
     ax[0, 0].xaxis.set_major_locator(ticker.MultipleLocator(10))
     ax[0, 0].yaxis.set_major_locator(ticker.MultipleLocator(10))
+    ax[0, 0].text(xpos, ypos, '(a)', ha='left', va='bottom', backgroundcolor='white',
+                  transform=ax[0, 0].transAxes, alpha=1.0)
 
-    xylim = [0.5, 1.75]
-    ax[0, 1].scatter(np.log10(msga['D26']), np.log10(2*mwxsc['W1_radius'].values.astype('f4')),
-                     s=ms, marker='s', color=col)
-    ax[0, 1].plot(xylim, xylim, color=colors[3], lw=2, alpha=0.7)
+    cbax = fig.add_axes([0.9, 0.1, 0.03, 0.8])
+    mpl.colorbar.ColorbarBase(cbax, cmap=cmap, norm=norm, label='Hubble Type',
+                              spacing='proportional', ticks=bounds, 
+                              boundaries=bounds, format='%1i')
+
+    # annotate a few galaxies
+    gals = ['NGC2403', 'NGC0247', 'NGC4395']
+    xytexts = [(15, 7), (-15, 2), (8.5, -10)]
+    has = ['right', 'center', 'center']
+    for gal, xytext, ha in zip(gals, xytexts, has):
+        N = msga['GALAXY'] == gal
+        ax[0, 0].annotate(gal, (dra[N], ddec[N]), xytext=xytext, 
+                          ha=ha, va='bottom', fontsize=14, 
+                          arrowprops=dict(facecolor='k', shrink=0.1))#arrowstyle='-', ))
+
+    xylim = [0.6, 1.7]
+    dsga = np.log10(msga['D26'])
+    dwxsc = np.log10(2*mwxsc['W1_radius'].values.astype('f4'))
+    deltad = dsga - dwxsc
+
+    print('Median, mean+/-sigma, min, max D(26) [SGA]={:.4f}, {:.4f}+/-{:.4f}, {:.4f}, {:.4f} arcmin.'.format(
+        np.median(10**dsga), np.mean(10**dsga), np.std(10**dsga), np.min(10**dsga), np.max(10**dsga)))
+    print('Median, mean+/-sigma, min, max D(26) [SGA-WXSC100]={:.4f}, {:.4f}+/-{:.4f}, {:.4f}, {:.4f} arcmin.'.format(
+        np.median(deltad), np.mean(deltad), np.std(deltad), np.min(deltad), np.max(deltad)))
+
+    srt = np.argsort(deltad)
+    info = msga['GALAXY', 'RA', 'DEC', 'MORPHTYPE', 'HUBBLET'][srt]
+    info['LOGDW1_WXSC'] = dwxsc[srt]
+    info['LOG_D26_SGA'] = dsga[srt]
+    info['DELTAD'] = deltad[srt]
+    print(info[:10])
+    I = info['HUBBLET'] >= 2
+    J = info['HUBBLET'] < 2
+    print('Spirals: : ', np.median(info['DELTAD'][I]), np.std(info['DELTAD'][I]))
+    print('Ellipticals: : ', np.median(info['DELTAD'][J]), np.std(info['DELTAD'][J]))
+    
+    ax[0, 1].scatter(dsga, dwxsc, s=ms, marker=marker, c=msga['HUBBLET'], 
+                     cmap=cmap, norm=norm, alpha=0.9, edgecolor='k')
+    ax[0, 1].plot(xylim, xylim, color='k', lw=2, alpha=0.7)
     ax[0, 1].set_xlim(xylim)
     ax[0, 1].set_ylim(xylim)
-    ax[0, 1].set_xlabel(r'$D(26)$ [SGA, arcmin]')
-    ax[0, 1].set_ylabel(r'$2\times R_{\mathrm{W1}}$ [WXSC-100, arcmin]')
-    ax[0, 1].xaxis.set_major_locator(ticker.MultipleLocator(0.2))
-    ax[0, 1].yaxis.set_major_locator(ticker.MultipleLocator(0.2))
+    ax[0, 1].set_xlabel(r'$D(26)$ (SGA, arcmin)')
+    ax[0, 1].set_ylabel(r'$2\times R_{\mathrm{W1}}$ (WXSC-100, arcmin)')
+    #ax[0, 1].xaxis.set_major_locator(ticker.MultipleLocator(0.2))
+    #ax[0, 1].yaxis.set_major_locator(ticker.MultipleLocator(0.2))
+    ax[0, 1].xaxis.set_major_formatter(major_formatter)
+    ax[0, 1].yaxis.set_major_formatter(major_formatter)
+    ax[0, 1].set_xticks(np.log10([5, 7, 10, 15, 25, 40]))
+    ax[0, 1].set_yticks(np.log10([5, 7, 10, 15, 25, 40]))
+    ax[0, 1].text(xpos, ypos, '(b)', ha='left', va='bottom', backgroundcolor='white',
+                  transform=ax[0, 1].transAxes, alpha=1.0)
+
+    # PA
+    pasga, pawxsc = msga['PA'], mwxsc['pa'].values
+    deltapa = pasga - pawxsc
+    from scipy.stats import sigmaclip
+    cdeltapa, _, _ = sigmaclip(deltapa, low=3, high=3)
+    print('Median, mean+/-sigma, min, max delta-PA [SGA-WXSC]={:.4f}, {:.4f}+/-{:.4f}, {:.4f}, {:.4f} degree.'.format(
+        np.median(cdeltapa), np.mean(cdeltapa), np.std(cdeltapa), np.min(cdeltapa), np.max(cdeltapa)))
 
     xylim = [-10, 190]
-    ax[1, 0].scatter(msga['PA'], mwxsc['pa'].values,
-                     s=ms, marker='s', color=col)
-    ax[1, 0].plot(xylim, xylim, color=colors[3], lw=2, alpha=0.7)
+    ax[1, 0].scatter(pasga, pawxsc, marker=marker, c=msga['HUBBLET'], 
+                     cmap=cmap, norm=norm, alpha=0.9, edgecolor='k')
+    ax[1, 0].plot(xylim, xylim, color='k', lw=2, alpha=0.7)
     ax[1, 0].set_xlim(xylim)
     ax[1, 0].set_ylim(xylim)
-    ax[1, 0].set_xlabel(r'$\phi$ [SGA, degree]')
-    ax[1, 0].set_ylabel(r'$\phi$ [WXSC-100, degree]')
+    ax[1, 0].set_xlabel(r'$\phi$ (SGA, degree)')
+    ax[1, 0].set_ylabel(r'$\phi$ (WXSC-100, degree)')
     ax[1, 0].xaxis.set_major_locator(ticker.MultipleLocator(50))
     ax[1, 0].yaxis.set_major_locator(ticker.MultipleLocator(50))
+    ax[1, 0].text(xpos, ypos, '(c)', ha='left', va='bottom', backgroundcolor='white',
+                  transform=ax[1, 0].transAxes, alpha=1.0)
 
-    xylim = [-0.1, 1.1]
-    ax[1, 1].scatter(1-msga['BA'], 1-mwxsc['ba'].values,
-                     s=ms, marker='s', color=col)
-    ax[1, 1].plot(xylim, xylim, color=colors[3], lw=2, alpha=0.7)
+    # ellipticity
+    esga, ewxsc = 1-msga['BA'], 1-mwxsc['ba'].values
+    deltae = esga - ewxsc
+    print('Median, mean+/-sigma, min, max delta-epsilon [SGA-WXSC]={:.4f}, {:.4f}+/-{:.4f}, {:.4f}, {:.4f}.'.format(
+        np.median(deltae), np.mean(deltae), np.std(deltae), np.min(deltae), np.max(deltae)))
+
+    xylim = [-0.1, 1.0]
+    ax[1, 1].scatter(esga, ewxsc, marker=marker, c=msga['HUBBLET'], 
+                     cmap=cmap, norm=norm, alpha=0.9, edgecolor='k')
+    ax[1, 1].plot(xylim, xylim, color='k', lw=2, alpha=0.7)
     ax[1, 1].set_xlim(xylim)
     ax[1, 1].set_ylim(xylim)
-    ax[1, 1].set_xlabel(r'$\epsilon$ [SGA]')
-    ax[1, 1].set_ylabel(r'$\epsilon$ [WXSC-100]')
+    ax[1, 1].set_xlabel(r'$\epsilon$ (SGA)')
+    ax[1, 1].set_ylabel(r'$\epsilon$ (WXSC-100)')
     ax[1, 1].xaxis.set_major_locator(ticker.MultipleLocator(0.2))
     ax[1, 1].yaxis.set_major_locator(ticker.MultipleLocator(0.2))
+    ax[1, 1].text(xpos, ypos, '(d)', ha='left', va='bottom', backgroundcolor='white',
+                  transform=ax[1, 1].transAxes, alpha=1.0)
 
-    fig.subplots_adjust(left=0.11, bottom=0.09, right=0.95, top=0.95, hspace=0.2, wspace=0.3)
+    fig.subplots_adjust(left=0.11, bottom=0.09, right=0.87, top=0.95, hspace=0.25, wspace=0.3)
 
     #pdb.set_trace()
 
@@ -1467,7 +1708,7 @@ def fig_rich_groups(sga, png=None):
         print(cmd)
         os.system(cmd)        
 
-def fig_sb_mag(sga, parent, frac=None, png=None):
+def fig_sb_mag(sga, frac=None, png=None):
     """Surface brightness vs r-band magnitude.
     
     """
@@ -1487,19 +1728,19 @@ def fig_sb_mag(sga, parent, frac=None, png=None):
                
         # overplot lines of constant size
         magarr = np.linspace(xlim[0], xlim[1], 50)
-        for size, xpos, ypos in zip((5, 10, 30, 100, 300),
-                                    (None, None, None, None, None),
-                                    (22.0, 22.0, 22.0, 22.0, 23.0)):
-            sbarr = magarr + 2.5 * np.log10(2 * np.pi * size**2)
+        for size, xpos, ypos in zip((5, 10, 25, 60, 100, 300),
+                                    (None, None, None, None, None, None),
+                                    (22.0, 22.0, 22.0, 22.0, 22.0, 23.0)):
+            sbarr = magarr + 2.5 * np.log10(np.pi * size**2)
             ax.plot(magarr, sbarr, color='blue', lw=2, ls='--', alpha=0.8)
             
             if ypos:
-                xpos = ypos - 2.5 * np.log10(2 * np.pi * size**2)
+                xpos = ypos - 2.5 * np.log10(np.pi * size**2)
             if xpos:
-                ypos = xpos + 2.5 * np.log10(2 * np.pi * size**2)
+                ypos = xpos + 2.5 * np.log10(np.pi * size**2)
                 
             ax.text(xpos, ypos, r'$R_{{26}}={0:g}^{{\prime\prime}}$'.format(size), 
-                    ha='left', va='center', rotation=-60, fontsize=16, alpha=1.0)
+                    ha='left', va='center', rotation=60, fontsize=16, alpha=1.0)
     
         # labels and all that
         ax.set_xlim(xlim)
@@ -1512,28 +1753,28 @@ def fig_sb_mag(sga, parent, frac=None, png=None):
 
         return fig
 
-    # parent plot
-    good = np.where((parent['SMA_SB26'] != -1) * (parent['R_MAG_SB26'] != -1))[0]
-    rmag = parent['R_MAG_SB26'][good]
-    radius = parent['SMA_SB26'][good] # [arcsec]
-    sb = parent + 2.5 * np.log10(2 * np.pi * radius**2)
-    xlim = (8, 20)
-    ylim = (27, 21)
-    fig = makeplot(rmag, sb, xlim, ylim)
-
-    if png:
-        pngfile = os.path.join(figdir, png)
-        print('Writing {}'.format(pngfile))
-        fig.savefig(pngfile)#, bbox_inches='tight')
-        plt.close(fig)
+    ## parent plot
+    #good = np.where((parent['SMA_SB26'] != -1) * (parent['R_MAG_SB26'] != -1))[0]
+    #rmag = parent['R_MAG_SB26'][good]
+    #radius = parent['SMA_SB26'][good] # [arcsec]
+    #sb = parent + 2.5 * np.log10(np.pi * radius**2)
+    #xlim = (8, 20)
+    #ylim = (27, 21)
+    #fig = makeplot(rmag, sb, xlim, ylim)
+    #
+    #if png:
+    #    pngfile = os.path.join(figdir, png)
+    #    print('Writing {}'.format(pngfile))
+    #    fig.savefig(pngfile)#, bbox_inches='tight')
+    #    plt.close(fig)
 
     # SGA plot
     good = np.where((sga['SMA_SB26'] != -1) * (sga['R_MAG_SB26'] != -1))[0]
     rmag = sga['R_MAG_SB26'][good]
     radius = sga['SMA_SB26'][good] # [arcsec]
-    sb = rmag + 2.5 * np.log10(2 * np.pi * radius**2)
-    xlim = (8, 20)
-    ylim = (27, 21)
+    sb = rmag + 2.5 * np.log10(np.pi * radius**2)
+    xlim = (20, 8)
+    ylim = (26, 21)
     fig = makeplot(rmag, sb, xlim, ylim)
 
     if png:
@@ -2287,7 +2528,7 @@ def fig_nsa_completeness(sga, png=None):
     ax.axvline(x=np.log10(10), ls='--', color='k')
     ax.set_xlabel(r'$\log_{10}\,(\mathrm{NSA-SGA\ Separation})$ (arcsec)')
     ax.set_ylabel('Number of Galaxies')
-    #ax.set_yscale('log')
+    ax.set_yscale('log')
     ax.legend(fontsize=14)
     #ax.set_xlim(0, 100)
     #ax.axvline(x=rad.value, ls='-', color='k')
@@ -2353,7 +2594,7 @@ def fig_nsa_completeness(sga, png=None):
 
     # --------------------------------------------------
     # NSA galaxies not in the SGA
-    remake_montage = True
+    remake_montage = False
     if remake_montage:
         nsa_notin_sga = nsa[np.delete(np.arange(len(nsa)), indx_nsa)]
 
@@ -2627,7 +2868,10 @@ def fig_hecate_completeness(sga, png=None):
 
     # read the previously created matched catalog
     hecate = Table(fitsio.read(hecatedr9file, ext=1))
-    print('Read {} objects from {}'.format(len(hecate), hecatedr9file))
+    print('Read {:,d} objects from {}'.format(len(hecate), hecatedr9file))
+
+    #toss = np.where(np.isnan(hecate['R1']))[0]
+    #pdb.set_trace()
 
     keep = np.where(np.isfinite(hecate['R1']) * np.isfinite(hecate['R2']))[0]
     print('Removing {} HECATE objects with no diameters.'.format(len(hecate)-len(keep)))
@@ -2636,109 +2880,8 @@ def fig_hecate_completeness(sga, png=None):
     hecate = hecate[keep]
     hecate['BA'] = hecate['R2'] / hecate['R1']
 
-    if False:
-        # Remove the Local Group Dwarfs which were intentionally excluded from the
-        # sample, plus Fornax and Sculptor.
-        dwarffile = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'sample', 'catalogs', 'SGA-dwarfs.fits')
-        print('Reading {}'.format(dwarffile))
-        dwarfs = Table(fitsio.read(dwarffile))
-        dwarfs = dwarfs[np.logical_or(dwarfs['RESOLVED'], dwarfs['IGNORE'])]
-    
-        #c_hecate = SkyCoord(hecate['RA']*u.deg, hecate['DEC']*u.deg)
-        #c_dwarfs = SkyCoord(dwarfs['RA']*u.deg, dwarfs['DEC']*u.deg)
-    
-        #_, sep2d, _ = c_hecate.match_to_catalog_sky(c_dwarfs)
-        #pngfile = os.path.join(paperdir, 'data', 'hecate', 'qa-hecate-mwdwarfs-separation.png')
-        #print('Writing {}'.format(pngfile))
-        #fig, ax = plt.subplots(figsize=(10, 7))    
-        #_ = ax.hist(sep2d.arcmin, bins=100)#, range=(0, 30))
-        #fig.savefig(pngfile)#, bbox_inches='tight')
-    
-        #indx_hecate, indx_dwarfs, d2d, _ = c_dwarfs.search_around_sky(c_hecate, 120*u.arcsec)
-        dwarfpgc = {
-            'SagittariusdSph': 4689212,
-            'SegueI': 4713559,
-            'UrsaMajorII': 4713555,
-            'BootesII': 4713552,
-            'SegueII': 4713565,
-            'Willman1': 4713556,
-            'BootesI': 4713553,
-            'Draco': 60095,
-            'UrsaMinor': 54074,
-            'SextansI': 88608,
-            'UrsaMajorI': 4713554,
-            'Hercules': 4713560,
-            'LeoIV': 4713561,
-            'LeoV': 4713563,
-            'PiscesII': 5056949,
-            'CanesVenaticiI': 4689223,
-            'AndromedaXIV': 5056922,
-            'AndromedaXIII': 5056925,
-            'AndromedaII': 4601,
-            'AndromedaXXIX': 5060430,
-            'AndromedaXXII': 5057232,
-            'AndromedaXVI': 5056927,
-            'LeoT': 4713564,
-            'ComaBerenices': -1, 
-            'CanesVenaticiII': 4713558,
-            'AndromedaXX': 5056920,
-            'Antlia': 29194,
-            'Carina': 19441,
-            'AndromedaX': 5056921,
-            'AndromedaIX': 4689222,
-            'AndromedaXVII': 4608690,
-            'AndromedaXXVII': 5057230,
-            'AndromedaXXV': 5057228,
-            'AndromedaI': 2666,
-            'AndromedaIII': 2121,
-            'AndromedaXV': 5056926,
-            'AndromedaXII': 5056924,
-            'AndromedaXI': 5056923,
-            'AndromedaXXVI': 5057229,
-            'AndromedaXIX': 5056919,
-            'AndromedaXXI': 5057231,
-            'AndromedaXVIII': 5056918,
-            'AndromedaXXIV': 5057227,
-            'AndromedaXXIII': 5057226,
-            'AndromedaV': 3097824,
-            'AndromedaVII': 2807155,
-            'Aquarius': 65367,
-            'Sculptor': 3589,
-            'Fornax': 10074,
-            }
-    
-        #J = np.where(sga['GALAXY'] == thisdwarf)[0]
-        #if len(J) == 1:
-        #    sga['PGC'][J] = dwarfpgc[thisdwarf]
-        for thisdwarf in dwarfpgc.keys():
-            I = np.where(dwarfs['GALAXY'] == thisdwarf)[0]
-            dwarfs['PGC'][I] = dwarfpgc[thisdwarf]
-    
-        indx_dwarfs, indx_hecate, miss_dwarfs = [], [], []
-        for I, pgc in enumerate(dwarfs['PGC']):
-            J = np.where(hecate['PGC'] == pgc)[0]
-            if len(J) == 1:
-                indx_dwarfs.append(I)
-                indx_hecate.append(J)
-            else:
-                miss_dwarfs.append(dwarfs[I])
-                
-        indx_dwarfs = np.hstack(indx_dwarfs)
-        indx_hecate = np.hstack(indx_hecate)
-        miss_dwarfs = vstack(miss_dwarfs)
-    
-        c_hecate = SkyCoord(hecate[indx_hecate]['RA']*u.deg, hecate[indx_hecate]['DEC']*u.deg)
-        c_dwarfs = SkyCoord(dwarfs[indx_dwarfs]['RA']*u.deg, dwarfs[indx_dwarfs]['DEC']*u.deg)
-        _, sep2d, _ = c_hecate.match_to_catalog_sky(c_dwarfs)
-        print('Mean, min, max delta-theta between McConnachie+12 and HECATE coordinates={:.4f}, {:.4f}, {:.4f} arcsec'.format(
-            np.mean(sep2d.arcsec), np.min(sep2d.arcsec), np.max(sep2d.arcsec)))
-    
-        keep_hecate = np.delete(np.arange(len(hecate)), indx_hecate)
-        print('Removing {}/{} HECATE objects which are MW dwarfs intentionally excluded from the SGA.'.format(len(indx_hecate), len(hecate)))
-        hecate = hecate[keep_hecate]
-
     # Match the catalogs, first by PGC.
-    dwarfpgc = {
+    dwarfs_excluded = {
         'SagittariusdSph': 4689212,
         'SegueI': 4713559,
         'UrsaMajorII': 4713555,
@@ -2787,16 +2930,168 @@ def fig_hecate_completeness(sga, png=None):
         'AndromedaVII': 2807155,
         'Aquarius': 65367,
         'Sculptor': 3589,
-        'Fornax': 10074,
-        # 
+        'Fornax': 10074,}
+    dwarfs_toadd = {
         'AndromedaVI': 2807158,
         'AndromedaXXVIII': 5060429,
         }
-    for thisdwarf in dwarfpgc.keys():
+    for thisdwarf in dwarfs_toadd.keys():
         I = np.where(sga['GALAXY'] == thisdwarf)[0]
         if len(I) == 1:
             #print(f'Matching {thisdwarf}')
-            sga['PGC'][I] = dwarfpgc[thisdwarf]
+            sga['PGC'][I] = dwarfs_toadd[thisdwarf]
+
+    openngc_toadd = {
+        'IC0028': 169992,
+        'IC0036': 138202,
+        'IC0113': 3617669,
+        'IC0233': 9622,    # incorrectly matches to CGCG388-033 rather than CGCG388-036 in Hyperleda
+        'IC0254': 3642494, # incorrectly matches to NGC1065
+        'IC0463': 3717953,
+        'IC0495': 22841,
+        'IC0694': 35326,
+        'IC0729': 36627,
+        'IC0828': 3797579,
+        'IC0921': 2509643,
+        'IC0931': 2508641,
+        'IC1188B': 1533342,
+        'IC1249': 59919,
+        'IC1464A': 70345,
+        'IC1586': 2813,
+        'IC1632': 4205,
+        'IC1640': 4299,
+        'IC1726': 6441,
+        'IC1758': 170024,
+        'IC1798': 3637647,
+        'IC2155': 4078729,
+        'IC2186': 3089868, # incorrectly matches to IC2186 in Hyperleda
+        'IC2249': 23202,
+        'IC2519': 28660,
+        'IC2614': 3764519,
+        'IC2615': 33289,
+        'IC2619': 33297,
+        'IC2657': 3768035,
+        'IC2676': 3471217,
+        'IC2677': 4000604,
+        'IC2690': 4272707,
+        'IC2719': 3542421,
+        'IC2753': 3471719,
+        'IC2765': 1451814, # incorrectly matches to IC2769
+        'IC2771': 4000783,
+        'IC2775': 1410888,
+        'IC2779': 1428682, # incorrectly matches to IC2779
+        'IC2802': 1405555,
+        'IC2807': 4278777,
+        'IC2821': 3770960,
+        'IC2838': 3090746,
+        'IC2847': 3771421,
+        'IC2858': 3771590,
+        'IC2860': 3771626,
+        'IC2886': 3543729,
+        'IC2900': 5490323,
+        'IC2909': 1394107,
+        'IC2917': 1386736,
+        'IC2946': 35984,
+        'IC2993': 3088758, # incorrect coordinates / object in Hyperleda for IC2993
+        'IC3110': 3088320,
+        'IC3128B': 39557,
+        'IC3179': 89585,
+        'IC3249': 3787857,
+        'IC3287': 4662912,
+        'IC3304': 4325635,
+        'IC3324': 3788758,
+        'IC3345': 3789023,
+        'IC3372': 89606,
+        'IC3389': 3789672,
+        'IC3396': 3789798,
+        'IC3449': 89615,
+        'IC3479': 89618,
+        'IC3494': 1812401,
+        'IC3528': 41882,
+        'IC3558': 165253,
+        'IC3565': 1787382,
+        'IC3582': 1768338, # =WISEA J123636.95+261405.0; incorrect match in Hyperleda
+        'IC3603': 3090633,
+        'IC3610': 1790902,
+        'IC3614': 1770479,
+        'IC3649': 1642864,
+        'IC3655': 1633163,
+        'IC3657': 4337363,
+        'IC3678': 1637920,
+        'IC3723': 42914,
+        'IC3751': 3088212,
+        'IC3761': 1622809,
+        'IC3771': 5168314,
+        'IC3785': 3796270,
+        'IC3817': 1676864,
+        'IC3842': 3088021,
+        'IC3847': 86330,
+        'IC3870': 1668852,
+        'IC3872': 3798227,
+        'IC3897': 3088119,
+        'IC3898': 3088328,
+        'IC3928': 2165833,
+        'IC3945': 3799582,
+        'IC3948': 1698944,
+        'IC3954': 3799842,
+        'IC3978': 4350039,
+        'IC3994': 4350163,
+        'IC4018': 3800150,
+        'IC4025': 3800326,
+        'IC4031': 3800266,
+        'IC4063': 6032708,
+        'IC4085': 3088120,
+        'IC4087': 3800931,
+        'IC4110': 3801248,
+        'IC4140': 3801648,
+        'IC4147': 4662909,
+        'IC4162': 6400595,
+        'IC4184': 3088122,
+        'IC4277': 4662915,
+        'IC4284': 2287260,
+        'IC4285': 2287732,
+        'IC4300': 47912,
+        'IC4516': 53274,
+        'IC4568': 55746,
+        'IC5126': 3947737,
+        'IC5153': 3954514,
+        'IC5299': 3978734,
+        'IC5307': 214932, #=IC5306 in Hyperleda, which is wrong; actually WISEA J231822.02+101408.5
+        'IC5341': 71981,
+        'NGC0382': 3981, # terrible coordinates!
+        'NGC0396': 99944,
+        'NGC0526A': 5120, #=NGC0526
+        'NGC0742': 7264,
+        'NGC0826': 8230,
+        'NGC1392': 13383,
+        'NGC2288': 19714,
+        'NGC2687A': 25031,
+        'NGC2735A': 25402,
+        'NGC3099': 29087,
+        'NGC3439': 32634,
+        'NGC4465': 41157,
+        'NGC5581': 51282,
+        'NGC5615': 51435,
+        'NGC5679C': 52129, # confusion in the viewer
+        'NGC5763': 52905,
+        'NGC5896': 54367,
+        'NGC6027D': 56580,
+        'NGC6099': 57640,
+        'NGC6141': 3498497,
+        'NGC6452': 60876,
+        'NGC6534': 61126,
+        'NGC7405': 69907,
+        'NGC7551': 3978375,
+        'NGC7577': 70947,
+        'NGC7598': 71011
+        }
+    check = []
+    for thisgal in openngc_toadd.keys():
+        I = np.where(sga['GALAXY'] == thisgal)[0]
+        check.append(I)
+        sga['PGC'][I] = openngc_toadd[thisgal]
+    check = np.hstack(check)
+    #pdb.set_trace()
 
     indx_sga, indx_hecate = [], []
     for I, pgc in enumerate(hecate['PGC']):
@@ -2810,12 +3105,125 @@ def fig_hecate_completeness(sga, png=None):
             indx_sga.append(J)
     indx_hecate = np.hstack(indx_hecate)
     indx_sga = np.hstack(indx_sga)
-    print('Matched {}/{} HECATE galaxies to the SGA based on PGC number.'.format(len(indx_hecate), len(hecate)))
+    print('Matched {}/{} HECATE galaxies to the SGA based on PGC number.'.format(
+        len(indx_hecate), len(hecate)))
 
-    # classify
+    # classify based on the montage visual inspections
+    hecate['SGA_NOTES'] = np.zeros(len(hecate), int) # np.zeros(len(hecate), 'U20')
+    for thisdwarf in dwarfs_excluded.keys():
+        I = np.where(hecate['PGC'] == dwarfs_excluded[thisdwarf])[0]
+        if len(I) != 1:
+            #print(f'Skipping {thisdwarf}')
+            #pdb.set_trace()
+            pass
+        hecate['SGA_NOTES'][I] += 2**0 # intentionally excluded dwarf
 
-    #LAMOSTJ124211.85+323232.3.png
-    #pdb.set_trace()
+    spurgal = [
+        # >1.6 arcmin
+        'SDSSJ075442.90+472212.6', 'SDSSJ074540.08+204602.5', 'SDSSJ112014.08+092415.9',
+        'SDSSJ025709.46+002421.5', '[IBG2003]J130047+280534', 'SDSSJ023647.34-001301.0',
+        '[CTM2011]1040263', 'LAMOSTJ085931.49+445506.4', #'SDSSJ1049+5103',
+        'SDSSJ075442.90+472212.6', 'PGC3097827', 'GAMA575344', 'SDSSJ041004.59-045626.3', 
+        'SDSSJ095021.71+451957.5', 'AGC125044', # AGC125044 is Cirrus!
+        'SDSSJ152444.99+401648.2', 'SDSSJ112535.23+542314.3', 
+        # 1.0-1.6 arcmin
+        'SDSSJ012626.40-002539.4', 'SDSSJ012651.26+203017.0', 'GAMA418176', 
+        'SDSSJ144554.93+003437.6', '[RG2008]J163025.15+395443.9', 'GAMA177469',
+        'SDSSJ232735.95+313026.5', 'PGC2800817', 'SDSSJ155520.30+091146.4',
+        'PGC086618']
+    #print('Flagging {} spurious HECATE galaxies with >1 arcmin.'.format(len(spurgal)))
+    for gal in spurgal:
+        I = np.where(hecate['OBJNAME'] == gal)[0]
+        if len(I) != 1:
+            pdb.set_trace()
+        hecate['SGA_NOTES'][I] += 2**1 # spurious in Hecate
+
+    # real, but (sometimes very) wrong diameter; should be added to the catalog
+    wrongdiam = [
+        # >1.6 arcmin
+        'AGC749279', 'AGC102561', 'SDSSJ004535.04-011221.9', 'PGC029167', 
+        'SDSSJ111332.35+225056.9', 'PGC012625', 'PGC018515', 'SDSSJ161534.10+192734.8',
+        'AGC334637', 'AGC336814', 'SDSSJ220611.97+010300.5', 'AGC113894',
+        '2MASXJ07271454+5256550', 'PGC002635', 'PGC059944', 
+        'PGC4080601', 
+        # 1.0-1.6 arcmin
+        'PGC055315', 'GAMA143116', 'PGC040476', 'SDSSJ031229.59+000242.1', 
+        'AGC268225', 'GAMA086047', 'SDSSJ134211.37+180153.6', 'SDSSJ124959.36+451011.2', 
+        'SDSSJ114345.66+661335.7', 'AGC238692', 'SDSSJ160116.48+185821.3', 
+        'SDSSJ094353.03+490037.7', 'AGC188957', 'AGC225847', 'AGC336486', 
+        'SDSSJ032310.22-004407.9', 'AGC215425', 'AGC189323', 'SDSSJ100519.69+511038.3',
+        'AGC267971', 'SDSSJ031929.80+003938.7', 'SDSSJ001842.92+003016.4',
+        'AGC323553', 'SDSSJ131641.09+301454.4', 'SDSSJ103917.89+372810.6', 
+        'AGC322201', 'SDSSJ092603.64+560915.5', 'PGC138144', 'AGC333267',
+        'AGC334490', 'SDSSJ095034.31+300927.5', 'AGC333442', 'LAMOSTJ012612.76+294146.3',
+        'SDSSJ230314.76+045751.4', 'PGC052336', '[RG2008]J162824.61+392054.6',
+        'SDSSJ162256.84-004843.5', 'PGC019078', 'SDSSJ144751.43+172337.1', 
+        'ESO474-017', 'PGC4677061', 'PGC061508', 'SDSSJ145746.73-003828.8',
+        'PGC015227', 'SDSSJ160959.42+264326.8', 'SDSSJ101821.81+144859.3',
+        'WINGSJ011321.46+001504.1']
+    #print('Flagging {} HECATE galaxies with incorrect (over-estimated) diameters >1 arcmin.'.format(len(wrongdiam)))
+    for gal in wrongdiam:
+        I = np.where(hecate['OBJNAME'] == gal)[0]
+        if len(I) != 1:
+            pdb.set_trace()
+        hecate['SGA_NOTES'][I] += 2**2 # very wrong diameter in Hecate
+
+    shred = [
+        # >1.6 arcmin
+        'LAMOSTJ013040.21-035637.1', 'LAMOSTJ124211.85+323232.3', 'SDSSJ100818.18+315206.6',
+        'SDSSJ131318.46+361210.6', 'PGC014118', 'SDSSJ114347.41+195830.2', 'LAMOSTJ142026.93+351032.3',
+        'SDSSJ002024.55+004917.5', 'SDSSJ134748.65+402918.7', 'LAMOSTJ005442.06+213126.7',
+        'SDSSJ231412.61+133454.6', 'LAMOSTJ003719.70+290838.1', 'SDSSJ231445.28+052457.9',
+        'SDSSJ121855.02+142445.5', 'LAMOSTJ122300.91+155115.8', 
+        # 1.0-1.6 arcmin
+        'LAMOSTJ112914.16+203452.0', 'SDSSJ131238.07+123534.5', 'NGC6166B', 'SDSSJ143001.69+362129.5',
+        'PGC095735', 'SDSSJ110310.51+275851.0', 'PGC032137', 
+        'SDSSJ023038.41-034915.6', 'EVCC2264', 'PGC047447', '2MASXJ03422921-1328208',
+        'SDSSJ131239.57+123645.0', 'LAMOSTJ091102.92+132455.3',
+        'LAMOSTJ020628.06+270207.9', 'SDSSJ094829.55+332459.3', 'PGC3099123',
+        '6dFJ0122428-363451', 'PGC093084', '2MASXJ21130957-5826044',
+        'SDSSJ123421.43+081425.7', 'PGC3295899', 'SDSSJ115338.84+432720.0', 'PGC200231',
+        '2MASXJ10330652-2625169', 'SDSSJ144822.72+182112.2', 'SDSSJ075237.34+502415.6',
+        'SDSSJ145256.78+164334.8', '2MASXJ16080647+2529073', 'LAMOSTJ090559.16+184546.3',
+        '2MASXJ14574467-0722033', 
+        'SDSSJ152132.22+391207.0', '2MASXJ09474970+1551068', 'SDSSJ164802.45+261234.3',
+        'PGC3084812', 'LAMOSTJ021112.67+254848.2', 'SDSSJ082027.55+564457.1',
+        'PGC093106', 'GAMA084601', 'SDSSJ211444.79+105220.5', 'SDSSJ151806.36+424438.6', 
+        'SDSSJ163813.00+415623.0', 'SDSSJ080138.73+154249.2',
+        'SDSSJ082648.24+202140.3', 'PGC200388', 'PGC052728', '2MASXJ05571929-5222215',
+        'SDSSJ014932.34+323510.2', 'SDSSJ132202.37+384343.7', 'SDSSJ155722.48+470943.9',
+        'SDSSJ115742.61+321702.7', 'SDSSJ133955.41+282344.3', 'SDSSJ081200.34+192147.4',
+        'SDSSJ140021.15+385504.2', 'SDSSJ111523.25+555826.6',
+        'SDSSJ111523.25+555826.6', 'SDSSJ141013.85+481833.8', 'SDSSJ145736.82+295757.3',
+        '2MASXJ21150892+1239317', 'SDSSJ122147.59+042938.4', 'LAMOSTJ091005.24+443651.3',
+        'SDSSJ141843.21+214858.0', 'SDSSJ090919.38+330723.6', 'SDSSJ093654.40+374130.6',
+        'NGC0664:[ZM98]0009', 'LAMOSTJ020913.56+253410.9']
+    #print('Flagging {} HECATE galaxies as photometric shreds and >1 arcmin.'.format(len(shred)))
+    for gal in shred:
+        I = np.where(hecate['OBJNAME'] == gal)[0]
+        if len(I) != 1:
+            pdb.set_trace()
+        hecate['SGA_NOTES'][I] += 2**3 # photometric shred
+
+    grzmissing = [
+        # >1.6 arcmin
+        'NGC2258', 'ESO567-026', 'NGC6555', 'NGC2889', 'ESO437-022', 'ESO108-021', 
+        'ESO501-011', 'IC2586', 'NGC7485', 
+        # 1.0-1.6 arcmin
+        'PGC033167', 'ESO233-037', 'PGC035743', 'IC0416', 'UGC09668', 
+        'PGC027066', 'ESO106-002', 'ESO567-010', 'UGC11581', 
+        'ESO340-016', 'PGC065019', 'UGC03823', 'NGC6972', 'ESO437-040',
+        'ESO501-024', 'ESO501-042', 'NGC2881', '2MASXJ03500035-0127578',
+        'PGC032846', 'UGC00457', 'PGC018467', 'ESO340-019', 'PGC015573',
+        'PGC027757', 'ESO342-012', 'ESO409-016', 'ESO437-029', 'ESO500-043',
+        'ESO567-012', 'PGC027188', 'UGC10780', 'ESO344-003', '2MASXJ21094981-0850538',
+        'PGC035744']
+    #print('Flagging {} HECATE galaxies with missing LS/DR9 grz imaging and >1 arcmin.'.format(len(grzmissing)))
+    for gal in grzmissing:
+        I = np.where(hecate['OBJNAME'] == gal)[0]
+        if len(I) != 1:
+            pdb.set_trace()
+        hecate['SGA_NOTES'][I] += 2**4 # missing grz coverage
 
     m_sga = sga[indx_sga]
     m_hecate = hecate[indx_hecate]
@@ -2827,7 +3235,14 @@ def fig_hecate_completeness(sga, png=None):
     c_m_hecate = SkyCoord(m_hecate['RA']*u.deg, m_hecate['DEC']*u.deg)
     c_m_sga = SkyCoord(m_sga['RA']*u.deg, m_sga['DEC']*u.deg)
     _, m_sep2d, _ = c_m_hecate.match_to_catalog_sky(c_m_sga)
-    
+    print('Mean and max separation between {} PGC-matched galaxies is {:.3f}+/-{:.3f}, {:.3f} arcsec.'.format(
+        len(m_hecate), np.mean(m_sep2d.arcsec), np.std(m_sep2d.arcsec), np.max(m_sep2d.arcsec)))
+    print('Objects where separation >10 arcsec.')
+    I = m_sep2d.arcsec > 10
+    info = m_sga[I]['GALAXY', 'PGC', 'RA', 'DEC', 'D26']
+    info['SEP'] = m_sep2d.arcsec[I]
+    print(info[np.argsort(info['SEP'])[::-1]])
+
     c_miss_hecate = SkyCoord(miss_hecate['RA']*u.deg, miss_hecate['DEC']*u.deg)
     c_miss_sga = SkyCoord(miss_sga['RA']*u.deg, miss_sga['DEC']*u.deg)
     _, miss_sep2d, _ = c_miss_hecate.match_to_catalog_sky(c_miss_sga)
@@ -2846,69 +3261,36 @@ def fig_hecate_completeness(sga, png=None):
     fig.savefig(pngfile)#, bbox_inches='tight')
     plt.close(fig)
 
+    # now try to match a few more using coordinates
+    rad = 3.0
     if False:
-        # match the catalogs
-        c_sga = SkyCoord(sga['RA']*u.deg, sga['DEC']*u.deg)    
-        #c_sga = SkyCoord(sga['RA_LEDA']*u.deg, sga['DEC_LEDA']*u.deg)    
-        c_hecate = SkyCoord(hecate['RA']*u.deg, hecate['DEC']*u.deg)
-    
-        if True:
-            from pydl.pydlutils.spheregroup import spherematch
-            rad = 10.0
-            indx_hecate, indx_sga, sep = spherematch(hecate['RA'], hecate['DEC'], sga['RA'], sga['DEC'], rad/3600., maxmatch=1)
-        else:
-            rad = 10 * u.arcsec
-            indx_hecate, indx_sga, d2d, _ = c_sga.search_around_sky(c_hecate, rad)
-        print('Found {:,d}/{:,d} unique SGA-HECATE matches within {} arcsec.'.format(len(indx_hecate), len(hecate), rad))
-        assert(len(indx_hecate) == len(np.unique(indx_hecate)))
-    
-        # match on PGC number
-        sga['PGC'][sga['GALAXY'] == 'AndromedaVI'] = 2807158
-        sga['PGC'][sga['GALAXY'] == 'AndromedaXXVIII'] = 5060429
-    
-        m_sga = sga[indx_sga]
-        m_hecate = hecate[indx_hecate]
-    
-        pdb.set_trace()    
-    
-        #miss_sga = sga[np.delete(np.arange(len(sga)), indx_sga)]
-        #miss_hecate = hecate[np.delete(np.arange(len(hecate)), indx_hecate)]
-        miss_sga = sga[~np.isin(sga['SGA_ID'], m_sga['SGA_ID'])]
-        miss_hecate = hecate[~np.isin(hecate['PGC'], m_hecate['PGC'])]
-    
-        supp_sga, supp_hecate = [], []
-        for I, pgc in enumerate(miss_hecate['PGC']):
-            J = np.where(pgc == miss_sga['PGC'])[0]
-            #if pgc == 70761:
-            #    pdb.set_trace()
-            if len(J) == 1:
-                supp_hecate.append(I)
-                supp_sga.append(J)
-        supp_hecate = np.hstack(supp_hecate)
-        supp_sga = np.hstack(supp_sga)
-        print('Matching an additional {}/{} SGA sources to HECATE based on PGC number.'.format(len(supp_hecate), len(miss_hecate)))
-    
-        c_supp_hecate = SkyCoord(miss_hecate[supp_hecate]['RA']*u.deg, miss_hecate[supp_hecate]['DEC']*u.deg)
-        c_supp_sga = SkyCoord(miss_sga[supp_sga]['RA']*u.deg, miss_sga[supp_sga]['DEC']*u.deg)
-        _, sep2d, _ = c_supp_hecate.match_to_catalog_sky(c_supp_sga)
-        print('Mean, min, max delta-theta between SGA and HECATE coordinates for the PGC matches={:.4f}, {:.4f}, {:.4f} arcsec.'.format(
-            np.mean(sep2d.arcsec), np.min(sep2d.arcsec), np.max(sep2d.arcsec)))
-    
-        print('Galaxies where the SGA-HECATE coordinates differ by >10 arcsec:')
-        print(miss_hecate[supp_hecate][sep2d.arcsec > 10]['OBJNAME', 'ID_NED', 'RA', 'DEC', 'R1', 'PGC'])
-    
-        m_sga = vstack((m_sga, miss_sga[supp_sga]))
-        m_hecate = vstack((m_hecate, miss_hecate[supp_hecate]))
-        print('Final sample: {}/{} ({:.2f}%) HECATE-SGA matches.'.format(len(m_hecate), len(hecate), 100*len(m_hecate)/len(hecate)))
-    
+        from pydl.pydlutils.spheregroup import spherematch
+        indx_miss_hecate, indx_miss_sga, sep = spherematch(miss_hecate['RA'], miss_hecate['DEC'], miss_sga['RA'], 
+                                                           miss_sga['DEC'], rad/3600., maxmatch=1)
+    else:
+        indx_miss_hecate, indx_miss_sga, d2d, _ = c_miss_sga.search_around_sky(c_miss_hecate, rad*u.arcsec)
+    print('Found {:,d}/{:,d} additional SGA-HECATE matches within {} arcsec.'.format(
+        len(indx_miss_hecate), len(miss_hecate), rad))
+    assert(len(indx_hecate) == len(np.unique(indx_hecate)))
+
+    m_sga = vstack((m_sga, miss_sga[indx_miss_sga]))
+    m_hecate = vstack((m_hecate, miss_hecate[indx_miss_hecate]))
+
+    miss_hecate.remove_rows(indx_miss_hecate)
+    miss_sga.remove_rows(indx_miss_sga)
+
+    print('Final sample: {}/{} ({:.2f}%) HECATE-SGA matches.'.format(
+        len(m_hecate), len(hecate), 100*len(m_hecate)/len(hecate)))
+
     # get the raw and corrected fraction of non-matches as a function of SERSIC_TH50
     lograd = np.log10(2*hecate['R1'])
     match_lograd = np.log10(2*m_hecate['R1'])
+    lograd_corrected = np.log10(2*hecate['R1'][hecate['SGA_NOTES'] == 0])
     minrad, maxrad, drad = -1.4, 1.2, 0.2
     ##minrad, maxrad = np.min(lograd), np.max(lograd)
 
     nhist = int(np.ceil((maxrad - minrad) / drad))
-    histobins = np.histogram_bin_edges(match_lograd, bins=nhist, range=(minrad, maxrad))
+    #histobins = np.histogram_bin_edges(match_lograd, bins=nhist, range=(minrad, maxrad))
     histobins = np.array([-1.4, -1.2, -1. , -0.8, -0.6, -0.4,
                           -0.2, 0., 0.2, 0.4, 0.6, 0.8, 1., 1.2])
     #histobins = np.array([-1.4, -1.3, -1.2, -1.1, -1. , -0.9, -0.8, -0.7, -0.6, -0.5, -0.4,
@@ -2920,30 +3302,69 @@ def fig_hecate_completeness(sga, png=None):
     numer, _ = np.histogram(match_lograd, bins=histobins)
     denom, _ = np.histogram(lograd, bins=histobins)
     #denom, _ = np.histogram(lograd, bins=len(bins), range=(minrad, maxrad+drad))
+    denom_corrected, _ = np.histogram(lograd_corrected, bins=histobins)
 
     good = denom > 0
     xfrac = bins[good]
     yfrac = numer[good] / denom[good] 
-    for ii, (bb, nn, dd) in enumerate(zip(bins, numer, denom)):
-        print(bb, 10**bb, nn, dd, nn/dd, dd-nn) # np.sum((lograd>bb)*(lograd<(bb+drad))))
-
-    _logradcut = 0.0
-    I = bins >= _logradcut
-    print('There are {} HECATE galaxies not in the SGA larger than {:.1f} arcmin.'.format(
-        np.sum(denom[I]-numer[I]), 10**_logradcut))
+    yfrac_corrected = numer[good] / denom_corrected[good] 
+    for ii, (bb, nn, dd, dd_corr) in enumerate(zip(bins, numer, denom, denom_corrected)):
+        print(bb, 10**bb, nn, dd, nn/dd, dd-nn, dd_corr, nn/dd_corr, dd-nn, dd_corr-nn)
+        # np.sum((lograd>bb)*(lograd<(bb+drad))))
 
     # --------------------------------------------------
     # HECATE galaxies not in the SGA
-    remake_montage = True
+    #_logradcut = 0.2
+    #I = bins >= _logradcut
+    #print('There are {} HECATE galaxies not in the SGA larger than {:.1f} arcmin.'.format(
+    #    np.sum(denom[I]-numer[I]), 10**_logradcut))
+    logradcut = 0.0
+
+    hecate_notin_sga = hecate[~np.isin(hecate['PGC'], m_hecate['PGC'])]
+    srt = np.argsort(hecate_notin_sga['R1'])[::-1]
+    hecate_notin_sga = hecate_notin_sga[srt]
+
+    #print('Flagging {} HECATE galaxies which are intentionally-excluded dwarfs.'.format(
+    #    np.sum(hecate_notin_sga['SGA_NOTES'] & 2**0 != 0)))
+
+    I = np.log10(2 * hecate_notin_sga['R1']) >= logradcut
+    J = (hecate_notin_sga['SGA_NOTES'] == 0) * (np.log10(2 * hecate_notin_sga['R1']) >= logradcut)
+
+    Itot = np.log10(2 * hecate['R1']) >= logradcut
+    Jtot = (hecate['SGA_NOTES'] == 0) * (np.log10(2 * hecate['R1']) >= logradcut)
+
+    print('There are {}/{} ({:.2f}%) raw -- {}/{} ({:.2f}%) corrected -- HECATE galaxies not in the SGA larger than {:.1f} arcmin.'.format(
+        np.sum(I), np.sum(Itot), 100*np.sum(I)/np.sum(Itot), np.sum(J), np.sum(Jtot), 100*np.sum(J)/np.sum(Jtot), 10**logradcut))
+
+    #I = np.log10(2 * hecate_notin_sga['R1']) >= logradcut
+    I = (np.log10(2 * hecate_notin_sga['R1']) >= logradcut) * (np.log10(2 * hecate_notin_sga['R1']) <= 0.2)
+    qa = hecate_notin_sga[I]['PGC', 'R1', 'RA', 'DEC', 'SGA_NOTES', 'OBJNAME']
+    qa = qa[np.argsort(qa['R1'])] # smallest to biggest
+    qa['URL'] = ['https://www.legacysurvey.org/viewer-desi?ra={}&dec={}&layer=ls-dr9&zoom=14&sga-parent&sga'.format(
+        ra, dec) for ra, dec in zip(qa['RA'], qa['DEC'])]
+    #qa[::-1][198:]
+
+    print('Galaxies with 2*R1 > 1 arcmin in HECATE missing from the SGA:')
+    for bit, label in zip([1, 2, 4, 8, 16], ['Intentionally excluded dwarfs: ',
+                                             'Spurious galaxies: ',
+                                             'Incorrect diameter: ',
+                                             'Photometric shred: ',
+                                             'Gap in grz coverage: ']):
+        print('  Bit {}: {} {}'.format(bit, label, np.sum(np.log10(2 * hecate_notin_sga[hecate_notin_sga['SGA_NOTES'] == bit]['R1'].data) >= 0)))
+
+    # investigate the galaxies which are in the SGA but not in Hecate
+    if False:
+        sga_notin_hecate = sga[~np.isin(sga['SGA_ID'], m_sga['SGA_ID'])]
+        srt = np.argsort(sga_notin_hecate['D26'])[::-1]
+        sga_notin_hecate = sga_notin_hecate[srt]['SGA_ID', 'GALAXY', 'RA', 'DEC', 'PGC', 'D25_LEDA', 'D26', 'Z_LEDA']
+    
+        I = ((sga_notin_hecate['Z_LEDA'] > -1) * (sga_notin_hecate['Z_LEDA'] <= 0.047))
+        Itot = ((sga['Z_LEDA'] > -1) * (sga['Z_LEDA'] <= 0.047))
+        print(np.sum(I), np.sum(Itot), np.sum(I) / np.sum(Itot))
+        sga_notin_hecate[I]
+
+    remake_montage = False
     if remake_montage:
-        hecate_notin_sga = hecate[~np.isin(hecate['PGC'], m_hecate['PGC'])]
-        #hecate_notin_sga = hecate[np.delete(np.arange(len(hecate)), indx_hecate)]
-
-        srt = np.argsort(hecate_notin_sga['R1'])[::-1]
-        hecate_notin_sga = hecate_notin_sga[srt]
-
-        #pdb.set_trace()
-
         montagedir = os.path.join(paperdir, 'data', 'hecate', 'hecate-notin-sga')
         if not os.path.isdir(montagedir):
             os.makedirs(montagedir, exist_ok=True)
@@ -2951,8 +3372,6 @@ def fig_hecate_completeness(sga, png=None):
         pixscale = 1.0 # 0.262
         barlen = np.ceil(60 / pixscale) # [pixels]
         barlabel = '' # '30 arcsec'
-
-        logradcut = 0.2
 
         coord_sga = SkyCoord(ra=sga['RA']*u.deg, dec=sga['DEC']*u.deg)
 
@@ -2966,7 +3385,11 @@ def fig_hecate_completeness(sga, png=None):
             binlabel = '{:.1f}-{:.1f}arcmin'.format(10**minbin, 10**maxbin)
 
             dhecate = np.log10(2 * hecate_notin_sga['R1'])
-            B = np.where((dhecate >= minbin) * (dhecate < maxbin))[0]
+            if ibin == len(bins)-1:
+                B = np.where(dhecate >= minbin)[0]
+            else:
+                B = np.where((dhecate >= minbin) * (dhecate < maxbin))[0]
+
             if len(B) == 0:
                 pdb.set_trace()
 
@@ -2977,7 +3400,7 @@ def fig_hecate_completeness(sga, png=None):
             elif len(B) >= 25 and len(B) < 49:
                 ncol, nrow = 5, 5
             else:
-                ncol, nrow = 4, 4
+                ncol, nrow = 5, 5
 
             ngal = ncol * nrow
 
@@ -3088,7 +3511,7 @@ def fig_hecate_completeness(sga, png=None):
     fig, ax = plt.subplots(figsize=(10, 7))
 
     xlim = (minrad, maxrad)
-    ylim = (6.5, 26)
+    ylim = (6, 26)
     I = np.isfinite(hecate['BT'])
     corner.hist2d(np.log10(2*hecate['R1'][I]), hecate['BT'][I],
                   levels=[0.1, 0.25, 0.5, 0.75, 0.95, 0.99],
@@ -3098,28 +3521,40 @@ def fig_hecate_completeness(sga, png=None):
                   data_kwargs={'color': 'k', 'alpha': 1.0, 'ms': 3, 'alpha': 0.5},
                   contour_kwargs={'colors': 'k', 'alpha': 0.5}
                  )
-    ax.set_xlabel(r'$\log_{10}\,(5\times r_{50,\mathrm{ElPetro}})$ [HECATE, arcmin]')
-    ax.set_ylabel(r'$m_{r,\mathrm{ElPetro}}$ [HECATE]')
+    ax.set_xlabel(r'$\log_{10}\,(2\times R_{1})$ [HECATE, arcmin]')
+    ax.set_ylabel(r'$b_{\mathrm{t}}$ [Vega, HECATE]')
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
     ax.yaxis.set_major_locator(ticker.MultipleLocator(2))
     ax.xaxis.set_major_formatter(major_formatter)
-    ax.set_xticks(np.log10([0.05, 0.2, 0.5, 1, 2, 5, 10, 19]))
+    ax.set_xticks(np.log10([0.05, 0.2, 0.5, 1, 2, 5, 9, 15]))
+    ax.margins()
     
     ax2 = ax.twinx()
-    #for bb in bins:
-    #    ax2.axvline(x=bb, color='orange', ls='-', alpha=1)
-    ax2.axvline(x=np.log10(20/60), color=colors[2], ls='--', alpha=1)
-    #ax2.axvline(x=np.log10(30/60), color=colors[0], ls='--', alpha=1)
-    ax2.axhline(y=1.0, ls='--', lw=2, color=colors[2], alpha=1)
-    ax2.step(xfrac+drad, yfrac, color=colors[3], ls='-', lw=3, where='pre')
-    ax2.set_ylim(0, 1.05)
-    ax2.set_ylabel('Fraction of SGA-HECATE Matches')
+    for ii, bb in enumerate(bins):
+        #ax2.axvline(x=bb, color='orange', ls='-', alpha=1)
+        if bb > -10:#-0.6:
+            ax2.text(xfrac[ii]+drad/2, yfrac_corrected[ii]+0.03, 
+                     '{:,d}'.format(denom[ii]), ha='center', va='bottom', 
+                     alpha=1.0, fontsize=10)
+    ax2.axvline(x=np.log10(20/60), color='gray', ls='-', alpha=0.7)
+    ax2.axvline(x=np.log10(30/60), color='gray', ls='-', alpha=0.7)
+    ax2.axhline(y=1.0, ls='-', lw=2, color='gray', alpha=0.7)
+    ax2.step(xfrac+drad, yfrac_corrected, color=colors[4], ls='-', lw=3, where='pre',
+             label='Corrected Fraction')
+    ax2.step(xfrac+drad, yfrac, color=colors[3], ls='--', lw=3, where='pre', 
+             label='Raw Fraction')
+    ax2.set_ylim(0, 1.1)
+    hh, ll = ax2.get_legend_handles_labels()
+    ax2.legend([hh[1], hh[0]], [ll[1], ll[0]], loc='lower right', fontsize=14) # frameon=False, 
+    #ax2.legend(loc='lower right', fontsize=14)
+    ax2.margins()
+    ax2.set_ylabel('Fraction of SGA-HECATE Matches', rotation=270, labelpad=35)
 
     if png:
         pngfile = os.path.join(figdir, png)
         print('Writing {}'.format(pngfile))
-        fig.subplots_adjust(bottom=0.14, right=0.85)
+        fig.subplots_adjust(bottom=0.15, right=0.85, top=0.95)
         fig.savefig(pngfile)#, bbox_inches='tight')
         plt.close(fig)
 
@@ -3139,7 +3574,7 @@ def main():
     #parser.add_argument('--rich-groups', action='store_true')
     parser.add_argument('--nsa-completeness', action='store_true')
     parser.add_argument('--hecate-completeness', action='store_true')
-    #parser.add_argument('--sb-mag', action='store_true')
+    parser.add_argument('--sb-mag', action='store_true')
     parser.add_argument('--sbmontage', action='store_true')
     #parser.add_argument('--sbmontage-gallery', action='store_true')
     args = parser.parse_args()
@@ -3167,7 +3602,14 @@ def main():
         
     # Figs 3 & X - spatial distribution on the sky
     if args.sky:
+        I = sga['D26'] > 1
+        fig_sky(sga[I], clip_hi=10, mloc=1, max_bin_area=10, png='sga-2020-sky-1arcmin.png')
+        fig_sky(sga, max_bin_area=10, png='sga-2020-sky-lores.png')
+
+        return
+
         fig_sky(sga, png='sga-2020-sky.png')
+
         parent = legacyhalos.SGA.read_sample(preselect_sample=False)
         #parent = fits_table(os.path.join(legacyhalos.io.legacyhalos_dir(), 'sample', 'v3.0', 'SGA-parent-v3.0.fits'))
         fig_sky(parent, png='sga-2020-parent-sky.png')
@@ -3200,10 +3642,11 @@ def main():
     if args.hecate_completeness:
         fig_hecate_completeness(sga, png='hecate-completeness.png')
 
-    ## Fig X - richest groups
-    #if args.rich_groups:
-    #    fig_rich_groups(sga, png='rich-groups.png')
-
+    # Fig - bivariate scatterplot of surface brightness vs magnitude
+    if args.sb_mag:
+        #parent = legacyhalos.SGA.read_sample(preselect_sample=False)
+        fig_sb_mag(sga, png='sga-sb-mag.png')
+    
     # Fig - SB montages
     if args.sbmontage:
         sample = legacyhalos.SGA.read_sga2020(galaxylist='NGC5016')
@@ -3216,6 +3659,10 @@ def main():
         #    fig_surface_brightness(sample, thisgalaxy=gal, png='surface_brightness_{}.png'.format(gal))
         #fig_surface_brightness(sample, thisgalaxy='0000195-052316929', png='surface_brightness.png')
         #fig_surface_brightness(sample, thisgalaxy='0001129-034040952', png='surface_brightness.png')
+
+    ## Fig X - richest groups
+    #if args.rich_groups:
+    #    fig_rich_groups(sga, png='rich-groups.png')
 
     ## Fig - SB montage gallery
     #if args.sbmontage_gallery:
@@ -3232,10 +3679,5 @@ def main():
     #            fig_sbmontage_gallery(onegal, png='gallery/sbmontage-{}.png'.format(onegal['GALAXY']))
     #        #else:
 
-    ## Fig - bivariate scatterplot of surface brightness vs magnitude
-    #if args.sb_mag:
-    #    parent = legacyhalos.SGA.read_sample(preselect_sample=False)
-    #    fig_sb_mag(sga, parent, png='sga-sb-mag.png')
-    
 if __name__ == '__main__':
     main()
