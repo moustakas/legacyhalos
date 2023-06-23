@@ -64,7 +64,7 @@ def _sbprofile_colors(makeiter=True, galex=False, unwise=False):
     return colors
 
 def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
-                        pixscale, color='#3388ff'):
+                        pixscale, color='#3388ff', linewidth=3):
     """
 
     """
@@ -80,7 +80,7 @@ def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
 
     draw = ImageDraw.ImageDraw(overlay)
     box_corners = (0, 0, overlay_width, overlay_height)
-    draw.ellipse(box_corners, fill=None, outline=color, width=3)
+    draw.ellipse(box_corners, fill=None, outline=color, width=linewidth)
 
     rotated = overlay.rotate(pa, expand=True)
     rotated_width, rotated_height = rotated.size
@@ -89,7 +89,7 @@ def draw_ellipse_on_png(im, x0, y0, ba, pa, major_axis_diameter_arcsec,
     im.paste(rotated, (paste_shift_x, paste_shift_y), rotated)
 
 def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
-                  pixscalefactor=1.0, fntsize=20):
+                  pixscalefactor=1.0, fntsize=20, imtype_fntsize=20):
     """Support routine for routines in html.
 
     fntsize - only used if scaledfont=False
@@ -102,17 +102,18 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
         draw = ImageDraw.Draw(im)
         sz = im.size
         width = np.round(pixscalefactor*sz[0]/150).astype('int')
+        if scaledfont:
+            fntsize = np.round(pixscalefactor*sz[0]/50).astype('int')                
+            imtype_fntsize = np.round(pixscalefactor*sz[0]/15).astype('int')                
+            #fntsize = np.round(0.05*sz[0]).astype('int')
+            #fntsize = np.round(sz[0]/50).astype('int')
         # Bar and label
         if barlen:
-            if scaledfont:
-                fntsize = np.round(pixscalefactor*sz[0]/50).astype('int')                
-                #fntsize = np.round(0.05*sz[0]).astype('int')
-                #fntsize = np.round(sz[0]/50).astype('int')
             #if fntsize < 56:
             #    fntsize = 56
             font = ImageFont.truetype(fonttype, size=fntsize)
             # Add a scale bar and label--
-            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen*pixscalefactor, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen*pixscalefactor, sz[1]-fntsize*1.5, sz[1]-fntsize*4
             #print(sz, fntsize, x0, x1, y0, y1, barlen*pixscalefactor)
             draw.line((x0, y1, x1, y1), fill='white', width=width)
             ww, hh = draw.textsize(barlabel, font=font)
@@ -122,10 +123,11 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
             #print('Writing {}'.format(pngfile))
         # Image type
         if imtype:
-            fntsize = 20 # np.round(sz[0]/20).astype('int')
-            font = ImageFont.truetype(fonttype, size=fntsize)
+            #fntsize = 20 # np.round(sz[0]/20).astype('int')
+            font = ImageFont.truetype(fonttype, size=imtype_fntsize)
             ww, hh = draw.textsize(imtype, font=font)
-            x0, y0, y1 = sz[0]-ww-fntsize*2, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
+            x0, y0, y1 = imtype_fntsize*1.2, imtype_fntsize*2, imtype_fntsize*1.2#4
+            #x0, y0, y1 = sz[0]-ww-imtype_fntsize*2, sz[1]-imtype_fntsize*2, sz[1]-imtype_fntsize*2.5#4
             draw.text((x0, y1), imtype, font=font)
         print('Writing {}'.format(pngfile))
         im.save(pngfile)
@@ -1261,7 +1263,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                 ax1.add_patch(mpatches.Ellipse((ellipsefit['x0_{}'.format(filt.lower())][this], ellipsefit['y0_{}'.format(filt.lower())][this]),
                                                2*ellipsefit['sma_{}'.format(filt.lower())][this],
                                                2*ellipsefit['sma_{}'.format(filt.lower())][this]*(1-ellipsefit['eps_{}'.format(filt.lower())][this]),
-                                               ellipsefit['pa_{}'.format(filt.lower())][this]-90,
+                                               angle=ellipsefit['pa_{}'.format(filt.lower())][this]-90,
                                                color='k', lw=sma_lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
 
             # Visualize the mean geometry

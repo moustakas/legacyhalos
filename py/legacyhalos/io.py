@@ -399,7 +399,7 @@ def write_ellipsefit(galaxy, galaxydir, ellipsefit, filesuffix='', galaxy_id='',
     #fitsio.write(ellipsefitfile, out.as_array(), extname='ELLIPSE', header=hdr, clobber=True)
 
 def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True,
-                    asTable=False):
+                    asTable=False, ellipsefitfile=None):
     """Read the output of write_ellipsefit. Convert the astropy Table into a
     dictionary so we can use a bunch of legacy code.
 
@@ -413,7 +413,8 @@ def read_ellipsefit(galaxy, galaxydir, filesuffix='', galaxy_id='', verbose=True
     else:
         fsuff = '-{}'.format(filesuffix)
 
-    ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
+    if ellipsefitfile is None:
+        ellipsefitfile = os.path.join(galaxydir, '{}{}-ellipse{}.fits'.format(galaxy, fsuff, galid))
         
     if os.path.isfile(ellipsefitfile):
         data = Table(fitsio.read(ellipsefitfile))
@@ -505,8 +506,8 @@ def _get_psfsize_and_depth(tractor, bands, pixscale, incenter=False):
     W = np.max(tractor.by) - np.min(tractor.by)
     if incenter:
         dH = 0.1 * H
-        these = np.where((tractor.bx >= np.int(H / 2 - dH)) * (tractor.bx <= np.int(H / 2 + dH)) *
-                         (tractor.by >= np.int(H / 2 - dH)) * (tractor.by <= np.int(H / 2 + dH)))[0]
+        these = np.where((tractor.bx >= int(H / 2 - dH)) * (tractor.bx <= int(H / 2 + dH)) *
+                         (tractor.by >= int(H / 2 - dH)) * (tractor.by <= int(H / 2 + dH)))[0]
     else:
         #these = np.where(tractor.get(psfdepthcol) > 0)[0]
         these = np.arange(len(tractor))
@@ -659,7 +660,7 @@ def _read_image_data(data, filt2imfile, starmask=None, allmask=None,
 
         ## Dilate the mask, mask out a 10% border, and pack into a dictionary.
         mask = binary_dilation(mask, iterations=2)
-        edge = np.int(0.02*sz[0])
+        edge = int(0.02*sz[0])
         mask[:edge, :] = True
         mask[:, :edge] = True
         mask[:, sz[0]-edge:] = True
