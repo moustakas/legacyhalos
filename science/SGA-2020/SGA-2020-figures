@@ -1642,7 +1642,7 @@ def fig_sga_vs_hyperleda(sga, png=None):
 
     # coordinatess
     xylim = 20 * np.array([-1, 1])
-    dra = (sga['RA'] - sga['RA_LEDA'])*3600
+    dra = np.cos(np.radians(sga['DEC'])) * (sga['RA'] - sga['RA_LEDA'])*3600
     ddec = (sga['DEC'] - sga['DEC_LEDA'])*3600
 
     c_leda = SkyCoord(sga['RA_LEDA']*u.deg, sga['DEC_LEDA']*u.deg)
@@ -1874,7 +1874,7 @@ def fig_sga_vs_wxsc100(sga, png=None):
     fig, ax = plt.subplots(2, 2, figsize=(13, 10))
 
     xylim = 20 * np.array([-1, 1])
-    dra = 3600*(msga['RA']-mwxsc['ra'].values)
+    dra = np.cos(np.radians(msga['DEC'])) * 3600*(msga['RA']-mwxsc['ra'].values)
     ddec = 3600*(msga['DEC']-mwxsc['dec'].values)
 
     c_wxsc = SkyCoord(mwxsc['ra'].values*u.deg, mwxsc['dec'].values*u.deg)
@@ -1918,8 +1918,8 @@ def fig_sga_vs_wxsc100(sga, png=None):
 
     # annotate a few galaxies
     gals = ['NGC2403', 'NGC0247', 'NGC4395']
-    xytexts = [(15, 7), (-15, 2), (8.5, -10)]
-    has = ['right', 'center', 'center']
+    xytexts = [(14, 7), (-15, 2), (8.5, -10)]
+    has = ['center', 'center', 'center']
     for gal, xytext, ha in zip(gals, xytexts, has):
         N = msga['GALAXY'] == gal
         ax[0, 0].annotate(gal, (dra[N], ddec[N]), xytext=xytext, 
@@ -2325,14 +2325,22 @@ def fig_sbmontage(onegal, igal=0, colorlim=(0.0, 1.5), png=None):
                    ha='left', va='center', color='k', fontsize=18)
     #txt.set_bbox(dict(facecolor='gray', alpha=0.5))
 
-    smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)].max(), nplot)
-    for sma in smas:
+    #smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)].max(), nplot)
+    radkeys = ['SMA_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
+    smas = np.array(list(onegal[radkeys].as_array()[0])) / data['refpixscale'] # semi-major axis, pixels
+    for sma, key in zip(smas, radkeys):
         this = np.argmin(np.abs(ellipsefit['{}_sma'.format(filt)]-sma))
+        if key == 'SMA_SB26':
+            col = 'dodgerblue'
+            lw = 4
+        else:
+            col = 'k'
+            lw = sma_lw
         ax2.add_patch(mpatches.Ellipse((ellipsefit['{}_x0'.format(filt)][this], ellipsefit['{}_y0'.format(filt)][this]),
                                        2*ellipsefit['{}_sma'.format(filt)][this],
                                        2*ellipsefit['{}_sma'.format(filt)][this]*(1-ellipsefit['{}_eps'.format(filt)][this]),
                                        angle=ellipsefit['{}_pa'.format(filt)][this]-90,
-                                       color='k', lw=sma_lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
+                                       color=col, lw=lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
 
     for xx in (ax0, ax1, ax2):
         xx.xaxis.set_ticklabels([])
@@ -2411,6 +2419,17 @@ def fig_sbmontage(onegal, igal=0, colorlim=(0.0, 1.5), png=None):
             yminmax[1] = np.nanmax(mu+muerr)
         if np.nanmax(radius) > xminmax[1]:
             xminmax[1] = np.nanmax(radius)
+
+        if filt == 'r':
+            for col, ls in zip(['R_SMA50', 'SMA_SB26'], ['--', '-']):
+                if col == 'SMA_SB26':
+                    muint = 26.0
+                else:
+                    muint = np.interp(onegal[col][0]**0.25, radius, mu)
+                ax1.plot([xminmax[0], onegal[col][0]**0.25], [muint, muint], color='gray', ls=ls)
+                ax1.plot([onegal[col][0]**0.25, onegal[col][0]**0.25], [yminmax[1]+0.5, muint], color='gray', ls=ls)
+            #ax1.axvline(x=onegal['R_SMA50']**0.25, color='gray', ls='-')
+            #ax1.axvline(x=onegal['SMA_SB26']**0.25, color='gray', ls='--')
 
     ax1.set_ylabel(r'$\mu(r)$ (mag arcsec$^{-2}$)')
     #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
@@ -2510,7 +2529,7 @@ def fig_sbmontage(onegal, igal=0, colorlim=(0.0, 1.5), png=None):
         chi2 = onegal['{}_COG_PARAMS_CHI2'.format(filt.upper())][0]
         #print(filt, magtot, m0, alpha1, alpha2)
 
-        label = r'${}={:.3f}$'.format(filt, magtot)
+        label = r'${}={:.2f}$'.format(filt, magtot)
         #label = r'${}={:.3f}\ (\chi^{{2}}_{{\nu}}={:.2f})$'.format(filt, magtot, chi2)
         #label = r'${}$'.format(filt)
 
@@ -2543,7 +2562,7 @@ def fig_sbmontage(onegal, igal=0, colorlim=(0.0, 1.5), png=None):
         ax_twin.set_ylim(yfaint, ybright)
         ax_twin.set_ylabel('Cumulative Flux (AB mag)')#, rotation=-90)
 
-    if False:
+    if True:
         hh, ll = ax3.get_legend_handles_labels()
         if len(hh) > 0:
             leg1 = ax3.legend(loc='lower right', fontsize=14)#, ncol=3)
@@ -3926,8 +3945,8 @@ def fig_hecate_completeness(sga, png=None):
             ax2.text(xfrac[ii]+drad/2, yfrac_corrected[ii]+0.03, 
                      '{:,d}'.format(denom[ii]), ha='center', va='bottom', 
                      alpha=1.0, fontsize=10)
-    ax2.axvline(x=np.log10(20/60), color='gray', ls='-', alpha=0.7)
-    ax2.axvline(x=np.log10(30/60), color='gray', ls='-', alpha=0.7)
+    #ax2.axvline(x=np.log10(20/60), color='gray', ls='-', alpha=0.7)
+    #ax2.axvline(x=np.log10(30/60), color='gray', ls='-', alpha=0.7)
     ax2.axhline(y=1.0, ls='-', lw=2, color='gray', alpha=0.7)
     ax2.step(xfrac+drad, yfrac_corrected, color=colors[4], ls='-', lw=3, where='pre',
              label='Corrected Fraction')
@@ -4039,7 +4058,7 @@ def main():
     if args.sbmontage:
         sample = legacyhalos.SGA.read_sga2020(galaxylist='NGC5016')
         fig_sbmontage(sample, igal=0, colorlim=(-0.5, 1.5), png='NGC5016-sbmontage.png')
-
+        pdb.set_trace()
         sample = legacyhalos.SGA.read_sga2020(galaxylist='PGC193192')#, primary=False)
         fig_sbmontage(sample, igal=1, colorlim=(0.0, 1.5), png='PGC193199-sbmontage.png')
 
