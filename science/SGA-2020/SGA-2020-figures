@@ -3189,6 +3189,763 @@ def fig_nsa_completeness(sga, png=None):
         fig.savefig(pngfile)#, bbox_inches='tight')
         plt.close(fig)
 
+def fig_z0mgs_completeness(sga, png=None):
+    """Quantify the sample completeness by comparing against z0MGS."""
+
+    import corner
+    from glob import glob
+    import astropy.units as u
+    from astropy.table import vstack
+    from astropy.coordinates import SkyCoord, match_coordinates_sky
+    from PIL import Image, ImageDraw
+    from astropy.io import fits
+    from astropy.wcs import WCS
+    from legacyhalos.qa import draw_ellipse_on_png, addbar_to_png
+
+    sns, colors = plot_style(talk=True, font_scale=1.3)
+
+    # Find the subset of z0MGS targets which have grz imaging from DR9.
+    z0mgsfile = os.path.join(paperdir, 'data', 'z0MGS-table4.fits')
+    z0mgsdr9file = os.path.join(paperdir, 'data', 'z0MGS-table4.dr9.fits')
+    if not os.path.isfile(z0mgsdr9file):
+        z0mgs = Table(fitsio.read(z0mgsfile, ext=1))
+        z0mgs.rename_column('_RAJ2000', 'RA')
+        z0mgs.rename_column('_DEJ2000', 'DEC')
+        print('Read {} objects from {}'.format(len(z0mgs), z0mgsfile))
+
+        randomfiles = glob(os.path.join(paperdir, 'data', 'randoms-1-*.fits'))
+        rand = []
+        for randomfile in randomfiles:
+            print('Reading {}'.format(randomfile))
+            rand1 = fitsio.read(randomfile, columns=['NOBS_G', 'NOBS_R', 'NOBS_Z'])
+            I = np.where((rand1['NOBS_G'] > 0) * (rand1['NOBS_R'] > 0) * (rand1['NOBS_Z'] > 0))[0]
+            rand.append(Table(fitsio.read(randomfile, columns=['RA', 'DEC'], rows=I)))
+        rand = vstack(rand)
+        print('Read {:,d} random points from {} randomfiles.'.format(len(rand), len(randomfiles)))
+
+        c_z0mgs = SkyCoord(z0mgs['RA']*u.deg, z0mgs['DEC']*u.deg)
+        c_rand = SkyCoord(rand['RA']*u.deg, rand['DEC']*u.deg)
+        idx, d2d, _ = c_z0mgs.match_to_catalog_sky(c_rand)
+
+        c_z0mgs = SkyCoord(z0mgs['RA']*u.deg, z0mgs['DEC']*u.deg)
+        c_rand = SkyCoord(rand['RA']*u.deg, rand['DEC']*u.deg)
+        rad = 2 * u.arcmin
+        _, indx_z0mgs, d2d, _ = c_z0mgs.search_around_sky(c_rand, rad)
+        indx_z0mgs = np.sort(np.unique(indx_z0mgs))
+        print('Matched {}/{} Z0MGS galaxies to a DR9 random point with NOBS_[GRZ]>1'.format(len(indx_z0mgs), len(z0mgs)))
+    
+        z0mgs_nodr9 = z0mgs[np.delete(np.arange(len(z0mgs)), indx_z0mgs)]
+
+        z0mgs = z0mgs[indx_z0mgs]
+        print(f'Writing {z0mgsdr9file}')
+        z0mgs.write(z0mgsdr9file, overwrite=True)
+
+        pngfile = os.path.join(paperdir, 'sandbox', 'qa-z0mgs-radec.png')
+        print('Writing {}'.format(pngfile))
+        fig, ax = plt.subplots(figsize=(10, 7))
+        ax.scatter(sga['RA'], sga['DEC'], s=1, label='SGA')
+        ax.scatter(z0mgs['RA'], z0mgs['DEC'], s=1, marker='s', alpha=0.5, label='z0MGS-DR9')
+        ax.set_xlabel('RA (degree)')
+        ax.set_ylabel('Dec (degree)')
+        ax.legend(fontsize=12)
+        fig.subplots_adjust(bottom=0.15, right=0.95, top=0.95)
+        fig.savefig(pngfile)#, bbox_inches='tight')
+        plt.close(fig)
+
+    pdb.set_trace()
+
+    # read the previously created matched catalog
+    hecate = Table(fitsio.read(hecatedr9file, ext=1))
+    print('Read {:,d} objects from {}'.format(len(hecate), hecatedr9file))
+
+    #toss = np.where(np.isnan(hecate['R1']))[0]
+    #pdb.set_trace()
+
+    keep = np.where(np.isfinite(hecate['R1']) * np.isfinite(hecate['R2']))[0]
+    print('Removing {} HECATE objects with no diameters.'.format(len(hecate)-len(keep)))
+    #keep = np.where(np.isfinite(hecate['BT']) * np.isfinite(hecate['R1']) * np.isfinite(hecate['R2']))[0]
+    #print('Removing {} HECATE objects with no diameters or magnitudes estimate.'.format(len(hecate)-len(keep)))
+    hecate = hecate[keep]
+    hecate['BA'] = hecate['R2'] / hecate['R1']
+
+    # Match the catalogs, first by PGC.
+    dwarfs_excluded = {
+        'SagittariusdSph': 4689212,
+        'SegueI': 4713559,
+        'UrsaMajorII': 4713555,
+        'BootesII': 4713552,
+        'SegueII': 4713565,
+        'Willman1': 4713556,
+        'BootesI': 4713553,
+        'Draco': 60095,
+        'UrsaMinor': 54074,
+        'SextansI': 88608,
+        'UrsaMajorI': 4713554,
+        'Hercules': 4713560,
+        'LeoIV': 4713561,
+        'LeoV': 4713563,
+        'PiscesII': 5056949,
+        'CanesVenaticiI': 4689223,
+        'AndromedaXIV': 5056922,
+        'AndromedaXIII': 5056925,
+        'AndromedaII': 4601,
+        'AndromedaXXIX': 5060430,
+        'AndromedaXXII': 5057232,
+        'AndromedaXVI': 5056927,
+        'LeoT': 4713564,
+        'ComaBerenices': -1, 
+        'CanesVenaticiII': 4713558,
+        'AndromedaXX': 5056920,
+        'Antlia': 29194,
+        'Carina': 19441,
+        'AndromedaX': 5056921,
+        'AndromedaIX': 4689222,
+        'AndromedaXVII': 4608690,
+        'AndromedaXXVII': 5057230,
+        'AndromedaXXV': 5057228,
+        'AndromedaI': 2666,
+        'AndromedaIII': 2121,
+        'AndromedaXV': 5056926,
+        'AndromedaXII': 5056924,
+        'AndromedaXI': 5056923,
+        'AndromedaXXVI': 5057229,
+        'AndromedaXIX': 5056919,
+        'AndromedaXXI': 5057231,
+        'AndromedaXVIII': 5056918,
+        'AndromedaXXIV': 5057227,
+        'AndromedaXXIII': 5057226,
+        'AndromedaV': 3097824,
+        'AndromedaVII': 2807155,
+        'Aquarius': 65367,
+        'Sculptor': 3589,
+        'Fornax': 10074,}
+    dwarfs_toadd = {
+        'AndromedaVI': 2807158,
+        'AndromedaXXVIII': 5060429,
+        }
+    for thisdwarf in dwarfs_toadd.keys():
+        I = np.where(sga['GALAXY'] == thisdwarf)[0]
+        if len(I) == 1:
+            #print(f'Matching {thisdwarf}')
+            sga['PGC'][I] = dwarfs_toadd[thisdwarf]
+
+    openngc_toadd = {
+        'IC0028': 169992,
+        'IC0036': 138202,
+        'IC0113': 3617669,
+        'IC0233': 9622,    # incorrectly matches to CGCG388-033 rather than CGCG388-036 in Hyperleda
+        'IC0254': 3642494, # incorrectly matches to NGC1065
+        'IC0463': 3717953,
+        'IC0495': 22841,
+        'IC0694': 35326,
+        'IC0729': 36627,
+        'IC0828': 3797579,
+        'IC0921': 2509643,
+        'IC0931': 2508641,
+        'IC1188B': 1533342,
+        'IC1249': 59919,
+        'IC1464A': 70345,
+        'IC1586': 2813,
+        'IC1632': 4205,
+        'IC1640': 4299,
+        'IC1726': 6441,
+        'IC1758': 170024,
+        'IC1798': 3637647,
+        'IC2155': 4078729,
+        'IC2186': 3089868, # incorrectly matches to IC2186 in Hyperleda
+        'IC2249': 23202,
+        'IC2519': 28660,
+        'IC2614': 3764519,
+        'IC2615': 33289,
+        'IC2619': 33297,
+        'IC2657': 3768035,
+        'IC2676': 3471217,
+        'IC2677': 4000604,
+        'IC2690': 4272707,
+        'IC2719': 3542421,
+        'IC2753': 3471719,
+        'IC2765': 1451814, # incorrectly matches to IC2769
+        'IC2771': 4000783,
+        'IC2775': 1410888,
+        'IC2779': 1428682, # incorrectly matches to IC2779
+        'IC2802': 1405555,
+        'IC2807': 4278777,
+        'IC2821': 3770960,
+        'IC2838': 3090746,
+        'IC2847': 3771421,
+        'IC2858': 3771590,
+        'IC2860': 3771626,
+        'IC2886': 3543729,
+        'IC2900': 5490323,
+        'IC2909': 1394107,
+        'IC2917': 1386736,
+        'IC2946': 35984,
+        'IC2993': 3088758, # incorrect coordinates / object in Hyperleda for IC2993
+        'IC3110': 3088320,
+        'IC3128B': 39557,
+        'IC3179': 89585,
+        'IC3249': 3787857,
+        'IC3287': 4662912,
+        'IC3304': 4325635,
+        'IC3324': 3788758,
+        'IC3345': 3789023,
+        'IC3372': 89606,
+        'IC3389': 3789672,
+        'IC3396': 3789798,
+        'IC3449': 89615,
+        'IC3479': 89618,
+        'IC3494': 1812401,
+        'IC3528': 41882,
+        'IC3558': 165253,
+        'IC3565': 1787382,
+        'IC3582': 1768338, # =WISEA J123636.95+261405.0; incorrect match in Hyperleda
+        'IC3603': 3090633,
+        'IC3610': 1790902,
+        'IC3614': 1770479,
+        'IC3649': 1642864,
+        'IC3655': 1633163,
+        'IC3657': 4337363,
+        'IC3678': 1637920,
+        'IC3723': 42914,
+        'IC3751': 3088212,
+        'IC3761': 1622809,
+        'IC3771': 5168314,
+        'IC3785': 3796270,
+        'IC3817': 1676864,
+        'IC3842': 3088021,
+        'IC3847': 86330,
+        'IC3870': 1668852,
+        'IC3872': 3798227,
+        'IC3897': 3088119,
+        'IC3898': 3088328,
+        'IC3928': 2165833,
+        'IC3945': 3799582,
+        'IC3948': 1698944,
+        'IC3954': 3799842,
+        'IC3978': 4350039,
+        'IC3994': 4350163,
+        'IC4018': 3800150,
+        'IC4025': 3800326,
+        'IC4031': 3800266,
+        'IC4063': 6032708,
+        'IC4085': 3088120,
+        'IC4087': 3800931,
+        'IC4110': 3801248,
+        'IC4140': 3801648,
+        'IC4147': 4662909,
+        'IC4162': 6400595,
+        'IC4184': 3088122,
+        'IC4277': 4662915,
+        'IC4284': 2287260,
+        'IC4285': 2287732,
+        'IC4300': 47912,
+        'IC4516': 53274,
+        'IC4568': 55746,
+        'IC5126': 3947737,
+        'IC5153': 3954514,
+        'IC5299': 3978734,
+        'IC5307': 214932, #=IC5306 in Hyperleda, which is wrong; actually WISEA J231822.02+101408.5
+        'IC5341': 71981,
+        'NGC0382': 3981, # terrible coordinates!
+        'NGC0396': 99944,
+        'NGC0526A': 5120, #=NGC0526
+        'NGC0742': 7264,
+        'NGC0826': 8230,
+        'NGC1392': 13383,
+        'NGC2288': 19714,
+        'NGC2687A': 25031,
+        'NGC2735A': 25402,
+        'NGC3099': 29087,
+        'NGC3439': 32634,
+        'NGC4465': 41157,
+        'NGC5581': 51282,
+        'NGC5615': 51435,
+        'NGC5679C': 52129, # confusion in the viewer
+        'NGC5763': 52905,
+        'NGC5896': 54367,
+        'NGC6027D': 56580,
+        'NGC6099': 57640,
+        'NGC6141': 3498497,
+        'NGC6452': 60876,
+        'NGC6534': 61126,
+        'NGC7405': 69907,
+        'NGC7551': 3978375,
+        'NGC7577': 70947,
+        'NGC7598': 71011
+        }
+    check = []
+    for thisgal in openngc_toadd.keys():
+        I = np.where(sga['GALAXY'] == thisgal)[0]
+        check.append(I)
+        sga['PGC'][I] = openngc_toadd[thisgal]
+    check = np.hstack(check)
+    #pdb.set_trace()
+
+    indx_sga, indx_hecate = [], []
+    for I, pgc in enumerate(hecate['PGC']):
+        J = np.where(pgc == sga['PGC'])[0]
+        #if pgc == 70761:
+        #    pdb.set_trace()
+        if len(J) > 1:
+            pdb.set_trace()
+        if len(J) == 1:
+            indx_hecate.append(I)
+            indx_sga.append(J)
+    indx_hecate = np.hstack(indx_hecate)
+    indx_sga = np.hstack(indx_sga)
+    print('Matched {}/{} HECATE galaxies to the SGA based on PGC number.'.format(
+        len(indx_hecate), len(hecate)))
+
+    # classify based on the montage visual inspections
+    hecate['SGA_NOTES'] = np.zeros(len(hecate), int) # np.zeros(len(hecate), 'U20')
+    for thisdwarf in dwarfs_excluded.keys():
+        I = np.where(hecate['PGC'] == dwarfs_excluded[thisdwarf])[0]
+        if len(I) != 1:
+            #print(f'Skipping {thisdwarf}')
+            #pdb.set_trace()
+            pass
+        hecate['SGA_NOTES'][I] += 2**0 # intentionally excluded dwarf
+
+    spurgal = [
+        # >1.6 arcmin
+        'SDSSJ075442.90+472212.6', 'SDSSJ074540.08+204602.5', 'SDSSJ112014.08+092415.9',
+        'SDSSJ025709.46+002421.5', '[IBG2003]J130047+280534', 'SDSSJ023647.34-001301.0',
+        '[CTM2011]1040263', 'LAMOSTJ085931.49+445506.4', #'SDSSJ1049+5103',
+        'SDSSJ075442.90+472212.6', 'PGC3097827', 'GAMA575344', 'SDSSJ041004.59-045626.3', 
+        'SDSSJ095021.71+451957.5', 'AGC125044', # AGC125044 is Cirrus!
+        'SDSSJ152444.99+401648.2', 'SDSSJ112535.23+542314.3', 
+        # 1.0-1.6 arcmin
+        'SDSSJ012626.40-002539.4', 'SDSSJ012651.26+203017.0', 'GAMA418176', 
+        'SDSSJ144554.93+003437.6', '[RG2008]J163025.15+395443.9', 'GAMA177469',
+        'SDSSJ232735.95+313026.5', 'PGC2800817', 'SDSSJ155520.30+091146.4',
+        'PGC086618']
+    #print('Flagging {} spurious HECATE galaxies with >1 arcmin.'.format(len(spurgal)))
+    for gal in spurgal:
+        I = np.where(hecate['OBJNAME'] == gal)[0]
+        if len(I) != 1:
+            pdb.set_trace()
+        hecate['SGA_NOTES'][I] += 2**1 # spurious in Hecate
+
+    # real, but (sometimes very) wrong diameter; should be added to the catalog
+    wrongdiam = [
+        # >1.6 arcmin
+        'AGC749279', 'AGC102561', 'SDSSJ004535.04-011221.9', 'PGC029167', 
+        'SDSSJ111332.35+225056.9', 'PGC012625', 'PGC018515', 'SDSSJ161534.10+192734.8',
+        'AGC334637', 'AGC336814', 'SDSSJ220611.97+010300.5', 'AGC113894',
+        '2MASXJ07271454+5256550', 'PGC002635', 'PGC059944', 
+        'PGC4080601', 
+        # 1.0-1.6 arcmin
+        'PGC055315', 'GAMA143116', 'PGC040476', 'SDSSJ031229.59+000242.1', 
+        'AGC268225', 'GAMA086047', 'SDSSJ134211.37+180153.6', 'SDSSJ124959.36+451011.2', 
+        'SDSSJ114345.66+661335.7', 'AGC238692', 'SDSSJ160116.48+185821.3', 
+        'SDSSJ094353.03+490037.7', 'AGC188957', 'AGC225847', 'AGC336486', 
+        'SDSSJ032310.22-004407.9', 'AGC215425', 'AGC189323', 'SDSSJ100519.69+511038.3',
+        'AGC267971', 'SDSSJ031929.80+003938.7', 'SDSSJ001842.92+003016.4',
+        'AGC323553', 'SDSSJ131641.09+301454.4', 'SDSSJ103917.89+372810.6', 
+        'AGC322201', 'SDSSJ092603.64+560915.5', 'PGC138144', 'AGC333267',
+        'AGC334490', 'SDSSJ095034.31+300927.5', 'AGC333442', 'LAMOSTJ012612.76+294146.3',
+        'SDSSJ230314.76+045751.4', 'PGC052336', '[RG2008]J162824.61+392054.6',
+        'SDSSJ162256.84-004843.5', 'PGC019078', 'SDSSJ144751.43+172337.1', 
+        'ESO474-017', 'PGC4677061', 'PGC061508', 'SDSSJ145746.73-003828.8',
+        'PGC015227', 'SDSSJ160959.42+264326.8', 'SDSSJ101821.81+144859.3',
+        'WINGSJ011321.46+001504.1']
+    #print('Flagging {} HECATE galaxies with incorrect (over-estimated) diameters >1 arcmin.'.format(len(wrongdiam)))
+    for gal in wrongdiam:
+        I = np.where(hecate['OBJNAME'] == gal)[0]
+        if len(I) != 1:
+            pdb.set_trace()
+        hecate['SGA_NOTES'][I] += 2**2 # very wrong diameter in Hecate
+
+    shred = [
+        # >1.6 arcmin
+        'LAMOSTJ013040.21-035637.1', 'LAMOSTJ124211.85+323232.3', 'SDSSJ100818.18+315206.6',
+        'SDSSJ131318.46+361210.6', 'PGC014118', 'SDSSJ114347.41+195830.2', 'LAMOSTJ142026.93+351032.3',
+        'SDSSJ002024.55+004917.5', 'SDSSJ134748.65+402918.7', 'LAMOSTJ005442.06+213126.7',
+        'SDSSJ231412.61+133454.6', 'LAMOSTJ003719.70+290838.1', 'SDSSJ231445.28+052457.9',
+        'SDSSJ121855.02+142445.5', 'LAMOSTJ122300.91+155115.8', 
+        # 1.0-1.6 arcmin
+        'LAMOSTJ112914.16+203452.0', 'SDSSJ131238.07+123534.5', 'NGC6166B', 'SDSSJ143001.69+362129.5',
+        'PGC095735', 'SDSSJ110310.51+275851.0', 'PGC032137', 
+        'SDSSJ023038.41-034915.6', 'EVCC2264', 'PGC047447', '2MASXJ03422921-1328208',
+        'SDSSJ131239.57+123645.0', 'LAMOSTJ091102.92+132455.3',
+        'LAMOSTJ020628.06+270207.9', 'SDSSJ094829.55+332459.3', 'PGC3099123',
+        '6dFJ0122428-363451', 'PGC093084', '2MASXJ21130957-5826044',
+        'SDSSJ123421.43+081425.7', 'PGC3295899', 'SDSSJ115338.84+432720.0', 'PGC200231',
+        '2MASXJ10330652-2625169', 'SDSSJ144822.72+182112.2', 'SDSSJ075237.34+502415.6',
+        'SDSSJ145256.78+164334.8', '2MASXJ16080647+2529073', 'LAMOSTJ090559.16+184546.3',
+        '2MASXJ14574467-0722033', 
+        'SDSSJ152132.22+391207.0', '2MASXJ09474970+1551068', 'SDSSJ164802.45+261234.3',
+        'PGC3084812', 'LAMOSTJ021112.67+254848.2', 'SDSSJ082027.55+564457.1',
+        'PGC093106', 'GAMA084601', 'SDSSJ211444.79+105220.5', 'SDSSJ151806.36+424438.6', 
+        'SDSSJ163813.00+415623.0', 'SDSSJ080138.73+154249.2',
+        'SDSSJ082648.24+202140.3', 'PGC200388', 'PGC052728', '2MASXJ05571929-5222215',
+        'SDSSJ014932.34+323510.2', 'SDSSJ132202.37+384343.7', 'SDSSJ155722.48+470943.9',
+        'SDSSJ115742.61+321702.7', 'SDSSJ133955.41+282344.3', 'SDSSJ081200.34+192147.4',
+        'SDSSJ140021.15+385504.2', 'SDSSJ111523.25+555826.6',
+        'SDSSJ111523.25+555826.6', 'SDSSJ141013.85+481833.8', 'SDSSJ145736.82+295757.3',
+        '2MASXJ21150892+1239317', 'SDSSJ122147.59+042938.4', 'LAMOSTJ091005.24+443651.3',
+        'SDSSJ141843.21+214858.0', 'SDSSJ090919.38+330723.6', 'SDSSJ093654.40+374130.6',
+        'NGC0664:[ZM98]0009', 'LAMOSTJ020913.56+253410.9']
+    #print('Flagging {} HECATE galaxies as photometric shreds and >1 arcmin.'.format(len(shred)))
+    for gal in shred:
+        I = np.where(hecate['OBJNAME'] == gal)[0]
+        if len(I) != 1:
+            pdb.set_trace()
+        hecate['SGA_NOTES'][I] += 2**3 # photometric shred
+
+    grzmissing = [
+        # >1.6 arcmin
+        'NGC2258', 'ESO567-026', 'NGC6555', 'NGC2889', 'ESO437-022', 'ESO108-021', 
+        'ESO501-011', 'IC2586', 'NGC7485', 
+        # 1.0-1.6 arcmin
+        'PGC033167', 'ESO233-037', 'PGC035743', 'IC0416', 'UGC09668', 
+        'PGC027066', 'ESO106-002', 'ESO567-010', 'UGC11581', 
+        'ESO340-016', 'PGC065019', 'UGC03823', 'NGC6972', 'ESO437-040',
+        'ESO501-024', 'ESO501-042', 'NGC2881', '2MASXJ03500035-0127578',
+        'PGC032846', 'UGC00457', 'PGC018467', 'ESO340-019', 'PGC015573',
+        'PGC027757', 'ESO342-012', 'ESO409-016', 'ESO437-029', 'ESO500-043',
+        'ESO567-012', 'PGC027188', 'UGC10780', 'ESO344-003', '2MASXJ21094981-0850538',
+        'PGC035744']
+    #print('Flagging {} HECATE galaxies with missing LS/DR9 grz imaging and >1 arcmin.'.format(len(grzmissing)))
+    for gal in grzmissing:
+        I = np.where(hecate['OBJNAME'] == gal)[0]
+        if len(I) != 1:
+            pdb.set_trace()
+        hecate['SGA_NOTES'][I] += 2**4 # missing grz coverage
+
+    m_sga = sga[indx_sga]
+    m_hecate = hecate[indx_hecate]
+
+    miss_sga = sga[~np.isin(sga['SGA_ID'], m_sga['SGA_ID'])]
+    miss_hecate = hecate[~np.isin(hecate['PGC'], m_hecate['PGC'])]
+
+    # quick QA of the separation for PGC-matched and PGC-non-matched galaxies
+    c_m_hecate = SkyCoord(m_hecate['RA']*u.deg, m_hecate['DEC']*u.deg)
+    c_m_sga = SkyCoord(m_sga['RA']*u.deg, m_sga['DEC']*u.deg)
+    _, m_sep2d, _ = c_m_hecate.match_to_catalog_sky(c_m_sga)
+    print('Mean and max separation between {} PGC-matched galaxies is {:.3f}+/-{:.3f}, {:.3f} arcsec.'.format(
+        len(m_hecate), np.mean(m_sep2d.arcsec), np.std(m_sep2d.arcsec), np.max(m_sep2d.arcsec)))
+    print('Objects where separation >10 arcsec.')
+    I = m_sep2d.arcsec > 10
+    info = m_sga[I]['GALAXY', 'PGC', 'RA', 'DEC', 'D26']
+    info['SEP'] = m_sep2d.arcsec[I]
+    print(info[np.argsort(info['SEP'])[::-1]])
+
+    c_miss_hecate = SkyCoord(miss_hecate['RA']*u.deg, miss_hecate['DEC']*u.deg)
+    c_miss_sga = SkyCoord(miss_sga['RA']*u.deg, miss_sga['DEC']*u.deg)
+    _, miss_sep2d, _ = c_miss_hecate.match_to_catalog_sky(c_miss_sga)
+    
+    pngfile = os.path.join(paperdir, 'data', 'hecate', 'qa-hecate-sga2020-separation.png')
+    print('Writing {}'.format(pngfile))
+    fig, ax = plt.subplots(figsize=(10, 7))
+    _ = ax.hist(np.log10(m_sep2d.arcsec), bins=75, label='PGC-matched')
+    _ = ax.hist(np.log10(miss_sep2d.arcsec), bins=75, alpha=0.5, label='PGC not-matched')
+    ax.set_xlabel(r'$\log_{10}\,(\mathrm{HECATE-SGA\ Separation})$ (arcsec)')
+    ax.set_ylabel('Number of Galaxies')
+    ax.set_yscale('log')
+    ax.axvline(x=np.log10(10), ls='--', color='k')
+    ax.legend(fontsize=14)
+    fig.subplots_adjust(bottom=0.15, right=0.95, top=0.95, left=0.17)
+    fig.savefig(pngfile)#, bbox_inches='tight')
+    plt.close(fig)
+
+    # now try to match a few more using coordinates
+    rad = 3.0
+    if False:
+        from pydl.pydlutils.spheregroup import spherematch
+        indx_miss_hecate, indx_miss_sga, sep = spherematch(miss_hecate['RA'], miss_hecate['DEC'], miss_sga['RA'], 
+                                                           miss_sga['DEC'], rad/3600., maxmatch=1)
+    else:
+        indx_miss_hecate, indx_miss_sga, d2d, _ = c_miss_sga.search_around_sky(c_miss_hecate, rad*u.arcsec)
+    print('Found {:,d}/{:,d} additional SGA-HECATE matches within {} arcsec.'.format(
+        len(indx_miss_hecate), len(miss_hecate), rad))
+    assert(len(indx_hecate) == len(np.unique(indx_hecate)))
+
+    m_sga = vstack((m_sga, miss_sga[indx_miss_sga]))
+    m_hecate = vstack((m_hecate, miss_hecate[indx_miss_hecate]))
+
+    miss_hecate.remove_rows(indx_miss_hecate)
+    miss_sga.remove_rows(indx_miss_sga)
+
+    print('Final sample: {}/{} ({:.2f}%) HECATE-SGA matches.'.format(
+        len(m_hecate), len(hecate), 100*len(m_hecate)/len(hecate)))
+
+    # get the raw and corrected fraction of non-matches as a function of SERSIC_TH50
+    lograd = np.log10(2*hecate['R1'])
+    match_lograd = np.log10(2*m_hecate['R1'])
+    lograd_corrected = np.log10(2*hecate['R1'][hecate['SGA_NOTES'] == 0])
+    minrad, maxrad, drad = -1.4, 1.2, 0.2
+    ##minrad, maxrad = np.min(lograd), np.max(lograd)
+
+    nhist = int(np.ceil((maxrad - minrad) / drad))
+    #histobins = np.histogram_bin_edges(match_lograd, bins=nhist, range=(minrad, maxrad))
+    histobins = np.array([-1.4, -1.2, -1. , -0.8, -0.6, -0.4,
+                          -0.2, 0., 0.2, 0.4, 0.6, 0.8, 1., 1.2])
+    #histobins = np.array([-1.4, -1.3, -1.2, -1.1, -1. , -0.9, -0.8, -0.7, -0.6, -0.5, -0.4,
+    #                      -0.3, -0.2, -0.1,  0. ,  0.1,  0.2,  0.3,  0.4,  0.5,  0.6,  0.7,
+    #                      0.8,  0.9,  1. ,  1.1,  1.2,  1.3])
+    bins = histobins[:-1]
+
+    #bins = np.arange(minrad, maxrad, drad) # bin left edges
+    numer, _ = np.histogram(match_lograd, bins=histobins)
+    denom, _ = np.histogram(lograd, bins=histobins)
+    #denom, _ = np.histogram(lograd, bins=len(bins), range=(minrad, maxrad+drad))
+    denom_corrected, _ = np.histogram(lograd_corrected, bins=histobins)
+
+    good = denom > 0
+    xfrac = bins[good]
+    yfrac = numer[good] / denom[good] 
+    yfrac_corrected = numer[good] / denom_corrected[good] 
+    for ii, (bb, nn, dd, dd_corr) in enumerate(zip(bins, numer, denom, denom_corrected)):
+        print(bb, 10**bb, nn, dd, nn/dd, dd-nn, dd_corr, nn/dd_corr, dd-nn, dd_corr-nn)
+        # np.sum((lograd>bb)*(lograd<(bb+drad))))
+
+    # --------------------------------------------------
+    # HECATE galaxies not in the SGA
+    #_logradcut = 0.2
+    #I = bins >= _logradcut
+    #print('There are {} HECATE galaxies not in the SGA larger than {:.1f} arcmin.'.format(
+    #    np.sum(denom[I]-numer[I]), 10**_logradcut))
+    logradcut = 0.0
+
+    hecate_notin_sga = hecate[~np.isin(hecate['PGC'], m_hecate['PGC'])]
+    srt = np.argsort(hecate_notin_sga['R1'])[::-1]
+    hecate_notin_sga = hecate_notin_sga[srt]
+
+    #print('Flagging {} HECATE galaxies which are intentionally-excluded dwarfs.'.format(
+    #    np.sum(hecate_notin_sga['SGA_NOTES'] & 2**0 != 0)))
+
+    I = np.log10(2 * hecate_notin_sga['R1']) >= logradcut
+    J = (hecate_notin_sga['SGA_NOTES'] == 0) * (np.log10(2 * hecate_notin_sga['R1']) >= logradcut)
+
+    Itot = np.log10(2 * hecate['R1']) >= logradcut
+    Jtot = (hecate['SGA_NOTES'] == 0) * (np.log10(2 * hecate['R1']) >= logradcut)
+
+    print('There are {}/{} ({:.2f}%) raw -- {}/{} ({:.2f}%) corrected -- HECATE galaxies not in the SGA larger than {:.1f} arcmin.'.format(
+        np.sum(I), np.sum(Itot), 100*np.sum(I)/np.sum(Itot), np.sum(J), np.sum(Jtot), 100*np.sum(J)/np.sum(Jtot), 10**logradcut))
+
+    #I = np.log10(2 * hecate_notin_sga['R1']) >= logradcut
+    I = (np.log10(2 * hecate_notin_sga['R1']) >= logradcut) * (np.log10(2 * hecate_notin_sga['R1']) <= 0.2)
+    qa = hecate_notin_sga[I]['PGC', 'R1', 'RA', 'DEC', 'SGA_NOTES', 'OBJNAME']
+    qa = qa[np.argsort(qa['R1'])] # smallest to biggest
+    qa['URL'] = ['https://www.legacysurvey.org/viewer-desi?ra={}&dec={}&layer=ls-dr9&zoom=14&sga-parent&sga'.format(
+        ra, dec) for ra, dec in zip(qa['RA'], qa['DEC'])]
+    #qa[::-1][198:]
+
+    print('Galaxies with 2*R1 > 1 arcmin in HECATE missing from the SGA:')
+    for bit, label in zip([1, 2, 4, 8, 16], ['Intentionally excluded dwarfs: ',
+                                             'Spurious galaxies: ',
+                                             'Incorrect diameter: ',
+                                             'Photometric shred: ',
+                                             'Gap in grz coverage: ']):
+        print('  Bit {}: {} {}'.format(bit, label, np.sum(np.log10(2 * hecate_notin_sga[hecate_notin_sga['SGA_NOTES'] == bit]['R1'].data) >= 0)))
+
+    # investigate the galaxies which are in the SGA but not in Hecate
+    if False:
+        sga_notin_hecate = sga[~np.isin(sga['SGA_ID'], m_sga['SGA_ID'])]
+        srt = np.argsort(sga_notin_hecate['D26'])[::-1]
+        sga_notin_hecate = sga_notin_hecate[srt]['SGA_ID', 'GALAXY', 'RA', 'DEC', 'PGC', 'D25_LEDA', 'D26', 'Z_LEDA']
+    
+        I = ((sga_notin_hecate['Z_LEDA'] > -1) * (sga_notin_hecate['Z_LEDA'] <= 0.047))
+        Itot = ((sga['Z_LEDA'] > -1) * (sga['Z_LEDA'] <= 0.047))
+        print(np.sum(I), np.sum(Itot), np.sum(I) / np.sum(Itot))
+        sga_notin_hecate[I]
+
+    remake_montage = False
+    if remake_montage:
+        montagedir = os.path.join(paperdir, 'data', 'hecate', 'hecate-notin-sga')
+        if not os.path.isdir(montagedir):
+            os.makedirs(montagedir, exist_ok=True)
+        
+        pixscale = 1.0 # 0.262
+        barlen = np.ceil(60 / pixscale) # [pixels]
+        barlabel = '' # '30 arcsec'
+
+        coord_sga = SkyCoord(ra=sga['RA']*u.deg, dec=sga['DEC']*u.deg)
+
+        # split into diameter bins
+        for ibin in np.arange(len(bins)):
+            minbin, maxbin = histobins[ibin], histobins[ibin+1]
+            print(ibin, minbin, maxbin)
+            if minbin < logradcut:
+                continue
+
+            binlabel = '{:.1f}-{:.1f}arcmin'.format(10**minbin, 10**maxbin)
+
+            dhecate = np.log10(2 * hecate_notin_sga['R1'])
+            if ibin == len(bins)-1:
+                B = np.where(dhecate >= minbin)[0]
+            else:
+                B = np.where((dhecate >= minbin) * (dhecate < maxbin))[0]
+
+            if len(B) == 0:
+                pdb.set_trace()
+
+            if len(B) >= 100:
+                ncol, nrow = 10, 10
+            elif len(B) >= 49 and len(B) < 100:
+                ncol, nrow = 7, 7
+            elif len(B) >= 25 and len(B) < 49:
+                ncol, nrow = 5, 5
+            else:
+                ncol, nrow = 5, 5
+
+            ngal = ncol * nrow
+
+            hecate_notin_sga_bin = hecate_notin_sga[B]
+
+            # find near SGA sources, if any
+            coord_hecate_notin_sga = SkyCoord(ra=hecate_notin_sga_bin['RA']*u.deg, dec=hecate_notin_sga_bin['DEC']*u.deg)
+        
+            # split into multiple pages
+            Isplit = np.array_split(np.arange(len(hecate_notin_sga_bin)), np.ceil(len(hecate_notin_sga_bin)/ngal).astype(int))
+            npage = len(Isplit)
+            print(f'Splitting into {npage} pages with {ngal} galaxies per page.')
+
+            for ipage, I in enumerate(Isplit):
+                print('Working on page {}/{} with {} galaxies.'.format(ipage+1, npage, len(I)))
+
+                sga_close = []
+                for coord_hecate_notin_sga1, diam in zip(coord_hecate_notin_sga[I], 2*60*hecate_notin_sga_bin['R1'][I]):
+                    sep = coord_hecate_notin_sga1.separation(coord_sga)
+                    close = sep.arcsec < 2*diam
+                    if np.any(close):
+                        sga_close.append(vstack(sga[close]['GALAXY', 'RA', 'DEC', 'D26', 'PA', 'BA']))
+                    else:
+                        sga_close.append(Table())
+
+                pngfiles = []
+                for onegal, onesga in zip(hecate_notin_sga_bin[I], sga_close):
+                    #pdb.set_trace()
+                    jpgfile = os.path.join(montagedir, '{}.jpg'.format(onegal['OBJNAME']))
+                    width = int(2.5 * 2*onegal['R1']*60 / pixscale)
+                    if width == 0:
+                        pdb.set_trace()
+
+                    if not os.path.isfile(jpgfile):
+                        urlfile = jpgurl+'ra={}&dec={}&pixscale={}&width={}&height={}&layer=ls-dr9'.format(
+                            onegal['RA'], onegal['DEC'], pixscale, width, width)
+                        cmd = f'wget -q -O {jpgfile} {urlfile}'
+                        print(cmd)
+                        subprocess.call(cmd.split())
+            
+                    pngfile1 = jpgfile.replace('.jpg', '.png')
+                    if not os.path.isfile(pngfile1):
+                        with Image.open(jpgfile) as colorimg:
+                            imgsz = colorimg.size
+            
+                            hdr = fits.Header()
+                            hdr['NAXIS'] = 2
+                            hdr['NAXIS1'] = imgsz[0]
+                            hdr['NAXIS2'] = imgsz[0]
+                            hdr['CTYPE1'] = 'RA---TAN'
+                            hdr['CTYPE2'] = 'DEC--TAN'
+                            hdr['CRVAL1'] = onegal['RA']
+                            hdr['CRVAL2'] = onegal['DEC']
+                            hdr['CRPIX1'] = imgsz[0]/2+0.5
+                            hdr['CRPIX2'] = imgsz[0]/2+0.5
+                            hdr['CD1_1'] = -pixscale/3600
+                            hdr['CD1_2'] = 0.0
+                            hdr['CD2_1'] = 0.0
+                            hdr['CD2_2'] = +pixscale/3600
+                            wcs = WCS(hdr)
+                    
+                            try:
+                                draw_ellipse_on_png(colorimg, imgsz[0]/2, 0.5*imgsz[1], onegal['BA'], 
+                                                    onegal['PA'], 2*onegal['R1']*60, 
+                                                    pixscale, color='red', linewidth=2)
+                            except:
+                                pdb.set_trace()
+
+                            # add the SGA sources, if any
+                            if len(onesga) > 0:
+                                for onesga1 in onesga:
+                                    xpos, ypos = wcs.wcs_world2pix(onesga1['RA'], onesga1['DEC'], 1)
+                                    draw_ellipse_on_png(colorimg, xpos, imgsz[1]-ypos, onesga1['BA'], 
+                                                        onesga1['PA'], onesga1['D26'] * 60.0, pixscale, 
+                                                        color='dodgerblue', linewidth=2)
+            
+                            print(f'Writing {pngfile1}')
+                            colorimg.save(pngfile1)
+            
+                        label = onegal['OBJNAME']
+                        addbar_to_png(pngfile1, barlen, barlabel, label, pngfile1, scaledfont=True)
+                        #pdb.set_trace()
+            
+                    pngfiles.append(pngfile1)
+            
+                pngfile = os.path.join(paperdir, 'data', 'hecate', 'hecate-notin-sga-{}-{:02d}.png'.format(binlabel, ipage))
+                print('Writing {}'.format(pngfile))
+            
+                cmd = 'montage -bordercolor white -borderwidth 1 -tile {}x{} -geometry 512x512 '.format(ncol, nrow)
+                cmd = cmd+' '.join([pngf for pngf in pngfiles])
+                cmd = cmd+' {}'.format(pngfile)
+                print(cmd)
+                os.system(cmd)        
+    
+                #pdb.set_trace()
+    # --------------------------------------------------
+
+    # make the QA -
+    @ticker.FuncFormatter
+    def major_formatter(x, pos):
+        if x >= 0:
+            return '{:.0f}'.format(10**x)
+        elif (x < 0) and (x >= -1):
+            return '{:.1f}'.format(10**x)
+        else:
+            return '{:.2f}'.format(10**x)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    xlim = (minrad, maxrad)
+    ylim = (6, 26)
+    I = np.isfinite(hecate['BT'])
+    corner.hist2d(np.log10(2*hecate['R1'][I]), hecate['BT'][I],
+                  levels=[0.1, 0.25, 0.5, 0.75, 0.95, 0.99],
+                  #levels=[0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99],
+                  bins=75, smooth=True, ax=ax, color='k', #mpl.cm.get_cmap('viridis'),
+                  plot_density=True, fill_contours=True, range=(xlim, ylim),
+                  data_kwargs={'color': 'k', 'alpha': 1.0, 'ms': 3, 'alpha': 0.5},
+                  contour_kwargs={'colors': 'k', 'alpha': 0.5}
+                 )
+    ax.set_xlabel(r'$\log_{10}\,(2\times R_{1})$ (HECATE, arcmin)')
+    ax.set_ylabel(r'$b_{\mathrm{t}}$ (Vega, HECATE)')
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(2))
+    ax.xaxis.set_major_formatter(major_formatter)
+    ax.set_xticks(np.log10([0.05, 0.2, 0.5, 1, 2, 5, 9, 15]))
+    ax.margins()
+    
+    ax2 = ax.twinx()
+    for ii, bb in enumerate(bins):
+        #ax2.axvline(x=bb, color='orange', ls='-', alpha=1)
+        if bb > -10:#-0.6:
+            ax2.text(xfrac[ii]+drad/2, yfrac_corrected[ii]+0.03, 
+                     '{:,d}'.format(denom[ii]), ha='center', va='bottom', 
+                     alpha=1.0, fontsize=10)
+    #ax2.axvline(x=np.log10(20/60), color='gray', ls='-', alpha=0.7)
+    #ax2.axvline(x=np.log10(30/60), color='gray', ls='-', alpha=0.7)
+    ax2.axhline(y=1.0, ls='-', lw=2, color='gray', alpha=0.7)
+    ax2.step(xfrac+drad, yfrac_corrected, color=colors[4], ls='-', lw=3, where='pre',
+             label='Corrected Fraction')
+    ax2.step(xfrac+drad, yfrac, color=colors[3], ls='--', lw=3, where='pre', 
+             label='Raw Fraction')
+    ax2.set_ylim(0, 1.1)
+    hh, ll = ax2.get_legend_handles_labels()
+    ax2.legend([hh[1], hh[0]], [ll[1], ll[0]], loc='lower right', fontsize=14) # frameon=False, 
+    #ax2.legend(loc='lower right', fontsize=14)
+    ax2.margins()
+    ax2.set_ylabel('Fraction of SGA-HECATE Matches', rotation=270, labelpad=35)
+
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.subplots_adjust(bottom=0.15, right=0.85, top=0.95)
+        fig.savefig(pngfile)#, bbox_inches='tight')
+        plt.close(fig)
+
 def fig_hecate_completeness(sga, png=None):
     """Quantify the sample completeness by comparing against HECATE."""
 
@@ -3982,6 +4739,7 @@ def main():
     #parser.add_argument('--rich-groups', action='store_true')
     parser.add_argument('--nsa-completeness', action='store_true')
     parser.add_argument('--hecate-completeness', action='store_true')
+    parser.add_argument('--z0mgs-completeness', action='store_true')
     parser.add_argument('--sb-mag', action='store_true')
     parser.add_argument('--sbmontage', action='store_true')
     #parser.add_argument('--sbmontage-gallery', action='store_true')
@@ -4048,6 +4806,10 @@ def main():
     # Fig - completeness against HECATE
     if args.hecate_completeness:
         fig_hecate_completeness(sga, png='hecate-completeness.png')
+
+    # Fig - completeness against HECATE
+    if args.z0mgs_completeness:
+        fig_z0mgs_completeness(sga, png='z0mgs-completeness.png')
 
     # Fig - bivariate scatterplot of surface brightness vs magnitude
     if args.sb_mag:
