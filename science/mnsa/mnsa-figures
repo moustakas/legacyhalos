@@ -1,0 +1,491 @@
+#!/usr/bin/env python
+"""Generate the figures for the MNSA paper.
+
+Load the legacyhalos code product, then, e.g.:
+mnsa-figures --xx
+
+"""
+import os, sys, time, pdb
+import argparse, subprocess
+import numpy as np
+import fitsio
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+
+from astropy.table import Table, vstack, join
+
+paperdir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'manga', 'mnsa-paper')
+figdir = os.path.join(paperdir, 'figures')
+tabledir = os.path.join(paperdir, 'tables')
+
+fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
+
+url = 'https://portal.nersc.gov/project/cosmo/data/sga/2020/data/'
+jpgurl = 'https://www.legacysurvey.org/viewer/jpeg-cutout?'
+
+def plot_style(font_scale=1.2, paper=False, talk=True):
+
+    import seaborn as sns
+    rc = {'font.family': 'serif'}#, 'text.usetex': True}
+    #rc = {'font.family': 'serif', 'text.usetex': True,
+    #       'text.latex.preamble': r'\boldmath'})
+    palette, context = 'Set2', 'talk'
+    
+    if paper:
+        context = 'paper'
+        palette = 'deep'
+        rc.update({'text.usetex': False})
+    
+    if talk:
+        context = 'talk'
+        palette = 'deep'
+        #rc.update({'text.usetex': True})
+
+    sns.set(context=context, style='ticks', font_scale=font_scale, rc=rc)
+    sns.set_palette(palette, 12)
+
+    colors = sns.color_palette()
+    #sns.reset_orig()
+
+    return sns, colors
+
+# adapted from https://github.com/desihub/desiutil/blob/5735fdc34c4e77c7fda84c92c32b9ac41158b8e1/py/desiutil/plots.py#L735-L857
+def ar_sky_cbar(ax, sc, label, extend=None, mloc=None):
+    cbar = plt.colorbar(sc, ax=ax, location='bottom',
+                        orientation="horizontal",
+                        spacing="proportional",
+                        extend=extend, extendfrac=0.025,
+                        pad=0.1, 
+                        fraction=0.035, aspect=40)
+    cbar.ax.xaxis.set_ticks_position("bottom")
+    cbar.set_label(label)#, labelpad=10)
+    if mloc is not None:
+        cbar.ax.xaxis.set_major_locator(ticker.MultipleLocator(mloc))
+
+def fig_sbmontage(onegal, igal=0, colorlim=(0.0, 1.5), png=None):
+    """Make one large figure with the surface brightness profile fitting results for
+    a single galaxy.
+
+    """
+    import numpy.ma as ma
+
+    from PIL import Image, ImageDraw, ImageFont
+    from photutils.aperture import EllipticalAperture
+    import matplotlib.patches as mpatches
+
+    from astropy.visualization import ImageNormalize
+    from astropy.visualization import AsinhStretch as Stretch
+    from astropy.visualization import ZScaleInterval as Interval
+
+    from legacyhalos.io import read_ellipsefit
+    from legacyhalos.ellipse import ellipse_sbprofile, CogModel
+    from legacyhalos.qa import _sbprofile_colors
+    from legacyhalos.SGA import read_multiband, SBTHRESH, cog_model
+
+    sns, _ = plot_style(talk=True, font_scale=1.4)
+    
+    # https://matplotlib.org/3.1.0/tutorials/colors/colormaps.html
+    #cmap = plt.cm.plasma
+    #cmap = plt.cm.cividis
+    cmap = plt.cm.inferno
+    #cmap = plt.cm.viridis
+    stretch = Stretch(a=0.9)
+    interval = Interval(contrast=0.5, n_samples=10000)
+
+    filesuffix = 'largegalaxy'
+
+    #print(sample)
+    galaxy, galaxydir = get_galaxy_galaxydir(onegal)
+    #this = np.where(galaxy == thisgalaxy)[0][0]
+    #onegal, galaxy, galaxydir = np.atleast_1d(sample)[this], np.atleast_1d(galaxy)[this], np.atleast_1d(galaxydir)[this]
+
+    data, galaxyinfo = read_multiband(galaxy, galaxydir, filesuffix=filesuffix, verbose=True)
+
+    galaxy_id = '{}'.format(data['galaxy_id'][igal])
+    #galaxy_id = '1121465'
+    #galaxy_indx = 1
+
+    # Read the data and the ellipse-fitting results.
+    ellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, filesuffix, galaxy_id))
+    ellipsefit = read_ellipsefit(galaxy, galaxydir, ellipsefitfile=ellipsefile, verbose=True)
+    #ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, galaxy_id=galaxy_id, verbose=True)
+
+    # old data model
+    ellipsefit['eps_moment'] = ellipsefit['eps'] 
+    ellipsefit['sma_g'] = ellipsefit['g_sma'] 
+    ellipsefit['sma_r'] = ellipsefit['r_sma'] 
+    ellipsefit['sma_z'] = ellipsefit['z_sma'] 
+    ellipsefit['intens_g'] = ellipsefit['g_intens'] 
+    ellipsefit['intens_r'] = ellipsefit['r_intens'] 
+    ellipsefit['intens_z'] = ellipsefit['z_intens'] 
+    ellipsefit['intens_err_g'] = ellipsefit['g_intens_err'] 
+    ellipsefit['intens_err_r'] = ellipsefit['r_intens_err'] 
+    ellipsefit['intens_err_z'] = ellipsefit['z_intens_err'] 
+
+    scaledfont = True
+    barlen_arcsec = 60.0 # [arcsec]
+    barlen = np.ceil(barlen_arcsec / data['refpixscale']).astype(int) # [pixels]
+    #barlen_kpc = barlen_arcsec * arcsec2kpc
+    
+    barlabel = '1 arcmin'
+    #barlabel = '1 arcmin = {:.0f} kpc'.format(barlen_kpc)
+
+    band = data['bands']
+    nband = len(band)
+
+    nplot = 12
+    sma_lw = 2
+    sma_alpha = 0.8
+
+    #fig, ax = plt.subplots(1, 3, figsize=(8*3, 8), sharex=True)
+    fig = plt.figure(figsize=(16, 16))
+    gs1 = fig.add_gridspec(3, 1, bottom=0.04, top=0.96, left=0.0, right=0.35,
+                           height_ratios=[1, 1, 1], hspace=0.03)
+
+    ax0 = fig.add_subplot(gs1[0])
+    with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, filesuffix))) as img:
+        draw = ImageDraw.Draw(img)
+        sz = img.size
+        if scaledfont:
+            fntsize = np.round(sz[0]/20).astype('int')
+        else:
+            fntsize = 20 # np.round(sz[0]/20).astype('int')
+        font = ImageFont.truetype(fonttype, size=fntsize)
+
+        txt = 'Image Stack'
+        ww = draw.textlength(txt, font=font)
+        x0, x1, y0 = 0+fntsize*0.8, 0+fntsize*1.5+ww, fntsize*1.5
+        dx = ((x1-x0) - ww)//2
+        draw.text((x0+dx, y0), txt, font=font)
+            
+        if barlen and barlabel:
+            width = np.round(sz[0]/150).astype('int')
+            # Add a scale bar and label--
+            x0, x1, y0, y1 = 0+fntsize*1.5, 0+fntsize*2+barlen, sz[1]-fntsize*2, sz[1]-fntsize*2.5
+            draw.line((x0, y1, x1, y1), fill='white', width=width)
+            ww = draw.textlength(barlabel, font=font)
+            dx = ((x1-x0) - ww)//2
+            #print(x0, x1, y0, y1, ww, x0+dx, sz)
+            draw.text((x0+dx, y0), barlabel, font=font)
+
+        # First display the data mosaic
+        ax0.imshow(img, interpolation='nearest')
+        ax0.xaxis.set_ticklabels([])
+        ax0.yaxis.set_ticklabels([])
+        ax0.xaxis.set_ticks([])
+        ax0.yaxis.set_ticks([])
+
+    # Now the model mosaic
+    ax1 = fig.add_subplot(gs1[1])
+    with Image.open(os.path.join(galaxydir, '{}-{}-model-grz.jpg'.format(galaxy, filesuffix))) as img:
+        draw = ImageDraw.Draw(img)
+        sz = img.size
+        if scaledfont:
+            fntsize = np.round(sz[0]/20).astype('int')
+        else:
+            fntsize = 20 # np.round(sz[0]/20).astype('int')
+        font = ImageFont.truetype(fonttype, size=fntsize)
+
+        txt = 'Image Model'
+        ww = draw.textlength(txt, font=font)
+        x0, x1, y0 = 0+fntsize*0.8, 0+fntsize*1.5+ww, fntsize*1.5
+        dx = ((x1-x0) - ww)//2
+        draw.text((x0+dx, y0), txt, font=font)
+
+        ax1.imshow(img, interpolation='nearest')
+        ax1.xaxis.set_ticklabels([])
+        ax1.yaxis.set_ticklabels([])
+        ax1.xaxis.set_ticks([])
+        ax1.yaxis.set_ticks([])
+
+    filt = 'r'
+    dat = data['{}_masked'.format(filt)][igal]
+    img = ma.masked_array(dat.data, dat.mask)
+    mask = ma.masked_array(dat.data, ~dat.mask)
+
+    try:
+        norm = ImageNormalize(img, interval=interval, stretch=stretch)
+    except:
+        norm = ImageNormalize(img, interval=interval)
+
+    ax2 = fig.add_subplot(gs1[2])
+    ax2.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
+               interpolation='nearest')
+    txt = plt.text(0.08, 0.9, r'${}$-band Image'.format(filt), transform=ax2.transAxes, #fontweight='bold',
+                   ha='left', va='center', color='k', fontsize=18)
+    #txt.set_bbox(dict(facecolor='gray', alpha=0.5))
+
+    #smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)].max(), nplot)
+    radkeys = ['SMA_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
+    smas = np.array(list(onegal[radkeys].as_array()[0])) / data['refpixscale'] # semi-major axis, pixels
+    for sma, key in zip(smas, radkeys):
+        this = np.argmin(np.abs(ellipsefit['{}_sma'.format(filt)]-sma))
+        if key == 'SMA_SB26':
+            col = 'dodgerblue'
+            lw = 4
+        else:
+            col = 'k'
+            lw = sma_lw
+        ax2.add_patch(mpatches.Ellipse((ellipsefit['{}_x0'.format(filt)][this], ellipsefit['{}_y0'.format(filt)][this]),
+                                       2*ellipsefit['{}_sma'.format(filt)][this],
+                                       2*ellipsefit['{}_sma'.format(filt)][this]*(1-ellipsefit['{}_eps'.format(filt)][this]),
+                                       angle=ellipsefit['{}_pa'.format(filt)][this]-90,
+                                       color=col, lw=lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
+
+    for xx in (ax0, ax1, ax2):
+        xx.xaxis.set_ticklabels([])
+        xx.yaxis.set_ticklabels([])
+        xx.xaxis.set_ticks([])
+        xx.yaxis.set_ticks([])
+
+    ## [1] vertical 3-panel showing the grz data and ellipse samples
+    #for ii, filt in enumerate(band):
+    #    xx = fig.add_subplot(gs1[ii])
+    #    
+    #    dat = data['{}_masked'.format(filt)][igal]
+    #    img = ma.masked_array(dat.data, dat.mask)
+    #    mask = ma.masked_array(dat.data, ~dat.mask)
+    #
+    #    try:
+    #        norm = ImageNormalize(img, interval=interval, stretch=stretch)
+    #    except:
+    #        norm = ImageNormalize(img, interval=interval)
+    #
+    #    xx.imshow(dat, origin='lower', norm=norm, cmap=cmap, #cmap=cmap[filt],
+    #               interpolation='nearest')
+    #    plt.text(0.1, 0.9, filt, transform=xx.transAxes, fontweight='bold',
+    #             ha='center', va='center', color='k', fontsize=26)
+    #
+    #    smas = np.linspace(0, ellipsefit['{}_sma'.format(filt)].max(), nplot)
+    #    for sma in smas:
+    #        this = np.argmin(np.abs(ellipsefit['{}_sma'.format(filt)]-sma))
+    #        xx.add_patch(mpatches.Ellipse((ellipsefit['{}_x0'.format(filt)][this], ellipsefit['{}_y0'.format(filt)][this]),
+    #                                       2*ellipsefit['{}_sma'.format(filt)][this],
+    #                                       2*ellipsefit['{}_sma'.format(filt)][this]*(1-ellipsefit['{}_eps'.format(filt)][this]),
+    #                                       ellipsefit['{}_pa'.format(filt)][this]-90,
+    #                                       color='k', lw=sma_lw, alpha=sma_alpha, fill=False))#, label='Fitted isophote')
+    #
+    #    xx.xaxis.set_ticklabels([])
+    #    xx.yaxis.set_ticklabels([])
+    #    xx.xaxis.set_ticks([])
+    #    xx.yaxis.set_ticks([])
+
+    # [2] surface brightness and color profile
+    gs2 = fig.add_gridspec(3, 1, bottom=0.08, top=0.93, left=0.42,
+                           right=0.98, hspace=0.04, height_ratios=[2.9, 1.4, 2])
+    
+    minerr, use_ylim, plot_radius = 0.0, None, False
+    
+    sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr, sma_not_radius=~plot_radius,
+                                  cut_on_cog=False)
+    colors = _sbprofile_colors(makeiter=True)
+
+    bands = ellipsefit['bands']
+    refband = ellipsefit['refband']
+
+    yminmax = [40, 0]
+    xminmax = [1.0, 0]
+    #xminmax = [1.0, 0]
+
+    #fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
+    #                               gridspec_kw = {'height_ratios':[2, 1]})
+    ax1 = fig.add_subplot(gs2[0])
+    ax2 = fig.add_subplot(gs2[1])#, sharex=ax1)
+    for filt in bands:
+        col = next(colors)
+
+        mu = sbprofile['mu_{}'.format(filt)]
+        muerr = sbprofile['muerr_{}'.format(filt)]
+        if len(mu) == 0 or mu[0] == -1: # no good data
+            continue
+        radius = sbprofile['radius_{}'.format(filt)]**0.25
+
+        ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt),
+                         facecolor=col, edgecolor='k', lw=2, alpha=0.75)
+
+        if np.nanmin(mu-muerr) < yminmax[0]:
+            yminmax[0] = np.nanmin(mu-muerr)
+        if np.nanmax(mu+muerr) > yminmax[1]:
+            yminmax[1] = np.nanmax(mu+muerr)
+        if np.nanmax(radius) > xminmax[1]:
+            xminmax[1] = np.nanmax(radius)
+
+        if filt == 'r':
+            for col, ls in zip(['R_SMA50', 'SMA_SB26'], ['--', '-']):
+                if col == 'SMA_SB26':
+                    muint = 26.0
+                else:
+                    muint = np.interp(onegal[col][0]**0.25, radius, mu)
+                ax1.plot([xminmax[0], onegal[col][0]**0.25], [muint, muint], color='gray', ls=ls)
+                ax1.plot([onegal[col][0]**0.25, onegal[col][0]**0.25], [yminmax[1]+0.5, muint], color='gray', ls=ls)
+            #ax1.axvline(x=onegal['R_SMA50']**0.25, color='gray', ls='-')
+            #ax1.axvline(x=onegal['SMA_SB26']**0.25, color='gray', ls='--')
+
+    ax1.set_ylabel(r'$\mu(r)$ (mag arcsec$^{-2}$)')
+    #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
+
+    ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
+    if ylim[0] < 17:
+        ylim[0] = 17
+    if ylim[1] > 33:
+        ylim[1] = 33
+
+    if use_ylim is not None:
+        ax1.set_ylim(use_ylim)
+    else:
+        ax1.set_ylim(ylim)
+    ax1.invert_yaxis()
+
+    xlim = [xminmax[0], xminmax[1]*1.0]
+    ax1.set_xlim(xlim)
+
+    hh, ll = ax1.get_legend_handles_labels()
+    if len(hh) > 0:
+        leg1 = ax1.legend(loc='upper right', fontsize=18, frameon=True)
+        #ax1.set_title('{} ({})'.format(onegal['GALAXY'][0], onegal['GROUP_NAME'][0].replace('_', ' ')))
+        ax1.set_title(galaxyinfo[igal]['galaxy'][0])
+
+    # Now the color-radius plot
+    if sbprofile['radius_gr'][0] != -1:
+        ax2.fill_between(sbprofile['radius_gr']**0.25,
+                         sbprofile['gr'] - sbprofile['gr_err'],
+                         sbprofile['gr'] + sbprofile['gr_err'],
+                         label=r'$g - r$', facecolor=next(colors), alpha=0.75,
+                         edgecolor='k', lw=2)
+
+    if sbprofile['radius_rz'][0] != -1:
+        ax2.fill_between(sbprofile['radius_rz']**0.25,
+                         sbprofile['rz'] - sbprofile['rz_err'],
+                         sbprofile['rz'] + sbprofile['rz_err'],
+                         label=r'$r - z$', facecolor=next(colors), alpha=0.75,
+                         edgecolor='k', lw=2)
+
+    hh, ll = ax2.get_legend_handles_labels()
+    if len(hh) > 0:
+        ax2.legend(loc='upper right', fontsize=18, frameon=True)
+        #ax2.legend(bbox_to_anchor=(0.25, 0.98))
+
+    ax2.set_ylabel('Color (mag)')
+    ax2.set_ylim(colorlim)
+    ax2.set_xlim(xlim)
+    #ax2.autoscale(False) # do not scale further
+
+    for xx in (ax1, ax2):
+        xx.margins(x=0)
+        xx.xaxis.set_ticklabels([])
+        ylim = xx.get_ylim()
+        xx.fill_between([0, (2*ellipsefit['psfsize_r'])**0.25],
+                        [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
+
+    #ax2.text(0.05, 0.15, 'PSF\n(3$\sigma$)', ha='center', va='center',
+    #    transform=ax2.transAxes, fontsize=10)
+    ax1.text(0.07, 0.1, 'PSF\n(2$\sigma$)', ha='center', va='center',
+             transform=ax1.transAxes, fontsize=18)
+
+    # [3] curve of growth
+    ax3 = fig.add_subplot(gs2[2])#, sharex=ax2)
+    colors = _sbprofile_colors()
+    colors2 = iter(['navy', 'darkgreen', 'tomato'])
+    marker = iter(['s', 'o', '^'])
+
+    radkeys = ['SMA_SB{:0g}'.format(sbcut) for sbcut in SBTHRESH]
+    sma_arcsec = np.array(list(onegal[radkeys].as_array()[0])) # semi-major axis, arcsec
+    xplot_arcsec = np.linspace(0.01, 1.05*xlim[1]**4, 100)
+    #xplot_arcsec = np.linspace(0.01, 1.3*np.max(sma_arcsec), 100)
+
+    maxsma = 0
+    eps = ellipsefit['eps']
+
+    yfaint, ybright = 0, 50
+    for filt in bands:
+        col = next(colors) # iterate here in case we're missing a bandpass
+        col2 = next(colors2)
+        mark = next(marker)
+
+        magkeysfilt = [radkey.replace('SMA_', '{}_MAG_'.format(filt.upper())) for radkey in radkeys]
+        magerrkeysfilt = ['{}_ERR'.format(magkeyfilt) for magkeyfilt in magkeysfilt]
+        cogmag = np.array(list(onegal[magkeysfilt].as_array()[0]))
+        cogmagerr = np.sqrt((np.array(list(onegal[magerrkeysfilt].as_array()[0])))**2 + minerr**2)
+
+        these = np.where((sma_arcsec > 0) * (cogmag > 0) * (cogmagerr > 0))[0]
+        cog = cogmag[these]
+        cogerr = cogmagerr[these]
+        sma = sma_arcsec[these]
+
+        magtot = onegal['{}_COG_PARAMS_MTOT'.format(filt.upper())][0]
+        m0 = onegal['{}_COG_PARAMS_M0'.format(filt.upper())][0]
+        alpha1 = onegal['{}_COG_PARAMS_ALPHA1'.format(filt.upper())][0]
+        alpha2 = onegal['{}_COG_PARAMS_ALPHA2'.format(filt.upper())][0]
+        chi2 = onegal['{}_COG_PARAMS_CHI2'.format(filt.upper())][0]
+        #print(filt, magtot, m0, alpha1, alpha2)
+
+        label = r'${}={:.2f}$'.format(filt, magtot)
+        #label = r'${}={:.3f}\ (\chi^{{2}}_{{\nu}}={:.2f})$'.format(filt, magtot, chi2)
+        #label = r'${}$'.format(filt)
+
+        ax3.errorbar(sma**0.25, cog, cogerr, fmt=mark, color=col, label=label,
+                     markersize=10, capthick=2, capsize=2)
+
+        yplot_mag = cog_model(xplot_arcsec, magtot, m0, alpha1, alpha2)
+        ax3.plot(xplot_arcsec**0.25, yplot_mag, color=col2, lw=2, ls='-', alpha=0.5)
+
+        if np.max(sma) > maxsma:
+            maxsma = np.max(sma)
+
+        if cog.max() > yfaint:
+            yfaint = cog.max()
+        if cog.min() < ybright:
+            ybright = cog.min()
+
+    ax3.set_xlabel(r'(Semi-major axis / arcsec)$^{1/4}$')
+    ax3.set_ylabel(r'm$(<r)$ (mag)')
+    #ax3.margins(x=0)
+    ax3.set_xlim(xlim)
+        
+    yfaint += 1.0 # 0.7
+    ybright += -0.5 # -0.7
+    ax3.set_ylim(yfaint, ybright)
+    #ax3.xaxis.set_major_locator(ticker.MultipleLocator(0.5))
+
+    if False:
+        ax_twin = ax.twinx()
+        ax_twin.set_ylim(yfaint, ybright)
+        ax_twin.set_ylabel('Cumulative Flux (AB mag)')#, rotation=-90)
+
+    if True:
+        hh, ll = ax3.get_legend_handles_labels()
+        if len(hh) > 0:
+            leg1 = ax3.legend(loc='lower right', fontsize=14)#, ncol=3)
+
+    ylim = ax3.get_ylim()
+    ax3.fill_between([0, (2*ellipsefit['psfsize_r'])**0.25],
+                     [ylim[0], ylim[0]], [ylim[1], ylim[1]], color='grey', alpha=0.1)
+    #ax3.text(0.05, 0.15, 'PSF\n(3$\sigma$)', ha='center', va='center',
+    #         transform=ax3.transAxes, fontsize=16)
+
+        
+    if png:
+        pngfile = os.path.join(figdir, png)
+        print('Writing {}'.format(pngfile))
+        fig.savefig(pngfile)#, bbox_inches='tight')
+        plt.close(fig)
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--sbmontage', action='store_true')
+    args = parser.parse_args()
+
+    pdb.set_trace()
+
+    sga = legacyhalos.SGA.read_sga2020(ext='ELLIPSE')
+
+    # Fig - SB montages
+    if args.sbmontage:
+        sample = legacyhalos.SGA.read_sga2020(galaxylist='NGC5016')
+        fig_sbmontage(sample, igal=0, colorlim=(-0.5, 1.5), png='NGC5016-sbmontage.png')
+
+if __name__ == '__main__':
+    main()
