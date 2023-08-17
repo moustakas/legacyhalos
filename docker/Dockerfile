@@ -11,15 +11,34 @@ RUN for x in \
     scikit-image \
     ; do pip --no-cache-dir install $x; done
 
-# Extra steps for mpi4py on NERSC
+# Extra steps for mpi4py at NERSC: build mpich then install mpi4py
 RUN apt-get update        && \
     apt-get upgrade --yes && \
     apt-get install --yes    \
-        libmpich-dev  \
-        python3-dev && \
-    apt-get clean all
+        build-essential      \
+        gfortran             \
+        libcurl4             \
+        wget             &&  \
+    apt-get clean all    &&  \
+    rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install --no-binary=mpi4py mpi4py
+ARG mpich=4.0.2
+ARG mpich_prefix=mpich-$mpich
+
+RUN \
+    wget https://www.mpich.org/static/downloads/$mpich/$mpich_prefix.tar.gz && \
+    tar xvzf $mpich_prefix.tar.gz                                           && \
+    cd $mpich_prefix                                                        && \
+    FFLAGS=-fallow-argument-mismatch FCFLAGS=-fallow-argument-mismatch ./configure            && \
+    make -j 16                                                              && \
+    make install                                                            && \
+    make clean                                                              && \
+    cd ..                                                                   && \
+    rm -rf $mpich_prefix
+
+RUN /sbin/ldconfig
+
+RUN python3 -m pip install mpi4py
 
 # Remove the policy.xml file so we do not get an 'exhausted cache resources'
 # error when we build mosaics for very large systems.
