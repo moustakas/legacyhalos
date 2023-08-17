@@ -11,6 +11,16 @@ RUN for x in \
     scikit-image \
     ; do pip --no-cache-dir install $x; done
 
+# Extra steps for mpi4py on NERSC
+RUN apt-get update        && \
+    apt-get upgrade --yes && \
+    apt-get install --yes    \
+        libmpich-dev  \
+        python3-dev && \
+    apt-get clean all
+
+RUN python3 -m pip install --no-binary=mpi4py mpi4py
+
 # Remove the policy.xml file so we do not get an 'exhausted cache resources'
 # error when we build mosaics for very large systems.
 RUN echo '<policymap></policymap>' > /etc/ImageMagick-6/policy.xml
