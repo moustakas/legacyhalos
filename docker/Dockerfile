@@ -9,6 +9,7 @@ RUN for x in \
     gnureadline \
     corner \
     scikit-image \
+    seaborn \
     ; do pip --no-cache-dir install $x; done
 
 # Remove the policy.xml file so we do not get an 'exhausted cache resources'

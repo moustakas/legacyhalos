@@ -116,7 +116,7 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
             x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen*pixscalefactor, sz[1]-fntsize*1.5, sz[1]-fntsize*4
             #print(sz, fntsize, x0, x1, y0, y1, barlen*pixscalefactor)
             draw.line((x0, y1, x1, y1), fill='white', width=width)
-            ww, hh = draw.textsize(barlabel, font=font)
+            ww = draw.textlength(barlabel, font=font)
             dx = ((x1-x0) - ww)//2
             #print(x0, x1, y0, y1, ww, x0+dx, sz)
             draw.text((x0+dx, y0), barlabel, font=font)
@@ -125,7 +125,7 @@ def addbar_to_png(jpgfile, barlen, barlabel, imtype, pngfile, scaledfont=True,
         if imtype:
             #fntsize = 20 # np.round(sz[0]/20).astype('int')
             font = ImageFont.truetype(fonttype, size=imtype_fntsize)
-            ww, hh = draw.textsize(imtype, font=font)
+            ww = draw.textlength(imtype, font=font)
             x0, y0, y1 = imtype_fntsize*1.2, imtype_fntsize*2, imtype_fntsize*1.2#4
             #x0, y0, y1 = sz[0]-ww-imtype_fntsize*2, sz[1]-imtype_fntsize*2, sz[1]-imtype_fntsize*2.5#4
             draw.text((x0, y1), imtype, font=font)
@@ -1162,7 +1162,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             x0, x1, y0, y1 = 0+fntsize*2, 0+fntsize*2+barlen*pixscalefactor, sz[1]-fntsize*2, sz[1]-fntsize*2.5#4
             #print(sz, fntsize, x0, x1, y0, y1, barlen*pixscalefactor)            
             draw.line((x0, y1, x1, y1), fill='white', width=width)
-            ww, hh = draw.textsize(barlabel, font=font)
+            ww = draw.textlength(barlabel, font=font)
             dx = ((x1-x0) - ww)//2
             #print(x0, x1, y0, y1, ww, x0+dx, sz)
             draw.text((x0+dx, y0), barlabel, font=font)
