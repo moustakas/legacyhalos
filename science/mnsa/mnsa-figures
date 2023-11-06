@@ -16,9 +16,12 @@ import matplotlib.ticker as ticker
 
 from astropy.table import Table, vstack, join
 
-paperdir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'manga', 'mnsa-paper')
+datadir = os.path.join(os.getenv('LEGACYHALOS_DIR'), 'manga')
+paperdir = os.path.join(datadir, 'mnsa-paper')
 figdir = os.path.join(paperdir, 'figures')
 tabledir = os.path.join(paperdir, 'tables')
+
+os.environ['LEGACYHALOS_DATA_DIR'] = os.path.join(os.getenv('IM_PROJECTS_DIR'), 'manga-data')
 
 fonttype = os.path.join(os.getenv('LEGACYHALOS_CODE_DIR'), 'py', 'legacyhalos', 'data', 'Georgia-Italic.ttf')
 
@@ -64,7 +67,7 @@ def ar_sky_cbar(ax, sc, label, extend=None, mloc=None):
     if mloc is not None:
         cbar.ax.xaxis.set_major_locator(ticker.MultipleLocator(mloc))
 
-def fig_sbmontage(onegal, igal=0, colorlim=(0.0, 1.5), png=None):
+def fig_sbmontage(sample, onegal, igal=0, colorlim=(0.0, 1.5), png=None):
     """Make one large figure with the surface brightness profile fitting results for
     a single galaxy.
 
@@ -82,7 +85,7 @@ def fig_sbmontage(onegal, igal=0, colorlim=(0.0, 1.5), png=None):
     from legacyhalos.io import read_ellipsefit
     from legacyhalos.ellipse import ellipse_sbprofile, CogModel
     from legacyhalos.qa import _sbprofile_colors
-    from legacyhalos.SGA import read_multiband, SBTHRESH, cog_model
+    from legacyhalos.manga import get_galaxy_galaxydir, read_multiband, SBTHRESH, APERTURES#, cog_model
 
     sns, _ = plot_style(talk=True, font_scale=1.4)
     
@@ -94,10 +97,10 @@ def fig_sbmontage(onegal, igal=0, colorlim=(0.0, 1.5), png=None):
     stretch = Stretch(a=0.9)
     interval = Interval(contrast=0.5, n_samples=10000)
 
-    filesuffix = 'largegalaxy'
+    filesuffix = 'custom'
 
     #print(sample)
-    galaxy, galaxydir = get_galaxy_galaxydir(onegal)
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
     #this = np.where(galaxy == thisgalaxy)[0][0]
     #onegal, galaxy, galaxydir = np.atleast_1d(sample)[this], np.atleast_1d(galaxy)[this], np.atleast_1d(galaxydir)[this]
 
@@ -108,21 +111,22 @@ def fig_sbmontage(onegal, igal=0, colorlim=(0.0, 1.5), png=None):
     #galaxy_indx = 1
 
     # Read the data and the ellipse-fitting results.
-    ellipsefile = os.path.join(galaxydir, '{}-{}-{}-ellipse.fits'.format(galaxy, filesuffix, galaxy_id))
+    ellipsefile = os.path.join(galaxydir, '{}-{}-ellipse-{}.fits'.format(galaxy, filesuffix, galaxy_id))
     ellipsefit = read_ellipsefit(galaxy, galaxydir, ellipsefitfile=ellipsefile, verbose=True)
     #ellipsefit = read_ellipsefit(galaxy, galaxydir, filesuffix=filesuffix, galaxy_id=galaxy_id, verbose=True)
 
-    # old data model
-    ellipsefit['eps_moment'] = ellipsefit['eps'] 
-    ellipsefit['sma_g'] = ellipsefit['g_sma'] 
-    ellipsefit['sma_r'] = ellipsefit['r_sma'] 
-    ellipsefit['sma_z'] = ellipsefit['z_sma'] 
-    ellipsefit['intens_g'] = ellipsefit['g_intens'] 
-    ellipsefit['intens_r'] = ellipsefit['r_intens'] 
-    ellipsefit['intens_z'] = ellipsefit['z_intens'] 
-    ellipsefit['intens_err_g'] = ellipsefit['g_intens_err'] 
-    ellipsefit['intens_err_r'] = ellipsefit['r_intens_err'] 
-    ellipsefit['intens_err_z'] = ellipsefit['z_intens_err'] 
+    pdb.set_trace()
+    ## old data model
+    #ellipsefit['eps_moment'] = ellipsefit['eps'] 
+    #ellipsefit['sma_g'] = ellipsefit['g_sma'] 
+    #ellipsefit['sma_r'] = ellipsefit['r_sma'] 
+    #ellipsefit['sma_z'] = ellipsefit['z_sma'] 
+    #ellipsefit['intens_g'] = ellipsefit['g_intens'] 
+    #ellipsefit['intens_r'] = ellipsefit['r_intens'] 
+    #ellipsefit['intens_z'] = ellipsefit['z_intens'] 
+    #ellipsefit['intens_err_g'] = ellipsefit['g_intens_err'] 
+    #ellipsefit['intens_err_r'] = ellipsefit['r_intens_err'] 
+    #ellipsefit['intens_err_z'] = ellipsefit['z_intens_err'] 
 
     scaledfont = True
     barlen_arcsec = 60.0 # [arcsec]
@@ -478,14 +482,15 @@ def main():
     parser.add_argument('--sbmontage', action='store_true')
     args = parser.parse_args()
 
-    pdb.set_trace()
-
-    sga = legacyhalos.SGA.read_sga2020(ext='ELLIPSE')
+    sample = Table(fitsio.read(os.path.join(datadir, 'manga-legacyphot-native-0.3.0.fits'), ext='PARENT'))
+    ellipse = Table(fitsio.read(os.path.join(datadir, 'manga-legacyphot-native-0.3.0.fits'), ext='ELLIPSE'))
 
     # Fig - SB montages
     if args.sbmontage:
-        sample = legacyhalos.SGA.read_sga2020(galaxylist='NGC5016')
-        fig_sbmontage(sample, igal=0, colorlim=(-0.5, 1.5), png='NGC5016-sbmontage.png')
+        I = sample['PLATEIFU'] == '8253-6104'
+        sample = sample[I]
+        ellipse = ellipse[I]
+        fig_sbmontage(sample, ellipse, colorlim=(-0.5, 1.5), png='8253-6104-sbmontage.png')
 
 if __name__ == '__main__':
     main()
