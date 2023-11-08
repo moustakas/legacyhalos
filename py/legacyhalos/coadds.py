@@ -428,7 +428,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     #err = 0
 
     # optionally write out the GALEX and WISE PSFs
-    if write_wise_psf:
+    if unwise and write_wise_psf:
         import fitsio
         import unwise_psf.unwise_psf as unwise_psf
         from legacypipe.galex import galex_psf
