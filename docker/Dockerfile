@@ -1,4 +1,4 @@
-FROM legacysurvey/legacypipe:DR10.1.3
+FROM legacysurvey/legacypipe:DR10.2
 
 RUN for x in \
     ipython \
@@ -9,6 +9,7 @@ RUN for x in \
     gnureadline \
     corner \
     scikit-image \
+    seaborn \
     ; do pip --no-cache-dir install $x; done
 
 # Remove the policy.xml file so we do not get an 'exhausted cache resources'
