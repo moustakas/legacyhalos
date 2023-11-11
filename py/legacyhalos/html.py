@@ -459,7 +459,8 @@ def make_maskbits_qa(galaxy, galaxydir, htmlgalaxydir, clobber=False, verbose=Fa
 
 def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                     refband='r', pixscale=0.262, read_multiband=None,
-                    qa_multiwavelength_sed=None,
+                    qa_multiwavelength_sed=None, SBTHRESH=None,
+                    linear=False, plot_colors=True,
                     galaxy_id=None, barlen=None, barlabel=None, clobber=False, verbose=False,
                     cosmo=None, galex=False, unwise=False, scaledfont=False):
     """Generate QAplots from the ellipse-fitting.
@@ -522,7 +523,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
             if not os.path.isfile(sbprofilefile) or clobber:
                 display_ellipse_sbprofile(ellipsefit, plot_radius=False, plot_sbradii=False,
                                           png=sbprofilefile, verbose=verbose, minerr=0.0,
-                                          cosmo=cosmo)
+                                          cosmo=cosmo, linear=linear, plot_colors=plot_colors)
                 
             cogfile = os.path.join(htmlgalaxydir, '{}-{}-ellipse-{}cog.png'.format(galaxy, data['filesuffix'], galid))
             if not os.path.isfile(cogfile) or clobber:
@@ -540,6 +541,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                         display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
                                           igal=igal, barlen=barlen, barlabel=barlabel,
                                           png=multibandfile, verbose=verbose, scaledfont=scaledfont,
+                                          SBTHRESH=SBTHRESH,
                                           galex=False, unwise=True)
                     # Create a thumbnail.
                     cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
@@ -556,6 +558,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                         display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg,
                                           igal=igal, barlen=barlen, barlabel=barlabel,
                                           png=multibandfile, verbose=verbose, scaledfont=scaledfont,
+                                          SBTHRESH=SBTHRESH,
                                           galex=True, unwise=False)
                     # Create a thumbnail.
                     cmd = 'convert -thumbnail 1024x1024 {} {}'.format(multibandfile, thumbfile)#.replace('>', '\>')
@@ -570,6 +573,7 @@ def make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
                 with Image.open(os.path.join(galaxydir, '{}-{}-image-grz.jpg'.format(galaxy, data['filesuffix']))) as colorimg:
                     display_multiband(data, ellipsefit=ellipsefit, colorimg=colorimg, bands=bands,
                                       igal=igal, barlen=barlen, barlabel=barlabel,
+                                      SBTHRESH=SBTHRESH,
                                       png=multibandfile, verbose=verbose, scaledfont=scaledfont)
             
                 # Create a thumbnail.
@@ -655,8 +659,9 @@ def make_sersic_qa(galaxy, galaxydir, htmlgalaxydir, bands=['g', 'r', 'z'],
 
 def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
                bands=['g', 'r', 'z'], pixscale=0.262, zcolumn='Z', galaxy_id=None,
-               nproc=1, barlen=None, barlabel=None,
+               nproc=1, barlen=None, barlabel=None, SBTHRESH=None,
                radius_mosaic_arcsec=None, maketrends=False, ccdqa=False,
+               linear=False, plot_colors=True,
                clobber=False, verbose=True, get_galaxy_galaxydir=None,
                read_multiband=None, qa_multiwavelength_sed=None,
                cosmo=None, galex=False, unwise=False,
@@ -713,7 +718,8 @@ def make_plots(sample, datadir=None, htmldir=None, survey=None, refband='r',
         if not just_coadds:
             make_ellipse_qa(galaxy, galaxydir, htmlgalaxydir, bands=bands, refband=refband,
                             pixscale=pixscale, barlen=barlen, barlabel=barlabel,
-                            galaxy_id=galaxy_id, 
+                            galaxy_id=galaxy_id, SBTHRESH=SBTHRESH,
+                            linear=linear, plot_colors=plot_colors,
                             clobber=clobber, verbose=verbose, galex=galex, unwise=unwise,
                             cosmo=cosmo, scaledfont=scaledfont, read_multiband=read_multiband,
                             qa_multiwavelength_sed=qa_multiwavelength_sed)
