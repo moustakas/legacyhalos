@@ -16,7 +16,7 @@ RACOLUMN = 'RA' # 'RA'
 DECCOLUMN = 'DEC' # 'DEC'
 GALAXYCOLUMN = 'GALAXY'
 REFIDCOLUMN = 'TARGETID'
-DIAMCOLUMN = 'DIAMETER'
+DIAMCOLUMN = 'DIAM_INIT'
 
 SBTHRESH = [22., 23., 24., 25., 25.5, 26., 26.5, 27., 27.5, 28.] # surface brightness thresholds
 APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0] # multiples of MAJORAXIS
@@ -257,6 +257,7 @@ def build_catalog(sample, nproc=1, clobber=False, verbose=False):
     from astropy.io import fits
     from astropy.table import Table, vstack
     from astrometry.libkd.spherematch import match_radec
+    from legacyhalos.io import read_ellipsefit
     
     outfile = os.path.join(legacyhalos.io.legacyhalos_data_dir(), 'gwpv-legacyphot.fits')
     if os.path.isfile(outfile) and not clobber:
@@ -265,30 +266,40 @@ def build_catalog(sample, nproc=1, clobber=False, verbose=False):
 
     galaxy, galaxydir = get_galaxy_galaxydir(sample)
     t0 = time.time()
-    tractor, parent = [], []
+    tractor, parent, ellipse = [], [], []
     #dist = []
     for gal, gdir, onegal in zip(galaxy, galaxydir, sample):
-        pdb.set_trace()
-
-        ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(galaxy, refid))
+        refid = onegal[REFIDCOLUMN]
+        
+        ellipsefile = os.path.join(gdir, f'{gal}-custom-ellipse-{refid}.fits')
         if not os.path.isfile(ellipsefile):
-            print('Missing ellipse file {}'.format(ellipsefile))
-            return None, None, None #tractor, parent, ellipse
+            print(f'Missing ellipse file {ellipsefile}')
         
         tractorfile = os.path.join(gdir, f'{gal}-custom-tractor.fits')
-        
-        if os.path.isfile(tractorfile): # just in case
+        if not os.path.isfile(tractorfile): # just in case
+            print(f'Missing Tractor catalog {tractorfile}')
+            
+        if os.path.isfile(ellipsefile) and os.path.isfile(tractorfile):
+            _ellipse = read_ellipsefit(gal, gdir, galaxy_id=str(refid), asTable=True,
+                                       filesuffix='custom', verbose=True)
+            #_ellipse = _datarelease_table(_ellipse)
+            for col in _ellipse.colnames:
+                if _ellipse[col].ndim > 1:
+                    _ellipse.remove_column(col)
+            
             parent.append(onegal)
             cat = fitsio.read(tractorfile, upper=True)
-            m1 = np.where(cat['REF_ID'] == onegal[REFIDCOLUMN])[0]
+            m1 = np.where(cat['REF_ID'] == refid)[0]
             #m1, m2, d12 = match_radec(cat['RA'], cat['DEC'], onegal['RA'], onegal['DEC'], 1.0/3600, nearest=True)
             #if len(m1) != 1:
             #    print(f'Multiple matches within 1 arcsec for {onegal[GALAXYCOLUMN]}')
             #    m1 = m1[0]
             tractor.append(Table(cat)[m1])
             #dist.append(d12[0]*3600)
+            ellipse.append(_ellipse)
     tractor = vstack(tractor)
     parent = vstack(parent)
+    ellipse = vstack(ellipse, metadata_conflicts='silent')
     #dist = np.array(dist)
     print('Merging {} galaxies took {:.2f} min.'.format(len(tractor), (time.time()-t0)/60.0))
 
@@ -296,16 +307,20 @@ def build_catalog(sample, nproc=1, clobber=False, verbose=False):
         print('Something went wrong and no galaxies were fitted.')
         return
     assert(len(tractor) == len(parent))
-
+    assert(np.all(tractor['REF_ID'] == parent[REFIDCOLUMN]))
+    
     # write out
     hdu_primary = fits.PrimaryHDU()
     hdu_parent = fits.convenience.table_to_hdu(parent)
     hdu_parent.header['EXTNAME'] = 'PARENT'
+
+    hdu_ellipse = fits.convenience.table_to_hdu(ellipse)
+    hdu_ellipse.header['EXTNAME'] = 'ELLIPSE'
         
     hdu_tractor = fits.convenience.table_to_hdu(tractor)
     hdu_tractor.header['EXTNAME'] = 'TRACTOR'
-        
-    hx = fits.HDUList([hdu_primary, hdu_parent, hdu_tractor])
+
+    hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_tractor])    
     hx.writeto(outfile, overwrite=True, checksum=True)
 
     print('Wrote {} galaxies to {}'.format(len(parent), outfile))
@@ -487,9 +502,9 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         if np.abs(mgegalaxy.xmed-mge.xmed) > maxshift or np.abs(mgegalaxy.ymed-mge.ymed) > maxshift:
             print('Large centroid shift (x,y)=({:.3f},{:.3f})-->({:.3f},{:.3f})'.format(
                 mgegalaxy.xmed, mgegalaxy.ymed, mge.xmed, mge.ymed))
-            print('  Reverting to the default geometry and the Tractor centroid.')
             largeshift = True
-            mgegalaxy = copy(mge)
+            #print('  Reverting to the default geometry and the Tractor centroid.')
+            #mgegalaxy = copy(mge)
 
         radec_med = data['{}_wcs'.format(refband.lower())].pixelToPosition(
             mgegalaxy.ymed+1, mgegalaxy.xmed+1).vals
@@ -1206,7 +1221,7 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
                 pngfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}-custom-montage-grz.png'.format(galaxy1))
                 thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-custom-montage-grz.png'.format(galaxy1))
 
-                ra1, dec1, diam1 = gal[RACOLUMN], gal[DECCOLUMN], 2 * gal[DIAMCOLUMN] / pixscale
+                ra1, dec1, diam1 = gal[RACOLUMN], gal[DECCOLUMN], 2 * 60 * gal[DIAMCOLUMN] / pixscale
                 viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1, dr10=True)
 
                 html.write('<tr>\n')
@@ -1316,7 +1331,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         """Build the table of group properties.
 
         """
-        galaxy1, ra1, dec1, diam1 = gal[GALAXYCOLUMN], gal[RACOLUMN], gal[DECCOLUMN], 2 * gal[DIAMCOLUMN] / pixscale
+        galaxy1, ra1, dec1, diam1 = gal[GALAXYCOLUMN], gal[RACOLUMN], gal[DECCOLUMN], 2 * 60 * gal[DIAMCOLUMN] / pixscale
         viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1, dr10=True)
 
         html.write('<h2>Galaxy Properties</h2>\n')
