@@ -250,7 +250,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     return sample
 
-def build_catalog(sample, nproc=1, verbose=False):
+def build_catalog(sample, nproc=1, clobber=False, verbose=False):
     import time
     import fitsio
     import multiprocessing
@@ -268,7 +268,15 @@ def build_catalog(sample, nproc=1, verbose=False):
     tractor, parent = [], []
     #dist = []
     for gal, gdir, onegal in zip(galaxy, galaxydir, sample):
+        pdb.set_trace()
+
+        ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(galaxy, refid))
+        if not os.path.isfile(ellipsefile):
+            print('Missing ellipse file {}'.format(ellipsefile))
+            return None, None, None #tractor, parent, ellipse
+        
         tractorfile = os.path.join(gdir, f'{gal}-custom-tractor.fits')
+        
         if os.path.isfile(tractorfile): # just in case
             parent.append(onegal)
             cat = fitsio.read(tractorfile, upper=True)
@@ -394,19 +402,20 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         mgegalaxy.xpeak = tractor.by[indx]
         mgegalaxy.ypeak = tractor.bx[indx]
 
-        # never use the Tractor geometry (only the centroid)
-        # https://portal.nersc.gov/project/cosmo/temp/ioannis/virgofilaments-html/215/NGC5584/NGC5584.html
-        if False:
+        # use the Tractor geometry but the default size
+        #print('WARNING!!! Using the Tractor geometry but default_majoraxis which is not quite right.')
+        if True:
             mgegalaxy.eps = 1-ba
             mgegalaxy.pa = pa
             mgegalaxy.theta = (270 - pa) % 180
-            mgegalaxy.majoraxis = majoraxis
+            #mgegalaxy.majoraxis = majoraxis
+            mgegalaxy.majoraxis = default_majoraxis
         else:
             mgegalaxy.eps = 1 - default_ba
             mgegalaxy.pa = default_pa
             mgegalaxy.theta = (270 - default_pa) % 180
             mgegalaxy.majoraxis = default_majoraxis
-
+            
         # always restore all pixels within the nominal / initial size of the galaxy
         #objmask = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
         #                       default_majoraxis,
@@ -443,8 +452,8 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         # central in case there was a poor deblend.
         largeshift = False
         mge, centralmask, centralmask2 = tractor2mge(central, factor=1.0)
-        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask.png') ; pdb.set_trace()
-
+        #plt.clf() ; plt.imshow(centralmask, origin='lower') ; plt.savefig('ioannis/tmp/junk-mask.png') ; pdb.set_trace()
+        
         iclose = np.where([centralmask[int(by), int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
         
@@ -469,7 +478,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #if ii == 1:
         #    pdb.set_trace()
 
-        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('cosmo-www/tmp/junk-mge.png')
+        mgegalaxy = find_galaxy(img, nblob=1, binning=1, quiet=False)#, plot=True) ; plt.savefig('ioannis/tmp/junk-mge.png')
         #plt.clf() ; plt.imshow(mask, origin='lower') ; plt.savefig('junk-mask.png')
         ##plt.clf() ; plt.imshow(satmask, origin='lower') ; plt.savefig('/mnt/legacyhalos-data/debug.png')
         #pdb.set_trace()

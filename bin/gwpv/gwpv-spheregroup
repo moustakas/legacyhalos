@@ -167,18 +167,23 @@ def main():
     from astrometry.libkd.spherematch import match_radec
     import legacyhalos.io
 
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates.fits')
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates.csv')
+    #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates.fits')
     groupfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'gwpv-groups.fits')
 
-    cat = Table(fitsio.read(samplefile, upper=True))
+    cat = Table.read(samplefile)
+    #cat = Table(fitsio.read(samplefile, upper=True))
     print(f'Read {len(cat)} objects from {samplefile}')
 
     cat['PVID'] = cat['PVID'].astype(np.int16)
-    cat['DIAMETER'] = cat['DIAMETER'].astype('f4')
-
     cat['DIAM_INIT'] = cat['DIAMETER'] / 60. # [arcmin]
-    cat['PA_INIT'] = [np.float32(0.)]
-    cat['BA_INIT'] = [np.float32(1.)]
+    cat.remove_column('DIAMETER')
+    cat.rename_column('PA', 'PA_INIT')
+    cat.rename_column('BA', 'BA_INIT')
+    cat['DIAM_INIT'] = cat['DIAM_INIT'].astype('f4')
+    cat['PA_INIT'] = cat['PA_INIT'].astype('f4')
+    cat['BA_INIT'] = cat['BA_INIT'].astype('f4')
+    cat['GALAXY'] = cat['TARGETID'].astype(str)
 
     out = build_group_catalog(cat)
     print(f'Writing {groupfile}')

@@ -103,7 +103,8 @@ def main():
             if len(groups) == 0:
                 print('No complete galaxies!')
                 return
-            build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose)            
+            build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose,
+                          clobber=args.clobber)
             return
     
     # Determine how many more galaxies we need to analyze and divide them across
@@ -170,10 +171,10 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        if onegal['DIAMETER'] / 60. > 2.:
-            radius_mosaic_arcsec = 2. * onegal['DIAMETER'] # [arcsec]
+        if onegal['DIAM_INIT'] > 2.:
+            radius_mosaic_arcsec = 2. * onegal['DIAM_INIT'] * 60. # [arcsec]
         else:
-            radius_mosaic_arcsec = 3. * onegal['DIAMETER'] # [arcsec]
+            radius_mosaic_arcsec = 3. * onegal['DIAM_INIT'] * 60. # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
