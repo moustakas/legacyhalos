@@ -12,7 +12,6 @@ from astropy.table import Table
 
 import legacyhalos.io
 
-ZCOLUMN = 'Z'
 RACOLUMN = 'RA' # 'RA'
 DECCOLUMN = 'DEC' # 'DEC'
 GALAXYCOLUMN = 'GALAXY'
@@ -201,7 +200,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
 
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates.fits')
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'gwpv-groups.fits')
+    #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates.fits')
 
     if first and last:
         if first > last:
@@ -264,23 +264,24 @@ def build_catalog(sample, nproc=1, verbose=False):
         return None
 
     galaxy, galaxydir = get_galaxy_galaxydir(sample)
-
     t0 = time.time()
-    tractor, parent, dist = [], [], []
+    tractor, parent = [], []
+    #dist = []
     for gal, gdir, onegal in zip(galaxy, galaxydir, sample):
-        tractorfile = os.path.join(gdir, '{}-pipeline-tractor.fits'.format(gal))
+        tractorfile = os.path.join(gdir, f'{gal}-custom-tractor.fits')
         if os.path.isfile(tractorfile): # just in case
             parent.append(onegal)
             cat = fitsio.read(tractorfile, upper=True)
-            m1, m2, d12 = match_radec(cat['RA'], cat['DEC'], onegal['RA'], onegal['DEC'], 1.0/3600, nearest=True)
-            if len(m1) != 1:
-                print('Multiple matches within 1 arcsec for {}'.format(onegal['GALAXY_FULL']))
-                m1 = m1[0]
+            m1 = np.where(cat['REF_ID'] == onegal[REFIDCOLUMN])[0]
+            #m1, m2, d12 = match_radec(cat['RA'], cat['DEC'], onegal['RA'], onegal['DEC'], 1.0/3600, nearest=True)
+            #if len(m1) != 1:
+            #    print(f'Multiple matches within 1 arcsec for {onegal[GALAXYCOLUMN]}')
+            #    m1 = m1[0]
             tractor.append(Table(cat)[m1])
-            dist.append(d12[0]*3600)
+            #dist.append(d12[0]*3600)
     tractor = vstack(tractor)
     parent = vstack(parent)
-    dist = np.array(dist)
+    #dist = np.array(dist)
     print('Merging {} galaxies took {:.2f} min.'.format(len(tractor), (time.time()-t0)/60.0))
 
     if len(tractor) == 0:
@@ -353,7 +354,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #else:
     #    psfsrcs = None
 
-    def tractor2mge(indx, factor=1.0):
+    def tractor2mge(indx, factor=1.0, minsize=15.):
         # Convert a Tractor catalog entry to an MGE object.
         class MGEgalaxy(object):
             pass
@@ -365,13 +366,13 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         #default_eps = 1 - tractor.ba_init[indx]
 
         #if tractor.sga_id[indx] > -1:
-        if tractor.type[indx] == 'PSF' or tractor.shape_r[indx] < 2:
+        if tractor.type[indx] == 'PSF' or tractor.shape_r[indx] < minsize:
             pa = tractor.pa_init[indx]
             ba = tractor.ba_init[indx]
             # take away the extra factor of 2 we put in in read_sample()
             r50 = tractor.diam_init[indx] * 60 / 2 / 2
-            if r50 < 5:
-                r50 = 5.0 # minimum size, arcsec
+            if r50 < minsize:
+                r50 = minsize # minimum size, arcsec
             majoraxis = factor * r50 / filt2pixscale[refband] # [pixels]
             #majoraxis = factor * tractor.diam_init[indx] * 60 / 2 / 2 / filt2pixscale[refband] # [pixels]
         else:
@@ -395,7 +396,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
 
         # never use the Tractor geometry (only the centroid)
         # https://portal.nersc.gov/project/cosmo/temp/ioannis/virgofilaments-html/215/NGC5584/NGC5584.html
-        if True:
+        if False:
             mgegalaxy.eps = 1-ba
             mgegalaxy.pa = pa
             mgegalaxy.theta = (270 - pa) % 180
@@ -419,10 +420,13 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                                mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
                                np.radians(mgegalaxy.theta-90), xobj, yobj)
 
-        # central 10% pixels can override the starmask
+        # central 20% pixels can override the starmask but no fewer than minsize
+        majoraxis10 = 0.1 * mgegalaxy.majoraxis
+        if majoraxis10 < minsize / filt2pixscale[refband]: # [pixels]
+            majoraxis10 = minsize / filt2pixscale[refband]
+        print(mgegalaxy.majoraxis, majoraxis10)
         objmask_center = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
-                                      0.1*mgegalaxy.majoraxis,
-                                      0.1*mgegalaxy.majoraxis * (1-mgegalaxy.eps), 
+                                      majoraxis10, majoraxis10 * (1-mgegalaxy.eps), 
                                       np.radians(mgegalaxy.theta-90), xobj, yobj)
 
         return mgegalaxy, objmask, objmask_center
@@ -887,7 +891,6 @@ def call_ellipse(onegal, galaxy, galaxydir, pixscale=0.262, nproc=1,
                                           sky_tests=sky_tests, verbose=verbose)
 
     maxsma = None
-    #maxsma = 5 * MANGA_RADIUS # None
     delta_logsma = 2 # 3.0
 
     # don't pass logfile and set debug=True because we've already opened the log
@@ -1088,7 +1091,7 @@ def qa_multiwavelength_sed(ellipsefit, tractor=None, png=None, verbose=True):
     else:
         plt.show()
 
-def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'i', 'z', 'W1', 'W2', 'W3', 'W4'],
+def _get_mags(cat, rad='10', bands=['g', 'r', 'i', 'z'],
               kpc=False, pipeline=False, cog=False, R24=False, R25=False, R26=False):
     res = []
     for band in bands:
@@ -1131,7 +1134,7 @@ def _get_mags(cat, rad='10', bands=['FUV', 'NUV', 'g', 'r', 'i', 'z', 'W1', 'W2'
     return res
 
 def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
-                   racolumn='RA', deccolumn='DEC', #diamcolumn='GROUP_DIAMETER',
+                   racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
                    maketrends=False, fix_permissions=True):
     """Build the home (index.html) page and, optionally, the trends.html top-level
     page.
@@ -1154,9 +1157,9 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
         html.write('table, td, th {padding: 5px; text-align: center; border: 1px solid black;}\n')
         html.write('</style>\n')
 
-        html.write('<h1>MaNGA-NSF</h1>\n')
+        html.write('<h1>Gravitational Wave Peculiar Velocity Survey (GWPV)</h1>\n')
         html.write('<p style="width: 75%">\n')
-        html.write("""Multiwavelength analysis of the MaNGA sample.</p>\n""")
+        html.write("""Multiwavelength analysis of the GWPV sample.</p>\n""")
         
         if maketrends:
             html.write('<p>\n')
@@ -1183,7 +1186,7 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
             html.write('<th>Galaxy</th>\n')
             html.write('<th>RA</th>\n')
             html.write('<th>Dec</th>\n')
-            html.write('<th>Redshift</th>\n')
+            #html.write('<th>Redshift</th>\n')
             html.write('<th>Viewer</th>\n')
             html.write('</tr>\n')
             
@@ -1194,7 +1197,7 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
                 pngfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], '{}-custom-montage-grz.png'.format(galaxy1))
                 thumbfile1 = os.path.join(htmlgalaxydir1.replace(htmldir, '')[1:], 'thumb2-{}-custom-montage-grz.png'.format(galaxy1))
 
-                ra1, dec1, diam1 = gal[racolumn], gal[deccolumn], 5 * MOSAICRADIUS / pixscale
+                ra1, dec1, diam1 = gal[RACOLUMN], gal[DECCOLUMN], 2 * gal[DIAMCOLUMN] / pixscale
                 viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1, dr10=True)
 
                 html.write('<tr>\n')
@@ -1203,7 +1206,7 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
                 html.write('<td><a href="{}">{}</a></td>\n'.format(htmlfile1, galaxy1))
                 html.write('<td>{:.7f}</td>\n'.format(ra1))
                 html.write('<td>{:.7f}</td>\n'.format(dec1))
-                html.write('<td>{:.5f}</td>\n'.format(gal[ZCOLUMN]))
+                #html.write('<td>{:.5f}</td>\n'.format(gal[ZCOLUMN]))
                 html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
                 html.write('</tr>\n')
             html.write('</table>\n')
@@ -1222,7 +1225,8 @@ def _build_htmlpage_one(args):
 
 def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, htmldir,
                        racolumn, deccolumn, pixscale, nextgalaxy, prevgalaxy,
-                       nexthtmlgalaxydir, prevhtmlgalaxydir, verbose, clobber, fix_permissions):
+                       nexthtmlgalaxydir, prevhtmlgalaxydir, verbose, clobber, fix_permissions,
+                       galex, unwise):
     """Build the web page for a single galaxy.
 
     """
@@ -1250,7 +1254,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
     # Support routines--
 
-    def _read_ccds_tractor_sample(prefix):
+    def _read_ccds_tractor_sample(prefix, galex=False, unwise=False):
         nccds, tractor, sample = None, None, None
         
         ccdsfile = glob(os.path.join(galaxydir1, '{}-{}-ccds-*.fits'.format(galaxy1, prefix))) # north or south
@@ -1267,10 +1271,13 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         tractorfile = os.path.join(galaxydir1, '{}-{}-tractor.fits'.format(galaxy1, prefix))
         if os.path.isfile(tractorfile):
             cols = ['ref_cat', 'ref_id', 'type', 'sersic', 'shape_r', 'shape_e1', 'shape_e2',
-                    'flux_g', 'flux_r', 'flux_i', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_i', 'flux_ivar_z',
-                    'flux_fuv', 'flux_nuv', 'flux_ivar_fuv', 'flux_ivar_nuv', 
-                    'flux_w1', 'flux_w2', 'flux_w3', 'flux_w4',
-                    'flux_ivar_w1', 'flux_ivar_w2', 'flux_ivar_w3', 'flux_ivar_w4']
+                    'flux_g', 'flux_r', 'flux_i', 'flux_z', 'flux_ivar_g', 'flux_ivar_r', 'flux_ivar_i', 'flux_ivar_z']
+            if unwise:
+                cols = cols + ['flux_w1', 'flux_w2', 'flux_w3', 'flux_w4',
+                               'flux_ivar_w1', 'flux_ivar_w2', 'flux_ivar_w3', 'flux_ivar_w4']
+            if galex:
+                cols = cols + ['flux_fuv', 'flux_nuv', 'flux_ivar_fuv', 'flux_ivar_nuv']
+                    
             tractor = astropy.table.Table(fitsio.read(tractorfile, lower=True, columns=cols))#, rows=irows
 
             # We just care about the galaxies in our sample
@@ -1300,7 +1307,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         """Build the table of group properties.
 
         """
-        galaxy1, ra1, dec1, diam1 = gal[GALAXYCOLUMN], gal[racolumn], gal[deccolumn], 5 * MOSAICRADIUS / pixscale
+        galaxy1, ra1, dec1, diam1 = gal[GALAXYCOLUMN], gal[RACOLUMN], gal[DECCOLUMN], 2 * gal[DIAMCOLUMN] / pixscale
         viewer_link = legacyhalos.html.viewer_link(ra1, dec1, diam1, dr10=True)
 
         html.write('<h2>Galaxy Properties</h2>\n')
@@ -1311,7 +1318,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('<th>Galaxy</th>\n')
         html.write('<th>RA</th>\n')
         html.write('<th>Dec</th>\n')
-        html.write('<th>Redshift</th>\n')
+        #html.write('<th>Redshift</th>\n')
         html.write('<th>Viewer</th>\n')
         #html.write('<th>SkyServer</th>\n')
         html.write('</tr>\n')
@@ -1323,7 +1330,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('<td>{}</td>\n'.format(galaxy1))
         html.write('<td>{:.7f}</td>\n'.format(ra1))
         html.write('<td>{:.7f}</td>\n'.format(dec1))
-        html.write('<td>{:.5f}</td>\n'.format(gal[ZCOLUMN]))
+        #html.write('<td>{:.5f}</td>\n'.format(gal[ZCOLUMN]))
         html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(viewer_link))
         #html.write('<td><a href="{}" target="_blank">Link</a></td>\n'.format(_skyserver_link(gal)))
         html.write('</tr>\n')
@@ -1350,9 +1357,9 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('</table>\n')
             #html.write('<br />\n')
 
-        html.write('<p>Color mosaics showing (from left to right) the data, Tractor model, and residuals and (from top to bottom), GALEX, <i>grz</i>, and unWISE.</p>\n')
+        html.write('<p>Color mosaics showing (from left to right) the data, Tractor model, and residuals.</p>\n')
         html.write('<table width="90%">\n')
-        for filesuffix in ('FUVNUV', 'grz', 'W1W2'):
+        for filesuffix in ['grz']:
             pngfile, thumbfile = '{}-custom-montage-{}.png'.format(galaxy1, filesuffix), 'thumb-{}-custom-montage-{}.png'.format(galaxy1, filesuffix)
             html.write('<tr><td><a href="{0}"><img src="{1}" alt="Missing file {0}" height="auto" width="100%"></a></td></tr>\n'.format(
                 pngfile, thumbfile))
@@ -1380,14 +1387,14 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('<th colspan="5">Tractor</th>\n')
         html.write('<th colspan="3">Ellipse Moments</th>\n')
         html.write('<th colspan="3">Surface Brightness<br /> Threshold Radii<br />(arcsec)</th>\n')
-        html.write('<th colspan="3">Half-light Radii<br />(arcsec)</th>\n')
+        html.write('<th colspan="4">Half-light Radii<br />(arcsec)</th>\n')
         html.write('</tr>\n')
 
         html.write('<tr><th>Galaxy</th>\n')
         html.write('<th>Type</th><th>n</th><th>r(50)<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
         html.write('<th>Size<br />(arcsec)</th><th>PA<br />(deg)</th><th>e</th>\n')
         html.write('<th>R(24)</th><th>R(25)</th><th>R(26)</th>\n')
-        html.write('<th>g(50)</th><th>r(50)</th><th>z(50)</th>\n')
+        html.write('<th>g(50)</th><th>r(50)</th><th>i(50)</th><th>z(50)</th>\n')
         html.write('</tr>\n')
 
         for ss, tt in zip(sample, tractor):
@@ -1420,19 +1427,19 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
                 rr = []
                 if 'cog_sma50_g' in ellipse.keys():
-                    for rad in [ellipse['cog_sma50_g'], ellipse['cog_sma50_r'], ellipse['cog_sma50_z']]:
+                    for rad in [ellipse['cog_sma50_g'], ellipse['cog_sma50_r'], ellipse['cog_sma50_i'], ellipse['cog_sma50_z']]:
                         if rad < 0:
                             rr.append('...')
                         else:
                             rr.append('{:.3f}'.format(rad))
-                    html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(rr[0], rr[1], rr[2]))
+                    html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(rr[0], rr[1], rr[2], rr[3]))
                 else:
-                    html.write('<td>...</td><td>...</td><td>...</td>\n')                
+                    html.write('<td>...</td><td>...</td><td>...</td><td>...</td>\n')                
             else:
                 html.write('<td>...</td><td>...</td><td>...</td>\n')
                 html.write('<td>...</td><td>...</td><td>...</td>\n')
                 html.write('<td>...</td><td>...</td><td>...</td>\n')
-                html.write('<td>...</td><td>...</td><td>...</td>\n')
+                html.write('<td>...</td><td>...</td><td>...</td><td>...</td>\n')
             html.write('</tr>\n')
         html.write('</table>\n')
         
@@ -1443,8 +1450,8 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         #html.write('<th colspan="12">Curve of Growth</th>\n')
         #html.write('</tr>\n')
         html.write('<tr><th></th>\n')
-        html.write('<th colspan="10">Tractor</th>\n')
-        html.write('<th colspan="10">Curve of Growth</th>\n')
+        html.write('<th colspan="4">Tractor</th>\n')
+        html.write('<th colspan="4">Curve of Growth</th>\n')
         #html.write('<th colspan="3">&lt R(24)<br />arcsec</th>\n')
         #html.write('<th colspan="3">&lt R(25)<br />arcsec</th>\n')
         #html.write('<th colspan="3">&lt R(26)<br />arcsec</th>\n')
@@ -1452,38 +1459,32 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         html.write('</tr>\n')
 
         html.write('<tr><th>Galaxy</th>\n')
-        html.write('<th>FUV</th><th>NUV</th><th>g</th><th>r</th><th>i</th><th>z</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th>\n')
-        html.write('<th>FUV</th><th>NUV</th><th>g</th><th>r</th><th>i</th><th>z</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th>\n')
+        html.write('<th>g</th><th>r</th><th>i</th><th>z</th>\n')
+        html.write('<th>g</th><th>r</th><th>i</th><th>z</th>\n')
         html.write('</tr>\n')
 
         for tt, ss in zip(tractor, sample):
-            fuv, nuv, g, r, i, z, w1, w2, w3, w4 = _get_mags(tt, pipeline=True)
+            g, r, i, z = _get_mags(tt, pipeline=True)
             html.write('<tr><td>{}</td>\n'.format(ss[GALAXYCOLUMN]))
-            html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(
-                fuv, nuv, g, r, i, z, w1, w2, w3, w4))
+            html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, i, z))
 
             galaxyid = str(tt['ref_id'])
             ellipse = legacyhalos.io.read_ellipsefit(galaxy1, galaxydir1, filesuffix='custom',
-                                                        galaxy_id=galaxyid, verbose=False)
-            if bool(ellipse) and 'cog_mtot_fuv' in ellipse.keys():
+                                                     galaxy_id=galaxyid, verbose=False)
+            if bool(ellipse):
                 #g, r, z = _get_mags(ellipse, R24=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                 #g, r, z = _get_mags(ellipse, R25=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
                 #g, r, z = _get_mags(ellipse, R26=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
-                fuv, nuv, g, r, i, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
-                #try:
-                #    fuv, nuv, g, r, i, z, w1, w2, w3, w4 = _get_mags(ellipse, cog=True)
-                #except:
-                #    pdb.set_trace()
-                html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(
-                    fuv, nuv, g, r, i, z, w1, w2, w3, w4))
+                g, r, i, z = _get_mags(ellipse, cog=True)
+                html.write('<td>{}</td><td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, i, z))
                 #g, r, z = _get_mags(ellipse, cog=True)
                 #html.write('<td>{}</td><td>{}</td><td>{}</td>\n'.format(g, r, z))
             else:
-                html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td>\n')
-                html.write('<td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...<td>...</td></td><td>...</td><td>...</td><td>...</td>\n')
+                html.write('<td>...</td><td>...</td><td>...</td><td>...</td>\n')
+                html.write('<td>...</td><td>...</td><td>...</td><td>...</td>\n')
             html.write('</tr>\n')
         html.write('</table>\n')
 
@@ -1501,11 +1502,11 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
 
             html.write('<table width="90%">\n')
 
-            html.write('<tr>\n')
-            pngfile = '{}-custom-ellipse-{}-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
-            thumbfile = 'thumb-{}-custom-ellipse-{}-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
-            html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="60%"></a></td>\n'.format(pngfile, thumbfile))
-            html.write('</tr>\n')
+            #html.write('<tr>\n')
+            #pngfile = '{}-custom-ellipse-{}-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
+            #thumbfile = 'thumb-{}-custom-ellipse-{}-multiband-FUVNUV.png'.format(galaxy1, galaxyid)
+            #html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="60%"></a></td>\n'.format(pngfile, thumbfile))
+            #html.write('</tr>\n')
 
             html.write('<tr>\n')
             pngfile = '{}-custom-ellipse-{}-multiband.png'.format(galaxy1, galaxyid)
@@ -1513,11 +1514,11 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="100%"></a></td>\n'.format(pngfile, thumbfile))
             html.write('</tr>\n')
 
-            html.write('<tr>\n')
-            pngfile = '{}-custom-ellipse-{}-multiband-W1W2.png'.format(galaxy1, galaxyid)
-            thumbfile = 'thumb-{}-custom-ellipse-{}-multiband-W1W2.png'.format(galaxy1, galaxyid)
-            html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="100%"></a></td>\n'.format(pngfile, thumbfile))
-            html.write('</tr>\n')
+            #html.write('<tr>\n')
+            #pngfile = '{}-custom-ellipse-{}-multiband-W1W2.png'.format(galaxy1, galaxyid)
+            #thumbfile = 'thumb-{}-custom-ellipse-{}-multiband-W1W2.png'.format(galaxy1, galaxyid)
+            #html.write('<td><a href="{0}"><img src="{1}" alt="Missing file {1}" height="auto" align="left" width="100%"></a></td>\n'.format(pngfile, thumbfile))
+            #html.write('</tr>\n')
 
             html.write('</table>\n')
             html.write('<br />\n')
@@ -1530,10 +1531,10 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
             html.write('<td><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
             html.write('</tr>\n')
 
-            html.write('<tr>\n')
-            pngfile = '{}-custom-ellipse-{}-sed.png'.format(galaxy1, galaxyid)
-            html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
-            html.write('</tr>\n')
+            #html.write('<tr>\n')
+            #pngfile = '{}-custom-ellipse-{}-sed.png'.format(galaxy1, galaxyid)
+            #html.write('<td width="50%"><a href="{0}"><img src="{0}" alt="Missing file {0}" height="auto" width="100%"></a></td>\n'.format(pngfile))
+            #html.write('</tr>\n')
             
             html.write('</table>\n')
             #html.write('<br />\n')
@@ -1557,7 +1558,7 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         #html.write('<br />\n')
         
     # Read the catalogs and then build the page--
-    nccds, tractor, sample = _read_ccds_tractor_sample(prefix='custom')
+    nccds, tractor, sample = _read_ccds_tractor_sample(prefix='custom', galex=galex, unwise=unwise)
 
     with open(htmlfile, 'w') as html:
         html.write('<html><body>\n')
@@ -1570,11 +1571,11 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         #raslice = get_raslice(gal[racolumn])
         #html.write('<h4>RA Slice {}</h4>\n'.format(raslice))
 
-        html.write('<a href="../../{}">Home</a>\n'.format(htmlhome))
+        html.write('<a href="../{}">Home</a>\n'.format(htmlhome))
         html.write('<br />\n')
-        html.write('<a href="../../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
+        html.write('<a href="../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
         html.write('<br />\n')
-        html.write('<a href="../../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
+        html.write('<a href="../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
 
         _html_galaxy_properties(html, gal)
         _html_image_mosaics(html)
@@ -1583,11 +1584,11 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         #_html_ccd_diagnostics(html)
 
         html.write('<br /><br />\n')
-        html.write('<a href="../../{}">Home</a>\n'.format(htmlhome))
+        html.write('<a href="../{}">Home</a>\n'.format(htmlhome))
         html.write('<br />\n')
-        html.write('<a href="../../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
+        html.write('<a href="../{}">Next ({})</a>\n'.format(nexthtmlgalaxydir1, nextgalaxy[ii]))
         html.write('<br />\n')
-        html.write('<a href="../../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
+        html.write('<a href="../{}">Previous ({})</a>\n'.format(prevhtmlgalaxydir1, prevgalaxy[ii]))
         html.write('<br />\n')
 
         html.write('<br /><b><i>Last updated {}</b></i>\n'.format(js))
@@ -1599,9 +1600,9 @@ def build_htmlpage_one(ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, h
         shutil.chown(htmlfile, group='cosmo')
 
 def make_html(sample=None, datadir=None, htmldir=None, bands=['g', 'r', 'i', 'z'],
-              refband='r', pixscale=0.262, zcolumn=ZCOLUMN, intflux=None,
+              refband='r', pixscale=0.262, zcolumn=None, intflux=None,
               racolumn=RACOLUMN, deccolumn=DECCOLUMN, #diamcolumn='GROUP_DIAMETER',
-              first=None, last=None, galaxylist=None,
+              first=None, last=None, galaxylist=None, galex=False, unwise=False, 
               nproc=1, survey=None, makeplots=False,
               clobber=False, verbose=True, maketrends=False, ccdqa=False,
               args=None, fix_permissions=True):
@@ -1665,7 +1666,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=['g', 'r', 'i', 'z'
         args.append([ii, gal, galaxy1, galaxydir1, htmlgalaxydir1, htmlhome, htmldir,
                      racolumn, deccolumn, pixscale, nextgalaxy,
                      prevgalaxy, nexthtmlgalaxydir, prevhtmlgalaxydir, verbose,
-                     clobber, fix_permissions])
+                     clobber, fix_permissions, galex, unwise])
     ok = mp.map(_build_htmlpage_one, args)
     
     return 1

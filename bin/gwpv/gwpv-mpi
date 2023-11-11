@@ -1,7 +1,9 @@
 #!/usr/bin/env python
+
 """MPI wrapper for the gwpv project.
 
 """
+
 import os, time, pdb
 import numpy as np
 from astropy.table import Table
@@ -14,7 +16,7 @@ def main():
     import legacyhalos.gwpv
 
     from legacypipe.runs import get_survey
-    from legacyhalos.gwpv import RACOLUMN, DECCOLUMN, GALAXYCOLUMN, DIAMCOLUMN, REFIDCOLUMN, get_galaxy_galaxydir
+    from legacyhalos.gwpv import RACOLUMN, DECCOLUMN, GALAXYCOLUMN, DIAMCOLUMN, REFIDCOLUMN, SBTHRESH, get_galaxy_galaxydir
     
     basedir = legacyhalos.io.legacyhalos_dir()
     datadir = legacyhalos.io.legacyhalos_data_dir()
@@ -91,12 +93,12 @@ def main():
             legacyhalos.gwpv.make_html(sample, survey=None, pixscale=args.pixscale,
                                         racolumn=RACOLUMN, deccolumn=DECCOLUMN, 
                                         nproc=args.nproc, clobber=args.clobber,
+                                        galex=False, unwise=False,
                                         makeplots=False, verbose=args.verbose, htmldir=args.htmldir,
                                         ccdqa=args.ccdqa, args=args)
 
         if args.build_catalog:
             from legacyhalos.gwpv import build_catalog
-            args.pipeline_coadds = True
             _, _, groups, _ = legacyhalos.gwpv.missing_files(args, sample, args.nproc)
             if len(groups) == 0:
                 print('No complete galaxies!')
@@ -168,7 +170,10 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        radius_mosaic_arcsec = 3. * onegal['DIAMETER'] # [arcsec]
+        if onegal['DIAMETER'] / 60. > 2.:
+            radius_mosaic_arcsec = 2. * onegal['DIAMETER'] # [arcsec]
+        else:
+            radius_mosaic_arcsec = 3. * onegal['DIAMETER'] # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
@@ -222,7 +227,7 @@ def main():
             barlen = np.ceil(10 / args.pixscale).astype(int) # [pixels]
             call_htmlplots(onegal, galaxy, survey, pixscale=args.pixscale, nproc=args.nproc,
                            verbose=args.verbose, debug=args.debug, clobber=args.clobber,
-                           bands=['g', 'r', 'i', 'z'], 
+                           bands=['g', 'r', 'i', 'z'], SBTHRESH=SBTHRESH,
                            logfile=logfile, 
                            htmldir=htmldir, datadir=datadir,
                            barlen=barlen, barlabel=barlabel,
@@ -230,6 +235,7 @@ def main():
                            qa_multiwavelength_sed=qa_multiwavelength_sed,
                            #galaxy_id=onegal['VF_ID'],                           
                            galex=False, unwise=False,
+                           linear=True, plot_colors=False,
                            get_galaxy_galaxydir=get_galaxy_galaxydir,
                            read_multiband=read_multiband)                           
 
