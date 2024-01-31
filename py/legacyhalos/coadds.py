@@ -290,7 +290,7 @@ def get_ccds(survey, ra, dec, pixscale, width, bands=['g', 'r', 'z']):
     brickname = 'custom-{}'.format(custom_brickname(ra, dec))
     brick = BrickDuck(ra, dec, brickname)
 
-    targetwcs = wcs_for_brick(brick, W=np.float(width), H=np.float(width), pixscale=pixscale)
+    targetwcs = wcs_for_brick(brick, W=float(width), H=float(width), pixscale=pixscale)
     ccds = survey.ccds_touching_wcs(targetwcs)
 
     if ccds is None or np.sum(ccds.ccd_cuts == 0) == 0:
@@ -428,7 +428,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
     #err = 0
 
     # optionally write out the GALEX and WISE PSFs
-    if write_wise_psf:
+    if unwise and write_wise_psf:
         import fitsio
         import unwise_psf.unwise_psf as unwise_psf
         from legacypipe.galex import galex_psf
@@ -454,7 +454,7 @@ def custom_coadds(onegal, galaxy=None, survey=None, radius_mosaic=None,
             from legacypipe.unwise import unwise_tiles_touching_wcs
             from legacypipe.survey import wcs_for_brick, BrickDuck
             brick = BrickDuck(onegal[racolumn], onegal[deccolumn], brickname)
-            targetwcs = wcs_for_brick(brick, W=np.float(width), H=np.float(width), pixscale=pixscale)            
+            targetwcs = wcs_for_brick(brick, W=float(width), H=float(width), pixscale=pixscale)            
             tiles = unwise_tiles_touching_wcs(targetwcs)
             coadd_id = tiles.coadd_id[0] # grab the first one
 
