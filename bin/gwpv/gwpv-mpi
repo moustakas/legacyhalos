@@ -66,9 +66,9 @@ def main():
                 ref['dec'] = sample[DECCOLUMN]
                 ref['sga_id'] = sample[REFIDCOLUMN]
                 ref['mag_leda'] = np.repeat(19.0, len(sample)).astype('f4')
-                ref['ba'] = np.repeat(1.0, ngal).astype('f4') # fixed b/a (circular)
-                ref['pa'] = np.repeat(0.0, ngal).astype('f4') # fixed position angle
-                ref['diam'] = sample[DIAMCOLUMN].astype('f4') / 60. # diameter [arcmin]
+                ref['ba'] = sample['BA_INIT']
+                ref['pa'] = sample['PA_INIT']
+                ref['diam'] = sample[DIAMCOLUMN].astype('f4') # diameter [arcmin]
     
                 kdreffile = reffile.replace('.fits', '.kd.fits')
                 print('Writing {} galaxies to {}'.format(ngal, reffile))
