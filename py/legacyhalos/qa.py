@@ -38,7 +38,7 @@ cb_colors = {'blue': '#377eb8',
              'red': '#e41a1c',
              'yellow': '#dede00'}
 
-def _sbprofile_colors(makeiter=True, galex=False, unwise=False):
+def _sbprofile_colors(bands=None, makeiter=True, galex=False, unwise=False):
     """Return an iterator of colors good for the surface brightness profile plots.
     https://seaborn.pydata.org/generated/seaborn.color_palette.html#seaborn.color_palette
 
@@ -48,7 +48,7 @@ def _sbprofile_colors(makeiter=True, galex=False, unwise=False):
     except:
         _colors = ['red', 'green', 'blue', 'orange', 'purple']
         
-    sbcolors = [_colors[1], _colors[2], _colors[0]]
+    sbcolors = [_colors[1], _colors[2], _colors[0], _colors[6]]
     colorcolors = [_colors[3], _colors[4]]
     if galex or unwise:
         _morecolors = sns.color_palette('Set2', n_colors=8, desat=0.75)
@@ -288,7 +288,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
 
     galex = 'FUV' in bands
     unwise = 'W1' in bands
-    colors = _sbprofile_colors(galex=galex, unwise=unwise)
+    colors = _sbprofile_colors(bands, galex=galex, unwise=unwise)
         
     if 'redshift' in ellipsefit.keys():
         redshift = ellipsefit['redshift']
@@ -1050,7 +1050,7 @@ def display_sersic(sersic, png=None, cosmo=None, verbose=False):
 def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
                       igal=0, inchperband=8, bands=['g', 'r', 'z'],
                       contours=False, barlen=None, barlabel=None, png=None,
-                      verbose=True, vertical=False,
+                      verbose=True, vertical=False, SBTHRESH=None, 
                       scaledfont=False, galex=False, unwise=False):
     """Display the multi-band images and, optionally, the isophotal fits based on
     either MGE and/or Ellipse.
@@ -1070,6 +1070,9 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
     #from astropy.visualization import PercentileInterval as Interval
 
     Image.MAX_IMAGE_PIXELS = None
+
+    if SBTHRESH is None:
+        from legacyhalos.ellipse import REF_SBTHRESH as SBTHRESH
 
     # stupidly fragile
     #bands = data['bands']
@@ -1244,10 +1247,10 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #    sma_lw = 3
             #    sma_alpha = 1.0
             #smas = np.linspace(0, ellipsefit['{}_sma'.format(filt.lower())][indx].max(), nplot)
-            if len(np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])) > nplot:
-                smas = ellipsefit['sma_{}'.format(filt.lower())][::len(ellipsefit['sma_{}'.format(filt.lower())]) // nplot]
-            else:
-                smas = ellipsefit['sma_{}'.format(filt.lower())]
+            #if len(np.atleast_1d(ellipsefit['sma_{}'.format(filt.lower())])) > nplot:
+            #    smas = ellipsefit['sma_{}'.format(filt.lower())][::len(ellipsefit['sma_{}'.format(filt.lower())]) // nplot]
+            #else:
+            #    smas = ellipsefit['sma_{}'.format(filt.lower())]
 
             # When we used to write out the ellipse pickle files with
             # the Isophote objects we used the snippet of code below to
@@ -1258,8 +1261,18 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             #    x, y, = efit.sampled_coordinates()
             #    ax1.plot(x, y, color='k', lw=1, alpha=0.5)#, label='Fitted isophote')
             #x0, y0, eps, pa = mge['x0'], mge['y0'], mge['eps'], mge['pa']
-            for sma in smas:
-                this = np.argmin(np.abs(ellipsefit['sma_{}'.format(filt.lower())]-sma))
+            #for sma in smas:
+            #    this = np.argmin(np.abs(ellipsefit['sma_{}'.format(filt.lower())]-sma))
+            radkeys = [f'SMA_SB{sbcut:0g}'.lower() for sbcut in SBTHRESH]
+            smas = [ellipsefit[radkey] / data['refpixscale'] for radkey in radkeys] # semi-major axis, pixels
+            for sma, key in zip(smas, radkeys):
+                this = np.argmin(np.abs(ellipsefit['sma_{}'.format(filt)]-sma))
+                if key == 'SMA_SB26':
+                    col = 'dodgerblue'
+                    lw = 4
+                else:
+                    col = 'k'
+                    lw = sma_lw
                 ax1.add_patch(mpatches.Ellipse((ellipsefit['x0_{}'.format(filt.lower())][this], ellipsefit['y0_{}'.format(filt.lower())][this]),
                                                2*ellipsefit['sma_{}'.format(filt.lower())][this],
                                                2*ellipsefit['sma_{}'.format(filt.lower())][this]*(1-ellipsefit['eps_{}'.format(filt.lower())][this]),
@@ -1468,7 +1481,7 @@ def display_ellipsefit(ellipsefit, xlog=False, cosmo=None, png=None, verbose=Tru
 def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit={}, 
                               sdss_ellipsefit={}, minerr=0.0, plot_radius=True,
                               plot_sbradii=False, cosmo=None, png=None, use_ylim=None,
-                              verbose=True):
+                              linear=False, plot_colors=True, verbose=True):
     """Display the multi-band surface brightness profile.
 
     2-panel
@@ -1482,7 +1495,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 
     if ellipsefit['success'] and np.atleast_1d(ellipsefit['sma_r'])[0] != -1:
 
-        sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr, sma_not_radius=~plot_radius)
+        sbprofile = ellipse_sbprofile(ellipsefit, minerr=minerr, sma_not_radius=~plot_radius, linear=linear)
 
         if isdict:
             bands = ellipsefit['bands']
@@ -1509,14 +1522,20 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         unwise = 'W1' in bands
         colors = _sbprofile_colors(galex=galex, unwise=unwise)
 
-        yminmax = [40, 0]
         xminmax = [0.9, 0]
+        if linear:
+            yminmax = [1e8, -1e8]
+        else:
+            yminmax = [40, 0]
 
         if galex and unwise:
-            fig, ax1 = plt.subplots(figsize=(9, 7))
+            fig, ax1 = plt.subplots(figsize=(10, 7))
         else:
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
-                                           gridspec_kw = {'height_ratios':[2, 1]})
+            if plot_colors:
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True,
+                                               gridspec_kw = {'height_ratios':[2, 1]})
+            else:
+                fig, ax1 = plt.subplots(figsize=(10, 7))
             
         for filt in bands:
             col = next(colors)
@@ -1544,7 +1563,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
 
             if bool(pipeline_ellipsefit) and False:
                 pipeline_sbprofile = ellipse_sbprofile(pipeline_ellipsefit, minerr=minerr,
-                                                       sma_not_radius=plot_radius)
+                                                       sma_not_radius=plot_radius, linear=linear)
                 _radius = pipeline_sbprofile['radius_{}'.format(filt.lower())]**0.25
                 _mu = pipeline_sbprofile['mu_{}'.format(filt.lower())]
                 _muerr = pipeline_sbprofile['mu_{}_err'.format(filt.lower())]
@@ -1579,7 +1598,8 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
             #    ax1.axhline(y=ysky, color=col, ls='--')
 
         if bool(sdss_ellipsefit):
-            sdss_sbprofile = ellipse_sbprofile(sdss_ellipsefit, minerr=minerr, sma_not_radius=plot_radius)
+            sdss_sbprofile = ellipse_sbprofile(sdss_ellipsefit, minerr=minerr, sma_not_radius=plot_radius,
+                                               linear=linear)
             for filt in sdss_ellipsefit['bands']:
                 radius = sdss_sbprofile['radius_{}'.format(filt.lower())]**0.25
                 mu = sdss_sbprofile['mu_{}'.format(filt.lower())]
@@ -1588,28 +1608,35 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 ax1.fill_between(radius, mu-muerr, mu+muerr, label=r'${}$'.format(filt.lower()),
                                  facecolor='k', alpha=0.2, edgecolor='k', lw=3)
                 
-        ax1.set_ylabel(r'$\mu(r)$ (mag arcsec$^{-2}$)')
-        #ax1.set_ylabel(r'Surface Brightness $\mu(a)$ (mag arcsec$^{-2}$)')
-
-        ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
-        if ylim[0] < 13:
-            ylim[0] = 13
-        if ylim[1] > 34:
-            ylim[1] = 34
+        if linear:
+            ylim = [yminmax[0], yminmax[1]]
+        else:
+            ylim = [yminmax[0]-0.75, yminmax[1]+0.5]
+            if ylim[0] < 13:
+                ylim[0] = 13
+            if ylim[1] > 34:
+                ylim[1] = 34
 
         if use_ylim is not None:
             ax1.set_ylim(use_ylim)
         else:
             ax1.set_ylim(ylim)
-        ax1.invert_yaxis()
 
         ylim = ax1.get_ylim()        
-        if np.abs(ylim[1]-ylim[0]) > 15:
-            ax1.yaxis.set_major_locator(ticker.MultipleLocator(5))
-
-        #ylim = ax1.get_ylim()        
-        #if np.abs(ylim[1]-ylim[0]) > 15:
-        #    ax1.yaxis.set_major_locator(ticker.MultipleLocator(5)) # wavelength spacing of ticks [Angstrom]
+        if linear:
+            ax1.axhline(y=0, color='k', ls='--', alpha=0.7)
+            ax1.set_ylabel(r'$\mu(r)$ (nanomaggies arcsec$^{-2}$)')            
+            ax1_twinx = ax1.twinx()
+            yticks = ax1.get_yticks()
+            yticks = yticks[yticks > 0]
+            ax1_twinx.set_ylim(22.5-2.5*np.log10(min(yticks)), 22.5-2.5*np.log10(max(yticks)))
+            ax1_twinx.set_ylabel(r'$\mu(r)$ (mag arcsec$^{-2}$)')
+            ax1_twinx.yaxis.set_major_locator(ticker.MultipleLocator(0.5))
+        else:
+            ax1.set_ylabel(r'$\mu(r)$ (mag arcsec$^{-2}$)')
+            ax1.invert_yaxis()
+            if np.abs(ylim[1]-ylim[0]) > 15:
+                ax1.yaxis.set_major_locator(ticker.MultipleLocator(5))
 
         xlim = [xminmax[0], xminmax[1]*1.01]
         ax1.set_xlim(xlim)
@@ -1619,12 +1646,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
         if redshift:
             ax1_twin = ax1.twiny()
             ax1_twin.set_xlim(xlim)
-            #xlim_twinx = (radscale*xlim[0]**4, radscale*xlim[1]**4)
-            #ax1_twin.set_xlim(xlim_twinx[0], xlim_twinx[1])
-            #ax1_twin.set_xticks(ax1.get_xticks()**4*radscale)
-            #ax1_twin.set_xticks(np.linspace(xlim_twinx[0], xlim_twinx[1], len(ax1.get_xticks())+1))
             kpc = np.array([1, 3, 5, 10, 20, 30, 50, 75, 100, 150, 200])
-            #kpc = kpc[kpc < radscale*xlim[1]**4]
             kpc = kpc[(kpc >= radscale*xlim[0]**4) * (kpc <= radscale*xlim[1]**4)]
             ax1_twin.set_xticks((kpc / radscale)**0.25)
             ax1_twin.set_xticklabels(['{:g}'.format(kk) for kk in kpc])
@@ -1676,7 +1698,7 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
                 ax1.add_artist(leg1)
             
         # Now the color-radius plot
-        if galex and unwise:
+        if (galex and unwise) or (not plot_colors):
             if plot_radius:
                 ax1.set_xlabel(r'(Galactocentric radius / arcsec)$^{1/4}$')
             else:
@@ -1728,10 +1750,11 @@ def display_ellipse_sbprofile(ellipsefit, pipeline_ellipsefit={}, sky_ellipsefit
             #ax2.text(0.03, 0.1, 'PSF\n(3$\sigma$)', ha='center', va='center',
             #    transform=ax2.transAxes, fontsize=10)
 
-        if redshift:
-            fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.15, top=0.85, right=0.95)
-        else:
-            fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.15, top=0.95, right=0.95)
+        #if redshift:
+        #    fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.15, top=0.85, right=0.95)
+        #else:
+        #    fig.subplots_adjust(hspace=0.0, left=0.15, bottom=0.15, top=0.95, right=0.95)
+        fig.tight_layout()
 
         if png:
             #if verbose:

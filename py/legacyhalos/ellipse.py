@@ -390,7 +390,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 
             bounds = ([cogmag[-1]-2.0, 0, 0, 0], np.inf)
             #bounds = ([cogmag[-1]-0.5, 2.5, 0, 0], np.inf)
-            #bounds = (0, np.inf)
+            #bounds = (0, inf)
 
             popt, minchi2 = cog_dofit(sma_arcsec, cogmag, cogmagerr, bounds=bounds)
             if minchi2 < chi2fail and popt is not None:
@@ -954,14 +954,14 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                     ratio = (float(limit)/result[-1]) ** (1.0/(n-len(result)))
                     #print(ratio, len(result), n)
             # round, re-adjust to 0 indexing (i.e. minus 1) and return np.uint64 array
-            return np.array(list(map(lambda x: round(x)-1, result)), dtype=np.int)
+            return np.array(list(map(lambda x: round(x)-1, result)), dtype=int)
 
         # this algorithm can fail if there are too few points
         nsma = np.ceil(maxsma / delta_logsma).astype('int')
         sma = _mylogspace(maxsma, nsma).astype('f4')
         assert(len(sma) == len(np.unique(sma)))
 
-        #sma = np.hstack((0, np.logspace(0, np.ceil(np.log10(maxsma)).astype('int'), nsma, dtype=np.int))).astype('f4')
+        #sma = np.hstack((0, np.logspace(0, np.ceil(np.log10(maxsma)).astype('int'), nsma, dtype=int))).astype('f4')
         print('  maxsma={:.2f} pix, delta_logsma={:.1f} log-pix, nsma={}'.format(maxsma, delta_logsma, len(sma)))
     else:
         sma = np.arange(0, np.ceil(maxsma), delta_sma).astype('f4')
@@ -1030,7 +1030,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
             ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
         else:
             if imasked:
-            #if img.mask[np.int(ellipsefit['x0']), np.int(ellipsefit['y0'])]:
+            #if img.mask[int(ellipsefit['x0']), int(ellipsefit['y0'])]:
                 print(' Central pixel is masked; resorting to extreme measures!')
                 #try:
                 #    raise ValueError
