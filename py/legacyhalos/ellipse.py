@@ -163,7 +163,6 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
 
         #plt.clf() ; plt.plot((rr[keep])**4, sb[keep]) ; plt.axvline(x=meanrcut) ; plt.savefig('junk.png')
         #plt.clf() ; plt.plot(rr, sb+sbcut) ; plt.axvline(x=meanrcut**0.25) ; plt.axhline(y=sbcut) ; plt.xlim(2, 2.6) ; plt.savefig('junk.png')
-        #pdb.set_trace()
             
         #try:
         #    rcut = interp1d()(sbcut) # [arcsec]
@@ -217,8 +216,6 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         x0 = pixscalefactor * refellipsefit['x0_moment']
         y0 = pixscalefactor * refellipsefit['y0_moment']
 
-        #if filt == 'g':
-        #    pdb.set_trace()
         #im = np.log10(img) ; im[mask] = 0 ; plt.clf() ; plt.imshow(im, origin='lower') ; plt.scatter(y0, x0, s=50, color='red') ; plt.savefig('junk.png')
 
         # First get the elliptical aperture photometry within the threshold
@@ -248,14 +245,15 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         if len(smapixels) > 0:
             smapixels = np.hstack(smapixels)
             sbaplist = np.hstack(sbaplist)
-            smbpixels = smapixels * eps
+            smbpixels = smapixels * (1. - eps)
+            
             with np.errstate(all='ignore'):
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category=AstropyUserWarning)
                     cogflux = pool.map(_apphot_one, [(img, mask, theta, x0, y0, aa, bb, pixscale, False, iscircle)
                                                      for aa, bb in zip(smapixels, smbpixels)])
 
-                    # computer the fraction of masked pixels
+                    # compute the fraction of masked pixels
                     nmasked = pool.map(_apphot_one, [(np.ones_like(img), np.logical_not(mask), theta, x0, y0, aa, bb, pixscale, False, iscircle)
                                                        for aa, bb in zip(smapixels, smbpixels)])
                     npix = pool.map(_apphot_one, [(np.ones_like(img), np.zeros_like(mask), theta, x0, y0, aa, bb, pixscale, False, iscircle)
@@ -331,7 +329,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             #print('Too few good semi-major axis pixels!')
             #raise ValueError
         
-        smb = sma * eps
+        smb = sma * (1. - eps)
 
         #print(filt, img.shape, pixscale)
         with np.errstate(all='ignore'):
@@ -436,12 +434,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                     #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
                     with np.errstate(all='ignore'):                        
                         half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
-                        #if filt == 'W4':
-                        #    pdb.set_trace()
                     results['cog_sma50_{}'.format(filt.lower())] = np.float32(half_light_sma)
-
-            #if filt == 'g':
-            #    pdb.set_trace()
 
             # This code is not needed anymore because we do proper aperture photometry above.
 
@@ -482,8 +475,6 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
             #                results[fluxivarkey] = np.float32(0.0)
             #                #results[magkey] = np.float32(-1.0)
             #                #results[magerrkey] = np.float32(-1.0)
-            #            #if filt == 'r':
-            #            #    pdb.set_trace()
             #        except:
             #            results[fluxkey] = np.float32(0.0)
             #            results[fluxivarkey] = np.float32(0.0)
@@ -664,8 +655,6 @@ def ellipse_sbprofile(ellipsefit, minerr=0.0, snrmin=1.0, sma_not_radius=False,
                 keep = np.isfinite(sb)
             else:
                 keep = np.isfinite(sb) * ((sb / sberr) > snrmin)
-                #if filt == 'FUV':
-                #    pdb.set_trace()
                 
             if cut_on_cog:
                 keep *= (ellipsefit['sma_{}'.format(filt.lower())] * pixscale) <= np.max(ellipsefit['cog_sma_{}'.format(filt.lower())])
@@ -903,7 +892,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
     ellipse0 = Ellipse(img, geometry=geometry0)
     #import matplotlib.pyplot as plt
     #plt.imshow(img, origin='lower') ; plt.scatter(ellipsefit['y0'], ellipsefit['x0'], s=50, color='red') ; plt.savefig('junk.png')
-    #pdb.set_trace()
 
     if fitgeometry:
         ellipsefit = _fitgeometry_refband(ellipsefit, geometry0, majoraxis, refband,
@@ -999,8 +987,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
 
         x0 = pixscalefactor * ellipsefit['x0_moment']
         y0 = pixscalefactor * ellipsefit['y0_moment']
-        #if filt == 'W4':
-        #    pdb.set_trace()
         filtsma = np.round(sma * pixscalefactor).astype('f4')
         #filtsma = np.round(sma[::int(1/(pixscalefactor))] * pixscalefactor).astype('f4')
         filtsma = np.unique(filtsma)
@@ -1022,9 +1008,6 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
         if np.any(val):
             imasked = True
 
-        #if filt == 'FUV':
-        #    pdb.set_trace()
-        
         # corner case: no data in the image or fully masked
         if np.sum(img.data) == 0 or np.sum(img.mask) == np.product(img.shape):
             ellipsefit = _unpack_isofit(ellipsefit, filt, None, failed=True)
@@ -1044,7 +1027,7 @@ def ellipsefit_multiband(galaxy, galaxydir, data, igal=0, galaxy_id='',
                 ellipsefit = _unpack_isofit(ellipsefit, filt, IsophoteList(isobandfit))
     
         print('...{:.3f} sec'.format(time.time() - t0))
-        
+
     print('Time for all images = {:.3f} min'.format((time.time()-tall)/60))
 
     ellipsefit['success'] = True
