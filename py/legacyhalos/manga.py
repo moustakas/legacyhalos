@@ -247,7 +247,8 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'mn-dr17-v0.1sub-summary.fits')
         samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-0.2.0.testbed.fits')
     else:
-        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-0.3.0.fits')
+        samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-0.3.2.fits')
+        #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-0.3.0.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'mn-0.2.0.testbed-summary.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-dr17-v0.1.fits')
         #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'drpall-v2_4_3.fits')
@@ -336,11 +337,11 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     # https://www.legacysurvey.org/viewer?ra=56.232562&dec=67.787128&layer=ls-dr9&zoom=13&sga&manga
     if ellipse or resampled_phot:
         if htmlplots:
-            DOCOLUMN = 'DO_MANGA'
+            DOCOLUMN = 'GOOD_MANGA'
         else:
             DOCOLUMN = 'DO_ELLIPSE'
     else:
-        DOCOLUMN = 'DO_MANGA'
+        DOCOLUMN = 'GOOD_MANGA'
 
     #bb = sample[np.isin(sample[REFIDCOLUMN], np.array([
     #    10506012702, 10504009102,
@@ -608,7 +609,7 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
         refid = onegal[REFIDCOLUMN]
         tractorfile = os.path.join(gdir, '{}-custom-tractor.fits'.format(gal))
         ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
-        if not os.path.isfile(tractorfile) and onegal['DO_MANGA'] and onegal['DO_IMAGING']:
+        if not os.path.isfile(tractorfile) and onegal['GOOD_MANGA'] and onegal['DO_IMAGING']:
             print('Missing Tractor catalog {}'.format(tractorfile))
         if not os.path.isfile(ellipsefile) and onegal['DO_ELLIPSE'] and onegal['DO_IMAGING']:
             print('Missing ellipse file {}'.format(ellipsefile))
