@@ -1266,7 +1266,7 @@ def display_multiband(data, ellipsefit=None, colorimg=None, indx=None,
             radkeys = [f'SMA_SB{sbcut:0g}'.lower() for sbcut in SBTHRESH]
             smas = [ellipsefit[radkey] / data['refpixscale'] for radkey in radkeys] # semi-major axis, pixels
             for sma, key in zip(smas, radkeys):
-                this = np.argmin(np.abs(ellipsefit['sma_{}'.format(filt)]-sma))
+                this = np.argmin(np.abs(ellipsefit['sma_{}'.format(filt.lower())]-sma))
                 if key == 'SMA_SB26':
                     col = 'dodgerblue'
                     lw = 4
