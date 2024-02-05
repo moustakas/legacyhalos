@@ -51,28 +51,19 @@ def legacyhalos_header(hdr=None):
     import pydl
     import legacyhalos
 
-    if False:
-        if hdr is None:
-            hdr = fitsio.FITSHDR()
+    if hdr is None:
+        hdr = fits.header.Header()
 
-        cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
-        ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
-        hdr.add_record(dict(name='LEGHALOV', value=ver, comment='legacyhalos git version'))
-
-        depvers, headers = [], []
-        for name, pkg in [('pydl', pydl)]:
-            hdr.add_record(dict(name=name, value=pkg.__version__, comment='{} version'.format(name)))
-    else:
-        if hdr is None:
-            hdr = fits.header.Header()
-
+    try:
         cmd = 'cd {} && git describe --tags'.format(os.path.dirname(legacyhalos.__file__))
         ver = subprocess.check_output(cmd, shell=True, universal_newlines=True).strip()
         hdr['LEGHALOV'] = (ver, 'legacyhalos git version')
+    except:
+        print('WARNING: Problem writing legacyhalos version to the header.')
 
-        depvers, headers = [], []
-        for name, pkg in [('pydl', pydl)]:
-            hdr[name] = (pkg.__version__, '{} version'.format(name))
+    depvers, headers = [], []
+    for name, pkg in [('pydl', pydl)]:
+        hdr[name] = (pkg.__version__, '{} version'.format(name))
 
     return hdr
     
