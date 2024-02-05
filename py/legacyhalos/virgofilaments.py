@@ -481,7 +481,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         mge, centralmask, centralmask2 = tractor2mge(central, factor=1.0)
         #plt.clf() ; plt.imshow(centralmask2, origin='lower') ; plt.savefig('desi-users/ioannis/tmp/junk-mask.png') ; pdb.set_trace()
 
-        iclose = np.where([centralmask[np.int(by), np.int(bx)]
+        iclose = np.where([centralmask[int(by), int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
         
         srcs = tractor.copy()

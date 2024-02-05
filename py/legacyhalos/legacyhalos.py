@@ -686,7 +686,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         largeshift = False
         mge, centralmask = tractor2mge(central, factor=5.0)
 
-        iclose = np.where([centralmask[np.int(by), np.int(bx)]
+        iclose = np.where([centralmask[int(by), int(bx)]
                            for by, bx in zip(tractor.by, tractor.bx)])[0]
         
         srcs = tractor.copy()

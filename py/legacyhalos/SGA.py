@@ -934,7 +934,7 @@ def _write_ellipse_SGA(cat, dropcat, outfile, dropfile, refcat,
                 sga[col] = np.zeros((len(sga), cat[col].shape[1]), dtype=cat[col].dtype)-1
             else:
                 typ = cat[col].dtype.type
-                if typ is np.str_ or typ is np.str or typ is np.bool_ or typ is np.bool:
+                if typ is np.str_ or typ is np.bool_:
                     sga[col] = np.zeros(len(sga), dtype=cat[col].dtype)
                 else:
                     sga[col] = np.zeros(len(sga), dtype=cat[col].dtype)-1
@@ -1084,7 +1084,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
             H, W = img.shape
             if radec is not None:
                 _, xcen, ycen = wcs.radec2pixelxy(radec[0], radec[1])
-                ycen, xcen = np.int(ycen-1), np.int(xcen-1)
+                ycen, xcen = int(ycen-1), int(xcen-1)
             else:
                 ycen, xcen = H//2, W//2
             #print(band, img[ycen-box:ycen+box, xcen-box:xcen+box],
@@ -1167,7 +1167,7 @@ def build_ellipse_SGA_one(onegal, fullsample, refcat='L3', seed=1, verbose=False
                                                                   dtype=onegal[col].dtype)-1), index=0)
             else:
                 typ = onegal[col].dtype.type
-                if typ is np.str_ or typ is np.str or typ is np.bool_ or typ is np.bool:
+                if typ is np.str_ or typ is np.bool_:
                     tractor.add_column(Column(name=col, data=np.zeros(len(tractor), dtype=onegal[col].dtype)), index=0)
                 else:
                     tractor.add_column(Column(name=col, data=np.zeros(len(tractor), dtype=onegal[col].dtype)-1), index=0)
