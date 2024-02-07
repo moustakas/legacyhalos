@@ -15,7 +15,7 @@ import legacyhalos.io
 RACOLUMN = 'RA' # 'RA'
 DECCOLUMN = 'DEC' # 'DEC'
 GALAXYCOLUMN = 'GALAXY'
-REFIDCOLUMN = 'TARGETID'
+REFIDCOLUMN = 'PVID' # 'TARGETID'
 DIAMCOLUMN = 'DIAM_INIT'
 
 SBTHRESH = [22., 23., 24., 25., 25.5, 26., 26.5, 27., 27.5, 28.] # surface brightness thresholds
