@@ -233,7 +233,7 @@ def get_galaxy_galaxydir(cat, datadir=None, htmldir=None, html=False, resampled=
         return galaxy, galaxydir
 
 def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=None,
-                use_testbed=True, ellipse=False, resampled_phot=False, htmlplots=False,
+                use_testbed=False, ellipse=False, resampled_phot=False, htmlplots=False,
                 fullsample=False):
     """Read/generate the parent SGA catalog.
 
@@ -337,11 +337,11 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     # https://www.legacysurvey.org/viewer?ra=56.232562&dec=67.787128&layer=ls-dr9&zoom=13&sga&manga
     if ellipse or resampled_phot:
         if htmlplots:
-            DOCOLUMN = 'GOOD_MANGA'
+            DOCOLUMN = None # 'GOOD_MANGA'
         else:
             DOCOLUMN = 'DO_ELLIPSE'
     else:
-        DOCOLUMN = 'GOOD_MANGA'
+        DOCOLUMN = None # 'GOOD_MANGA'
 
     #bb = sample[np.isin(sample[REFIDCOLUMN], np.array([
     #    10506012702, 10504009102,
@@ -390,6 +390,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         '8156-1902',
         # no CCDs touching footprint
         '8086-6104', # tiny bit of data in the corner, but nothing usable
+        '10481-1901', '10481-3702', '10481-6103',
         '10480-12701', '10480-12702', '10480-12703', '10480-12704', '10480-12705', '10481-12701', 
         '10481-12702', '10481-12703', '10481-12704', '10481-12705', '10482-12701', '10482-12702', 
         '10482-12703', '10482-12704', '10482-12705', '10483-12701', '10483-12702', '10483-12703', 
@@ -540,8 +541,12 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     sample['DO_IMAGING'][np.isin(sample[GALAXYCOLUMN], remgals)] = False
 
     if not fullsample:
-        print('Cleaning up the sample; keeping objects with {}==True and DO_IMAGING==True.'.format(DOCOLUMN))
-        rem = sample[DOCOLUMN] * sample['DO_IMAGING']
+        if DOCOLUMN:
+            print(f'Cleaning up the sample; keeping objects with {DOCOLUMN}==True and DO_IMAGING==True.')
+            rem = sample[DOCOLUMN] * sample['DO_IMAGING']
+        else:
+            print(f'Cleaning up the sample; keeping objects with DO_IMAGING==True.')
+            rem = sample['DO_IMAGING']
         if np.sum(rem) > 0:
             sample = sample[rem]
 
@@ -584,7 +589,7 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
     from astropy.table import Table, vstack
     from legacyhalos.io import read_ellipsefit
 
-    version = '0.3.0' # '0.2.0.testbed' # 'v1.0'
+    version = '0.3.2' # '0.2.0.testbed' # 'v1.0'
 
     ngal = len(sample)
 
@@ -609,7 +614,9 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
         refid = onegal[REFIDCOLUMN]
         tractorfile = os.path.join(gdir, '{}-custom-tractor.fits'.format(gal))
         ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
-        if not os.path.isfile(tractorfile) and onegal['GOOD_MANGA'] and onegal['DO_IMAGING']:
+        #if not os.path.isfile(tractorfile) and onegal['GOOD_MANGA'] and onegal['DO_IMAGING']:
+        #    print('Missing Tractor catalog {}'.format(tractorfile))
+        if not os.path.isfile(tractorfile) and onegal['DO_IMAGING']:
             print('Missing Tractor catalog {}'.format(tractorfile))
         if not os.path.isfile(ellipsefile) and onegal['DO_ELLIPSE'] and onegal['DO_IMAGING']:
             print('Missing ellipse file {}'.format(ellipsefile))
