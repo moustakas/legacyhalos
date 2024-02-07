@@ -28,6 +28,6 @@ ENV PYTHONPATH=/src/legacyhalos/py:$PYTHONPATH
 ENV PATH=/src/legacyhalos/bin:$PATH
 
 # update legacyhalos
-RUN cd /src/legacyhalos && git pull && git describe && echo 8
+RUN cd /src/legacyhalos && git pull && git describe && echo 9
 
 LABEL Maintainer="John Moustakas jmoustakas@siena.edu"
