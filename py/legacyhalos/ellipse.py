@@ -22,6 +22,18 @@ import legacyhalos.io
 REF_SBTHRESH = [22, 22.5, 23, 23.5, 24, 24.5, 25, 25.5, 26] # surface brightness thresholds
 REF_APERTURES = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 3.0] # multiples of MAJORAXIS
 
+# ndim>1 columns when ellipse-fitting fails; note, this list is used by various
+# build_catalog functions (e.g., check virgofilaments.build_catalog), so change
+# with care!
+FAILCOLS = ['sma', 'intens', 'intens_err', 'eps', 'eps_err',
+            'pa', 'pa_err', 'x0', 'x0_err', 'y0', 'y0_err',
+            'a3', 'a3_err', 'a4', 'a4_err', 'rms', 'pix_stddev',
+            'stop_code', 'ndata', 'nflag', 'niter']
+FAILDTYPES = [np.int16, np.float32, np.float32, np.float32, np.float32,
+              np.float32, np.float32, np.float32, np.float32, np.float32, np.float32,
+              np.float32, np.float32, np.float32, np.float32, np.float32, np.float32,
+              np.int16, np.int16, np.int16, np.int16]
+
 def _get_r0():
     r0 = 10.0 # [arcsec]
     return r0
@@ -309,6 +321,7 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
 
         results['cog_chi2_{}'.format(filt.lower())] = np.float32(-1.0)
         results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1.0)
+        
         results['cog_sma_{}'.format(filt.lower())] = np.float32(-1.0) # np.array([])
         results['cog_flux_{}'.format(filt.lower())] = np.float32(0.0) # np.array([])
         results['cog_flux_ivar_{}'.format(filt.lower())] = np.float32(0.0) # np.array([])
@@ -501,60 +514,30 @@ def _unpack_isofit(ellipsefit, filt, isofit, failed=False):
     https://photutils.readthedocs.io/en/stable/api/photutils.isophote.IsophoteList.html#photutils.isophote.IsophoteList
 
     """
-    def _fill_failed(ellipsefit):
-        ellipsefit.update({
-            'sma_{}'.format(filt.lower()): np.array([-1]).astype(np.int16),
-            'intens_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'intens_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'eps_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'eps_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'pa_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'pa_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'x0_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'x0_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'y0_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'y0_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'a3_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'a3_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'a4_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'a4_err_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'rms_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'pix_stddev_{}'.format(filt.lower()): np.array([-1]).astype('f4'),
-            'stop_code_{}'.format(filt.lower()): np.array([-1]).astype(np.int16),
-            'ndata_{}'.format(filt.lower()): np.array([-1]).astype(np.int16), 
-            'nflag_{}'.format(filt.lower()): np.array([-1]).astype(np.int16), 
-            'niter_{}'.format(filt.lower()): np.array([-1]).astype(np.int16)})
-        return ellipsefit
+    def _fill_failed():
+        fail = {}
+        for col, dtype in zip(FAILCOLS, FAILDTYPES):
+            fail[f'{col}_{filt.lower()}'] = np.array([-1]).astype(dtype)
+        return fail
     
     if failed:
-        ellipsefit = _fill_failed(ellipsefit)
+        ellipsefit.update(_fill_failed())
     else:
         I = np.isfinite(isofit.intens) * np.isfinite(isofit.int_err)
         if np.sum(I) == 0:
-            ellipsefit = _fill_failed(ellipsefit)
+            ellipsefit.update(_fill_failed())
         else:
-            ellipsefit.update({
-                'sma_{}'.format(filt.lower()): isofit.sma[I].astype(np.int16),
-                'intens_{}'.format(filt.lower()): isofit.intens[I].astype('f4'),
-                'intens_err_{}'.format(filt.lower()): isofit.int_err[I].astype('f4'),
-                'eps_{}'.format(filt.lower()): isofit.eps[I].astype('f4'),
-                'eps_err_{}'.format(filt.lower()): isofit.ellip_err[I].astype('f4'),
-                'pa_{}'.format(filt.lower()): isofit.pa[I].astype('f4'),
-                'pa_err_{}'.format(filt.lower()): isofit.pa_err[I].astype('f4'),
-                'x0_{}'.format(filt.lower()): isofit.x0[I].astype('f4'),
-                'x0_err_{}'.format(filt.lower()): isofit.x0_err[I].astype('f4'),
-                'y0_{}'.format(filt.lower()): isofit.y0[I].astype('f4'),
-                'y0_err_{}'.format(filt.lower()): isofit.y0_err[I].astype('f4'),
-                'a3_{}'.format(filt.lower()): isofit.a3[I].astype('f4'),
-                'a3_err_{}'.format(filt.lower()): isofit.a3_err[I].astype('f4'),
-                'a4_{}'.format(filt.lower()): isofit.a4[I].astype('f4'),
-                'a4_err_{}'.format(filt.lower()): isofit.a4_err[I].astype('f4'),
-                'rms_{}'.format(filt.lower()): isofit.rms[I].astype('f4'),
-                'pix_stddev_{}'.format(filt.lower()): isofit.pix_stddev[I].astype('f4'),
-                'stop_code_{}'.format(filt.lower()): isofit.stop_code[I].astype(np.int16),
-                'ndata_{}'.format(filt.lower()): isofit.ndata[I].astype(np.int16),
-                'nflag_{}'.format(filt.lower()): isofit.nflag[I].astype(np.int16),
-                'niter_{}'.format(filt.lower()): isofit.niter[I].astype(np.int16)})
+            values = [isofit.sma[I], isofit.intens[I], isofit.int_err[I], isofit.eps[I], isofit.ellip_err[I],
+                      isofit.pa[I], isofit.pa_err[I], isofit.x0[I], isofit.x0_err[I], isofit.y0[I], isofit.y0_err[I],
+                      isofit.a3[I], isofit.a3_err[I], isofit.a4[I], isofit.a4_err[I], isofit.rms[I], isofit.pix_stddev[I],
+                      isofit.stop_code[I], isofit.ndata[I], isofit.nflag[I], isofit.niter[I]]
+            if len(values) != len(FAILCOLS):
+                print('Unanticipated data model change!')
+                raise ValueError
+            data = {}
+            for col, dtype, value in zip(FAILCOLS, FAILDTYPES, values):
+                data[f'{col}_{filt.lower()}'] = value.astype(dtype)
+            ellipsefit.update(data)
     return ellipsefit
 
 def _integrate_isophot_one(args):

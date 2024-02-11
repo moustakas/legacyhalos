@@ -140,8 +140,8 @@ def get_run(onegal, racolumn='RA', deccolumn='DEC'):
     return run
 
 # ellipsefit data model
-def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'], add_datamodel_cols=None,
-                           copy_mw_transmission=False):
+def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'],
+                           add_datamodel_cols=None, copy_mw_transmission=False):
     cols = [
         ('bands', None),
         ('refband', None),
