@@ -117,8 +117,8 @@ def main():
             #if len(groups) == 0:
             #    print('No complete galaxies!')
             #    return
-            build_catalog(sample, fullsample, nproc=args.nproc, verbose=args.verbose,
-                          refcat=refcat, clobber=args.clobber)
+            build_catalog(sample, fullsample, bands=['g', 'r', 'z'], unwise=True, galex=True, 
+                          nproc=args.nproc, verbose=args.verbose, refcat=refcat, clobber=args.clobber)
     
             #build_catalog(sample[groups[0]], nproc=args.nproc, verbose=args.verbose, refcat=refcat,
             #              clobber=args.clobber)
