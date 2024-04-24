@@ -3,6 +3,9 @@
 
 manga-mpi --coadds
 
+salloc -N 4 -C cpu -A m3592 -t 04:00:00 --qos interactive --image=legacysurvey/legacyhalos:v1.6
+sh /global/cfs/cdirs/desi/users/ioannis/legacyhalos/manga/manga-mpi.sh 4 32 resampled > manga-mpi-resampled-21830623.log 2>&1 &
+
 """
 import os, time, pdb
 import numpy as np
@@ -319,6 +322,11 @@ def main():
                                               barlen=barlen, barlabel=barlabel, 
                                               clobber=args.clobber, logfile=logfile)
             else:
+                rgal, resampleddir = get_galaxy_galaxydir(onegal, resampled=True)
+                checkfile = os.path.join(resampleddir, f'resampled-{rgal}-r.fits')
+                if not os.path.isfile(checkfile):
+                    print(f'Missing {checkfile}; skipping')
+                    continue
                 from legacyhalos.manga import call_resampled_phot
                 call_resampled_phot(onegal, galaxy=galaxy, galaxydir=galaxydir, orig_galaxydir=orig_galaxydir,
                                     resampled_pixscale=args.resampled_pixscale,
