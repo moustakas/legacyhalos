@@ -84,7 +84,7 @@ def main():
             use_testbed = False
 
         if args.build_catalog:
-            fullsample = True
+            fullsample = False # True
         else:
             fullsample = False
             

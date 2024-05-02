@@ -390,6 +390,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
         '8156-1902',
         # no CCDs touching footprint
         '8086-6104', # tiny bit of data in the corner, but nothing usable
+        '8086-6102', # missing data at the center
         '10481-1901', '10481-3702', '10481-6103',
         '10480-12701', '10480-12702', '10480-12703', '10480-12704', '10480-12705', '10481-12701', 
         '10481-12702', '10481-12703', '10481-12704', '10481-12705', '10482-12701', '10482-12702', 
@@ -582,7 +583,168 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
 
     return sample
 
+
+def _build_catalog_one(args):
+    """Wrapper function for the multiprocessing."""
+    return build_catalog_one(*args)
+
+
+def build_catalog_one(galaxy, galaxydir, resamp_galaxydir, onegal, refcat='R1', verbose=False):
+    """Gather the ellipse-fitting results for a single group."""
+    import fitsio
+    from astropy.table import Table, vstack
+    from legacyhalos.io import read_ellipsefit
+
+    refid = onegal[REFIDCOLUMN]
+
+    tractorfile = os.path.join(galaxydir, f'{galaxy}-custom-tractor.fits')
+    if not os.path.isfile(tractorfile):
+        print('Missing Tractor catalog {}'.format(tractorfile))
+        return None, None, None, None
+
+    #print(f'Working on {onegal["GALAXY"]}')
+    refid = onegal[REFIDCOLUMN]
+    
+    ellipsefile = os.path.join(galaxydir, f'{galaxy}-custom-ellipse-{refid}.fits')
+    if not os.path.isfile(ellipsefile):
+        print('Missing ellipse file {}'.format(ellipsefile))
+        return None, None, None, None
+
+    ellipse = read_ellipsefit(galaxy, galaxydir, galaxy_id=str(refid), asTable=True,
+                              filesuffix='custom', verbose=True)
+    for col in ellipse.colnames:
+        if ellipse[col].ndim > 1:
+            ellipse.remove_column(col)
+
+    tractor = Table(fitsio.read(tractorfile, upper=True, columns=['REF_CAT', 'REF_ID']))
+    match = np.where((tractor['REF_CAT'] == refcat) * (tractor['REF_ID'] == refid))[0]
+    if len(match) != 1:
+        raise ValueError('Problem here!')
+
+    tractor = Table(fitsio.read(tractorfile, upper=True, rows=match))
+
+    if resamp_galaxydir is None:
+        phot = Table()
+    else:
+        resampfile = os.path.join(resamp_galaxydir, '{}-resampled-ellipse-{}.fits'.format(galaxy, refid))
+        if os.path.isfile(resampfile):
+            phot = read_ellipsefit(galaxy, resamp_galaxydir, galaxy_id=str(refid), asTable=True,
+                                   filesuffix='resampled', verbose=True)
+            for col in phot.colnames:
+                if phot[col].ndim > 1:
+                    phot.remove_column(col)
+        else:
+            print('Missing resampled photometry {}'.format(resampfile))
+
+    return tractor, Table(onegal), ellipse, phot
+
+
 def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, clobber=False):
+    import time
+    import multiprocessing
+    from astropy.io import fits
+    from astropy.table import Table, vstack
+
+    version = '0.3.2' # '0.2.0.testbed' # 'v1.0'
+    
+    ngal = len(sample)
+
+    if resampled:
+        outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-{}.fits'.format(version))
+    else:
+        outfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'manga-legacyphot-native-{}.fits'.format(version))
+        
+    if os.path.isfile(outfile) and not clobber:
+        print('Use --clobber to overwrite existing catalog {}'.format(outfile))
+        return None
+
+    # figure out which ndim>1 columns to drop
+    galaxy, galaxydir = get_galaxy_galaxydir(sample)
+    if resampled:
+        _, resamp_galaxydir = get_galaxy_galaxydir(sample, resampled=resampled)
+    else:
+        resamp_galaxydir = [None] * ngal
+
+    # build the mp list
+    buildargs = []
+    for gal, gdir, rdir, onegal in zip(galaxy, galaxydir, resamp_galaxydir, sample):
+        buildargs.append((gal, gdir, rdir, onegal, refcat, verbose))
+
+    t0 = time.time()
+    if nproc > 1:
+        with multiprocessing.Pool(nproc) as P:
+            results = P.map(_build_catalog_one, buildargs)
+    else:
+        results = [build_catalog_one(*_buildargs) for _buildargs in buildargs]
+
+    results = list(zip(*results))
+    tractor = list(filter(None, results[0]))
+    parent = list(filter(None, results[1]))
+    ellipse = list(filter(None, results[2]))
+    assert(len(ellipse) == len(parent))
+    assert(len(tractor) == len(parent))
+    
+    ellipse = vstack(ellipse, metadata_conflicts='silent')
+    tractor = vstack(tractor, metadata_conflicts='silent')
+    parent = vstack(parent, metadata_conflicts='silent')
+    if resampled:
+        phot = list(filter(None, results[3]))
+        phot = vstack(phot, metadata_conflicts='silent')
+        assert(len(phot) == len(parent))
+    print('Merging {} galaxies took {:.2f} min.'.format(len(tractor), (time.time()-t0)/60.0))
+    assert(len(tractor) == len(parent))
+
+    del results
+
+    # row-match the merged catalogs to the input sample catalog
+    I = np.isin(sample[REFIDCOLUMN], parent[REFIDCOLUMN])
+    assert(np.all(sample[I] == parent))
+    
+    out_ellipse = Table()
+    for col in ellipse.colnames:
+        out_ellipse[col] = np.zeros(ngal, dtype=ellipse[col].dtype)
+    out_ellipse[I] = ellipse
+
+    out_tractor = Table()
+    for col in tractor.colnames:
+        if len(tractor[col].shape) > 1:
+            out_tractor[col] = np.zeros((ngal, tractor[col].shape[1]), dtype=tractor[col].dtype)
+        else:
+            out_tractor[col] = np.zeros(ngal, dtype=tractor[col].dtype)
+    out_tractor[I] = tractor
+
+    if resampled:
+        out_phot = Table()
+        for col in phot.colnames:
+            out_phot[col] = np.zeros(ngal, dtype=phot[col].dtype)
+            out_phot[I] = phot
+
+    del phot, tractor, ellipse
+
+    # write out
+    hdu_primary = fits.PrimaryHDU()
+    hdu_parent = fits.convenience.table_to_hdu(sample) # parent)
+    hdu_parent.header['EXTNAME'] = 'PARENT'
+        
+    hdu_ellipse = fits.convenience.table_to_hdu(out_ellipse)
+    hdu_ellipse.header['EXTNAME'] = 'ELLIPSE'
+
+    hdu_tractor = fits.convenience.table_to_hdu(out_tractor)
+    hdu_tractor.header['EXTNAME'] = 'TRACTOR'
+        
+    if resampled:
+        hdu_phot = fits.convenience.table_to_hdu(out_phot)
+        hdu_phot.header['EXTNAME'] = 'RESAMPLED'
+        hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_phot, hdu_tractor])
+    else:
+        hx = fits.HDUList([hdu_primary, hdu_parent, hdu_ellipse, hdu_tractor])
+        
+    hx.writeto(outfile, overwrite=True, checksum=True)
+
+    print('Wrote {} galaxies to {}'.format(len(sample), outfile))
+
+
+def old_build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, clobber=False):
     import time
     import fitsio
     from astropy.io import fits
@@ -610,14 +772,15 @@ def build_catalog(sample, nproc=1, refcat='R1', resampled=False, verbose=False, 
 
     t0 = time.time()
     tractor, parent, ellipse, phot = [], [], [], []
-    for gal, gdir, rdir, onegal in zip(galaxy, galaxydir, resamp_galaxydir, sample):
+    for igal, (gal, gdir, rdir, onegal) in enumerate(zip(galaxy, galaxydir, resamp_galaxydir, sample)):
         refid = onegal[REFIDCOLUMN]
+
         tractorfile = os.path.join(gdir, '{}-custom-tractor.fits'.format(gal))
-        ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
-        #if not os.path.isfile(tractorfile) and onegal['GOOD_MANGA'] and onegal['DO_IMAGING']:
-        #    print('Missing Tractor catalog {}'.format(tractorfile))
         if not os.path.isfile(tractorfile) and onegal['DO_IMAGING']:
             print('Missing Tractor catalog {}'.format(tractorfile))
+            return None, None, None, None
+        
+        ellipsefile = os.path.join(gdir, '{}-custom-ellipse-{}.fits'.format(gal, refid))
         if not os.path.isfile(ellipsefile) and onegal['DO_ELLIPSE'] and onegal['DO_IMAGING']:
             print('Missing ellipse file {}'.format(ellipsefile))
         
