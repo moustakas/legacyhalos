@@ -377,9 +377,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #else:
     #    psfsrcs = None
 
-    minsize = 15.0
-    # minsize = 50.0
-    def tractor2mge(indx, factor=1.0, minsize=minsize):
+    def tractor2mge(indx, factor=1.0, minsize=15.0):
         # Convert a Tractor catalog entry to an MGE object.
         class MGEgalaxy(object):
             pass
@@ -450,7 +448,6 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         majoraxis10 = 0.1 * mgegalaxy.majoraxis
         if majoraxis10 < minsize / filt2pixscale[refband]: # [pixels]
             majoraxis10 = minsize / filt2pixscale[refband]
-        print(mgegalaxy.majoraxis, majoraxis10)
         objmask_center = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                       majoraxis10, majoraxis10 * (1-mgegalaxy.eps), 
                                       np.radians(mgegalaxy.theta-90), xobj, yobj)
@@ -1166,7 +1163,7 @@ def _get_mags(cat, rad='10', bands=['g', 'r', 'i', 'z'],
 
 def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
                    racolumn=RACOLUMN, deccolumn=DECCOLUMN, diamcolumn=DIAMCOLUMN,
-                   maketrends=False, fix_permissions=False):
+                   maketrends=False, fix_permissions=True):
     """Build the home (index.html) page and, optionally, the trends.html top-level
     page.
 
@@ -1247,10 +1244,8 @@ def build_htmlhome(sample, htmldir, htmlhome='index.html', pixscale=0.262,
         html.write('<b><i>Last updated {}</b></i>\n'.format(js))
         html.write('</html></body>\n')
 
-    """
     if fix_permissions:
         shutil.chown(htmlhomefile, group='cosmo')
-    """
 
 def _build_htmlpage_one(args):
     """Wrapper function for the multiprocessing."""
@@ -1638,7 +1633,7 @@ def make_html(sample=None, datadir=None, htmldir=None, bands=['g', 'r', 'i', 'z'
               first=None, last=None, galaxylist=None, galex=False, unwise=False, 
               nproc=1, survey=None, makeplots=False,
               clobber=False, verbose=True, maketrends=False, ccdqa=False,
-              args=None, fix_permissions=False):
+              args=None, fix_permissions=True):
     """Make the HTML pages.
 
     """
