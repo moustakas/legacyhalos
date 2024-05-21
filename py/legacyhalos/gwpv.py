@@ -200,7 +200,7 @@ def read_sample(first=None, last=None, galaxylist=None, verbose=False, columns=N
     import fitsio
     from legacyhalos.desiutil import brickname as get_brickname
 
-    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'gwpv-groups.fits')
+    samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'GW170817_groups_2.fits')
     #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates.fits')
 
     if first and last:
@@ -377,7 +377,7 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
     #else:
     #    psfsrcs = None
 
-    def tractor2mge(indx, factor=1.0, minsize=15.):
+    def tractor2mge(indx, factor=1.0, minsize=15.0):
         # Convert a Tractor catalog entry to an MGE object.
         class MGEgalaxy(object):
             pass
@@ -448,7 +448,6 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
         majoraxis10 = 0.1 * mgegalaxy.majoraxis
         if majoraxis10 < minsize / filt2pixscale[refband]: # [pixels]
             majoraxis10 = minsize / filt2pixscale[refband]
-        print(mgegalaxy.majoraxis, majoraxis10)
         objmask_center = ellipse_mask(mgegalaxy.xmed, mgegalaxy.ymed, # object pixels are True
                                       majoraxis10, majoraxis10 * (1-mgegalaxy.eps), 
                                       np.radians(mgegalaxy.theta-90), xobj, yobj)
@@ -552,8 +551,11 @@ def _build_multiband_mask(data, tractor, filt2pixscale, fill_value=0.0,
                 (srcs.type != 'PSF') * (srcs.shape_r > r50mask) *
                 (satflux > 0.0) * ((satflux / cenflux) > threshmask),
                 srcs.ref_cat == 'R1'))[0]
-            #satindx = np.where(srcs.ref_cat == 'R1')[0]
-            #if np.isin(central, satindx):
+            # satindx = np.where(satflux > -np.inf)
+            # satindx = np.array([])
+            # satindx = np.where(srcs.type != 'PSF')
+            # satindx = np.where(srcs.ref_cat == 'R1')[0]
+            # if np.isin(central, satindx):
             #    satindx = satindx[np.logical_not(np.isin(satindx, central))]
             if len(satindx) == 0:
                 #raise ValueError('All satellites have been dropped!')
@@ -795,6 +797,9 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     starmask = ( (maskbits & MASKBITS['BRIGHT'] != 0) | (maskbits & MASKBITS['MEDIUM'] != 0) |
                  (maskbits & MASKBITS['CLUSTER'] != 0) | (maskbits & MASKBITS['ALLMASK_G'] != 0) |
                  (maskbits & MASKBITS['ALLMASK_R'] != 0) | (maskbits & MASKBITS['ALLMASK_Z'] != 0) )
+    # starmask = (maskbits & MASKBITS['BRIGHT'] != 0) | (maskbits & MASKBITS['MEDIUM'] != 0)
+    # starmask = np.full_like(starmask, fill_value=False, dtype=bool)
+    # print("Mask bits", starmask, flush=True)
 
     # Are we doing sky tests? If so, build the dictionary of sky values here.
 
@@ -831,7 +836,6 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     # keep all objects
     galaxy_indx = []
     galaxy_indx = np.hstack([np.where(sid == tractor.ref_id)[0] for sid in sample[REFIDCOLUMN]])
-    #if len(galaxy_indx
 
     #sample = sample[np.searchsorted(sample['VF_ID'], tractor.ref_id[galaxy_indx])]
     assert(np.all(sample[REFIDCOLUMN] == tractor.ref_id[galaxy_indx]))
@@ -854,9 +858,9 @@ def read_multiband(galaxy, galaxydir, filesuffix='custom',
     data['galaxy_indx'] = galaxy_indx
 
     # Now build the multiband mask.
-    data = _build_multiband_mask(data, tractor, filt2pixscale,
-                                 fill_value=fill_value,
-                                 verbose=verbose)
+    data = _build_multiband_mask(data, tractor, filt2pixscale, fill_value=fill_value,
+                                 threshmask=0.01, r50mask=0.05, maxshift=10,
+                                 relmaxshift=0.1, sigmamask=3.0, neighborfactor=1.0, verbose=verbose)
 
     #import matplotlib.pyplot as plt
     #plt.clf() ; plt.imshow(np.log10(data['g_masked'][0]), origin='lower') ; plt.savefig('junk1.png')

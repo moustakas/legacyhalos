@@ -260,6 +260,7 @@ def _get_ellipse_datamodel(sbthresh, apertures, bands=['g', 'r', 'z'],
         cols.append(('cog_alpha2_ivar_{}'.format(band.lower()), None))
         cols.append(('cog_chi2_{}'.format(band.lower()), None))
         cols.append(('cog_sma50_{}'.format(band.lower()), u.arcsec))
+        cols.append(('cog_sma50_ivar_{}'.format(band.lower()), u.arcsec))
 
     if add_datamodel_cols is not None:
         cols = cols + add_datamodel_cols

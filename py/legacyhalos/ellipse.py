@@ -78,7 +78,11 @@ class CogModel(astropy.modeling.Fittable1DModel):
         """Evaluate the COG model."""
         model = mtot + m0 * (1 - np.exp(-alpha1*(radius/self.r0)**(-alpha2)))
         return model
-   
+
+def calc_r50(m0, alpha1, alpha2):
+    """Calculate half-light semi-major axis (in arcseconds) from curve of growth parameters."""
+    return ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0()
+
 def _apphot_one(args):
     """Wrapper function for the multiprocessing."""
     return apphot_one(*args)
@@ -318,9 +322,10 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
         results['cog_alpha1_ivar_{}'.format(filt.lower())] = np.float32(0.0)
         results['cog_alpha2_{}'.format(filt.lower())] = np.float32(0.0)
         results['cog_alpha2_ivar_{}'.format(filt.lower())] = np.float32(0.0)
+        results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1.0)
+        results['cog_sma50_ivar_{}'.format(filt.lower())] = np.float32(0.0)
 
         results['cog_chi2_{}'.format(filt.lower())] = np.float32(-1.0)
-        results['cog_sma50_{}'.format(filt.lower())] = np.float32(-1.0)
         
         results['cog_sma_{}'.format(filt.lower())] = np.float32(-1.0) # np.array([])
         results['cog_flux_{}'.format(filt.lower())] = np.float32(0.0) # np.array([])
@@ -414,10 +419,11 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                 results['cog_alpha1_{}'.format(filt.lower())] = np.float32(alpha1)
                 results['cog_alpha2_{}'.format(filt.lower())] = np.float32(alpha2)
                 results['cog_chi2_{}'.format(filt.lower())] = np.float32(minchi2)
+                results['cog_sma50_{}'.format(filt.lower())] = np.float32(calc_r50(m0, alpha1, alpha2))
 
                 # Monte Carlo to get the variance
                 if nmonte > 0:
-                    monte_mtot, monte_m0, monte_alpha1, monte_alpha2 = [], [], [], []
+                    monte_mtot, monte_m0, monte_alpha1, monte_alpha2, monte_r50 = [], [], [], [], []
                     for _ in np.arange(nmonte):
                         try:
                             monte_popt, monte_minchi2 = cog_dofit(sma_arcsec, rand.normal(loc=cogmag, scale=cogmagerr),
@@ -430,24 +436,26 @@ def ellipse_cog(bands, data, refellipsefit, igal=0, pool=None,
                             monte_alpha1.append(monte_popt[2])
                             monte_alpha2.append(monte_popt[3])
 
+                            # get the half-light radius (along the major axis)
+                            if (monte_popt[1] != 0) * (monte_popt[2] != 0.0) * (monte_popt[3] != 0.0):
+                                with np.errstate(all='ignore'):                        
+                                    monte_r50.append(calc_r50(monte_popt[1], monte_popt[2], monte_popt[3]))
+                            else:
+                                monte_r50.append(-1.0)
+
                     if len(monte_mtot) > 2:
                         mtot_sig = np.std(monte_mtot)
                         m0_sig = np.std(monte_m0)
                         alpha1_sig = np.std(monte_alpha1)
                         alpha2_sig = np.std(monte_alpha2)
+                        r50_sig = np.std(monte_r50)
 
                         if mtot_sig > 0 and m0_sig > 0 and alpha1_sig > 0 and alpha2_sig > 0:
                             results['cog_mtot_ivar_{}'.format(filt.lower())] = np.float32(1/mtot_sig**2)
                             results['cog_m0_ivar_{}'.format(filt.lower())] = np.float32(1/m0_sig**2)
                             results['cog_alpha1_ivar_{}'.format(filt.lower())] = np.float32(1/alpha1_sig**2)
                             results['cog_alpha2_ivar_{}'.format(filt.lower())] = np.float32(1/alpha2_sig**2)
-
-                # get the half-light radius (along the major axis)
-                if (m0 != 0) * (alpha1 != 0.0) * (alpha2 != 0.0):
-                    #half_light_sma = (- np.log(1.0 - np.log10(2.0) * 2.5 / m0) / alpha1)**(-1.0/alpha2) * _get_r0() # [arcsec]
-                    with np.errstate(all='ignore'):                        
-                        half_light_sma = ((np.expm1(np.log10(2.0)*2.5/m0)) / alpha1)**(-1.0 / alpha2) * _get_r0() # [arcsec]
-                    results['cog_sma50_{}'.format(filt.lower())] = np.float32(half_light_sma)
+                            results['cog_sma50_ivar_{}'.format(filt.lower())] = np.float32(1/r50_sig**2)
 
             # This code is not needed anymore because we do proper aperture photometry above.
 
