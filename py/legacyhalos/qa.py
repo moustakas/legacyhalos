@@ -406,7 +406,7 @@ def qa_curveofgrowth(ellipsefit, pipeline_ellipsefit=None, png=None,
     xlim = ax.get_xlim()
     if smascale:
         ax_twin = ax.twiny()
-        ax_twin.set_xlim(xlim[0]*smascale, xlim[1]*smascale)
+        ax_twin.set_xlim(xlim[0]**4*smascale, xlim[1]**4*smascale)
         ax_twin.set_xlabel('Semi-major axis (kpc)')
     #ax_twin.margins(x=0)
 
