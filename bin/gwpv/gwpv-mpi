@@ -4,7 +4,7 @@
 
 """
 
-import os, time, pdb
+import os, time, sys
 import numpy as np
 from astropy.table import Table
 
@@ -12,6 +12,10 @@ def main():
     """Top-level wrapper.
 
     """
+    # Hardcode local path to legacyhalos repo
+    sys.path.remove('/src/legacyhalos/py')
+    sys.path.append('/global/homes/a/amsellem/legacyhalos/py')
+    
     import legacyhalos.io
     import legacyhalos.gwpv
 
@@ -171,10 +175,7 @@ def main():
             logfile = os.path.join(galaxydir, '{}-{}.log'.format(galaxy, suffix))
         
         # Need the object "radius" to build the coadds.
-        if onegal['DIAM_INIT'] > 2.:
-            radius_mosaic_arcsec = 2. * onegal['DIAM_INIT'] * 60. # [arcsec]
-        else:
-            radius_mosaic_arcsec = 2. * onegal['DIAM_INIT'] * 60. # [arcsec]
+        radius_mosaic_arcsec = 2. * onegal['DIAM_INIT'] * 60. # [arcsec]
 
         run = legacyhalos.io.get_run(onegal, racolumn=RACOLUMN, deccolumn=DECCOLUMN)
         survey = get_survey(run, output_dir=galaxydir)
@@ -236,7 +237,7 @@ def main():
                            qa_multiwavelength_sed=qa_multiwavelength_sed,
                            #galaxy_id=onegal['VF_ID'],                           
                            galex=False, unwise=False,
-                           linear=True, plot_colors=False,
+                           linear=False, plot_colors=False,
                            get_galaxy_galaxydir=get_galaxy_galaxydir,
                            read_multiband=read_multiband)                           
 

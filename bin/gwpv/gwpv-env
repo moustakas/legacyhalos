@@ -5,16 +5,16 @@ project=gwpv
 
 #############################
 # For a power-user / testing.
-export LEGACYPIPE_CODE_DIR=/global/homes/i/ioannis/code/git/legacypipe
-export LEGACYHALOS_CODE_DIR=/global/homes/i/ioannis/code/git/legacyhalos
+export LEGACYPIPE_CODE_DIR=/global/homes/a/amsellem/legacypipe
+export LEGACYHALOS_CODE_DIR=/global/homes/a/amsellem/legacyhalos
 export PYTHONPATH=$LEGACYHALOS_CODE_DIR/py:$LEGACYPIPE_CODE_DIR/py:$PYTHONPATH
 export PATH=$LEGACYHALOS_CODE_DIR/bin/$project:$PATH
 #############################
 
 # Specify the location of the input and output data.
-export LEGACYHALOS_DIR=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/$project
-export LEGACYHALOS_DATA_DIR=/global/cfs/cdirs/desi/users/ioannis/$project-data
-export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/cosmo/www/temp/ioannis/$project-html
+export LEGACYHALOS_DIR=/global/cfs/cdirs/m4237/amsellem/gwpv/$project
+export LEGACYHALOS_DATA_DIR=/global/cfs/cdirs/m4237/amsellem/gwpv/$project-data
+export LEGACYHALOS_HTML_DIR=/global/cfs/cdirs/desicollab/users/amsellem/$project-html
 
 # Pipeline variables---only change these if you know what you're doing!
 export LEGACY_SURVEY_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr10
@@ -22,7 +22,7 @@ export SKY_TEMPLATE_DIR=/global/cfs/cdirs/cosmo/work/legacysurvey/dr10/calib/sky
 
 #export LARGEGALAXIES_CAT=/global/cfs/cdirs/cosmo/staging/largegalaxies/v3.0/SGA-ellipse-v3.0.kd.fits
 #export LARGEGALAXIES_CAT=/global/cfs/cdirs/cosmo/staging/largegalaxies/v3.0/SGA-parent-v3.0.kd.fits
-export LARGEGALAXIES_CAT=/global/cfs/cdirs/desi/users/ioannis/legacyhalos/$project/$project-refcat.kd.fits
+export LARGEGALAXIES_CAT=/global/cfs/cdirs/m4237/amsellem/gwpv/$project/gwpv-refcat.kd.fits
 
 export GAIA_CAT_DIR=/global/cfs/cdirs/desi/target/gaia_edr3/healpix
 export GAIA_CAT_PREFIX=healpix
@@ -49,19 +49,3 @@ export MPICH_GNI_FORK_MODE=FULLCOPY
 export TMPCACHE=$(mktemp -d)
 mkdir $TMPCACHE/cache
 mkdir $TMPCACHE/config
-# astropy
-export XDG_CACHE_HOME=$TMPCACHE/cache
-export XDG_CONFIG_HOME=$TMPCACHE/config
-mkdir $XDG_CACHE_HOME/astropy
-cp -r /global/homes/i/ioannis/.astropy/cache $XDG_CACHE_HOME/astropy
-mkdir $XDG_CONFIG_HOME/astropy
-cp -r /global/homes/i/ioannis/.astropy/config $XDG_CONFIG_HOME/astropy
-# matplotlib
-export MPLCONFIGDIR=$TMPCACHE/matplotlib
-mkdir $MPLCONFIGDIR
-cp -r /global/homes/i/ioannis/.config/matplotlib $MPLCONFIGDIR
-## ipython
-#export IPYTHONDIR=$TMPCACHE/ipython
-#mkdir $IPYTHONDIR
-#cp -r /global/homes/i/ioannis/.ipython $IPYTHONDIR  
-#

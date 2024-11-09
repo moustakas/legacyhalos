@@ -131,73 +131,29 @@ def build_group_catalog(cat, mfac=1.5, dmax=3.0/60.0):
         
     return cat
 
-def qa(version='v1'):
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    sns.set(context='talk', style='ticks', font_scale=1.2)
-
-    fig, ax = plt.subplots(2, 2, figsize=(13, 10))
-    ax[0, 0].scatter(cat['RA'][m1], cat['DEC'][m1], s=5)
-    ax[0, 0].scatter(cat['RA'][miss], cat['DEC'][miss], s=5)
-    ax[0, 0].set_xlim(290, 90)
-    ax[0, 0].set_xlabel('RA')
-    ax[0, 0].set_ylabel('Dec')
-
-    ax[0, 1].hist(cat['RADIUS'][m1]*2/60, bins=50, range=(0, 8),
-                  label='SGA-match (N={})'.format(len(m1)))
-    ax[0, 1].hist(cat['RADIUS'][miss]*2/60, bins=50, range=(0, 8), alpha=0.5,
-                  label='SGA-no match (N={})'.format(len(miss)))
-    ax[0, 1].set_yscale('log')
-    ax[0, 1].set_xlabel('log Radius (arcmin)')
-    ax[0, 1].set_ylabel('Number of Galaxies')
-    ax[0, 1].legend(loc='upper right', fontsize=14)
-
-    ax[1, 0].scatter(sga['DIAM_INIT'][m2], cat['RADIUS'][m1]*2/60, s=5)
-    ax[1, 0].set_xlabel('SGA Diameter [arcmin]')
-    ax[1, 0].set_ylabel('Input Diameter [arcmin]')
-
-    ax[1, 1].axis('off')
-
-    fig.subplots_adjust(left=0.1, bottom=0.15, right=0.98, hspace=0.25, wspace=0.2)
-    fig.savefig(os.path.join(homedir, 'qa-virgofilaments-{}-SGA.png'.format(version)))
-
 def main():
 
-    import fitsio
-    from astrometry.libkd.spherematch import match_radec
     import legacyhalos.io
 
     #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates.csv')
     #samplefile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates.fits')
-    groupfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'gwpv-groups.fits')
+    groupfile = os.path.join(legacyhalos.io.legacyhalos_dir(), 'GW170817_groups_2.fits')
 
-    cat1 = Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates_v2.csv'))
-    cat2 = Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'pv_group_candidates_v2b.csv'))
-    cat2['PVID'] += 5000
-
-    cat = vstack((cat1, cat2))
-    cat['BA'] = 1.
-    cat['PA'] = 0.
-
-    #cat = Table.read(samplefile)
-    #cat = Table(fitsio.read(samplefile, upper=True))
-    #print(f'Read {len(cat)} objects from {samplefile}')
-
-    #cat['PVID'] = cat['PVID'].astype(np.int16)
-    cat['DIAM_INIT'] = cat['DIAMETER'] / 60. # [arcmin]
-    cat.remove_column('DIAMETER')
+    cat = Table.read(os.path.join(legacyhalos.io.legacyhalos_dir(), 'GW170817_targets_2.csv'))
+    cat['BA'] = cat["Semi-Minor Axis (arcsec)"] / cat["Semi-Major Axis (arcsec)"]
+    cat['PA'] = cat["Position Angle (degrees)"]
+    cat['DIAM_INIT'] = cat["Semi-Major Axis (arcsec)"] / 60. # [arcmin]
     cat.rename_column('PA', 'PA_INIT')
     cat.rename_column('BA', 'BA_INIT')
     cat['DIAM_INIT'] = cat['DIAM_INIT'].astype('f4')
     cat['PA_INIT'] = cat['PA_INIT'].astype('f4')
     cat['BA_INIT'] = cat['BA_INIT'].astype('f4')
-    #cat['GALAXY'] = cat['TARGETID'].astype(str)
-    cat['GALAXY'] = [f'{pvid:05d}' for pvid in cat['PVID']]
+    cat['GALAXY'] = cat['PVID']
+    cat["PVID"] = [int(my_id[9:]) for my_id in cat["PVID"]]
 
     out = build_group_catalog(cat)
     print(f'Writing {groupfile}')
     out.write(groupfile, overwrite=True)
-
 if __name__ == '__main__':
     main()
 
